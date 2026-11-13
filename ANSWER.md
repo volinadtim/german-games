@@ -1,6 +1,27 @@
 # Последний ответ
 
-**Промпты:** 13.11 19:00–20:31 МСК.
+**Промпты:** 13.11 19:00–20:32 МСК.
+
+## Всё ещё «не найдено» (скрин 20:32)
+С `.\` команда написана правильно. Значит, в папке `bin` **нет файла `sdkmanager.bat`**: туда не распакован нужный архив. Скорее всего, папки созданы вручную или туда распакован `platform-tools` (это другой архив).
+
+**Проверь:** в этой же папке выполни
+```
+dir
+```
+Должны быть `sdkmanager.bat`, `avdmanager.bat` и ещё несколько файлов. Если пусто или там `adb.exe`, значит архив не тот.
+
+**Как правильно:**
+1. Скачай архив **`commandlinetools-win-…_latest.zip`**. Он на странице developer.android.com/studio, внизу, в разделе **«Command line tools only»**, строка **Windows**.
+2. Открой архив: внутри одна папка **`cmdline-tools`**, а в ней `bin`, `lib`, `NOTICE.txt`, `source.properties`.
+3. Скопируй **содержимое** этой внутренней папки (`bin`, `lib` и файлы) в `C:\Android\Sdk\cmdline-tools\latest`. Получится `C:\Android\Sdk\cmdline-tools\latestin\sdkmanager.bat`.
+4. Снова:
+```
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.21.9-hotspot"
+cd C:\Android\Sdk\cmdline-tools\latestin
+.\sdkmanager.bat --licenses
+.\sdkmanager.bat "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+```
 
 ## Ошибка `sdkmanager.bat is not recognized` (скрин 20:31)
 PowerShell не запускает программы из текущей папки просто по имени — перед именем нужно поставить **`.\`** (точку и обратный слеш):
