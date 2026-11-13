@@ -3,8 +3,7 @@ extends CharacterBody3D
 ## WASD, Shift — бег, пробел — прыжок, ПКМ — режим кулаков (руки в стойку), ЛКМ — удар.
 
 const Sfx := preload("res://sfx.gd")
-## Шаг — приглушённый шорох (sfx.gd: step_noise). Присланный sounds/step.mp3 сейчас не используется:
-## в нём 0.2 с тишины перед ударом, и на слух шорох шёл раньше него — оставили только шорох.
+## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы.
 const STEP_DB := -20.0      # громкость шага относительно ходьбы (-10 дБ)
 
 const WALK := 3.4
@@ -15,6 +14,10 @@ const JUMP := 5.0            # ~0.55 м
 const SENS := 0.0022
 const CAM_Y := 1.7
 const FOV := 75.0
+const HIP_Y := 0.86
+const LEG_L1 := 0.42              # бедро
+const LEG_L2 := 0.42              # голень
+const GROUND_Y := 0.09 - HIP_Y    # высота голеностопа над полом относительно бедра
 const ACCEL_WALK := 5.0
 const ACCEL_SPRINT := 3.2
 
@@ -30,7 +33,18 @@ const PUNCHES := {
 var active := false
 var cam: Camera3D
 var head: Node3D
-var legs: Array[Node3D] = []
+var legs: Array[Node3D] = []      # тазобедренные шарниры
+var knees: Array[Node3D] = []
+var ankles: Array[Node3D] = []
+var foot: Array[Vector3] = [Vector3(0, GROUND_Y, 0), Vector3(0, GROUND_Y, 0)]  # цель стопы от бедра
+var gait := 0.0                   # фаза цикла шага 0..1 (левая нога; правая сдвинута на 0.5)
+var gait_prev: Array[float] = [0.0, 0.5]
+var move_dir := Vector3(0, 0, -1) # направление движения в локальных осях
+var stopping := false
+var settle_t: Array[float] = [1.0, 1.0]       # дошагивание при остановке: 0..1, 1 = стоит
+var settle_from: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var settle_to: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]
+var land_dip := 0.0
 var shoulders: Array[Node3D] = []
 var elbows: Array[Node3D] = []
 var arm_pose: Array[Vector4] = [REST, REST]
@@ -173,17 +187,30 @@ func _build_body() -> void:
 	y.rotation.z = PI / 2
 
 	for side in [-1.0, 1.0]:
+		# нога: бедро -> колено -> голень -> голеностоп -> ботинок (позу считает IK, см. _leg_ik)
 		var hip := Node3D.new()
-		hip.position = Vector3(0.1 * side, 0.86, 0.08)
+		hip.position = Vector3(0.1 * side, HIP_Y, 0.08)
 		body.add_child(hip)
-		var leg := CapsuleMesh.new()
-		leg.radius = 0.085
-		leg.height = 0.84
-		_part(hip, leg, Vector3(0, -0.42, 0), pants)
+		var thigh := CapsuleMesh.new()
+		thigh.radius = 0.085
+		thigh.height = 0.46
+		_part(hip, thigh, Vector3(0, -LEG_L1 / 2, 0), pants)
+		var knee := Node3D.new()
+		knee.position = Vector3(0, -LEG_L1, 0)
+		hip.add_child(knee)
+		var shin := CapsuleMesh.new()
+		shin.radius = 0.072
+		shin.height = 0.46
+		_part(knee, shin, Vector3(0, -LEG_L2 / 2, 0), pants)
+		var ankle := Node3D.new()
+		ankle.position = Vector3(0, -LEG_L2, 0)
+		knee.add_child(ankle)
 		var boot := BoxMesh.new()
 		boot.size = Vector3(0.12, 0.09, 0.27)
-		_part(hip, boot, Vector3(0, -0.815, -0.05), boots)
+		_part(ankle, boot, Vector3(0, -0.045, -0.05), boots)
 		legs.append(hip)
+		knees.append(knee)
+		ankles.append(ankle)
 
 		# рука: плечо -> плечевая кость -> локоть -> предплечье -> кулак
 		var sh := Node3D.new()
@@ -403,23 +430,25 @@ func _physics_process(delta: float) -> void:
 
 	if is_on_floor() and not was_on_floor and land_speed < -2.5:
 		_play_step(-4.0)
+		land_dip = clampf(-land_speed * 0.014, 0.0, 0.09)
 	land_speed = velocity.y
 	was_on_floor = is_on_floor()
 
-	_animate(delta, hv.length() if is_on_floor() else 0.0, sprinting)
+	_animate(delta, global_transform.basis.inverse() * hv, sprinting)
 
 
-func _animate(delta: float, spd: float, sprinting: bool) -> void:
-	var amt := clampf(spd / WALK, 0.0, 1.5)
-	phase += delta * spd * 2.6
-	var swing := sin(phase) * 0.5 * minf(amt, 1.3)
-	legs[0].rotation.x = swing
-	legs[1].rotation.x = -swing
+func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
+	var spd := v_local.length()
+	var grounded := is_on_floor()
+	_animate_legs(delta, v_local, grounded)
+	var amt := clampf(spd / WALK, 0.0, 1.5) if grounded else 0.0
+	phase = gait * TAU * 2.0
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
 		var p: Vector4 = arm_pose[i]
-		var arm_swing := swing * 0.8 * (1.0 if i == 0 else -1.0) * -1.0 * (1.0 - fist_blend)
-		var guard_bob := deg_to_rad(sin(phase * 2.0 + float(i)) * 3.0 * amt * fist_blend)
+		# рука качается навстречу противоположной ноге
+		var arm_swing := clampf(-foot[1 - i].z * 1.1, -0.6, 0.6) * (1.0 - fist_blend)
+		var guard_bob := deg_to_rad(sin(phase + float(i)) * 3.0 * amt * fist_blend)
 		shoulders[i].rotation = Vector3(
 			deg_to_rad(p.x) + arm_swing + guard_bob,
 			deg_to_rad(p.y) * side,
@@ -427,18 +456,89 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 		elbows[i].rotation.x = deg_to_rad(p.w)
 		shoulders[i].position.z = 0.13 - reach[i]
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
-	head.position.y = CAM_Y + sin(phase * 2.0) * 0.03 * bob
-	head.position.x = sin(phase) * 0.015 * bob
+	land_dip = move_toward(land_dip, 0.0, delta * 0.35)
+	# голова ниже всего в момент постановки стопы (дважды за цикл)
+	head.position.y = CAM_Y - (0.5 + 0.5 * cos(phase)) * 0.035 * bob - land_dip
+	head.position.x = sin(gait * TAU) * 0.012 * bob
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
 	head.position.z = lerpf(-0.22, 0.06, fist_blend)
-	# шаг — каждый раз, когда нога проходит нижнюю точку (полпериода качания)
-	var s := int(floor(phase / PI))
-	if s != last_step:
-		last_step = s
-		if spd > 0.6 and is_on_floor():
-			_play_step(-6.0 if sprinting else -10.0)
 	var want_fov := FOV + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
+
+
+## Процедурная походка: для каждой стопы считаем точку (опора — стопа едет назад по полу,
+## перенос — дугой вперёд), затем двухзвенный IK ставит бедро и колено.
+func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
+	var spd := v_local.length()
+	if spd > 0.1:
+		move_dir = Vector3(v_local.x, 0, v_local.z).normalized()
+	if not grounded:
+		# в воздухе ноги подогнуты, одна чуть впереди
+		stopping = false
+		for i in 2:
+			var tuck := Vector3(0, GROUND_Y + 0.24 + 0.04 * i, -0.14 + 0.2 * i)
+			foot[i] = foot[i].lerp(tuck, 1.0 - exp(-9.0 * delta))
+	elif spd > 0.4:
+		stopping = false
+		var run := clampf((spd - WALK) / (SPRINT - WALK), 0.0, 1.0)
+		var beta := lerpf(0.62, 0.42, run)           # доля опоры в цикле (при беге есть фаза полёта)
+		var cycle := 2.0 + 0.1 * spd                 # метров за полный цикл (два шага)
+		var amp := clampf(0.06 + 0.06 * spd, 0.0, 0.42)
+		var lift := 0.06 + 0.035 * spd
+		gait = fmod(gait + spd / cycle * delta, 1.0)
+		for i in 2:
+			var ph := fmod(gait + 0.5 * i, 1.0)
+			var s: float
+			var h := 0.0
+			if ph < beta:
+				s = amp * (1.0 - 2.0 * ph / beta)
+			else:
+				var u := (ph - beta) / (1.0 - beta)
+				s = -amp + 2.0 * amp * smoothstep(0.0, 1.0, u)
+				h = lift * sin(PI * u)
+			var tgt := Vector3(move_dir.x * s, GROUND_Y + h, move_dir.z * s)
+			foot[i] = foot[i].lerp(tgt, 1.0 - exp(-30.0 * delta))
+			# стопа встала на пол — звук шага
+			if ph < gait_prev[i]:
+				_play_step(-6.0 if run > 0.5 else -10.0)
+			gait_prev[i] = ph
+	else:
+		# остановка: опорная нога остаётся на месте, нога в переносе дошагивает и встаёт рядом
+		if not stopping:
+			stopping = true
+			for i in 2:
+				if foot[i].y > GROUND_Y + 0.01:
+					var other := foot[1 - i]
+					settle_from[i] = foot[i]
+					settle_to[i] = Vector3(other.x * 0.2, GROUND_Y, other.z * 0.25)
+					settle_t[i] = 0.0
+				else:
+					settle_t[i] = 1.0
+		for i in 2:
+			if settle_t[i] < 1.0:
+				settle_t[i] = minf(settle_t[i] + delta / 0.2, 1.0)
+				var k := smoothstep(0.0, 1.0, settle_t[i])
+				foot[i] = settle_from[i].lerp(settle_to[i], k) + Vector3(0, 0.05 * sin(PI * settle_t[i]), 0)
+				if settle_t[i] >= 1.0:
+					_play_step(-14.0)
+			else:
+				foot[i].y = move_toward(foot[i].y, GROUND_Y, delta * 0.5)
+	for i in 2:
+		_leg_ik(i, foot[i])
+
+
+func _leg_ik(i: int, t: Vector3) -> void:
+	var roll := atan2(t.x, -t.y)                     # отвод ноги в сторону
+	var yy := -sqrt(t.y * t.y + t.x * t.x)
+	var zz := t.z
+	var d := clampf(sqrt(yy * yy + zz * zz), 0.15, LEG_L1 + LEG_L2 - 0.002)
+	var aim := atan2(-zz, -yy)                       # угол на стопу (вперёд — плюс)
+	var a_hip := acos(clampf((LEG_L1 * LEG_L1 + d * d - LEG_L2 * LEG_L2) / (2.0 * LEG_L1 * d), -1.0, 1.0))
+	var a_knee := PI - acos(clampf((LEG_L1 * LEG_L1 + LEG_L2 * LEG_L2 - d * d) / (2.0 * LEG_L1 * LEG_L2), -1.0, 1.0))
+	legs[i].rotation = Vector3(aim + a_hip, 0.0, roll)
+	knees[i].rotation.x = -a_knee
+	# ботинок держим параллельно полу
+	ankles[i].rotation.x = -(aim + a_hip - a_knee)
 
 
 func _play_step(db: float, _pitch := 1.0) -> void:
