@@ -1,4 +1,5 @@
 extends RefCounted
+const Weapons := preload("res://weapons.gd")
 ## Справочник предметов (тестовые механики): название, описание, размер стака, иконка и 3D-модель.
 ## Иконки и модели рисуются кодом, файлов нет.
 
@@ -33,6 +34,20 @@ const ITEMS := {
 		"icon": "photo", "color": Color(0.75, 0.68, 0.55)},
 	"nut": {"name": "Гайка", "desc": "Бесполезный хлам. Можно выбросить.", "stack": 20,
 		"icon": "nut", "color": Color(0.46, 0.46, 0.46)},
+	# оружие ближнего боя из магазина (weapons.gd): «использовать» — взять в правую руку
+	"bat": {"name": "Бита", "desc": "Деревянная бита. Урон ×2.0, бьёт чуть дальше.", "stack": 1,
+		"icon": "bat", "color": Color(0.55, 0.38, 0.22), "weapon": true},
+	"pipe": {"name": "Труба", "desc": "Стальная труба. Урон ×2.5.", "stack": 1,
+		"icon": "pipe", "color": Color(0.42, 0.43, 0.44), "weapon": true},
+	"crowbar": {"name": "Монтировка", "desc": "Тяжёлая, красная. Урон ×3.0.", "stack": 1,
+		"icon": "crowbar", "color": Color(0.6, 0.14, 0.1), "weapon": true},
+	"machete": {"name": "Мачете", "desc": "Широкий клинок. Урон ×3.6.", "stack": 1,
+		"icon": "machete", "color": Color(0.62, 0.63, 0.62), "weapon": true},
+	# противогаз (G — надеть/снять) и фильтры к нему
+	"gasmask": {"name": "Противогаз", "desc": "G — надеть/снять. Наверху без него плохо.", "stack": 1,
+		"icon": "gasmask", "color": Color(0.22, 0.25, 0.2)},
+	"filter": {"name": "Фильтр", "desc": "Сменный фильтр противогаза: 90 секунд наверху.", "stack": 10,
+		"icon": "filter", "color": Color(0.36, 0.38, 0.3)},
 }
 
 
@@ -48,6 +63,9 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var s := minf(r.size.x, r.size.y)
 	var col: Color = ITEMS[id]["color"]
 	var dark := col.darkened(0.45)
+	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "gasmask", "filter"]:
+		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
+		return
 	match String(ITEMS[id]["icon"]):
 		"coin":
 			ci.draw_circle(c, s * 0.34, dark)
@@ -134,7 +152,12 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
-static func make_mesh(id: String) -> MeshInstance3D:
+static func make_mesh(id: String) -> Node3D:
+	if id in ["bat", "pipe", "crowbar", "machete", "gasmask", "filter"]:
+		var w := Weapons.make(id)
+		if id in ["bat", "pipe", "crowbar", "machete"]:
+			w.rotation.z = PI / 2   # на полу оружие лежит
+		return w
 	var col: Color = ITEMS[id]["color"] if ITEMS.has(id) else Color.WHITE
 	var mi := MeshInstance3D.new()
 	var m := StandardMaterial3D.new()

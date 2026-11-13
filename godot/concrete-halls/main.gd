@@ -34,6 +34,12 @@ func _ready() -> void:
 	slot.position = SLOT_POS
 	slot.rotation.y = PI
 	add_child(slot)
+	# магазин оружия — слева от автомата (если смотреть на автомат)
+	var shop := preload("res://shop.gd").new()
+	shop.name = "Shop"
+	shop.position = SLOT_POS + Vector3(1.95, 0.0, 0.0)
+	shop.rotation.y = PI
+	add_child(shop)
 
 	menu_cam = Camera3D.new()
 	menu_cam.fov = 62.0

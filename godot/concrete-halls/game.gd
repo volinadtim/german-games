@@ -14,6 +14,8 @@ const Enemy := preload("res://enemy.gd")
 const Dummy := preload("res://dummy.gd")
 const Chest := preload("res://chest.gd")
 const SlotMachine := preload("res://slot_machine.gd")
+const Shop := preload("res://shop.gd")
+const GasMask := preload("res://gasmask.gd")
 const Sfx := preload("res://sfx.gd")
 const Sfx2 := preload("res://sfx_extra.gd")
 
@@ -42,6 +44,8 @@ var ui_player: AudioStreamPlayer
 var full_toast_t := 0.0
 var safe: Chest
 var slot: SlotMachine
+var shop: Shop
+var gasmask: GasMask
 
 
 func setup(p: Player) -> void:
@@ -93,6 +97,10 @@ func setup(p: Player) -> void:
 		safe.position = Vector3(11.5, 0.0, 7.0)
 		safe.rotation.y = -PI / 2.0
 		add_child(safe)
+	# противогаз и отравленный воздух наверху (G)
+	gasmask = GasMask.new()
+	gasmask.game = self
+	add_child(gasmask)
 	if USE_SLOTS:
 		# автомат создаёт main.gd (он же фон меню); если его нет — ставим свой
 		slot = get_parent().get_node_or_null("SlotMachine") as SlotMachine
@@ -102,6 +110,9 @@ func setup(p: Player) -> void:
 			slot.rotation.y = PI
 			add_child(slot)
 		slot.game = self
+	shop = get_parent().get_node_or_null("Shop") as Shop
+	if shop:
+		shop.game = self
 
 
 ## Три семёрки на автомате: открыть сейф. false — если сейф уже открыт (или его нет).
@@ -239,6 +250,16 @@ func damage_player(amount: float, from: Vector3) -> void:
 		_die()
 
 
+## Тихая потеря здоровья (отравление) — без отброса и вспышки.
+func drain_hp(amount: float) -> void:
+	if not alive:
+		return
+	hp = maxf(hp - amount, 0.0)
+	hud.set_hp(hp, MAX_HP)
+	if hp <= 0.0:
+		_die()
+
+
 func heal(amount: float) -> void:
 	hp = minf(hp + amount, MAX_HP)
 	hud.set_hp(hp, MAX_HP)
@@ -321,6 +342,18 @@ func use_item(idx: int) -> void:
 		flashlight.recharge()
 		hud.toast("Фонарик заряжен", Color(0.9, 0.85, 0.55))
 		play_ui("click", -12.0)
+	elif def.has("weapon"):
+		if player.weapon_id == id:
+			player.set_weapon("")
+			hud.toast("%s убрано" % def["name"])
+		else:
+			player.set_weapon(id)
+			hud.toast("%s в правой руке — бей правой (ЛКМ в стойке)" % def["name"], Color(0.9, 0.85, 0.7))
+		play_ui("click", -10.0, 0.8)
+	elif id == "gasmask":
+		hud.toast("Противогаз надевается на G")
+	elif id == "filter":
+		hud.toast("Фильтр ставится сам, когда кончается старый")
 	elif id == "knuckles":
 		inv.take_at(idx, 1)
 		player.dmg_mult = 1.5

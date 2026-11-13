@@ -24,7 +24,11 @@ func _ready() -> void:
 	add_child(mi)
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
-	var s := mi.mesh.get_aabb().size
+	var s := Vector3(0.1, 0.05, 0.1)
+	if mi is MeshInstance3D:
+		s = (mi as MeshInstance3D).mesh.get_aabb().size
+	elif id in ["bat", "pipe", "crowbar", "machete"]:
+		s = Vector3(0.7, 0.06, 0.06)
 	bs.size = Vector3(maxf(s.x, 0.04), maxf(s.y, 0.03), maxf(s.z, 0.04))
 	cs.shape = bs
 	add_child(cs)

@@ -15,16 +15,18 @@ uniform float zoom_amt = 0.0;
 uniform vec2 blur_center = vec2(0.5, 0.7);   // где кулак на экране: размытие только вокруг него
 uniform float blur_radius = 0.22;
 // настройки изображения (меню «Настройки»)
+uniform float toxic = 0.0;   // отравление наверху без противогаза: искажения и зелёный оттенок
 uniform float brightness = 1.0;
 uniform float gamma = 1.0;
 uniform float contrast = 1.0;
 
 vec3 sample_lens(vec2 uv) {
+	uv += vec2(sin(uv.y * 23.0 + TIME * 2.1), cos(uv.x * 19.0 + TIME * 1.7)) * 0.007 * toxic;
 	vec2 cc = uv - 0.5;
 	float r2 = dot(cc, cc);
 	// углы остаются на месте, середина чуть увеличена — как у широкоугольной линзы
 	vec2 d = 0.5 + cc * (1.0 - distort + distort * r2 * 2.0);
-	vec2 ca = cc * aberration * (r2 * 4.0);
+	vec2 ca = cc * aberration * (r2 * 4.0 + toxic * 6.0);
 	return vec3(
 		texture(screen_tex, d + ca).r,
 		texture(screen_tex, d).g,
@@ -43,6 +45,8 @@ void fragment() {
 	} else {
 		c = sample_lens(SCREEN_UV);
 	}
+	c *= mix(vec3(1.0), vec3(0.8, 1.0, 0.62), toxic * 0.7);
+	c *= 1.0 - toxic * 0.35 * smoothstep(0.2, 0.9, length(SCREEN_UV - 0.5) * 1.41);
 	c = c * brightness;
 	c = clamp((c - 0.5) * contrast + 0.5, 0.0, 1.0);
 	c = pow(c, vec3(1.0 / gamma));

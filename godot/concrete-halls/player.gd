@@ -34,10 +34,17 @@ const PUNCHES := {
 	"hook": [Vector4(82, -30, 8, 40), Vector4(96, 32, 0, 28)],
 	"upper": [Vector4(45, 12, 6, 100), Vector4(95, 12, 0, 58)],
 }
-const PUNCH_DMG := {"straight": 18.0, "hook": 24.0, "upper": 30.0}
+# кулаки сильно ослаблены (было 18/24/30): без оружия враг падает с ~9 ударов
+const PUNCH_DMG := {"straight": 6.0, "hook": 8.0, "upper": 10.0}
+const Weapons := preload("res://weapons.gd")
 
 var active := false
 var dmg_mult := 1.0           # множитель урона (кастет из сейфа — 1.5)
+var speed_mult := 1.0         # замедление (отравление наверху, gasmask.gd)
+var weapon_id := ""           # оружие в правой руке (магазин, weapons.gd)
+var weapon_node: Node3D
+# как оружие лежит в кулаке относительно точки кисти (подобрано по скриншотам)
+var WEAPON_GRIP := Transform3D(Basis.from_euler(Vector3(1.5, 0.0, 0.0)), Vector3(0, 0.03, 0))
 var cam: Camera3D
 var head: Node3D
 var legs: Array[Node3D] = []      # тазобедренные шарниры
@@ -626,7 +633,9 @@ func _punch_sound() -> void:
 
 func _check_hit(arm: int, kind := "straight") -> void:
 	var from := cam.global_position
-	var to := from - cam.global_transform.basis.z * 1.0
+	var armed := arm == 1 and weapon_id != ""
+	var reach_len: float = Weapons.WEAPONS[weapon_id]["reach"] if armed else 1.0
+	var to := from - cam.global_transform.basis.z * reach_len
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	q.exclude = [get_rid()]
 	q.collision_mask = 1
@@ -635,12 +644,26 @@ func _check_hit(arm: int, kind := "straight") -> void:
 		_play(hit_player, impacts, -11.0)
 		# урон врагам/манекену (тестовые механики, см. game.gd): у цели должен быть take_hit(урон, направление)
 		if hit.collider.has_method("take_hit"):
-			hit.collider.take_hit(PUNCH_DMG.get(kind, 20.0) * dmg_mult, -cam.global_transform.basis.z)
+			var mult: float = Weapons.WEAPONS[weapon_id]["mult"] if armed else dmg_mult
+			hit.collider.take_hit(PUNCH_DMG.get(kind, 8.0) * mult, -cam.global_transform.basis.z)
 		# лёгкая отдача в камеру
 		var tw := create_tween()
 		var side := -1.0 if arm == 0 else 1.0
 		tw.tween_property(cam, "rotation:z", 0.02 * side, 0.04)
 		tw.tween_property(cam, "rotation:z", 0.0, 0.15)
+
+
+## Взять оружие в правую руку ("" — убрать). Модель крепится к кости кисти.
+func set_weapon(id: String) -> void:
+	if weapon_node and is_instance_valid(weapon_node):
+		weapon_node.queue_free()
+	weapon_node = null
+	weapon_id = id
+	if id == "":
+		return
+	weapon_node = Weapons.make(id)
+	fist_fx[1].add_child(weapon_node)
+	weapon_node.transform = WEAPON_GRIP
 
 
 func _play(p: AudioStreamPlayer, set_: Array, db: float) -> void:
@@ -729,7 +752,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		sprint_carry = move_toward(sprint_carry, 0.0, delta * 0.7)
 
-	var target := dir * (SPRINT if sprinting else WALK)
+	var target := dir * (SPRINT if sprinting else WALK) * speed_mult
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	var air := 1.0 if on_floor else 0.25
 	if moving and target.length() > hv.length() + 0.01:
