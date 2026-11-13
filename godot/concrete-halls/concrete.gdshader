@@ -12,7 +12,7 @@ uniform vec3 dust_color : source_color = vec3(0.33, 0.31, 0.29);
 uniform float ceiling_h = 3.2;
 uniform float polished = 0.0;
 uniform float joint_step = 3.0;
-uniform float bump = 0.6;
+uniform float bump = 0.25;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -72,7 +72,7 @@ void fragment() {
 		ao = 1.0 - 0.4 * (1.0 - smoothstep(0.0, 0.5, h)) * wall - 0.3 * smoothstep(ceiling_h - 0.45, ceiling_h, h) * wall;
 		rough = 0.92 - mold * 0.15;
 		// плавная неровность: только низкочастотный шум
-		hgt = mid * 0.7 + big * 0.3 + fine * 0.04;
+		hgt = mid * 0.7 + big * 0.3;
 	}
 
 	ALBEDO = col;
