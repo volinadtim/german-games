@@ -51,6 +51,7 @@ var exhales: Array[AudioStreamWAV] = []
 var impacts: Array[AudioStreamWAV] = []
 var inhale_snd: AudioStreamWAV
 var step_player: AudioStreamPlayer
+var step_eq: AudioEffectEQ6
 var voice_player: AudioStreamPlayer
 var hit_player: AudioStreamPlayer
 var step_idx := 0
@@ -97,7 +98,26 @@ func _setup_step_bus() -> void:
 		var ps := AudioEffectPitchShift.new()
 		ps.pitch_scale = STEP_PITCH / STEP_SPEED
 		AudioServer.add_bus_effect(idx, ps)
+		AudioServer.add_bus_effect(idx, AudioEffectEQ6.new())
 	step_player.bus = "Steps"
+	var bi := AudioServer.get_bus_index("Steps")
+	for e in AudioServer.get_bus_effect_count(bi):
+		if AudioServer.get_bus_effect(bi, e) is AudioEffectEQ6:
+			step_eq = AudioServer.get_bus_effect(bi, e)
+
+
+## Каждый шаг слегка «подрезан эквалайзером» в случайных местах: 1–2 полосы глушим, иногда одну чуть поднимаем.
+func _randomize_step_eq() -> void:
+	if step_eq == null:
+		return
+	for b in step_eq.get_band_count():
+		step_eq.set_band_gain_db(b, 0.0)
+	var bands := [1, 2, 3, 4, 5]   # 100 Гц, 320 Гц, 1 кГц, 3.2 кГц, 10 кГц
+	bands.shuffle()
+	for k in randi_range(1, 2):
+		step_eq.set_band_gain_db(bands[k], randf_range(-10.0, -4.0))
+	if randf() < 0.35:
+		step_eq.set_band_gain_db(bands[2], randf_range(1.0, 3.0))
 
 
 func _audio(poly: int) -> AudioStreamPlayer:
@@ -395,6 +415,7 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 
 
 func _play_step(db: float, pitch := 1.0) -> void:
+	_randomize_step_eq()
 	step_player.stream = STEP_SND
 	step_player.volume_db = db
 	step_player.pitch_scale = STEP_SPEED * randf_range(0.95, 1.05) * pitch
