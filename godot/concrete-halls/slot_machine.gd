@@ -43,6 +43,7 @@ var last_cell: Array[int] = [0, 0, 0, 0]
 var spinning: Array[bool] = [false, false, false, false]
 var lever: Node3D
 var bulbs: Array[StandardMaterial3D] = []
+const USE_LEDS := false     # цветные RGB-огоньки по краям корпуса (убраны по просьбе, 19:27)
 var leds: Array[StandardMaterial3D] = []
 var rig: Node3D
 var light: OmniLight3D
@@ -262,7 +263,7 @@ func _build_extras(body: Material, trim: Material, black: Material) -> void:
 		spots.append(Vector3(0.415, y, 0.305))
 	for k in 7:
 		spots.append(Vector3(-0.27 + k * 0.09, 1.86, 0.235))
-	for i in spots.size():
+	for i in (spots.size() if USE_LEDS else 0):
 		var m := StandardMaterial3D.new()
 		var col: Color = palette[(i / 2) % palette.size()]
 		m.albedo_color = col.darkened(0.6)

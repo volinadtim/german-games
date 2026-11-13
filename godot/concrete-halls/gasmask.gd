@@ -6,7 +6,7 @@ extends CanvasLayer
 ## Если быстро вернуться в бункер — выжить можно: в бункере эффекты спадают постепенно.
 
 const FILTER_TIME := 90.0
-const TOX_UP := 1.0 / 7.0      # до полного отравления ~7 с
+const TOX_UP := 1.0 / 3.0      # до полного отравления ~3 с (дебаффы нарастают быстро)
 const TOX_DOWN := 1.0 / 12.0   # спадает ~12 с
 
 var game
@@ -121,7 +121,7 @@ func _process(delta: float) -> void:
 		tox = maxf(tox - TOX_DOWN * delta, 0.0)
 	# урон: наверху быстро, в бункере остатки отравления ещё немного жгут
 	if tox > 0.0 and game.alive:
-		var rate := (2.0 + 7.0 * tox) if (out and not protected) else 3.0 * tox * tox
+		var rate := (3.0 + 8.0 * tox) if (out and not protected) else 3.0 * tox * tox
 		game.drain_hp(rate * delta)
 	# замедление и искажения
 	game.player.speed_mult = 1.0 - 0.55 * tox
