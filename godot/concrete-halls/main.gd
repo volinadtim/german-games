@@ -135,6 +135,8 @@ func _make_env() -> Environment:
 	e.ssao_intensity = 3.0
 	e.ssao_power = 2.0
 	e.ssao_light_affect = 0.3
+	e.ssr_enabled = true
+	e.ssr_max_steps = 64
 	e.glow_enabled = true
 	e.glow_intensity = 0.6
 	e.fog_enabled = true

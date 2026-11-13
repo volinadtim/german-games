@@ -66,8 +66,21 @@ func _build_body() -> void:
 	var hm := SphereMesh.new()
 	hm.radius = 0.12
 	hm.height = 0.25
-	var h := _part(body, hm, Vector3(0, 1.66, 0.06), skin)
+	var h := _part(body, hm, Vector3(0, 1.68, 0.08), skin)
 	h.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	# шея — соединяет голову с торсом (тоже только тень, чтобы не лезть в камеру)
+	var neck := CylinderMesh.new()
+	neck.top_radius = 0.06
+	neck.bottom_radius = 0.075
+	neck.height = 0.24
+	var n := _part(body, neck, Vector3(0, 1.53, 0.1), skin)
+	n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	# плечевой пояс — закрывает щели между торсом и руками
+	var yoke := CapsuleMesh.new()
+	yoke.radius = 0.1
+	yoke.height = 0.64
+	var y := _part(body, yoke, Vector3(0, 1.42, 0.13), jacket)
+	y.rotation.z = PI / 2
 
 	for side in [-1.0, 1.0]:
 		var hip := Node3D.new()
@@ -83,7 +96,7 @@ func _build_body() -> void:
 		legs.append(hip)
 
 		var sh := Node3D.new()
-		sh.position = Vector3(0.26 * side, 1.42, 0.1)
+		sh.position = Vector3(0.24 * side, 1.44, 0.13)
 		sh.rotation.z = 0.08 * side
 		body.add_child(sh)
 		var arm := CapsuleMesh.new()
@@ -177,30 +190,62 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 
 
-## Звук шага по бетону: глухой удар + шорох песка. Генерируется, без файлов.
+## Шаг ботинка по камню: мягкий удар пятки + перекат на носок + короткий шорох подошвы
+## и лёгкое эхо помещения. Только отфильтрованный шум — без тональных «звонких» составляющих.
 func _make_step(variant: int) -> AudioStreamWAV:
 	var rate := 22050
-	var n := int(rate * 0.22)
+	var n := int(rate * 0.38)
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 100 + variant
-	var data := PackedByteArray()
-	data.resize(n * 2)
-	var lp := 0.0
-	var lp2 := 0.0
-	var thump_f := rng.randf_range(70.0, 110.0)
-	var grit_delay := rng.randf_range(0.015, 0.04)
+	rng.seed = 200 + variant
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var toe_t := rng.randf_range(0.055, 0.085)
+	var heel_amp := rng.randf_range(0.85, 1.0)
+	var toe_amp := rng.randf_range(0.4, 0.6)
+	var lo := 0.0
+	var lo2 := 0.0
+	var mid := 0.0
+	var sc := 0.0
 	for i in n:
 		var t := float(i) / rate
 		var w := rng.randf() * 2.0 - 1.0
-		lp += (w - lp) * 0.35
-		lp2 += (lp - lp2) * 0.35
-		var thump := sin(TAU * thump_f * t) * exp(-t * 45.0) * 0.6
-		var scuff := lp2 * exp(-t * 28.0) * 0.9
-		var grit := 0.0
-		if t > grit_delay:
-			grit = (w - lp) * exp(-(t - grit_delay) * 60.0) * 0.12
-		var v := clampf((thump + scuff + grit) * minf(t * 400.0, 1.0), -1.0, 1.0)
-		data.encode_s16(i * 2, int(v * 30000.0))
+		lo += (w - lo) * 0.06        # ~200 Гц: глухое тело удара
+		lo2 += (lo - lo2) * 0.06
+		mid += (w - mid) * 0.25      # ~900 Гц: «щелчок» подошвы о камень
+		sc += (w - sc) * 0.12        # шорох
+		var env_heel := exp(-t * 55.0) * minf(t * 900.0, 1.0)
+		var env_click := exp(-t * 160.0) * minf(t * 2000.0, 1.0)
+		var env_toe := 0.0
+		var env_toe_click := 0.0
+		if t > toe_t:
+			var tt := t - toe_t
+			env_toe = exp(-tt * 70.0) * minf(tt * 900.0, 1.0)
+			env_toe_click = exp(-tt * 200.0)
+		var env_scuff := exp(-pow((t - 0.05) / 0.045, 2.0))
+		var v := lo2 * 9.0 * (env_heel * heel_amp + env_toe * toe_amp)
+		v += mid * 0.55 * (env_click * heel_amp + env_toe_click * toe_amp * 0.7)
+		v += sc * 0.08 * env_scuff
+		buf[i] = v
+	# эхо бетонной комнаты
+	var d1 := int(rate * 0.029)
+	var d2 := int(rate * 0.047)
+	var d3 := int(rate * 0.071)
+	var sm := 0.0
+	for i in n:
+		var e := 0.0
+		if i >= d1: e += buf[i - d1] * 0.22
+		if i >= d2: e += buf[i - d2] * 0.14
+		if i >= d3: e += buf[i - d3] * 0.09
+		sm += (e - sm) * 0.3       # эхо глуше прямого звука
+		buf[i] += sm
+	var peak := 0.001
+	for v in buf:
+		peak = maxf(peak, absf(v))
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	for i in n:
+		var fade := minf(1.0, float(n - i) / (rate * 0.05))
+		data.encode_s16(i * 2, int(buf[i] / peak * 0.9 * fade * 32000.0))
 	var st := AudioStreamWAV.new()
 	st.format = AudioStreamWAV.FORMAT_16_BITS
 	st.mix_rate = rate
