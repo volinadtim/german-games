@@ -192,6 +192,8 @@ var impacts: Array[AudioStreamWAV] = []
 var inhale_snd: AudioStreamWAV
 var exhale_out_snd: AudioStreamWAV   # опускание рук — тот же вдох задом наперёд
 var last_arm := -1
+var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали
+var head_bone := -1
 var last_kind := ""
 var step_player: AudioStreamPlayer
 var step_noise_player: AudioStreamPlayer
@@ -235,7 +237,7 @@ func _ready() -> void:
 	head.position = Vector3(0, CAM_Y, -0.22)
 	add_child(head)
 	cam = Camera3D.new()
-	cam.near = 0.03
+	cam.near = 0.06
 	cam.fov = FOV
 	head.add_child(cam)
 
@@ -560,6 +562,7 @@ func _build_model() -> void:
 		spine_bones.append(skel.find_bone(n))
 	neck_bone = skel.find_bone("neck")
 	pelvis_bone = skel.find_bone("pelvis")
+	head_bone = skel.find_bone("head")
 
 	# голова и шея: видимый меш со «схлопнутыми» головой и шеей (камера внутри головы),
 	# а копия с исходным скином рисует только тень — тень от головы остаётся
@@ -575,7 +578,10 @@ func _build_model() -> void:
 			b = skel.find_bone(skin.get_bind_name(k))
 		if b != -1 and skel.get_bone_name(b) in ["head", "neck", "head_end"]:
 			var bind := skin.get_bind_pose(k)
-			skin.set_bind_pose(k, Transform3D(bind.basis.scaled(Vector3.ONE * 0.001), bind.origin * 0.001))
+			# вершины головы и шеи уходят внутрь груди (к позвонку spine03), а не в точку у шеи —
+			# так изнанка шеи не попадает в камеру ни в какой позе
+			var inner := skel.get_bone_global_rest(skel.find_bone("spine03")).origin
+			skin.set_bind_pose(k, Transform3D(bind.basis.scaled(Vector3.ONE * 0.001), bind * inner))
 	body_mi.skin = skin
 	body_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
@@ -604,8 +610,10 @@ func _apply_bones() -> void:
 	if pelvis_bone != -1:
 		_set_global_rot(pelvis_bone, rr * leg_rot * Basis(Vector3.BACK, weight * 0.045 * idle_amt) * rest_p.call(pelvis_bone))
 	var ck := _crouch_k()
-	var spine_x := [sway_p * 0.5 - box * 0.05 - ck * 0.22, sway_p + breath * 0.012 - box * 0.08 - ck * 0.1,
-			breath * 0.035 - box * 0.06 - bounce * 0.03 - ck * 0.04]
+	# в ударе корпус наклоняется туда, куда смотрит камера (вниз — вперёд, вверх — назад)
+	var aim_bend := clampf(head.rotation.x, -1.2, 0.8) * maxf(aim_w[0], aim_w[1])
+	var spine_x := [sway_p * 0.5 - box * 0.05 - ck * 0.22 + aim_bend * 0.18, sway_p + breath * 0.012 - box * 0.08 - ck * 0.1 + aim_bend * 0.14,
+			breath * 0.035 - box * 0.06 - bounce * 0.03 - ck * 0.04 + aim_bend * 0.1]
 	var spine_z := [-weight * 0.03 * idle_amt + sway_r, sway_r, sway_r * 0.5]
 	# корпус доворачивается за бьющей рукой, ключица выносит плечо вперёд
 	var twist := (reach[1] - reach[0]) * 2.2 + swing_twist
@@ -977,17 +985,16 @@ func _check_hit(arm: int, kind := "straight") -> void:
 	var wid: String = weapon_ids[arm]
 	var armed := wid != ""
 	var reach_len: float = Weapons.WEAPONS[wid]["reach"] if armed else 1.0
-	var to := from - cam.global_transform.basis.z * reach_len
-	var q := PhysicsRayQueryParameters3D.create(from, to)
-	q.exclude = [get_rid()]
-	q.collision_mask = 1
-	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	var hit := _hit_scan(from, reach_len)
 	if hit:
 		_play(hit_player, impacts, -11.0)
 		# урон врагам/манекену (тестовые механики, см. game.gd): у цели должен быть take_hit(урон, направление)
 		if hit.collider.has_method("take_hit"):
 			var mult: float = Weapons.WEAPONS[wid]["mult"] if armed else dmg_mult
 			var dmg: float = PUNCH_DMG.get(kind, 8.0) * mult * HAND_DMG[arm]
+			# ящик кулаками ломается медленно (~10 ударов)
+			if not armed and hit.collider is StaticBody3D and str(hit.collider.get("kind")) == "crate":
+				dmg *= 0.45
 			if randf() < HAND_CRIT[arm]:
 				dmg *= CRIT_MULT
 				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.35, 0), "КРИТ!", Color(1.0, 0.25, 0.15))
@@ -1002,6 +1009,38 @@ func _check_hit(arm: int, kind := "straight") -> void:
 		var tw2 := create_tween()
 		tw2.tween_property(cam, "rotation:x", -0.014 * k, 0.03).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		tw2.tween_property(cam, "rotation:x", 0.0, 0.14).set_trans(Tween.TRANS_SINE)
+
+
+## Надёжное попадание: лучи конусом по взгляду (центр, кольцо ~7° и ~15°, и пара ниже — для
+## низких целей вроде ящиков). Цель с take_hit важнее стены; из целей — ближайшая к центру.
+func _hit_scan(from: Vector3, reach_len: float) -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var b := cam.global_transform.basis
+	var dirs: Array[Vector3] = [-b.z]
+	for ring in [[0.12, 8], [0.26, 8]]:
+		for k in int(ring[1]):
+			var a := TAU * float(k) / float(ring[1])
+			dirs.append((-b.z + (b.x * cos(a) + b.y * sin(a)) * float(ring[0])).normalized())
+	for dn in [0.45, 0.7]:
+		dirs.append((-b.z - b.y * dn).normalized())
+	var best := {}
+	var best_score := INF
+	var wall := {}
+	for k in dirs.size():
+		var q := PhysicsRayQueryParameters3D.create(from, from + dirs[k] * reach_len * (1.0 if k == 0 else 1.1))
+		q.exclude = [get_rid()]
+		q.collision_mask = 1
+		var h := space.intersect_ray(q)
+		if h.is_empty():
+			continue
+		if h.collider.has_method("take_hit"):
+			var score := float(k) * 0.05 + from.distance_to(h.position)
+			if score < best_score:
+				best_score = score
+				best = h
+		elif k == 0:
+			wall = h   # стена/пол — только если прямо по центру
+	return best if not best.is_empty() else wall
 
 
 ## Взять оружие в руку arm (0 — левая, 1 — правая; "" — убрать). Модель крепится к кости кисти.
@@ -1215,8 +1254,12 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		var guard_bob := deg_to_rad(sin(phase + float(i)) * 3.0 * amt * fist_blend + box_ph * 2.5)
 		# дыхание чуть разводит руки, в покое они слегка покачиваются
 		var rest_sway := (sin(idle_time * 0.9 + float(i) * 2.0) * 0.03) * idle_amt * (1.0 - fist_blend)
+		# удар по высоте взгляда: в стойке рука чуть следует за взглядом, в ударе — полностью
+		aim_w[i] = move_toward(aim_w[i], 1.0 if (punching and last_arm == i) else 0.0, get_physics_process_delta_time() * 7.0)
+		var look_p := clampf(head.rotation.x, -1.2, 1.0)
+		var aim_lift := look_p * (0.2 * fist_blend + 0.7 * aim_w[i])
 		shoulders[i].rotation = Vector3(
-			deg_to_rad(p.x) + arm_swing + guard_bob + rest_sway,
+			deg_to_rad(p.x) + arm_swing + guard_bob + rest_sway + aim_lift,
 			deg_to_rad(p.y) * side,
 			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend))
 		elbows[i].rotation.x = deg_to_rad(p.w)
@@ -1230,6 +1273,13 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	head.position.x = sin(gait * TAU) * 0.012 * bob
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
 	head.position.z = lerpf(-0.22, -0.04, fist_blend) - 0.06 * _crouch_k()
+	# камера всегда на уровне глаз тела и перед шеей (присед, наклон, удары): по кости головы
+	if skel != null and head_bone != -1:
+		var hb := to_local(skel.global_transform * skel.get_bone_global_pose(head_bone).origin)
+		var hd := Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw))
+		var eye := hb + hd * Vector3(0, 0.08, -0.1)
+		head.position.y = maxf(head.position.y, eye.y)
+		head.position.z = minf(head.position.z, eye.z)
 	var want_fov := FOV + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 	_apply_bones()
