@@ -9,6 +9,7 @@ extends StaticBody3D
 ## Справа от автомата на стене — доска выплат. Автомат стоит в тёмной комнате и мерцает.
 
 const Sym := preload("res://slot_symbols.gd")
+const WornMetal := preload("res://worn_metal.gdshader")
 
 const COST := 10
 const REELS := 4
@@ -88,6 +89,40 @@ func _mat(c: Color, metal := 0.0, rough := 0.8) -> StandardMaterial3D:
 	return m
 
 
+## Шумовая текстура для состаривания (128 px, бесшовная) — одна на автомат.
+var _wear_noise: NoiseTexture2D
+
+
+func _noise() -> NoiseTexture2D:
+	if _wear_noise == null:
+		var n := FastNoiseLite.new()
+		n.seed = 77
+		n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		n.frequency = 0.045
+		n.fractal_octaves = 3
+		_wear_noise = NoiseTexture2D.new()
+		_wear_noise.width = 128
+		_wear_noise.height = 128
+		_wear_noise.seamless = true
+		_wear_noise.noise = n
+	return _wear_noise
+
+
+## Состаренный материал (worn_metal.gdshader): облупленная краска / тусклый хром, ржавчина, пыль.
+func _worn(c: Color, chrome := false, wear := 0.3, rust := 0.6, dust := 0.6) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = WornMetal
+	m.set_shader_parameter("n_px", _noise())
+	m.set_shader_parameter("n_lin", _noise())
+	m.set_shader_parameter("paint_color", c)
+	m.set_shader_parameter("chrome", 1.0 if chrome else 0.0)
+	m.set_shader_parameter("wear", wear)
+	m.set_shader_parameter("rust", rust)
+	m.set_shader_parameter("dust", dust)
+	m.set_shader_parameter("base_y", global_position.y if is_inside_tree() else 0.0)
+	return m
+
+
 func _box(parent: Node3D, size: Vector3, pos: Vector3, m: Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
@@ -101,8 +136,8 @@ func _box(parent: Node3D, size: Vector3, pos: Vector3, m: Material) -> MeshInsta
 
 ## Перед автомата — +Z.
 func _build() -> void:
-	var body := _mat(Color(0.34, 0.035, 0.05), 0.45, 0.4)
-	var trim := _mat(Color(0.75, 0.56, 0.22), 0.9, 0.28)
+	var body := _worn(Color(0.34, 0.04, 0.05), false, 0.28, 0.7, 0.6)
+	var trim := _worn(Color(0.62, 0.5, 0.26), true, 0.0, 0.6, 0.5)
 	var black := _mat(Color(0.015, 0.015, 0.015))
 	# всё видимое — в rig: он увеличен в K раз и стоит на подиуме
 	rig = Node3D.new()
@@ -221,10 +256,12 @@ func _build() -> void:
 	bs.radius = 0.05
 	bs.height = 0.1
 	ball.mesh = bs
-	ball.material_override = _mat(Color(0.6, 0.08, 0.05), 0.2, 0.3)
+	ball.material_override = _worn(Color(0.5, 0.07, 0.05), false, 0.15, 0.3, 0.3)
 	ball.position = Vector3(0.03, 0.46, 0)
 	lever.add_child(ball)
 	_box(rig, Vector3(0.06, 0.12, 0.12), Vector3(0.42, 0.9, 0.05), trim)
+
+	_build_grime()
 
 	light = OmniLight3D.new()
 	light.light_color = Color(1.0, 0.5, 0.28)
@@ -243,10 +280,140 @@ func _build() -> void:
 	add_child(cs)
 
 
+## Мутное стекло перед барабанами, рваные наклейки, следы скотча, вмятины.
+func _build_grime() -> void:
+	# стекло: лёгкая серая муть и разводы (барабаны остаются читаемыми)
+	var gs := Shader.new()
+	gs.code = """shader_type spatial;
+render_mode cull_disabled, depth_draw_never;
+uniform sampler2D n_px : filter_nearest_mipmap, repeat_enable;
+uniform sampler2D n_lin : filter_linear_mipmap, repeat_enable;
+void fragment() {
+	float smear = texture(n_lin, UV * vec2(1.6, 0.8) + vec2(0.3, 0.1)).r;
+	float spot = texture(n_px, UV * vec2(2.4, 1.2) + vec2(0.7)).r;
+	float a = 0.07 + 0.16 * smoothstep(0.45, 0.8, smear) + 0.1 * smoothstep(0.6, 0.75, spot);
+	a += 0.12 * (1.0 - smoothstep(0.0, 0.25, UV.y)) * smoothstep(0.3, 0.7, spot);
+	ALBEDO = vec3(0.55, 0.53, 0.48);
+	ALPHA = a;
+	ROUGHNESS = 0.15 + 0.6 * smoothstep(0.45, 0.8, smear);
+	SPECULAR = 0.6;
+}"""
+	var gm := ShaderMaterial.new()
+	gm.shader = gs
+	gm.set_shader_parameter("n_px", _noise())
+	gm.set_shader_parameter("n_lin", _noise())
+	var glass := MeshInstance3D.new()
+	var gq := QuadMesh.new()
+	gq.size = Vector2(0.58, 0.28)
+	glass.mesh = gq
+	glass.material_override = gm
+	glass.position = Vector3(0, REEL_Y, 0.288)
+	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rig.add_child(glass)
+	# наклейки: выцветшие, с оборванным краем
+	_sticker(Vector3(-0.22, 0.5, 0.302), Vector2(0.17, 0.1), 0.08, Color(0.78, 0.66, 0.28), 1, 0.0)
+	_sticker(Vector3(0.24, 0.16, 0.302), Vector2(0.11, 0.11), -0.25, Color(0.82, 0.8, 0.74), 2, 0.0)
+	_sticker(Vector3(0.405, 0.45, 0.05), Vector2(0.14, 0.09), 0.15, Color(0.7, 0.72, 0.6), 3, PI / 2.0)
+	# следы скотча: полупрозрачные пожелтевшие полоски
+	for t in [[Vector3(0.27, 1.14, 0.306), 0.6], [Vector3(-0.3, 0.84, 0.306), -0.5], [Vector3(-0.36, 0.2, 0.302), 0.1]]:
+		var tm := StandardMaterial3D.new()
+		tm.albedo_color = Color(0.72, 0.64, 0.45, 0.55)
+		tm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		tm.roughness = 0.5
+		var tq := QuadMesh.new()
+		tq.size = Vector2(0.1, 0.026)
+		var tp := MeshInstance3D.new()
+		tp.mesh = tq
+		tp.material_override = tm
+		tp.position = t[0]
+		tp.rotation.z = t[1]
+		tp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		rig.add_child(tp)
+	# вмятины: мягкие тёмные пятна (тень в углублении)
+	var g := Gradient.new()
+	g.set_color(0, Color(0.05, 0.02, 0.02, 0.4))
+	g.set_offset(1, 1.0)
+	g.set_color(1, Color(0.05, 0.02, 0.02, 0.0))
+	var dt := GradientTexture2D.new()
+	dt.gradient = g
+	dt.fill = GradientTexture2D.FILL_RADIAL
+	dt.fill_from = Vector2(0.5, 0.5)
+	dt.fill_to = Vector2(1.0, 0.5)
+	dt.width = 32
+	dt.height = 32
+	for d in [[Vector3(0.1, 0.24, 0.302), 0.0, Vector2(0.09, 0.06)], [Vector3(-0.401, 0.62, 0.12), -PI / 2.0, Vector2(0.12, 0.08)], [Vector3(0.2, 1.47, 0.332), 0.0, Vector2(0.07, 0.05)]]:
+		var dm := StandardMaterial3D.new()
+		dm.albedo_texture = dt
+		dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		dm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		var dq := QuadMesh.new()
+		dq.size = d[2]
+		var dp := MeshInstance3D.new()
+		dp.mesh = dq
+		dp.material_override = dm
+		dp.position = d[0]
+		dp.rotation.y = d[1]
+		dp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		rig.add_child(dp)
+
+
+## Наклейка из картинки (рисуется кодом): цветной фон, «строчки текста», значок; угол оборван,
+## краска полустёрта. Пиксельная, без сглаживания.
+func _sticker(pos: Vector3, size: Vector2, rot: float, col: Color, seed_: int, rot_y: float) -> void:
+	var w := 48
+	var h := int(48 * size.y / size.x)
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 900 + seed_
+	img.fill(col)
+	# «текст» — тёмные полоски строк
+	for row in range(4, h - 4, 6):
+		var x0 := rng.randi_range(3, 8)
+		var x1 := rng.randi_range(w - 14, w - 4)
+		for x in range(x0, x1):
+			if rng.randf() < 0.85:
+				for yy in 2:
+					img.set_pixel(x, row + yy, col.darkened(0.65))
+	if seed_ == 2:
+		for y in h:
+			for x in w:
+				if Vector2(x - w * 0.5, y - h * 0.5).length() < h * 0.32 and Vector2(x - w * 0.5, y - h * 0.5).length() > h * 0.22:
+					img.set_pixel(x, y, Color(0.7, 0.12, 0.08))
+	# оборванный угол и потёртости
+	var tear_k := rng.randf_range(0.9, 1.25)
+	for y in h:
+		for x in w:
+			var c := img.get_pixel(x, y)
+			if float(x) / w + float(y) / h * 0.6 + rng.randf() * 0.18 > tear_k + 0.2:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+			elif rng.randf() < 0.18:
+				img.set_pixel(x, y, Color(c.r, c.g, c.b, rng.randf_range(0.2, 0.6)))
+			else:
+				img.set_pixel(x, y, Color(c.r * 0.85, c.g * 0.85, c.b * 0.82, 0.9))
+	var tex := ImageTexture.create_from_image(img)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.alpha_scissor_threshold = 0.15
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	m.roughness = 0.85
+	var q := QuadMesh.new()
+	q.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.material_override = m
+	mi.position = pos
+	mi.rotation = Vector3(0, rot_y, rot)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	rig.add_child(mi)
+
+
 ## Подиум, надстройка «777» с лампами, цветные бегущие огни по бокам корпуса.
 func _build_extras(body: Material, trim: Material, black: Material) -> void:
 	# подиум (вне rig — в мировых метрах)
-	var ped := _mat(Color(0.08, 0.06, 0.05), 0.3, 0.6)
+	# подиум в цементной пыли
+	var ped := _worn(Color(0.1, 0.085, 0.07), false, 0.4, 0.5, 1.0)
+	ped.set_shader_parameter("dust_color", Color(0.42, 0.4, 0.37))
 	_box(self, Vector3(0.9 * K + 0.06, PED, 0.68 * K + 0.06), Vector3(0, PED / 2.0, RIG_Z), ped)
 	_box(self, Vector3(0.9 * K + 0.08, 0.03, 0.68 * K + 0.08), Vector3(0, PED, RIG_Z), trim)
 	# надстройка над вывеской
@@ -332,8 +499,8 @@ func _build_board() -> void:
 	art.size = Vector2(sv.size)
 	art.draw.connect(_draw_board.bind(art))
 	sv.add_child(art)
-	var frame := _mat(Color(0.75, 0.56, 0.22), 0.9, 0.3)
-	var back := _mat(Color(0.1, 0.06, 0.04), 0.0, 0.9)
+	var frame := _worn(Color(0.62, 0.5, 0.26), true, 0.0, 0.6, 0.5)
+	var back := _worn(Color(0.12, 0.08, 0.05), false, 0.2, 0.4, 0.5)
 	var board := Node3D.new()
 	board.position = BOARD_POS
 	board.rotation.y = -0.12
