@@ -15,7 +15,7 @@
 
 Нужен только [Git for Windows](https://git-scm.com/download/win).
 
-1. Скачать [`scripts/auto-pull.bat`](scripts/auto-pull.bat) и [`scripts/auto-pull.ps1`](scripts/auto-pull.ps1) в любую папку (например `C:games-sync`). Дальше лучше запускать уже из клона: `%USERPROFILE%german-gamesscriptsuto-pull.bat` — так скрипт сам обновляется.
+1. Скачать [`scripts/auto-pull.bat`](scripts/auto-pull.bat) и [`scripts/auto-pull.ps1`](scripts/auto-pull.ps1) в любую папку (например `C:\games-sync\`). Дальше лучше запускать уже из клона: `%USERPROFILE%\german-games\scripts\auto-pull.bat` — так скрипт сам обновляется.
 2. Дважды кликнуть `auto-pull.bat`.
 3. Скрипт сам склонирует репозиторий в `%USERPROFILE%\german-games` и каждые 10 секунд будет подтягивать свежие изменения. Окно не закрывать.
 
