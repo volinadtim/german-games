@@ -8,6 +8,7 @@ const Player := preload("res://player.gd")
 const Hud := preload("res://hud.gd")
 const Inventory := preload("res://inventory.gd")
 const Items := preload("res://items.gd")
+const LootWindow := preload("res://loot_window.gd")
 const GlassFloor := preload("res://glass_floor.gd")
 const Save := preload("res://save.gd")
 const Fx := preload("res://fx.gd")
@@ -132,6 +133,9 @@ func setup(p: Player) -> void:
 	tape.position = Vector3(-6.95, 0.95, 8.66)
 	add_child(tape)
 	# осколки стекла на полу (там, где битое стекло) — материал для ножика
+	loot_window = LootWindow.new()
+	loot_window.game = self
+	add_child(loot_window)
 	glass_floor = GlassFloor.new()
 	add_child(glass_floor)
 	glass_floor.generate()
@@ -262,7 +266,15 @@ func _physics_process(delta: float) -> void:
 
 ## Одно окно за раз: пока открыт инвентарь или магазин, другие окна не открываются.
 func window_open() -> bool:
-	return (inv != null and inv.open) or (shop != null and shop.opened) or (slot != null and slot.pack_open)
+	return (inv != null and inv.open) or (shop != null and shop.opened) or (slot != null and slot.pack_open) \
+		or (loot_window != null and loot_window.open)
+
+
+## Открыть окно лута ящика (если не открыто другое окно).
+func open_loot(c) -> void:
+	if not alive or (window_open() and not (loot_window and loot_window.open)):
+		return
+	loot_window.show_for(c)
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -284,6 +296,7 @@ func _unhandled_input(e: InputEvent) -> void:
 # ---------- стекло и кровотечение (промпт 20:02) ----------
 ## Битое стекло на полу (те же места, что в level.gd: _floor_litter): наступил — −5 здоровья
 ## и кровотечение 10 с по 3 в секунду. Повторный наступ обновляет таймер. Снимает бинт или аптечка.
+var loot_window: LootWindow   # окно лута ящиков и сейфа
 var glass_floor: GlassFloor   # кучки стекла (glass_floor.gd), случайные каждую новую игру
 const BLEED_TIME := 10.0
 const BLEED_DPS := 3.0
@@ -884,7 +897,7 @@ func save_state() -> Dictionary:
 		bag.append(s.duplicate() if s != null else null)
 	var cs: Array = []
 	for c in chests:
-		cs.append([c.opened, c.broken] if is_instance_valid(c) else [false, false])
+		cs.append([c.opened, c.broken, c.contents.duplicate(true)] if is_instance_valid(c) else [false, false, []])
 	var floor_items: Array = []
 	for n in get_children():
 		if n is Pickup and is_instance_valid(n) and not n.is_queued_for_deletion():
@@ -913,6 +926,7 @@ func save_state() -> Dictionary:
 		"tox": gasmask.tox if gasmask else 0.0,
 		"chests": cs,
 		"safe_open": safe != null and is_instance_valid(safe) and safe.opened,
+		"safe_contents": safe.contents.duplicate(true) if safe != null and is_instance_valid(safe) else [],
 		"floor": floor_items,
 		"dropped_coins": dropped_coins,
 		"hunters": alive_hunters,
@@ -967,9 +981,9 @@ func load_state(d: Dictionary) -> void:
 		gasmask.tox = float(d.get("tox", 0.0))
 	var cs: Array = d.get("chests", [])
 	for i in mini(cs.size(), chests.size()):
-		chests[i].restore(bool(cs[i][0]), bool(cs[i][1]))
+		chests[i].restore(bool(cs[i][0]), bool(cs[i][1]), cs[i][2] if cs[i].size() > 2 else [])
 	if bool(d.get("safe_open", false)) and safe:
-		safe.restore(true, false)
+		safe.restore(true, false, d.get("safe_contents", []))
 	# вещи на полу: убираем стартовые, раскладываем сохранённые
 	for n in get_children():
 		if n is Pickup:

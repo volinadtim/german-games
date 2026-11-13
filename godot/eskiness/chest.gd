@@ -32,6 +32,7 @@ var extra: Array = []          # гарантированный лут: [[id, n]
 var locked := false            # сейф: открывается только тремя семёрками на автомате (force_open)
 var random_loot := true
 var opened := false
+var contents: Array = []       # что лежит внутри: [[id, n], ...] (окно лута, промпт 00:07)
 var game                       # game.gd — для ломания ящика
 const CRATE_HP := 30.0
 var hp := CRATE_HP
@@ -141,8 +142,10 @@ func _build_safe() -> void:
 
 
 func get_prompt(game) -> String:
-	if opened or broken:
+	if broken:
 		return ""
+	if opened:
+		return "[E] Обыскать (%d)" % contents.size() if not contents.is_empty() else ""
 	if locked:
 		return "Сейф заперт  (откроют три семёрки на KILLBOX)"
 	if kind == "safe":
@@ -152,6 +155,8 @@ func get_prompt(game) -> String:
 
 func interact(game) -> void:
 	if opened:
+		if not contents.is_empty() and game.has_method("open_loot"):
+			game.open_loot(self)
 		return
 	if locked:
 		game.hud.toast("Заперто. Сейф откроют три семёрки на автомате KILLBOX.")
@@ -171,17 +176,37 @@ func interact(game) -> void:
 		tw.tween_property(hinge, "rotation:y", -1.9, 1.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	else:
 		tw.tween_property(hinge, "rotation:x", -1.95, 0.7).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	get_tree().create_timer(0.35).timeout.connect(_spill.bind(game))
+	_fill()
+	if not silent_open and game.has_method("open_loot"):
+		get_tree().create_timer(0.35).timeout.connect(game.open_loot.bind(self))
 
 
-## Открыть без проверки замка (три семёрки на автомате).
+var silent_open := false
+
+
+## Набрать содержимое: гарантированный лут + случайный.
+func _fill() -> void:
+	contents = []
+	for it in extra:
+		contents.append([String(it[0]), int(it[1])])
+	if random_loot:
+		for it in _roll():
+			contents.append([String(it[0]), int(it[1])])
+
+
+## Открыть без проверки замка (три семёрки на автомате): дверца открывается, лут ждёт внутри.
 func force_open(game) -> void:
 	locked = false
+	silent_open = true
 	interact(game)
+	silent_open = false
 
 
 ## Состояние из сохранения: открыт / сломан — без звука и без выпадения лута.
-func restore(was_opened: bool, was_broken: bool) -> void:
+func restore(was_opened: bool, was_broken: bool, items: Array = []) -> void:
+	contents = []
+	for it in items:
+		contents.append([String(it[0]), int(it[1])])
 	if was_broken and kind != "safe":
 		broken = true
 		opened = true
@@ -211,10 +236,12 @@ func reset() -> void:
 				c.set_deferred("disabled", false)
 		hinge.rotation = Vector3.ZERO
 		opened = false
+		contents = []
 		return
 	if kind == "safe" or not opened:
 		return
 	opened = false
+	contents = []
 	var tw := create_tween()
 	tw.tween_property(hinge, "rotation:x", 0.0, 0.6).set_trans(Tween.TRANS_SINE)
 
@@ -249,15 +276,15 @@ func _break() -> void:
 	if game:
 		game.play_at("thud", global_position, -6.0, 1.5)
 		if not opened:
-			_spill(game)
+			_fill()
+		_spill(game)
+		contents = []
 		game.spawn_loot("wood", randi_range(1, 2), global_position + Vector3(0, 0.4, 0), Vector3(0, 2.2, 0), 1.2)
 	opened = true
 
 
 func _spill(game) -> void:
-	var items: Array = extra.duplicate()
-	if random_loot:
-		items += _roll()
+	var items: Array = contents
 	var fwd := global_transform.basis.z
 	var pos := global_transform * Vector3(0, 0.45 if kind == "safe" else 0.35, 0.1)
 	for it in items:
