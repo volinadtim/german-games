@@ -11,6 +11,8 @@ const LOOT := [
 	["canned", 9, 1, 2],
 	["water", 12, 1, 2],
 	["rusk", 14, 1, 4],
+	["choco", 7, 1, 1],
+	["soda", 6, 1, 1],
 	["battery", 12, 1, 2],
 	["wallet", 6, 1, 1],
 	["nut", 10, 1, 4],
@@ -192,16 +194,27 @@ func _spill(game) -> void:
 		game.spawn_loot(it[0], it[1], pos, vel, 0.8)
 
 
+## За раз из ящика — 3–5 разных позиций (монеты всегда одна из них), в каждой немного штук:
+## чаще всего минимум из таблицы. Что и с какими шансами выпадает — по-прежнему таблица LOOT.
 func _roll() -> Array:
-	var out: Array = [["coin", randi_range(10, 25)]]
+	var positions := randi_range(3, 5)
+	var out: Array = [["coin", randi_range(3, 8)]]
 	var total := 0
 	for e in LOOT:
 		total += int(e[1])
-	for k in randi_range(3, 5):
+	var tries := 0
+	while out.size() < positions and tries < 60:
+		tries += 1
 		var r := randi() % total
 		for e in LOOT:
 			r -= int(e[1])
 			if r < 0:
-				out.append([e[0], randi_range(int(e[2]), int(e[3]))])
+				var id: String = e[0]
+				var dup := id == "coin"
+				for o in out:
+					dup = dup or o[0] == id
+				if not dup:
+					var cnt := int(e[2]) if randf() < 0.75 else mini(int(e[2]) + 1, int(e[3]))
+					out.append([id, cnt])
 				break
 	return out

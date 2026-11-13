@@ -8,6 +8,7 @@ const Items := preload("res://items.gd")
 
 var game
 var ui: CanvasLayer
+var sell_box: VBoxContainer
 var coins_l: Label
 var info_l: Label
 var opened := false
@@ -155,10 +156,29 @@ func _build_ui() -> void:
 	sb.set_content_margin_all(20)
 	panel.add_theme_stylebox_override("panel", sb)
 	center.add_child(panel)
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 26)
+	panel.add_child(cols)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
-	panel.add_child(box)
-	box.add_child(_label("ОРУЖИЕ И СНАРЯЖЕНИЕ", 34, Color(1.0, 0.6, 0.35)))
+	box.add_theme_constant_override("separation", 6)
+	cols.add_child(box)
+	# скупка хлама (промпт 20:06): правая колонка
+	var sell_col := VBoxContainer.new()
+	sell_col.add_theme_constant_override("separation", 8)
+	sell_col.custom_minimum_size = Vector2(300, 0)
+	cols.add_child(sell_col)
+	sell_col.add_child(_label("СКУПКА ХЛАМА", 28, Color(1.0, 0.6, 0.35)))
+	sell_col.add_child(_label("Цена — по оценке вещи, 1–3 монеты за штуку", 15, Color(0.65, 0.63, 0.58)))
+	sell_box = VBoxContainer.new()
+	sell_box.add_theme_constant_override("separation", 6)
+	sell_col.add_child(sell_box)
+	var all_b := Button.new()
+	all_b.text = "Продать весь хлам"
+	all_b.focus_mode = Control.FOCUS_NONE
+	all_b.add_theme_font_size_override("font_size", 20)
+	all_b.pressed.connect(_sell_all_junk)
+	sell_col.add_child(all_b)
+	box.add_child(_label("ОРУЖИЕ И СНАРЯЖЕНИЕ", 28, Color(1.0, 0.6, 0.35)))
 	coins_l = _label("", 22, Color(0.92, 0.8, 0.5))
 	box.add_child(coins_l)
 	for entry in Weapons.SHOP:
@@ -167,17 +187,17 @@ func _build_ui() -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 14)
 		var icon := Control.new()
-		icon.custom_minimum_size = Vector2(48, 48)
+		icon.custom_minimum_size = Vector2(40, 40)
 		icon.draw.connect(func(): Items.draw_icon(icon, id, Rect2(Vector2.ZERO, icon.size)))
 		row.add_child(icon)
 		var text := VBoxContainer.new()
-		text.custom_minimum_size = Vector2(380, 0)
-		text.add_child(_label(Items.item_name(id), 24, Color(0.9, 0.88, 0.82)))
-		text.add_child(_label(Items.ITEMS[id]["desc"], 16, Color(0.65, 0.63, 0.58)))
+		text.custom_minimum_size = Vector2(430, 0)
+		text.add_child(_label(Items.item_name(id), 20, Color(0.9, 0.88, 0.82)))
+		text.add_child(_label(Items.ITEMS[id]["desc"], 14, Color(0.65, 0.63, 0.58)))
 		row.add_child(text)
 		var buy := Button.new()
 		buy.text = "%d мон." % price
-		buy.custom_minimum_size = Vector2(130, 44)
+		buy.custom_minimum_size = Vector2(120, 36)
 		buy.focus_mode = Control.FOCUS_NONE
 		buy.add_theme_font_size_override("font_size", 20)
 		buy.pressed.connect(func(): _buy(id, price))
@@ -217,6 +237,63 @@ func _label(t: String, size: int, col: Color) -> Label:
 
 func _refresh() -> void:
 	coins_l.text = "Монет: %d" % game.inv.count("coin")
+	_rebuild_sell()
+
+
+## Список вещей из сумки, которые магазин покупает (поле price в items.gd).
+func _rebuild_sell() -> void:
+	if sell_box == null:
+		return
+	for c in sell_box.get_children():
+		c.queue_free()
+	var shown := {}
+	for s in game.inv.slots:
+		if s == null or shown.has(s["id"]) or not Items.ITEMS[s["id"]].has("price"):
+			continue
+		var id: String = s["id"]
+		shown[id] = true
+		var n: int = game.inv.count(id)
+		var price: int = Items.ITEMS[id]["price"]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var icon := Control.new()
+		icon.custom_minimum_size = Vector2(34, 34)
+		icon.draw.connect(func(): Items.draw_icon(icon, id, Rect2(Vector2.ZERO, icon.size)))
+		row.add_child(icon)
+		var l := _label("%s ×%d — по %d" % [Items.item_name(id), n, price], 17, Color(0.88, 0.86, 0.8))
+		l.custom_minimum_size = Vector2(170, 0)
+		row.add_child(l)
+		var b := Button.new()
+		b.text = "Продать"
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 16)
+		b.pressed.connect(func(): _sell(id, game.inv.count(id)))
+		row.add_child(b)
+		sell_box.add_child(row)
+	if shown.is_empty():
+		sell_box.add_child(_label("В сумке нет ничего на продажу", 16, Color(0.6, 0.58, 0.54)))
+
+
+func _sell(id: String, n: int) -> int:
+	var price: int = Items.ITEMS[id]["price"]
+	n = mini(n, game.inv.count(id))
+	if n <= 0 or not game.inv.remove(id, n):
+		return 0
+	game.inv.add("coin", n * price)
+	info_l.text = "Продано: %s ×%d — +%d монет" % [Items.item_name(id), n, n * price]
+	game.play_ui("coin", -10.0, 1.1)
+	_refresh()
+	return n * price
+
+
+## «Продать весь хлам» — только то, что помечено как хлам (изоленту не трогаем: она нужна для ножика).
+func _sell_all_junk() -> void:
+	var total := 0
+	for id in Items.ITEMS:
+		if Items.ITEMS[id].get("junk", false) and game.inv.count(id) > 0:
+			total += _sell(id, game.inv.count(id))
+	info_l.text = "Весь хлам продан: +%d монет" % total if total > 0 else "Хлама в сумке нет"
+
 
 
 func _refresh_chests() -> void:

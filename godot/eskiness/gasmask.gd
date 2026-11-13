@@ -127,7 +127,8 @@ func _process(delta: float) -> void:
 		var rate := (3.0 + 8.0 * tox) if (out and not protected) else 3.0 * tox * tox
 		game.drain_hp(rate * delta)
 	# замедление и искажения
-	game.player.speed_mult = 1.0 - 0.55 * tox
+	# множители перемножаются: отравление × бафф скорости от напитка (game.gd: buff_mult)
+	game.player.speed_mult = (1.0 - 0.55 * tox) * game.buff_mult("speed")
 	if game.player.post_mat:
 		game.player.post_mat.set_shader_parameter("toxic", tox)
 	# дыхание в маске

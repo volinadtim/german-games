@@ -10,29 +10,34 @@ const ITEMS := {
 		"icon": "medkit", "color": Color(0.72, 0.16, 0.12), "heal": 50.0},
 	"bandage": {"name": "Бинт", "desc": "Восстанавливает 20 здоровья.", "stack": 10,
 		"icon": "bandage", "color": Color(0.84, 0.8, 0.7), "heal": 20.0},
-	"rusk": {"name": "Сухарь", "desc": "Чёрствый, но съедобный. +8 здоровья.", "stack": 10,
-		"icon": "rusk", "color": Color(0.6, 0.42, 0.22), "heal": 8.0},
+	# еда — сопротивление урону, напитки — скорость (game.gd: buffs). Лечат только аптечка, бинт, таблетки.
+	"rusk": {"name": "Сухарь", "desc": "Еда: −10% входящего урона на 30 с.", "stack": 10,
+		"icon": "rusk", "color": Color(0.6, 0.42, 0.22), "buff": "resist", "power": 0.10, "time": 30.0},
+	"choco": {"name": "Шоколадка", "desc": "Еда: −20% входящего урона на 60 с.", "stack": 6,
+		"icon": "choco", "color": Color(0.36, 0.2, 0.12), "buff": "resist", "power": 0.20, "time": 60.0},
+	"soda": {"name": "Газировка", "desc": "Напиток: +30% к скорости на 60 с.", "stack": 6,
+		"icon": "soda", "color": Color(0.75, 0.2, 0.15), "buff": "speed", "power": 0.30, "time": 60.0},
 	"battery": {"name": "Батарейка", "desc": "Полностью заряжает фонарик (F).", "stack": 10,
 		"icon": "battery", "color": Color(0.34, 0.44, 0.3)},
 	"knuckles": {"name": "Кастет", "desc": "Надеть: удары в полтора раза сильнее.", "stack": 1,
 		"icon": "knuckles", "color": Color(0.58, 0.58, 0.6)},
-	"canned": {"name": "Тушёнка", "desc": "Банка без этикетки. +30 здоровья.", "stack": 5,
-		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "heal": 30.0},
-	"water": {"name": "Бутылка воды", "desc": "Мутноватая, но пить можно. +10 здоровья.", "stack": 6,
-		"icon": "water", "color": Color(0.45, 0.6, 0.7), "heal": 10.0},
+	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 5,
+		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
+	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 6,
+		"icon": "water", "color": Color(0.45, 0.6, 0.7), "buff": "speed", "power": 0.15, "time": 30.0},
 	"pills": {"name": "Обезболивающее", "desc": "Блистер таблеток. +15 здоровья.", "stack": 8,
 		"icon": "pills", "color": Color(0.85, 0.85, 0.82), "heal": 15.0},
 	"wallet": {"name": "Старый кошелёк", "desc": "Открыть: внутри 10–40 монет.", "stack": 5,
 		"icon": "wallet", "color": Color(0.32, 0.2, 0.12)},
-	"scrap": {"name": "Металлолом", "desc": "Гнутые железки. Хлам.", "stack": 20,
+	"scrap": {"name": "Металлолом", "desc": "Гнутые железки. Хлам — магазин купит за 2 монеты.", "stack": 20, "price": 2, "junk": true,
 		"icon": "scrap", "color": Color(0.4, 0.33, 0.28)},
-	"gear": {"name": "Шестерёнка", "desc": "Из какого-то механизма. Хлам.", "stack": 20,
+	"gear": {"name": "Шестерёнка", "desc": "Из какого-то механизма. Хлам — магазин купит за 2 монеты.", "stack": 20, "price": 2, "junk": true,
 		"icon": "gear", "color": Color(0.55, 0.5, 0.4)},
-	"tape": {"name": "Изолента", "desc": "Синяя. Хлам, но приятно иметь.", "stack": 10,
+	"tape": {"name": "Изолента", "desc": "Синяя. Нужна для ножика. Магазин купит за 1 монету.", "stack": 10, "price": 1,
 		"icon": "tape", "color": Color(0.2, 0.3, 0.6)},
-	"photo": {"name": "Старое фото", "desc": "Люди в касках у входа в бункер. Лица выцвели.", "stack": 5,
+	"photo": {"name": "Старое фото", "desc": "Люди в касках у входа в бункер. Лица выцвели. Магазин купит за 3 монеты.", "stack": 5, "price": 3, "junk": true,
 		"icon": "photo", "color": Color(0.75, 0.68, 0.55)},
-	"nut": {"name": "Гайка", "desc": "Бесполезный хлам. Можно выбросить.", "stack": 20,
+	"nut": {"name": "Гайка", "desc": "Бесполезный хлам. Магазин купит за 1 монету.", "stack": 20, "price": 1, "junk": true,
 		"icon": "nut", "color": Color(0.46, 0.46, 0.46)},
 	# оружие ближнего боя из магазина (weapons.gd): «использовать» — взять в правую руку
 	"bat": {"name": "Бита", "desc": "Деревянная бита. Урон ×2.0, бьёт чуть дальше.", "stack": 1,
@@ -119,6 +124,18 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_circle(c, s * 0.27, col)
 			ci.draw_arc(c, s * 0.18, 0.0, TAU, 24, col.darkened(0.2), maxf(1.0, s * 0.03), true)
 			ci.draw_circle(c, s * 0.08, col.darkened(0.5))
+		"choco":
+			var box := Rect2(c - Vector2(s * 0.34, s * 0.2), Vector2(s * 0.68, s * 0.4))
+			ci.draw_rect(box, col)
+			ci.draw_rect(Rect2(box.position + Vector2(s * 0.34, 0), Vector2(s * 0.34, s * 0.4)), Color(0.8, 0.75, 0.6))
+			for k in 2:
+				ci.draw_line(box.position + Vector2(s * 0.11 * (k + 1), 0), box.position + Vector2(s * 0.11 * (k + 1), s * 0.4), col.darkened(0.4), maxf(1.0, s * 0.03))
+		"soda":
+			var body := Rect2(c - Vector2(s * 0.17, s * 0.3), Vector2(s * 0.34, s * 0.6))
+			ci.draw_rect(body, col)
+			ci.draw_rect(Rect2(body.position, Vector2(body.size.x, s * 0.06)), Color(0.7, 0.7, 0.72))
+			ci.draw_rect(Rect2(body.position + Vector2(0, s * 0.54), Vector2(body.size.x, s * 0.06)), Color(0.7, 0.7, 0.72))
+			ci.draw_line(c + Vector2(-s * 0.1, -s * 0.05), c + Vector2(s * 0.1, s * 0.05), Color(1, 1, 1, 0.8), maxf(1.5, s * 0.05))
 		"rusk":
 			var box := Rect2(c - Vector2(s * 0.32, s * 0.2), Vector2(s * 0.64, s * 0.4))
 			ci.draw_rect(box, col)
@@ -251,6 +268,17 @@ static func make_mesh(id: String) -> Node3D:
 			mi.mesh = bm
 			m.metallic = 0.8
 			m.roughness = 0.4
+		"soda":
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.033
+			cm.bottom_radius = 0.033
+			cm.height = 0.12
+			mi.mesh = cm
+			m.metallic = 0.6
+		"choco":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.12, 0.015, 0.06)
+			mi.mesh = bm
 		"canned", "water", "tape":
 			var cm := CylinderMesh.new()
 			cm.top_radius = 0.045 if id != "water" else 0.035

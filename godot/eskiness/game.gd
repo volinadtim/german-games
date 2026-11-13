@@ -220,6 +220,8 @@ func _physics_process(delta: float) -> void:
 		return
 	focus = null
 	var text := ""
+	_glass(delta)
+	_tick_buffs(delta)
 	if alive:
 		var from := player.cam.global_position
 		var q := PhysicsRayQueryParameters3D.create(from, from - player.cam.global_transform.basis.z * 2.3)
@@ -248,6 +250,87 @@ func _unhandled_input(e: InputEvent) -> void:
 				hotbar_use(k)
 
 
+# ---------- стекло и кровотечение (промпт 20:02) ----------
+## Битое стекло на полу (те же места, что в level.gd: _floor_litter): наступил — −5 здоровья
+## и кровотечение 10 с по 3 в секунду. Повторный наступ обновляет таймер. Снимает бинт или аптечка.
+const GLASS_SPOTS := [[Vector3(-5.6, 0, 0.1), 0.9], [Vector3(9.5, 0, -6.5), 0.5], [Vector3(-9.0, 0, 6.8), 0.5]]
+const BLEED_TIME := 10.0
+const BLEED_DPS := 3.0
+var on_glass := false
+var glass_cd := 0.0
+var bleed_t := 0.0
+
+
+func _glass(delta: float) -> void:
+	glass_cd -= delta
+	if bleed_t > 0.0:
+		bleed_t = maxf(bleed_t - delta, 0.0)
+		drain_hp(BLEED_DPS * delta)
+		if not alive:
+			bleed_t = 0.0
+	hud.bleed = bleed_t
+	var pp := player.global_position
+	var now := false
+	if alive and player.is_on_floor() and pp.y < 0.4:
+		for g in GLASS_SPOTS:
+			var c: Vector3 = g[0]
+			if Vector2(pp.x - c.x, pp.z - c.z).length() < float(g[1]) + 0.1:
+				now = true
+	if now and not on_glass and glass_cd <= 0.0:
+		glass_cd = 1.5
+		drain_hp(5.0)
+		if alive:
+			bleed_t = BLEED_TIME
+			hud.hurt_flash(0.5)
+			hud.toast("Наступил на стекло! Кровотечение — перевяжись бинтом", Color(1.0, 0.4, 0.3))
+			play_ui("hurt", -10.0, 0.9)
+	on_glass = now
+
+
+## Бинт или аптечка останавливают кровотечение. true — было что останавливать.
+func stop_bleeding() -> bool:
+	if bleed_t <= 0.0:
+		return false
+	bleed_t = 0.0
+	hud.toast("Кровотечение остановлено", Color(0.7, 0.9, 0.6))
+	return true
+
+
+# ---------- баффы еды и напитков (промпт 20:06) ----------
+## buffs[тип] = {"power": доля, "time": осталось, "icon": предмет}; тип — resist (еда) или speed (напитки).
+## Новый бафф того же типа: сила — бо́льшая из двух, время — бо́льшее из двух.
+var buffs := {}
+
+
+func add_buff(id: String) -> void:
+	var def: Dictionary = Items.ITEMS[id]
+	var kind: String = def["buff"]
+	var cur: Dictionary = buffs.get(kind, {"power": 0.0, "time": 0.0, "icon": id})
+	var stronger: bool = float(def["power"]) >= float(cur["power"])
+	buffs[kind] = {
+		"power": maxf(cur["power"], def["power"]),
+		"time": maxf(cur["time"], def["time"]),
+		"icon": id if stronger else cur["icon"],
+	}
+	hud.buffs = buffs
+
+
+func buff_mult(kind: String) -> float:
+	if not buffs.has(kind):
+		return 1.0
+	var p: float = buffs[kind]["power"]
+	return 1.0 + p if kind == "speed" else 1.0 - p
+
+
+func _tick_buffs(delta: float) -> void:
+	for k in buffs.keys():
+		buffs[k]["time"] -= delta
+		if buffs[k]["time"] <= 0.0:
+			buffs.erase(k)
+			hud.toast("Бафф закончился: %s" % ("скорость" if k == "speed" else "защита"), Color(0.75, 0.72, 0.65))
+	hud.buffs = buffs
+
+
 # ---------- здоровье ----------
 
 func damage_player(amount: float, from: Vector3) -> void:
@@ -262,6 +345,7 @@ func damage_player(amount: float, from: Vector3) -> void:
 		player.velocity += bpush.normalized() * 2.0
 		Fx.popup_text(self, player.global_position + Vector3(0, 1.4, 0) - player.global_transform.basis.z * 0.8, "БЛОК", Color(0.6, 0.85, 1.0))
 		return
+	amount *= buff_mult("resist")
 	hp = maxf(hp - amount, 0.0)
 	hud.set_hp(hp, MAX_HP)
 	hud.hurt_flash()
@@ -311,6 +395,12 @@ func _die() -> void:
 
 
 func _quick_heal() -> void:
+	if bleed_t > 0.0:
+		for bid in ["bandage", "medkit"]:
+			var bi := inv.bag_index(bid)
+			if bi >= 0:
+				use_item(bi)
+				return
 	if hp >= MAX_HP:
 		hud.toast("Здоровье и так полное")
 		return
@@ -350,12 +440,21 @@ func use_item(idx: int) -> void:
 		return
 	var id: String = s["id"]
 	var def: Dictionary = Items.ITEMS[id]
-	if def.has("heal"):
-		if hp >= MAX_HP:
+	if def.has("buff"):
+		inv.take_at(idx, 1)
+		add_buff(id)
+		var what := "−%d%% урона" % int(float(def["power"]) * 100) if def["buff"] == "resist" else "+%d%% скорости" % int(float(def["power"]) * 100)
+		hud.toast("%s: %s на %d с" % [def["name"], what, int(def["time"])], Color(0.8, 0.9, 0.6))
+		play_ui("pickup", -12.0, 0.9)
+	elif def.has("heal"):
+		var stops := id in ["bandage", "medkit"] and bleed_t > 0.0
+		if hp >= MAX_HP and not stops:
 			hud.toast("Здоровье и так полное")
 			return
 		inv.take_at(idx, 1)
 		heal(def["heal"])
+		if stops:
+			stop_bleeding()
 		hud.toast("%s: +%d здоровья" % [def["name"], int(def["heal"])], Color(0.7, 0.9, 0.6))
 		play_ui("pickup", -12.0, 0.8)
 	elif id == "battery":

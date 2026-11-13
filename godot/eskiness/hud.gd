@@ -13,6 +13,8 @@ var light_on := false
 var knuckles := false
 var inv  # inventory.gd — для хотбара 1–5
 var cheat_l: Label
+var bleed := 0.0          # сколько ещё течёт кровь (game.gd: _glass)
+var buffs := {}           # активные баффы (game.gd: buffs)
 var hurt := 0.0
 var t := 0.0
 
@@ -191,6 +193,32 @@ func _paint() -> void:
 	paint.draw_rect(Rect2(x, y, w * hp_lag / hp_max, 14), Color(0.85, 0.7, 0.55, 0.6))
 	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 14), Color(0.62, 0.12, 0.08))
 	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 4), Color(0.8, 0.25, 0.18))
+
+	# кровотечение: мигающая капля справа от полоски здоровья
+	if bleed > 0.0:
+		var a := 0.55 + 0.45 * sin(t * 8.0)
+		var dc := Vector2(x + w + 22, y + 9)
+		paint.draw_circle(dc, 8.0, Color(0.85, 0.08, 0.05, a))
+		paint.draw_colored_polygon(PackedVector2Array([dc + Vector2(-7, -3), dc + Vector2(7, -3), dc + Vector2(0, -18)]), Color(0.85, 0.08, 0.05, a))
+		var bt := "КРОВОТЕЧЕНИЕ %d с" % int(ceil(bleed))
+		paint.draw_string_outline(f, Vector2(x + w + 36, y + 14), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.8))
+		paint.draw_string(f, Vector2(x + w + 36, y + 14), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.3, 0.22, 0.6 + 0.4 * a))
+
+	# баффы еды и напитков: значок предмета, сила и таймер
+	var bx0 := x
+	for k in buffs:
+		var bd: Dictionary = buffs[k]
+		var r := Rect2(bx0, y - 120, 40, 40)
+		paint.draw_rect(r, Color(0, 0, 0, 0.55))
+		paint.draw_rect(r, Color(0.5, 0.8, 1.0, 0.8) if k == "speed" else Color(0.9, 0.75, 0.4, 0.8), false, 2.0)
+		Items.draw_icon(paint, bd["icon"], r.grow(-6))
+		var lbl := ("+%d%%" if k == "speed" else "−%d%%") % int(float(bd["power"]) * 100)
+		paint.draw_string_outline(f, r.position + Vector2(0, -4), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.8))
+		paint.draw_string(f, r.position + Vector2(0, -4), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.95, 0.9, 0.75))
+		var tt := "%d" % int(ceil(float(bd["time"])))
+		paint.draw_string_outline(f, r.position + Vector2(0, 38), tt, HORIZONTAL_ALIGNMENT_RIGHT, 38, 13, 3, Color(0, 0, 0, 0.8))
+		paint.draw_string(f, r.position + Vector2(0, 38), tt, HORIZONTAL_ALIGNMENT_RIGHT, 38, 13, Color(1, 1, 1))
+		bx0 += 48.0
 
 	# монеты
 	Items.draw_icon(paint, "coin", Rect2(x - 4, y - 66, 34, 34))
