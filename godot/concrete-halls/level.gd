@@ -5,6 +5,7 @@ extends Node3D
 ##   юг    (z > 0): комнаты с центрами x = -6, 6, между ними дверь
 
 const FlickerLight := preload("res://flicker_light.gd")
+const Surface := preload("res://surface.gd")
 const ConcreteShader := preload("res://concrete.gdshader")
 
 const H := 3.2        # высота потолка
@@ -47,6 +48,11 @@ func _ready() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = _make_env()
 	add_child(we)
+	# выход по лестнице на поверхность (поляна, небо, переключение окружения)
+	var sf := Surface.new()
+	sf.level = self
+	sf.env = we.environment
+	add_child(sf)
 
 
 func _build() -> void:
@@ -59,7 +65,7 @@ func _build() -> void:
 	_wall_x(ZN, X0 - T / 2, X1 + T / 2, [])
 	_wall_x(ZS, X0 - T / 2, X1 + T / 2, [])
 	_wall_z(X0, ZN, ZS, [])
-	_wall_z(X1, ZN, ZS, [])
+	var east := _wall_z(X1, ZN, ZS, [])
 
 	# стены коридора с проёмами
 	_wall_x(-CW, X0, X1, [-6.0, 6.0])
@@ -86,13 +92,15 @@ func _build() -> void:
 	_floor_litter()
 	_dust_motes()
 	_low_dust()
+	# проём к лестнице на поверхность — режем последним, чтобы не сбить случайную раскладку остального
+	_cut_door(east, Vector3(X1, 0, 0), true)
 
 
 func _debris() -> void:
 	var spots := [
 		Vector3(-10, 0, -7.5), Vector3(-3, 0, -4), Vector3(2.5, 0, -7.8), Vector3(10, 0, -3.5),
 		Vector3(-10.5, 0, 8), Vector3(-2.5, 0, 3.5), Vector3(3, 0, 8), Vector3(10.8, 0, 3.5),
-		Vector3(11.2, 0, -0.8),
+		Vector3(11.0, 0, -6.8),
 	]
 	for s in spots:
 		var n := rng.randi_range(1, 4)
@@ -214,11 +222,12 @@ func _wall_x(z: float, xa: float, xb: float, doors: Array) -> void:
 		_cut_door(csg, Vector3(dx, 0, z), false)
 
 
-func _wall_z(x: float, za: float, zb: float, doors: Array) -> void:
+func _wall_z(x: float, za: float, zb: float, doors: Array) -> CSGCombiner3D:
 	var csg := _csg_wall(Vector3(x, H / 2, (za + zb) / 2), Vector3(T, H, zb - za))
 	_edge_chips(csg, Vector3(x, 0, (za + zb) / 2), zb - za, true, doors)
 	for dz in doors:
 		_cut_door(csg, Vector3(x, 0, dz), true)
+	return csg
 
 
 func _csg_wall(pos: Vector3, size: Vector3) -> CSGCombiner3D:
@@ -625,6 +634,8 @@ func _in_doorway(p: Vector3) -> bool:
 		if absf(p.x - dx) < DOOR_W / 2 + 0.25 and absf(absf(p.z) - CW) < T:
 			return true
 	if absf(p.x) < T and absf(p.z - 5.5) < DOOR_W / 2 + 0.25:
+		return true
+	if absf(p.x - X1) < T and absf(p.z) < DOOR_W / 2 + 0.25:
 		return true
 	return false
 
