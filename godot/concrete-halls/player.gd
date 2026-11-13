@@ -7,6 +7,9 @@ const GRAVITY := 9.8
 const SENS := 0.0022
 const CAM_Y := 1.62
 const FOV := 75.0
+const JUMP := 4.6
+const ACCEL_WALK := 5.0
+const ACCEL_SPRINT := 3.2
 
 var active := false
 var cam: Camera3D
@@ -20,6 +23,8 @@ var steps: Array[AudioStreamWAV] = []
 var step_player: AudioStreamPlayer
 var step_idx := 0
 var last_step := -1
+var was_on_floor := true
+var land_speed := 0.0
 
 
 func _ready() -> void:
@@ -139,8 +144,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not is_on_floor():
+	var on_floor := is_on_floor()
+	if not on_floor:
 		velocity.y -= GRAVITY * delta
+	elif active and Input.is_action_just_pressed("jump"):
+		velocity.y = JUMP
+		on_floor = false
 
 	var inp := Vector2.ZERO
 	if active:
@@ -155,14 +164,29 @@ func _physics_process(delta: float) -> void:
 		sprint_carry = move_toward(sprint_carry, 0.0, delta * 0.7)
 
 	var target := dir * (SPRINT if sprinting else WALK)
-	# разгон быстрый, торможение мягкое; после бега — ещё мягче
-	var rate := 9.0 if moving else lerpf(7.0, 2.8, sprint_carry)
-	var hv := Vector3(velocity.x, 0, velocity.z).lerp(target, 1.0 - exp(-rate * delta))
+	var hv := Vector3(velocity.x, 0, velocity.z)
+	var air := 1.0 if on_floor else 0.25
+	if moving and target.length() > hv.length() + 0.01:
+		# разгон: с места до шага ~0.7 с, с шага до бега ~1 с
+		var accel := ACCEL_SPRINT if hv.length() > WALK - 0.2 else ACCEL_WALK
+		# поворот на ходу не тормозим: сначала выравниваем направление, потом добавляем скорость
+		var spd := move_toward(hv.length(), target.length(), accel * air * delta)
+		var d := hv.normalized().slerp(target.normalized(), 1.0 - exp(-10.0 * air * delta)) if hv.length() > 0.1 else target.normalized()
+		hv = d * spd
+	else:
+		# торможение мягкое; после бега — ещё мягче
+		var rate := (7.0 if moving else lerpf(6.0, 2.6, sprint_carry)) * air
+		hv = hv.lerp(target, 1.0 - exp(-rate * delta))
 	velocity.x = hv.x
 	velocity.z = hv.z
 	move_and_slide()
 
-	_animate(delta, hv.length(), sprinting)
+	if is_on_floor() and not was_on_floor and land_speed < -2.5:
+		_play_step(-4.0)
+	land_speed = velocity.y
+	was_on_floor = is_on_floor()
+
+	_animate(delta, hv.length() if is_on_floor() else 0.0, sprinting)
 
 
 func _animate(delta: float, spd: float, sprinting: bool) -> void:
@@ -181,13 +205,17 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 	if s != last_step:
 		last_step = s
 		if spd > 0.6 and is_on_floor():
-			step_idx = (step_idx + 1 + randi() % (steps.size() - 1)) % steps.size()
-			step_player.stream = steps[step_idx]
-			step_player.volume_db = (-6.0 if sprinting else -12.0) + randf_range(-1.5, 1.5)
-			step_player.pitch_scale = randf_range(0.9, 1.08) * (1.05 if sprinting else 1.0)
-			step_player.play()
+			_play_step((-6.0 if sprinting else -12.0) + randf_range(-1.5, 1.5), 1.05 if sprinting else 1.0)
 	var want_fov := FOV + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
+
+
+func _play_step(db: float, pitch := 1.0) -> void:
+	step_idx = (step_idx + 1 + randi() % (steps.size() - 1)) % steps.size()
+	step_player.stream = steps[step_idx]
+	step_player.volume_db = db
+	step_player.pitch_scale = randf_range(0.9, 1.08) * pitch
+	step_player.play()
 
 
 ## Шаг ботинка по камню: мягкий удар пятки + перекат на носок + короткий шорох подошвы

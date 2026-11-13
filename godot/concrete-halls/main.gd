@@ -154,6 +154,7 @@ func _setup_input() -> void:
 	_add_keys("move_left", [KEY_A, KEY_LEFT])
 	_add_keys("move_right", [KEY_D, KEY_RIGHT])
 	_add_keys("sprint", [KEY_SHIFT])
+	_add_keys("jump", [KEY_SPACE])
 	_add_keys("toggle_fullscreen", [KEY_F11])
 
 

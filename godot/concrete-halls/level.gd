@@ -22,12 +22,16 @@ var floor_mat: ShaderMaterial
 var ceil_mat: ShaderMaterial
 var wire_mat: StandardMaterial3D
 var rng := RandomNumberGenerator.new()
+var noise_extra: Array = []
 
 
 func _ready() -> void:
 	rng.seed = 7
 	var big := _noise_tex(11, 0.006, 3)
 	var fine := _noise_tex(23, 0.04, 4)
+	var cell := _noise_tex(37, 0.05, 2, FastNoiseLite.TYPE_CELLULAR)
+	var crack := _noise_tex(41, 0.008, 4)
+	noise_extra = [cell, crack]
 	wall_mat = _concrete(big, fine, Color(0.27, 0.265, 0.25))
 	floor_mat = _concrete(big, fine, Color(0.25, 0.24, 0.225), true)
 	ceil_mat = _concrete(big, fine, Color(0.14, 0.135, 0.13), true)
@@ -280,10 +284,10 @@ func _box(pos: Vector3, size: Vector3, mat: Material, collide := true) -> Node3D
 	return root
 
 
-func _noise_tex(seed_: int, freq: float, octaves: int) -> NoiseTexture2D:
+func _noise_tex(seed_: int, freq: float, octaves: int, ntype := FastNoiseLite.TYPE_SIMPLEX_SMOOTH) -> NoiseTexture2D:
 	var noise := FastNoiseLite.new()
 	noise.seed = seed_
-	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.noise_type = ntype
 	noise.frequency = freq
 	noise.fractal_octaves = octaves
 	noise.fractal_gain = 0.5
@@ -301,6 +305,8 @@ func _concrete(big: Texture2D, fine: Texture2D, base: Color, polished := false) 
 	m.shader = ConcreteShader
 	m.set_shader_parameter("noise_big", big)
 	m.set_shader_parameter("noise_fine", fine)
+	m.set_shader_parameter("noise_cell", noise_extra[0])
+	m.set_shader_parameter("noise_crack", noise_extra[1])
 	m.set_shader_parameter("base_color", base)
 	m.set_shader_parameter("ceiling_h", H)
 	m.set_shader_parameter("polished", 1.0 if polished else 0.0)
