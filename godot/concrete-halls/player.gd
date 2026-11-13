@@ -48,7 +48,13 @@ var land_dip := 0.0
 var shoulders: Array[Node3D] = []
 var elbows: Array[Node3D] = []
 var arm_pose: Array[Vector4] = [REST, REST]
-var fist_fx: Array[CPUParticles3D] = []
+var fist_fx: Array[CPUParticles3D] = []   # точка кулака (частицы больше не испускаются)
+# «рисованный» след удара: тонкие штрихи вдоль траектории кулака
+var trail_mesh: Array[ImmediateMesh] = []
+var trail_pts: Array = [[], []]
+var trail_on: Array[bool] = [false, false]
+var trail_alpha: Array[float] = [0.0, 0.0]
+var trail_mat: StandardMaterial3D
 var post_mat: ShaderMaterial          # постобработка (задаёт main.gd)
 var foot_pitch: Array[float] = [0.0, 0.0]
 var reach: Array[float] = [0.0, 0.0]   # выпад плеча вперёд при ударе
@@ -423,15 +429,22 @@ func punch() -> void:
 ## Эффекты удара: размытие в движении (прямой — «зум», хук — по горизонтали, апперкот — по вертикали)
 ## и потоки воздуха за кулаком.
 func _punch_fx(i: int, kind: String, on: bool) -> void:
-	fist_fx[i].emitting = on
+	trail_on[i] = on
+	if on:
+		trail_pts[i].clear()
+		trail_alpha[i] = 1.0
 	if not on or post_mat == null:
 		return
+	# размытие только вокруг кулака и слабее
+	var fp := fist_fx[i].global_position
+	if not cam.is_position_behind(fp):
+		post_mat.set_shader_parameter("blur_center", cam.unproject_position(fp) / get_viewport().get_visible_rect().size)
 	var side := -1.0 if i == 0 else 1.0
 	var param := "blur_amt"
-	var peak := 0.022
+	var peak := 0.008
 	if kind == "straight":
 		param = "zoom_amt"
-		peak = 0.05
+		peak = 0.018
 	elif kind == "hook":
 		post_mat.set_shader_parameter("blur_dir", Vector2(-side, 0.0))
 	else:
@@ -470,6 +483,65 @@ func _play(p: AudioStreamPlayer, set_: Array, db: float) -> void:
 	p.volume_db = db + randf_range(-1.5, 1.5)
 	p.pitch_scale = randf_range(0.92, 1.08)
 	p.play()
+
+
+func _process(delta: float) -> void:
+	if trail_mesh.is_empty():
+		_make_trails()
+	for i in 2:
+		var pts: Array = trail_pts[i]
+		if trail_on[i]:
+			var fp := fist_fx[i].global_position
+			if pts.is_empty() or (pts[-1] as Vector3).distance_to(fp) > 0.015:
+				pts.append(fp)
+				if pts.size() > 7:
+					pts.pop_front()
+		else:
+			trail_alpha[i] = maxf(trail_alpha[i] - delta * 7.0, 0.0)
+		_draw_trail(i)
+
+
+func _make_trails() -> void:
+	trail_mat = StandardMaterial3D.new()
+	trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	trail_mat.vertex_color_use_as_albedo = true
+	trail_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for i in 2:
+		var im := ImmediateMesh.new()
+		var mi := MeshInstance3D.new()
+		mi.mesh = im
+		mi.material_override = trail_mat
+		mi.top_level = true
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+		mi.global_transform = Transform3D.IDENTITY
+		trail_mesh.append(im)
+
+
+## След: основной штрих и тонкий параллельный, сужаются к хвосту и прозрачные — как росчерк кистью.
+func _draw_trail(i: int) -> void:
+	var im := trail_mesh[i]
+	im.clear_surfaces()
+	var pts: Array = trail_pts[i]
+	if pts.size() < 3 or trail_alpha[i] <= 0.0:
+		return
+	var view := -cam.global_transform.basis.z
+	for stroke in [[0.0, 0.01, 0.2], [0.03, 0.004, 0.12]]:
+		im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+		var n := pts.size()
+		for k in n:
+			var a: Vector3 = pts[maxi(k - 1, 0)]
+			var b: Vector3 = pts[mini(k + 1, n - 1)]
+			var side := (b - a).cross(view).normalized()
+			var t := float(k) / float(n - 1)          # 0 — хвост, 1 — у кулака
+			var w: float = stroke[1] * sin(t * PI * 0.9 + 0.1)
+			var c: Vector3 = pts[k] + side * float(stroke[0]) * t
+			im.surface_set_color(Color(0.95, 0.92, 0.85, float(stroke[2]) * t * trail_alpha[i]))
+			im.surface_add_vertex(c - side * w)
+			im.surface_set_color(Color(0.95, 0.92, 0.85, float(stroke[2]) * t * trail_alpha[i]))
+			im.surface_add_vertex(c + side * w)
+		im.surface_end()
 
 
 func _physics_process(delta: float) -> void:

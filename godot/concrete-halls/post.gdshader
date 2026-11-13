@@ -12,6 +12,8 @@ uniform float vignette = 0.45;
 uniform vec2 blur_dir = vec2(0.0);
 uniform float blur_amt = 0.0;
 uniform float zoom_amt = 0.0;
+uniform vec2 blur_center = vec2(0.5, 0.7);   // где кулак на экране: размытие только вокруг него
+uniform float blur_radius = 0.22;
 // настройки изображения (меню «Настройки»)
 uniform float brightness = 1.0;
 uniform float gamma = 1.0;
@@ -31,10 +33,11 @@ vec3 sample_lens(vec2 uv) {
 
 void fragment() {
 	vec3 c = vec3(0.0);
-	if (blur_amt > 0.0001 || zoom_amt > 0.0001) {
+	float bm = 1.0 - smoothstep(blur_radius * 0.4, blur_radius, distance(SCREEN_UV, blur_center));
+	if ((blur_amt > 0.0001 || zoom_amt > 0.0001) && bm > 0.001) {
 		for (int i = 0; i < 10; i++) {
 			float t = float(i) / 9.0 - 0.5;
-			c += sample_lens(SCREEN_UV + blur_dir * blur_amt * t + (SCREEN_UV - 0.5) * zoom_amt * t);
+			c += sample_lens(SCREEN_UV + (blur_dir * blur_amt * t + (SCREEN_UV - blur_center) * zoom_amt * t) * bm);
 		}
 		c /= 10.0;
 	} else {
