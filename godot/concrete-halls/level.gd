@@ -120,11 +120,11 @@ func _lights() -> void:
 	# левая поломана, висит на проводах и мерцает, правая работает штатно. Одна комната без света.
 	var rn := (ZN + -CW) / 2.0
 	var rs := (CW + ZS) / 2.0
-	_broken_lamp(Vector3(-6, H, 0), 0.8)
-	_lamp(Vector3(6, H, 0), 0.75, false)
-	_lamp(Vector3(-6, H, rn), 0.75, false)
-	_lamp(Vector3(6, H, rn), 0.7, false)
-	_lamp(Vector3(6, H, rs), 0.75, false)
+	_broken_lamp(Vector3(-6, H, 0), 1.1)
+	_lamp(Vector3(6, H, 0), 1.05, false)
+	_lamp(Vector3(-6, H, rn), 1.05, false)
+	_lamp(Vector3(6, H, rn), 1.0, false)
+	_lamp(Vector3(6, H, rs), 1.05, false)
 
 
 func _broken_lamp(pos: Vector3, energy: float) -> void:
@@ -791,7 +791,7 @@ func _make_env() -> Environment:
 	e.background_color = Color(0.01, 0.01, 0.012)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.62, 0.55, 0.46)
-	e.ambient_light_energy = 0.1
+	e.ambient_light_energy = 0.18
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.ssao_enabled = true
 	e.ssao_radius = 1.4

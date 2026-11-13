@@ -379,7 +379,7 @@ func _process(delta: float) -> void:
 
 func _apply_env(k: float) -> void:
 	env.ambient_light_color = IN_AMB.lerp(OUT_AMB, k)
-	env.ambient_light_energy = lerpf(0.1, 0.4, k)
+	env.ambient_light_energy = lerpf(0.18, 0.5, k)
 	env.fog_light_color = IN_FOG.lerp(OUT_FOG, k)
 	env.fog_density = lerpf(0.02, 0.013, k)
 	env.fog_height_density = lerpf(0.5, 0.0, k)
