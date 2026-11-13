@@ -29,6 +29,11 @@ const RW := 0.125          # ширина барабана
 const REEL_Y := 0.98
 const REEL_Z := 0.07
 const TEX := 128           # пикселей на символ в ленте
+const K := 1.3             # во сколько раз автомат больше «базового»
+const PED := 0.25          # высота подиума
+const RIG_Z := 0.1         # сдвиг вперёд, чтобы задняя стенка не уходила в стену
+## доска выплат на стене справа от автомата (в координатах автомата)
+const BOARD_POS := Vector3(1.22, 1.6, -0.25)
 
 var game  # game.gd (выставляет game.gd; в меню — null)
 var busy := false
@@ -38,6 +43,8 @@ var last_cell: Array[int] = [0, 0, 0, 0]
 var spinning: Array[bool] = [false, false, false, false]
 var lever: Node3D
 var bulbs: Array[StandardMaterial3D] = []
+var leds: Array[StandardMaterial3D] = []
+var rig: Node3D
 var light: OmniLight3D
 var screen: Label3D
 var party := 0.0
@@ -84,26 +91,32 @@ func _box(parent: Node3D, size: Vector3, pos: Vector3, m: Material) -> MeshInsta
 
 ## Перед автомата — +Z.
 func _build() -> void:
-	var body := _mat(Color(0.2, 0.05, 0.04), 0.4, 0.5)
-	var trim := _mat(Color(0.45, 0.36, 0.2), 0.8, 0.35)
+	var body := _mat(Color(0.34, 0.035, 0.05), 0.45, 0.4)
+	var trim := _mat(Color(0.75, 0.56, 0.22), 0.9, 0.28)
 	var black := _mat(Color(0.015, 0.015, 0.015))
+	# всё видимое — в rig: он увеличен в K раз и стоит на подиуме
+	rig = Node3D.new()
+	rig.scale = Vector3.ONE * K
+	rig.position = Vector3(0, PED, RIG_Z)
+	add_child(rig)
+	_build_extras(body, trim, black)
 	# корпус: низ, полость под барабаны (бока, задник, рамка окна), верх, вывеска
-	_box(self, Vector3(0.8, 0.8, 0.6), Vector3(0, 0.4, 0), body)
+	_box(rig, Vector3(0.8, 0.8, 0.6), Vector3(0, 0.4, 0), body)
 	for sx in [-1.0, 1.0]:
-		_box(self, Vector3(0.1, 0.4, 0.6), Vector3(0.35 * sx, 0.98, 0), body)
-	_box(self, Vector3(0.6, 0.4, 0.1), Vector3(0, 0.98, -0.25), black)
-	_box(self, Vector3(0.8, 0.04, 0.6), Vector3(0, 1.18, 0), body)
-	_box(self, Vector3(0.62, 0.05, 0.05), Vector3(0, 1.14, 0.275), trim)
-	_box(self, Vector3(0.62, 0.05, 0.05), Vector3(0, 0.82, 0.275), trim)
-	_box(self, Vector3(0.62, 0.035, 0.12), Vector3(0, 1.17, 0.21), black)
-	_box(self, Vector3(0.62, 0.035, 0.12), Vector3(0, 0.79, 0.21), black)
+		_box(rig, Vector3(0.1, 0.4, 0.6), Vector3(0.35 * sx, 0.98, 0), body)
+	_box(rig, Vector3(0.6, 0.4, 0.1), Vector3(0, 0.98, -0.25), black)
+	_box(rig, Vector3(0.8, 0.04, 0.6), Vector3(0, 1.18, 0), body)
+	_box(rig, Vector3(0.62, 0.05, 0.05), Vector3(0, 1.14, 0.275), trim)
+	_box(rig, Vector3(0.62, 0.05, 0.05), Vector3(0, 0.82, 0.275), trim)
+	_box(rig, Vector3(0.62, 0.035, 0.12), Vector3(0, 1.17, 0.21), black)
+	_box(rig, Vector3(0.62, 0.035, 0.12), Vector3(0, 0.79, 0.21), black)
 	for k in 3:
-		_box(self, Vector3(0.018, 0.28, 0.04), Vector3((k - 1) * 0.145, REEL_Y, 0.275), trim)
+		_box(rig, Vector3(0.018, 0.28, 0.04), Vector3((k - 1) * 0.145, REEL_Y, 0.275), trim)
 	for sx in [-1.0, 1.0]:
-		_box(self, Vector3(0.025, 0.32, 0.05), Vector3(0.3 * sx, REEL_Y, 0.275), trim)
-	_box(self, Vector3(0.86, 0.36, 0.66), Vector3(0, 1.38, 0), body)
-	_box(self, Vector3(0.88, 0.04, 0.68), Vector3(0, 1.2, 0), trim)
-	_box(self, Vector3(0.88, 0.04, 0.68), Vector3(0, 1.56, 0), trim)
+		_box(rig, Vector3(0.025, 0.32, 0.05), Vector3(0.3 * sx, REEL_Y, 0.275), trim)
+	_box(rig, Vector3(0.86, 0.36, 0.66), Vector3(0, 1.38, 0), body)
+	_box(rig, Vector3(0.88, 0.04, 0.68), Vector3(0, 1.2, 0), trim)
+	_box(rig, Vector3(0.88, 0.04, 0.68), Vector3(0, 1.56, 0), trim)
 
 	# барабаны: лента символов рисуется в SubViewport и натягивается на цилиндр
 	var sv := SubViewport.new()
@@ -133,7 +146,7 @@ func _build() -> void:
 		r.mesh = mesh
 		r.material_override = reel_mat
 		r.position = Vector3((i - 1.5) * 0.145, REEL_Y, REEL_Z)
-		add_child(r)
+		rig.add_child(r)
 		reels.append(r)
 
 	# вывеска
@@ -145,7 +158,7 @@ func _build() -> void:
 	sign_l.outline_modulate = Color(0.15, 0.0, 0.0)
 	sign_l.modulate = Color(1.0, 0.3, 0.15)
 	sign_l.position = Vector3(0, 1.39, 0.335)
-	add_child(sign_l)
+	rig.add_child(sign_l)
 	screen = Label3D.new()
 	screen.text = "КРУТКА — %d МОНЕТ" % COST
 	screen.font_size = 40
@@ -155,8 +168,8 @@ func _build() -> void:
 	screen.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	screen.modulate = Color(0.95, 0.78, 0.45)
 	screen.position = Vector3(-0.05, 0.71, 0.316)
-	add_child(screen)
-	_box(self, Vector3(0.58, 0.1, 0.01), Vector3(-0.05, 0.71, 0.3), black)
+	rig.add_child(screen)
+	_box(rig, Vector3(0.58, 0.1, 0.01), Vector3(-0.05, 0.71, 0.3), black)
 	# лампочки по верху вывески
 	for k in 9:
 		var m := StandardMaterial3D.new()
@@ -170,17 +183,17 @@ func _build() -> void:
 		b.mesh = sm
 		b.material_override = m
 		b.position = Vector3(-0.36 + k * 0.09, 1.6, 0.31)
-		add_child(b)
+		rig.add_child(b)
 		bulbs.append(m)
 	# прорезь для монет и лоток
-	_box(self, Vector3(0.08, 0.1, 0.02), Vector3(0.3, 0.71, 0.305), trim)
-	_box(self, Vector3(0.012, 0.06, 0.01), Vector3(0.3, 0.71, 0.318), black)
-	_box(self, Vector3(0.5, 0.06, 0.2), Vector3(0, 0.3, 0.36), trim)
-	_box(self, Vector3(0.46, 0.14, 0.02), Vector3(0, 0.36, 0.45), trim)
+	_box(rig, Vector3(0.08, 0.1, 0.02), Vector3(0.3, 0.71, 0.305), trim)
+	_box(rig, Vector3(0.012, 0.06, 0.01), Vector3(0.3, 0.71, 0.318), black)
+	_box(rig, Vector3(0.5, 0.06, 0.2), Vector3(0, 0.3, 0.36), trim)
+	_box(rig, Vector3(0.46, 0.14, 0.02), Vector3(0, 0.36, 0.45), trim)
 	# рычаг справа
 	lever = Node3D.new()
 	lever.position = Vector3(0.43, 0.9, 0.05)
-	add_child(lever)
+	rig.add_child(lever)
 	var rod := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
 	cm.top_radius = 0.018
@@ -198,22 +211,72 @@ func _build() -> void:
 	ball.material_override = _mat(Color(0.6, 0.08, 0.05), 0.2, 0.3)
 	ball.position = Vector3(0.03, 0.46, 0)
 	lever.add_child(ball)
-	_box(self, Vector3(0.06, 0.12, 0.12), Vector3(0.42, 0.9, 0.05), trim)
+	_box(rig, Vector3(0.06, 0.12, 0.12), Vector3(0.42, 0.9, 0.05), trim)
 
 	light = OmniLight3D.new()
 	light.light_color = Color(1.0, 0.5, 0.28)
-	light.light_energy = 0.8
-	light.omni_range = 4.5
+	light.light_energy = 1.0
+	light.omni_range = 6.0
 	light.shadow_enabled = true
 	light.position = Vector3(0, 1.3, 0.75)
-	add_child(light)
+	rig.add_child(light)
 
 	var cs := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(0.86, 1.58, 0.66)
+	var top := PED + 2.0 * K
+	shape.size = Vector3(0.9 * K, top, 0.68 * K)
 	cs.shape = shape
-	cs.position = Vector3(0, 0.79, 0)
+	cs.position = Vector3(0, top / 2.0, RIG_Z)
 	add_child(cs)
+
+
+## Подиум, надстройка «777» с лампами, цветные бегущие огни по бокам корпуса.
+func _build_extras(body: Material, trim: Material, black: Material) -> void:
+	# подиум (вне rig — в мировых метрах)
+	var ped := _mat(Color(0.08, 0.06, 0.05), 0.3, 0.6)
+	_box(self, Vector3(0.9 * K + 0.06, PED, 0.68 * K + 0.06), Vector3(0, PED / 2.0, RIG_Z), ped)
+	_box(self, Vector3(0.9 * K + 0.08, 0.03, 0.68 * K + 0.08), Vector3(0, PED, RIG_Z), trim)
+	# надстройка над вывеской
+	_box(rig, Vector3(0.62, 0.32, 0.5), Vector3(0, 1.74, -0.02), body)
+	_box(rig, Vector3(0.66, 0.035, 0.54), Vector3(0, 1.91, -0.02), trim)
+	_box(rig, Vector3(0.5, 0.2, 0.01), Vector3(0, 1.74, 0.235), black)
+	var crown := Label3D.new()
+	crown.text = "777"
+	crown.font_size = 96
+	crown.pixel_size = 0.0019
+	crown.outline_size = 10
+	crown.outline_modulate = Color(0.3, 0.2, 0.0)
+	crown.modulate = Color(1.0, 0.85, 0.3)
+	crown.shaded = false
+	crown.position = Vector3(0, 1.74, 0.245)
+	rig.add_child(crown)
+	# цветные огни: по передним рёбрам корпуса и вдоль надстройки
+	var palette := [Color(1, 0.15, 0.1), Color(1, 0.55, 0.1), Color(1, 0.9, 0.2), Color(0.2, 1, 0.35), Color(0.2, 0.8, 1), Color(0.6, 0.3, 1)]
+	var spots: Array = []
+	for k in 14:
+		var y := 0.06 + k * 0.105
+		spots.append(Vector3(-0.415, y, 0.305))
+		spots.append(Vector3(0.415, y, 0.305))
+	for k in 7:
+		spots.append(Vector3(-0.27 + k * 0.09, 1.86, 0.235))
+	for i in spots.size():
+		var m := StandardMaterial3D.new()
+		var col: Color = palette[(i / 2) % palette.size()]
+		m.albedo_color = col.darkened(0.6)
+		m.emission_enabled = true
+		m.emission = col
+		var bl := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.016
+		sm.height = 0.032
+		bl.mesh = sm
+		bl.material_override = m
+		bl.position = spots[i]
+		rig.add_child(bl)
+		leds.append(m)
+	# хромированные полосы по бокам
+	for sx in [-1.0, 1.0]:
+		_box(rig, Vector3(0.012, 1.5, 0.02), Vector3(0.43 * sx, 0.78, 0.29), trim)
 
 
 ## Цилиндр барабана вдоль оси X с развёрткой: v = 0..1 по окружности (сверху вниз по ленте).
@@ -248,7 +311,7 @@ func _angle_for(i: int) -> float:
 ## Доска выплат на стене справа от автомата.
 func _build_board() -> void:
 	var sv := SubViewport.new()
-	sv.size = Vector2i(560, 800)
+	sv.size = Vector2i(600, 980)
 	sv.transparent_bg = false
 	sv.render_target_update_mode = SubViewport.UPDATE_ONCE
 	add_child(sv)
@@ -256,19 +319,24 @@ func _build_board() -> void:
 	art.size = Vector2(sv.size)
 	art.draw.connect(_draw_board.bind(art))
 	sv.add_child(art)
-	var frame := _mat(Color(0.12, 0.08, 0.05), 0.0, 0.9)
+	var frame := _mat(Color(0.75, 0.56, 0.22), 0.9, 0.3)
+	var back := _mat(Color(0.1, 0.06, 0.04), 0.0, 0.9)
 	var board := Node3D.new()
-	board.position = Vector3(0.98, 1.3, -0.28)
-	board.rotation.y = -0.2
+	board.position = BOARD_POS
+	board.rotation.y = -0.12
 	add_child(board)
-	_box(board, Vector3(0.68, 0.94, 0.03), Vector3(0, 0, -0.01), frame)
+	_box(board, Vector3(0.98, 1.56, 0.03), Vector3(0, 0, -0.012), back)
+	for sy in [-1.0, 1.0]:
+		_box(board, Vector3(0.98, 0.03, 0.04), Vector3(0, 0.775 * sy, 0), frame)
+	for sx in [-1.0, 1.0]:
+		_box(board, Vector3(0.03, 1.58, 0.04), Vector3(0.475 * sx, 0, 0), frame)
 	var q := QuadMesh.new()
-	q.size = Vector2(0.63, 0.9)
+	q.size = Vector2(0.9, 1.47)
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = sv.get_texture()
 	m.emission_enabled = true
 	m.emission_texture = sv.get_texture()
-	m.emission_energy_multiplier = 0.25
+	m.emission_energy_multiplier = 0.35
 	m.roughness = 0.9
 	var mi := MeshInstance3D.new()
 	mi.mesh = q
@@ -277,36 +345,54 @@ func _build_board() -> void:
 	board.add_child(mi)
 
 
-func _draw_board(ci: Control) -> void:
+## Строка, ужатая по ширине: шрифт уменьшается, пока текст не влезет.
+func _fit(ci: Control, pos: Vector2, text: String, width: float, size: int, col: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
 	var f := ThemeDB.fallback_font
+	var fs := size
+	while fs > 10 and f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width:
+		fs -= 1
+	ci.draw_string(f, pos, text, align, width, fs, col)
+
+
+func _draw_board(ci: Control) -> void:
 	var w := ci.size.x
-	ci.draw_rect(Rect2(Vector2.ZERO, ci.size), Color(0.13, 0.1, 0.08))
-	ci.draw_rect(Rect2(Vector2(8, 8), ci.size - Vector2(16, 16)), Color(0.7, 0.5, 0.25), false, 3.0)
-	ci.draw_string(f, Vector2(0, 62), "KILLBOX — ВЫПЛАТЫ", HORIZONTAL_ALIGNMENT_CENTER, w, 38, Color(1.0, 0.45, 0.25))
-	ci.draw_string(f, Vector2(0, 98), "крутка %d монет · считается каждый ряд" % COST, HORIZONTAL_ALIGNMENT_CENTER, w, 20, Color(0.8, 0.72, 0.6))
-	var y := 120.0
-	var text_col := Color(0.92, 0.86, 0.72)
-	for id in ["diamond", "grape", "plum", "lemon", "cherry"]:
+	var pad := 34.0
+	var inner := w - pad * 2.0
+	ci.draw_rect(Rect2(Vector2.ZERO, ci.size), Color(0.12, 0.05, 0.05))
+	ci.draw_rect(Rect2(Vector2(10, 10), ci.size - Vector2(20, 20)), Color(0.85, 0.62, 0.25), false, 4.0)
+	ci.draw_rect(Rect2(Vector2(18, 18), ci.size - Vector2(36, 36)), Color(0.85, 0.2, 0.15, 0.6), false, 2.0)
+	_fit(ci, Vector2(pad, 82), "KILLBOX", inner, 64, Color(1.0, 0.35, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	_fit(ci, Vector2(pad, 124), "ТАБЛИЦА ВЫПЛАТ", inner, 30, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
+	_fit(ci, Vector2(pad, 158), "крутка %d монет · каждый ряд считается отдельно" % COST, inner, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
+	var y := 184.0
+	var text_col := Color(0.95, 0.9, 0.78)
+	var rows := ["diamond", "grape", "plum", "lemon", "cherry"]
+	for k in rows.size():
+		var id: String = rows[k]
+		if k % 2 == 0:
+			ci.draw_rect(Rect2(pad - 8, y - 4, inner + 16, 92), Color(1, 1, 1, 0.04))
 		var pays: Dictionary = PAY[id]
-		Sym.draw(ci, id, Rect2(30, y, 64, 64))
+		Sym.draw(ci, id, Rect2(pad, y, 84, 84))
 		var parts := PackedStringArray()
 		for n in [4, 3, 2]:
 			if pays.has(n):
-				parts.append("%d в ряд — %d" % [n, pays[n]])
-		ci.draw_string(f, Vector2(110, y + 42), "   ".join(parts), HORIZONTAL_ALIGNMENT_LEFT, w - 120, 22, text_col)
-		y += 76.0
-	y += 8.0
-	ci.draw_line(Vector2(30, y), Vector2(w - 30, y), Color(0.7, 0.5, 0.25, 0.6), 2.0)
-	y += 14.0
+				parts.append("×%d — %d" % [n, pays[n]])
+		_fit(ci, Vector2(pad + 100, y + 54), "    ".join(parts), inner - 100, 30, text_col)
+		y += 100.0
+	y += 6.0
+	ci.draw_line(Vector2(pad, y), Vector2(w - pad, y), Color(0.85, 0.62, 0.25, 0.7), 2.0)
+	y += 18.0
 	for k in 3:
-		Sym.draw(ci, "seven", Rect2(30 + k * 56, y, 56, 56))
-	ci.draw_string(f, Vector2(210, y + 26), "3 в ряд — открывают сейф", HORIZONTAL_ALIGNMENT_LEFT, w - 220, 21, Color(1.0, 0.85, 0.4))
-	ci.draw_string(f, Vector2(210, y + 52), "(сейф открыт — 100 монет)", HORIZONTAL_ALIGNMENT_LEFT, w - 220, 19, text_col)
-	y += 80.0
+		Sym.draw(ci, "seven", Rect2(pad + k * 62, y, 62, 62))
+	_fit(ci, Vector2(pad + 200, y + 28), "×3 в ряд — открывают сейф", inner - 200, 24, Color(1.0, 0.85, 0.4))
+	_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — 100 монет", inner - 200, 22, text_col)
+	y += 96.0
 	for k in 3:
-		Sym.draw(ci, "six", Rect2(30 + k * 56, y, 56, 56))
-	ci.draw_string(f, Vector2(210, y + 26), "3 где угодно — автомат", HORIZONTAL_ALIGNMENT_LEFT, w - 220, 21, Color(1.0, 0.3, 0.2))
-	ci.draw_string(f, Vector2(210, y + 52), "забирает всё, кроме 10", HORIZONTAL_ALIGNMENT_LEFT, w - 220, 21, Color(1.0, 0.3, 0.2))
+		Sym.draw(ci, "six", Rect2(pad + k * 62, y, 62, 62))
+	_fit(ci, Vector2(pad + 200, y + 28), "×3 где угодно в окне —", inner - 200, 24, Color(1.0, 0.3, 0.2))
+	_fit(ci, Vector2(pad + 200, y + 58), "автомат забирает всё, кроме 10", inner - 200, 22, Color(1.0, 0.3, 0.2))
+	y += 92.0
+	_fit(ci, Vector2(pad, y + 20), "4 семёрки и 4 шестёрки не выпадают никогда", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func get_prompt(_game) -> String:
@@ -388,6 +474,13 @@ func _process(delta: float) -> void:
 		else:
 			on = int(t * 3.0) % 3 != k % 3
 		bulbs[k].emission_energy_multiplier = 1.6 if on else 0.15
+	# цветные огни: волна снизу вверх, при выигрыше — вспышки
+	for i in leds.size():
+		var w := sin(t * 5.0 - float(i / 2) * 0.6)
+		if party > 0.0:
+			leds[i].emission_energy_multiplier = 2.2 if (int(t * 12.0) + i) % 3 == 0 else 0.3
+		else:
+			leds[i].emission_energy_multiplier = 0.4 + 1.4 * maxf(w, 0.0)
 	# свечение мерцает и переливается от янтарного к красному
 	var flick := 0.06 * sin(t * 2.3) + 0.04 * sin(t * 7.1) + (0.12 if randf() < 0.02 else 0.0)
 	light.light_energy = 0.8 + flick + (0.35 * sin(t * 30.0) if party > 0.0 else 0.0)
@@ -447,7 +540,7 @@ func _payout() -> void:
 	if win > 0:
 		msg = (msg + " ") if msg != "" else ""
 		msg += "ВЫИГРЫШ: %d" % win
-		var tray := global_transform * Vector3(0, 0.45, 0.4)
+		var tray := rig.global_transform * Vector3(0, 0.45, 0.4)
 		var fwd := global_transform.basis.z
 		game.spawn_loot("coin", win, tray, fwd * 1.2 + Vector3(0, 1.2, 0), 0.5)
 		game.hud.toast("KILLBOX: выигрыш %d монет" % win, Color(1.0, 0.8, 0.4))
