@@ -28,7 +28,7 @@ func _ready() -> void:
 	add_child(cs)
 
 	head = Node3D.new()
-	head.position = Vector3(0, CAM_Y, -0.14)
+	head.position = Vector3(0, CAM_Y, -0.22)
 	add_child(head)
 	cam = Camera3D.new()
 	cam.near = 0.03
@@ -50,7 +50,7 @@ func _build_body() -> void:
 	var torso := CapsuleMesh.new()
 	torso.radius = 0.19
 	torso.height = 0.74
-	_part(body, torso, Vector3(0, 1.13, 0.1), jacket)
+	_part(body, torso, Vector3(0, 1.13, 0.14), jacket)
 
 	# голова только для тени — камера внутри неё не нужна
 	var hm := SphereMesh.new()

@@ -102,7 +102,7 @@ func _start_game() -> void:
 func _enter_game() -> void:
 	menu.visible = false
 	player = Player.new()
-	player.position = Vector3(-16.0, 0.05, 0.0)
+	player.position = Vector3(-14.5, 0.05, 0.0)
 	player.rotation.y = -PI / 2.0
 	add_child(player)
 	player.cam.current = true
@@ -129,7 +129,7 @@ func _make_env() -> Environment:
 	e.background_color = Color(0.01, 0.01, 0.012)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.55, 0.57, 0.6)
-	e.ambient_light_energy = 0.07
+	e.ambient_light_energy = 0.1
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.ssao_enabled = true
 	e.glow_enabled = true

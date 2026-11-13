@@ -173,7 +173,7 @@ func _make_concrete(tint: Color, seed_: int, scale: float) -> StandardMaterial3D
 	var noise := FastNoiseLite.new()
 	noise.seed = seed_
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	noise.frequency = 0.012
+	noise.frequency = 0.025
 	noise.fractal_octaves = 6
 	noise.fractal_gain = 0.55
 
