@@ -4,10 +4,10 @@ shader_type sky;
 
 uniform sampler2D clouds : filter_nearest, repeat_enable;
 uniform vec3 top_color : source_color = vec3(0.07, 0.03, 0.03);
-uniform vec3 horizon_color : source_color = vec3(0.36, 0.13, 0.09);
+uniform vec3 horizon_color : source_color = vec3(0.27, 0.09, 0.07);
 uniform vec3 ground_color : source_color = vec3(0.1, 0.05, 0.04);
 uniform vec3 cloud_dark : source_color = vec3(0.05, 0.025, 0.025);
-uniform vec3 cloud_lit : source_color = vec3(0.42, 0.17, 0.11);
+uniform vec3 cloud_lit : source_color = vec3(0.34, 0.12, 0.08);
 
 void sky() {
 	vec3 d = EYEDIR;

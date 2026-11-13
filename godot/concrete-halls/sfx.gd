@@ -189,3 +189,37 @@ static func step_noise() -> AudioStreamWAV:
 		lp += (w - lp) * 0.35
 		buf[i] = lp * _env(t, 0.0, 0.004, 7.0)
 	return _wav(buf, 0.9)
+
+
+## Шаг по земле с травой: мягкий глухой «туп» без хруста камня + шорох стеблей
+## (редкие тихие щелчки травинок и шелест, который тянется, пока стопа перекатывается и уходит).
+static func step_grass(variant: int) -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 950 + variant
+	var n := int(RATE * 0.5)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var lp1 := 0.0
+	var lp2 := 0.0
+	var lp3 := 0.0
+	var swish := Svf.new(rng.randf_range(2600.0, 3600.0), 0.5)
+	var swish2 := Svf.new(rng.randf_range(1300.0, 1800.0), 0.7)
+	var blades := Svf.new(rng.randf_range(3000.0, 4000.0), 1.2)
+	var lift_t := rng.randf_range(0.17, 0.24)
+	for i in n:
+		var t := float(i) / RATE
+		var w := rng.randf() * 2.0 - 1.0
+		# глухой мягкий удар: шум, срезанный почти до баса, медленная атака — земля пружинит
+		lp1 += (w - lp1) * 0.05
+		lp2 += (lp1 - lp2) * 0.05
+		lp3 += (lp2 - lp3) * 0.1
+		var v := lp3 * 9.0 * _env(t, 0.0, 0.012, 30.0)
+		# шелест при постановке и при отрыве стопы
+		var e_sw := _env(t, 0.003, 0.03, 10.0) + 0.45 * _env(t, lift_t, 0.04, 14.0)
+		v += (swish.bp(w) * 0.5 + swish2.bp(w) * 0.35) * e_sw * (0.7 + 0.3 * sin(t * 90.0 + rng.randf() * 0.3))
+		# травинки: редкие короткие щелчки
+		var dens := _env(t, 0.005, 0.02, 9.0) + 0.5 * _env(t, lift_t, 0.03, 12.0)
+		var imp := rng.randf_range(-1.0, 1.0) if rng.randf() < dens * 0.03 else 0.0
+		v += blades.bp(imp) * 0.6
+		buf[i] = v
+	return _wav(buf, 0.8)

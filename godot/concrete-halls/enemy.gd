@@ -1,12 +1,14 @@
 extends CharacterBody3D
 ## Враг «Бетонник» (боёвка): сутулая фигура из бетона с тлеющими глазами и торчащей арматурой.
 ## Заметил игрока (видит и ближе 9 м) — идёт к нему, обходя стены через проёмы, замахивается и бьёт.
+## На поверхности (спавн выше уровня земли) — бродит по поляне и гонится напрямую.
 ## От ударов кулаком отлетает и сбивается, умирая — рассыпает монеты и иногда предмет.
 ## Интерфейс урона: take_hit(урон, направление) — его вызывает player.gd при попадании.
 
 signal died(enemy: Node)
 
 const Fx := preload("res://fx.gd")
+const Surface := preload("res://surface.gd")
 
 const SPEED := 2.1
 const SIGHT := 9.0
@@ -15,6 +17,7 @@ const HIT_RANGE := 1.8
 const DAMAGE := 12.0
 const MAX_HP := 70.0
 const LEASH := 14.0
+const WANDER_SPEED := 0.85
 ## проёмы между комнатами и коридором — через них враг обходит стены
 const DOORWAYS := [Vector3(-6, 0, -1.6), Vector3(-6, 0, 1.6), Vector3(6, 0, -1.6), Vector3(6, 0, 1.6), Vector3(0, 0, 5.5)]
 
@@ -31,6 +34,9 @@ var think := 0.0
 var target := Vector3.ZERO
 var growl_t := 3.0
 var bar_t := 0.0
+## на поверхности: бродит по поляне, гонится напрямую (без проёмов), в будку-выход не заходит
+var surface := false
+var wander_t := 0.0
 
 var vis: Node3D
 var torso: Node3D
@@ -46,6 +52,8 @@ var body_snd: AudioStreamPlayer3D
 func _ready() -> void:
 	home = global_position
 	target = home
+	surface = home.y > Surface.G - 1.0
+	wander_t = randf_range(0.0, 3.0)
 	floor_snap_length = 0.3
 	_build()
 	voice = AudioStreamPlayer3D.new()
@@ -217,16 +225,18 @@ func _physics_process(delta: float) -> void:
 		"dead":
 			pass
 		"idle":
-			if game.alive and d < SIGHT and _clear(global_position, ppos):
+			if game.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos)) and _clear(global_position, ppos):
 				_set_state("chase")
 				_growl()
+			elif surface:
+				want = _wander(delta)
 			elif Vector2(home.x - global_position.x, home.z - global_position.z).length() > 0.6:
 				want = _steer(home, delta) * SPEED * 0.6
 		"chase":
 			growl_t -= delta
 			if growl_t <= 0.0:
 				_growl()
-			if not game.alive or global_position.distance_to(home) > LEASH:
+			if not game.alive or (not surface and global_position.distance_to(home) > LEASH) 					or (surface and (not Surface.on_meadow(ppos) or _from_center(global_position) > Surface.MEADOW_R + 8.0)):
 				_set_state("idle")
 			elif d < ATTACK_RANGE and cool <= 0.0:
 				_set_state("windup")
@@ -245,6 +255,8 @@ func _physics_process(delta: float) -> void:
 		"stagger":
 			if st > 0.4:
 				_set_state("chase")
+	if surface and want != Vector3.ZERO and Surface.in_hut(global_position + want.normalized() * 0.7, 0.3):
+		want = Vector3.ZERO
 	velocity.x = want.x + knock.x
 	velocity.z = want.z + knock.z
 	move_and_slide()
@@ -257,7 +269,7 @@ func _steer(goal: Vector3, delta: float) -> Vector3:
 	if think <= 0.0:
 		think = 0.3
 		target = goal
-		if not _clear(global_position, goal):
+		if not surface and not _clear(global_position, goal):
 			var best := INF
 			for dw in DOORWAYS:
 				var p: Vector3 = dw
@@ -274,6 +286,31 @@ func _steer(goal: Vector3, delta: float) -> Vector3:
 	dir = dir.normalized()
 	_face(dir, delta)
 	return dir
+
+
+## Блуждание по поляне: идёт к случайной точке, постоит, выбирает следующую.
+func _wander(delta: float) -> Vector3:
+	wander_t -= delta
+	if wander_t <= 0.0:
+		wander_t = randf_range(5.0, 11.0)
+		for i in 20:
+			var a := randf() * TAU
+			var r := Surface.MEADOW_R * sqrt(randf())
+			var p := Surface.CENTER + Vector3(cos(a) * r, 0, sin(a) * r)
+			if not Surface.in_hut(p, 2.0):
+				target = p
+				break
+	var dir := target - global_position
+	dir.y = 0.0
+	if dir.length() < 0.6:
+		return Vector3.ZERO
+	dir = dir.normalized()
+	_face(dir, delta)
+	return dir * WANDER_SPEED
+
+
+func _from_center(p: Vector3) -> float:
+	return Vector2(p.x - Surface.CENTER.x, p.z - Surface.CENTER.z).length()
 
 
 func _clear(a: Vector3, b: Vector3) -> bool:

@@ -44,9 +44,9 @@ var hn2 := FastNoiseLite.new()
 # окружение: внутри (как в level.gd) и снаружи
 const WARM := Color(1.0, 0.78, 0.52)
 const IN_AMB := Color(0.62, 0.55, 0.46)
-const OUT_AMB := Color(0.62, 0.36, 0.3)
+const OUT_AMB := Color(0.5, 0.46, 0.38)
 const IN_FOG := Color(0.04, 0.04, 0.045)
-const OUT_FOG := Color(0.2, 0.08, 0.065)
+const OUT_FOG := Color(0.15, 0.08, 0.065)
 
 
 static func in_hut(p: Vector3, margin := 0.0) -> bool:
@@ -219,7 +219,7 @@ func _tufts() -> void:
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.vertex_color_use_as_albedo = true
 	m.roughness = 1.0
-	m.specular = 0.1
+	m.metallic_specular = 0.1
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for k in 2:
@@ -241,7 +241,7 @@ func _tufts() -> void:
 	mm.mesh = mesh
 	var xf: Array[Transform3D] = []
 	var cols: Array[Color] = []
-	var palette := [Color(0.5, 0.58, 0.24), Color(0.72, 0.66, 0.3), Color(0.6, 0.62, 0.28), Color(0.78, 0.68, 0.38)]
+	var palette := [Color(0.42, 0.54, 0.2), Color(0.6, 0.6, 0.24), Color(0.48, 0.56, 0.22), Color(0.64, 0.6, 0.3)]
 	var tries := 0
 	while xf.size() < 4500 and tries < 20000:
 		tries += 1
@@ -345,7 +345,7 @@ func _sky_and_sun() -> void:
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
 	env.fog_sky_affect = 0.35
 	sun = DirectionalLight3D.new()
-	sun.light_color = Color(1.0, 0.52, 0.38)
+	sun.light_color = Color(1.0, 0.68, 0.52)
 	sun.light_energy = 0.0
 	sun.visible = false
 	sun.shadow_enabled = true
@@ -381,12 +381,12 @@ func _apply_env(k: float) -> void:
 	env.ambient_light_color = IN_AMB.lerp(OUT_AMB, k)
 	env.ambient_light_energy = lerpf(0.1, 0.4, k)
 	env.fog_light_color = IN_FOG.lerp(OUT_FOG, k)
-	env.fog_density = lerpf(0.02, 0.022, k)
+	env.fog_density = lerpf(0.02, 0.013, k)
 	env.fog_height_density = lerpf(0.5, 0.0, k)
 	env.volumetric_fog_density = lerpf(0.008, 0.012, k)
-	env.volumetric_fog_albedo = Color(0.8, 0.8, 0.8).lerp(Color(0.85, 0.55, 0.45), k)
+	env.volumetric_fog_albedo = Color(0.8, 0.8, 0.8).lerp(Color(0.75, 0.55, 0.48), k)
 	if sun:
-		sun.light_energy = 0.55 * k
+		sun.light_energy = 0.6 * k
 		sun.visible = k > 0.01
 	if wind:
 		wind.volume_db = lerpf(-60.0, -20.0, k)

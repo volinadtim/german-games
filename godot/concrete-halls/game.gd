@@ -26,7 +26,8 @@ const USE_FLASHLIGHT := true
 
 const MAX_HP := 100.0
 const START := Vector3(-10.5, 0.05, 0.0)
-const ENEMY_SPOTS := [Vector3(6.5, 0.05, -5.5), Vector3(4.0, 0.05, 5.0), Vector3(-3.0, 0.05, 6.0)]
+## враги бродят по поляне наверху (выход из бункера — лестница в восточном торце коридора)
+const ENEMY_SPOTS := [Vector3(28.0, 4.1, 7.0), Vector3(36.0, 4.1, -6.0), Vector3(40.0, 4.1, 4.0), Vector3(31.0, 4.1, -10.0)]
 const RESPAWN := 40.0
 
 var player: Player

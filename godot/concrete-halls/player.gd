@@ -3,7 +3,7 @@ extends CharacterBody3D
 ## WASD, Shift — бег, пробел — прыжок, ПКМ — режим кулаков (руки в стойку), ЛКМ — удар.
 
 const Sfx := preload("res://sfx.gd")
-## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы.
+## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы; по траве — step_grass.
 const STEP_DB := -23.0      # громкость шага относительно ходьбы (-10 дБ)
 
 const WALK := 3.4
@@ -94,6 +94,7 @@ var last_kind := ""
 var step_player: AudioStreamPlayer
 var step_noise_player: AudioStreamPlayer
 var step_noise: AudioStreamWAV
+var grass_steps: Array[AudioStreamWAV] = []   # шаги по траве (поверхность)
 var step_eq: AudioEffectEQ6
 var voice_player: AudioStreamPlayer
 var hit_player: AudioStreamPlayer
@@ -112,6 +113,8 @@ func _ready() -> void:
 	exhale_out_snd = Sfx.inhale(true)
 	step_noise_player = _audio(3)
 	step_noise = Sfx.step_noise()
+	for i in 4:
+		grass_steps.append(Sfx.step_grass(i))
 	_setup_step_bus()
 
 	var cs := CollisionShape3D.new()
@@ -882,6 +885,23 @@ func _leg_ik(i: int, t: Vector3) -> void:
 
 func _play_step(db: float, _pitch := 1.0) -> void:
 	_randomize_step_eq()
-	step_noise_player.stream = step_noise
-	step_noise_player.volume_db = db + STEP_DB
+	if _ground_kind() == "grass":
+		step_noise_player.stream = grass_steps[randi() % grass_steps.size()]
+		step_noise_player.volume_db = db + STEP_DB + 3.0
+		step_noise_player.pitch_scale = randf_range(0.9, 1.1)
+	else:
+		step_noise_player.stream = step_noise
+		step_noise_player.volume_db = db + STEP_DB
+		step_noise_player.pitch_scale = 1.0
 	step_noise_player.play()
+
+
+## Что под ногами: метка "ground" у коллайдера (трава поляны — "grass"), иначе бетон.
+func _ground_kind() -> String:
+	var from := global_position + Vector3(0, 0.3, 0)
+	var q := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, -0.9, 0))
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return ""
+	return str(hit.collider.get_meta("ground", ""))

@@ -6,8 +6,8 @@ uniform sampler2D noise_big : filter_linear_mipmap, repeat_enable;
 uniform sampler2D noise_big_px : filter_nearest_mipmap, repeat_enable;
 uniform sampler2D noise_fine_px : filter_nearest_mipmap, repeat_enable;
 uniform sampler2D noise_cell_px : filter_nearest_mipmap, repeat_enable;
-uniform vec3 green : source_color = vec3(0.13, 0.15, 0.06);
-uniform vec3 yellow : source_color = vec3(0.23, 0.21, 0.08);
+uniform vec3 green : source_color = vec3(0.15, 0.19, 0.07);
+uniform vec3 yellow : source_color = vec3(0.27, 0.26, 0.1);
 uniform vec3 dry : source_color = vec3(0.26, 0.22, 0.12);
 uniform vec3 dirt : source_color = vec3(0.12, 0.1, 0.075);
 
