@@ -15,6 +15,7 @@ const SETTINGS := {
 	"gamma": ["Гамма", 0.6, 1.8, 0.01, 1.0],
 	"contrast": ["Контраст", 0.6, 1.6, 0.01, 1.0],
 	"posterize": ["Постеризация", 0.0, 100.0, 1.0, 70.0],
+	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
 }
 
 var in_game := false          # выставляет main.gd, когда игра началась
@@ -212,6 +213,7 @@ func _reset() -> void:
 
 
 func apply_settings() -> void:
+	preload("res://player.gd").look_sens = values["sensitivity"]
 	var vol: float = values["volume"] / 100.0
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(vol, 0.0001)))
 	if post_mat:

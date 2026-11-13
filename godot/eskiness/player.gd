@@ -703,10 +703,25 @@ func _unhandled_input(event: InputEvent) -> void:
 			punch()
 
 
-## Поворот обзора на смещение в пикселях (мышь или свайп по экрану).
+## Чувствительность обзора (множитель из настроек меню) и скорость поворота стрелками, рад/с.
+static var look_sens := 1.0
+const KEY_TURN := 2.4
+
+## Поворот обзора на смещение в пикселях (мышь, тачпад или свайп по экрану).
 func look(rel: Vector2) -> void:
-	rotate_y(-rel.x * SENS)
-	head.rotation.x = clampf(head.rotation.x - rel.y * SENS, -1.5, 1.4)
+	rotate_y(-rel.x * SENS * look_sens)
+	head.rotation.x = clampf(head.rotation.x - rel.y * SENS * look_sens, -1.5, 1.4)
+
+
+## Поворот камеры стрелками — для тачпада, который Windows глушит, пока зажаты клавиши.
+func _key_look(delta: float) -> void:
+	if not active:
+		return
+	var v := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+	if v == Vector2.ZERO:
+		return
+	rotate_y(-v.x * KEY_TURN * look_sens * delta)
+	head.rotation.x = clampf(head.rotation.x - v.y * KEY_TURN * 0.7 * look_sens * delta, -1.5, 1.4)
 
 
 func toggle_fists() -> void:
@@ -1047,6 +1062,7 @@ func _draw_trail(i: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_key_look(delta)
 	var on_floor := is_on_floor()
 	if not on_floor:
 		velocity.y -= GRAVITY * (FALL_MULT if velocity.y < 0.0 else 1.0) * delta

@@ -150,10 +150,15 @@ static func toggle_fullscreen() -> void:
 
 
 func _setup_input() -> void:
-	_add_keys("move_forward", [KEY_W, KEY_UP])
-	_add_keys("move_back", [KEY_S, KEY_DOWN])
-	_add_keys("move_left", [KEY_A, KEY_LEFT])
-	_add_keys("move_right", [KEY_D, KEY_RIGHT])
+	_add_keys("move_forward", [KEY_W])
+	_add_keys("move_back", [KEY_S])
+	_add_keys("move_left", [KEY_A])
+	_add_keys("move_right", [KEY_D])
+	# стрелки — поворот камеры (удобно с тачпадом)
+	_add_keys("look_left", [KEY_LEFT])
+	_add_keys("look_right", [KEY_RIGHT])
+	_add_keys("look_up", [KEY_UP])
+	_add_keys("look_down", [KEY_DOWN])
 	_add_keys("sprint", [KEY_SHIFT])
 	_add_keys("jump", [KEY_SPACE])
 	_add_keys("toggle_fullscreen", [KEY_F11])
