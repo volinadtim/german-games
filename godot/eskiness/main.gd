@@ -9,10 +9,11 @@ const SlotMachine := preload("res://slot_machine.gd")
 
 ## Меню: неподвижная камера под углом к игровому автомату KILLBOX (он стоит в юго-западной комнате).
 const SLOT_POS := Vector3(-6.0, 0.0, 8.5)
-const MENU_CAM_POS := Vector3(-7.25, 1.5, 6.45)
-const MENU_CAM_LOOK := Vector3(-4.75, 1.4, 7.95)
+const MENU_CAM_POS := Vector3(-5.0, 1.5, 6.3)    # с другой стороны автомата — магазин не в кадре
+const MENU_CAM_LOOK := Vector3(-7.45, 1.35, 8.2)
 
 var menu_cam: Camera3D
+var slot_board: Node3D
 var fly_t := 0.0
 var slot: Node3D
 var in_game := false
@@ -34,6 +35,10 @@ func _ready() -> void:
 	slot.position = SLOT_POS
 	slot.rotation.y = PI
 	add_child(slot)
+	# доска выплат в главном меню не видна — появляется, когда начинается игра
+	slot_board = _find_board()
+	if slot_board:
+		slot_board.visible = false
 	# магазин оружия — слева от автомата (если смотреть на автомат)
 	var shop := preload("res://shop.gd").new()
 	shop.name = "Shop"
@@ -101,6 +106,8 @@ func _start_game() -> void:
 
 func _enter_game() -> void:
 	menu.visible = false
+	if slot_board:
+		slot_board.visible = true
 	menu.in_game = true
 	player = Player.new()
 	player.position = Vector3(-10.5, 0.05, 0.0)
@@ -151,3 +158,11 @@ func _add_keys(action: String, keys: Array) -> void:
 		var ev := InputEventKey.new()
 		ev.physical_keycode = k
 		InputMap.action_add_event(action, ev)
+
+
+## Доска выплат автомата — дочерний узел, стоящий в BOARD_POS.
+func _find_board() -> Node3D:
+	for c in slot.get_children():
+		if c is Node3D and (c as Node3D).position.distance_to(SlotMachine.BOARD_POS) < 0.01:
+			return c
+	return null
