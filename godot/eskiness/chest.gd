@@ -163,7 +163,7 @@ func interact(game) -> void:
 	opened = true
 	collision_layer = 1
 	snd.stream = game.snd["creak"][randi() % 2]
-	snd.volume_db = -8.0
+	snd.volume_db = -15.0
 	snd.pitch_scale = randf_range(0.9, 1.1) * (0.8 if kind == "safe" else 1.0)
 	snd.play()
 	var tw := create_tween()
@@ -214,7 +214,7 @@ func take_hit(dmg: float, dir: Vector3) -> void:
 	tw.tween_property(self, "position", p0 + Vector3(dir.x, 0, dir.z).normalized() * 0.03, 0.04)
 	tw.tween_property(self, "position", p0, 0.08)
 	if game:
-		game.play_at("creak", global_position, -12.0, 1.8)
+		game.play_at("creak", global_position, -18.0, 1.8)
 	if hp <= 0.0:
 		_break()
 

@@ -1,7 +1,7 @@
 extends StaticBody3D
 ## Игровой автомат KILLBOX (слоты): E — крутка за 10 монет.
 ## Окно 3 ряда × 4 барабана. Барабаны — настоящие цилиндры с отпечатанной лентой символов,
-## вращаются и останавливаются по очереди. 5 выигрышных линий (LINES): 3 ряда и 2 центральных мостика.
+## вращаются и останавливаются по очереди. 9 линий (LINES): 3 ряда, 4 малые диагонали по 3 клетки, 2 мостика.
 ## В рядах выигрывают 3–4 одинаковых подряд слева направо, на мостиках — только все 4.
 ##   3 шестёрки где угодно в окне — автомат забирает все монеты, оставляет 10 (выпадают редко).
 ##   3 семёрки подряд на линии — открывают сейф; если сейф уже открыт — 100 монет.
@@ -19,11 +19,15 @@ const REELS := 4
 ## лента барабана (одна на все барабаны, у каждого свой сдвиг): семёрки далеко друг от друга,
 ## поэтому в окне одного барабана больше одной семёрки не бывает
 const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
-## линии: для каждого барабана слева направо — ряд (0 верх, 1 середина, 2 низ)
+## линии — списки клеток [ряд (0 верх), барабан]; LINE_KIND — как линия платит:
+##   row — 3 одинаковых подряд где угодно в ряду (барабаны 1–3 или 2–4) или все 4;
+##   diag — малая диагональ из 3 клеток, все 3 одинаковых; bridge — мостик, только все 4.
 const LINES := [
-	[1, 1, 1, 1], [0, 0, 0, 0], [2, 2, 2, 2],
-	[1, 0, 0, 1], [1, 2, 2, 1],
+	[[1, 0], [1, 1], [1, 2], [1, 3]], [[0, 0], [0, 1], [0, 2], [0, 3]], [[2, 0], [2, 1], [2, 2], [2, 3]],
+	[[0, 0], [1, 1], [2, 2]], [[0, 1], [1, 2], [2, 3]], [[2, 0], [1, 1], [0, 2]], [[2, 1], [1, 2], [0, 3]],
+	[[1, 0], [0, 1], [0, 2], [1, 3]], [[1, 0], [2, 1], [2, 2], [1, 3]],
 ]
+const LINE_KIND := ["row", "row", "row", "diag", "diag", "diag", "diag", "bridge", "bridge"]
 ## доля раскладов с тремя шестёрками, которые всё-таки остаются (остальные перебрасываются)
 const SIX_KEEP := 0.35
 ## выплаты за линию: символ -> {сколько подряд слева: монет}
@@ -335,13 +339,12 @@ func _update_highlight(delta: float) -> void:
 		return
 	# линии по очереди, каждая своим цветом; мигание
 	var k := int(t * 1.4) % hl_lines.size()
-	var li: int = hl_lines[k]
-	var line: Array = LINES[li]
+	var cells: Array = hl_lines[k]
 	var col: Color = HL_COLORS[k % HL_COLORS.size()]
 	var a := 0.25 + 0.3 * (0.5 + 0.5 * sin(t * 14.0))
 	for r in 3:
 		for i in REELS:
-			var on: bool = int(line[i]) == r
+			var on: bool = cells.has([r, i])
 			var c: MeshInstance3D = hl_cells[r][i]
 			c.visible = on
 			if on:
@@ -887,7 +890,7 @@ func _draw_board(ci: Control) -> void:
 	ci.draw_rect(Rect2(Vector2(18, 18), ci.size - Vector2(36, 36)), Color(0.85, 0.2, 0.15, 0.6), false, 2.0)
 	_fit(ci, Vector2(pad, 82), "KILLBOX", inner, 64, Color(1.0, 0.35, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
 	_fit(ci, Vector2(pad, 124), "ТАБЛИЦА ВЫПЛАТ", inner, 30, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
-	_fit(ci, Vector2(pad, 158), "крутка %d монет · подряд слева направо на линии" % COST, inner, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
+	_fit(ci, Vector2(pad, 158), "крутка %d монет · 3 подряд в любом месте линии" % COST, inner, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
 	var y := 184.0
 	var text_col := Color(0.95, 0.9, 0.78)
 	var rows := ["diamond", "grape", "plum", "lemon", "cherry"]
@@ -922,8 +925,8 @@ func _draw_board(ci: Control) -> void:
 	var cw := ci.size.x - w - pad
 	ci.draw_line(Vector2(x0 - 4, 40), Vector2(x0 - 4, ci.size.y - 40), Color(0.85, 0.62, 0.25, 0.5), 2.0)
 	_fit(ci, Vector2(x0, 82), "ЛИНИИ", cw, 44, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
-	_fit(ci, Vector2(x0, 120), "3 ряда и 2 мостика", cw, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
-	var names := ["ряд", "ряд", "ряд", "мостик ×4", "мостик ×4"]
+	_fit(ci, Vector2(x0, 120), "ряды, диагонали, мостики", cw, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
+	var names := {"row": "ряд 3–4", "diag": "диагональ 3", "bridge": "мостик 4"}
 	var cell := 18.0
 	for li in LINES.size():
 		var gx := x0 + 14 + (li % 3) * 88.0
@@ -931,17 +934,19 @@ func _draw_board(ci: Control) -> void:
 		var line: Array = LINES[li]
 		for c in 4:
 			for r in 3:
-				var on: bool = int(line[c]) == r
+				var on: bool = line.has([r, c])
 				ci.draw_rect(Rect2(gx + c * cell, gy + r * cell, cell - 2, cell - 2), Color(1.0, 0.45, 0.2) if on else Color(1, 1, 1, 0.08))
-		for c in 3:
-			var a := Vector2(gx + c * cell + cell / 2 - 1, gy + int(line[c]) * cell + cell / 2 - 1)
-			var b := Vector2(gx + (c + 1) * cell + cell / 2 - 1, gy + int(line[c + 1]) * cell + cell / 2 - 1)
-			ci.draw_line(a, b, Color(1.0, 0.85, 0.4), 2.0)
-		_fit(ci, Vector2(gx, gy + 3 * cell + 22), "%d %s" % [li + 1, names[li]], 4 * cell + 8, 15, Color(0.85, 0.8, 0.7))
-	var ry := 150.0 + 2 * 128.0 + 20
-	for t_ in ["Ряды: 3 или 4", "одинаковых подряд", "слева направо.", "Мостики: только", "все 4 одинаковых.", "", "Линии платят", "отдельно — выигрыши", "складываются."]:
-		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 21, Color(0.9, 0.84, 0.72))
-		ry += 30.0
+		for j in line.size() - 1:
+			var p0: Array = line[j]
+			var p1: Array = line[j + 1]
+			var pa := Vector2(gx + int(p0[1]) * cell + cell / 2 - 1, gy + int(p0[0]) * cell + cell / 2 - 1)
+			var pb := Vector2(gx + int(p1[1]) * cell + cell / 2 - 1, gy + int(p1[0]) * cell + cell / 2 - 1)
+			ci.draw_line(pa, pb, Color(1.0, 0.85, 0.4), 2.0)
+		_fit(ci, Vector2(gx, gy + 3 * cell + 22), "%d %s" % [li + 1, names[LINE_KIND[li]]], 4 * cell + 10, 14, Color(0.85, 0.8, 0.7))
+	var ry := 150.0 + 3 * 128.0 + 10
+	for t_ in ["Ряды: 3 одинаковых подряд", "в любом месте ряда или 4.", "Диагонали: все 3 клетки.", "Мостики: только все 4.", "Линии платят отдельно,", "выигрыши складываются."]:
+		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 20, Color(0.9, 0.84, 0.72))
+		ry += 28.0
 
 
 func get_prompt(_game) -> String:
@@ -1084,21 +1089,41 @@ func _payout() -> void:
 	var won_lines := PackedStringArray()
 	for li in LINES.size():
 		var line: Array = LINES[li]
-		var first: String = g[int(line[0])][0]
-		var n := 1
-		while n < REELS and g[int(line[n])][n] == first:
-			n += 1
-		# мостики (линии 4–5) платят только за все 4 одинаковых
-		if li >= 3 and n < 4:
+		var sym := ""
+		var cells: Array = []
+		var syms: Array = []
+		for cl in line:
+			syms.append(g[int(cl[0])][int(cl[1])])
+		match LINE_KIND[li]:
+			"row":
+				if syms[0] == syms[1] and syms[1] == syms[2] and syms[2] == syms[3]:
+					sym = syms[0]
+					cells = line
+				elif syms[0] == syms[1] and syms[1] == syms[2]:
+					sym = syms[0]
+					cells = line.slice(0, 3)
+				elif syms[1] == syms[2] and syms[2] == syms[3]:
+					sym = syms[1]
+					cells = line.slice(1, 4)
+			"diag":
+				if syms[0] == syms[1] and syms[1] == syms[2]:
+					sym = syms[0]
+					cells = line
+			"bridge":
+				if syms[0] == syms[1] and syms[1] == syms[2] and syms[2] == syms[3]:
+					sym = syms[0]
+					cells = line
+		if sym == "" or sym == "six":
 			continue
-		if first == "seven" and n >= 3:
+		var n := cells.size()
+		if sym == "seven" and n >= 3:
 			sevens = true
-			won_lines.append(str(li + 1))
-			hl_lines.append(li)
-		elif first != "seven" and PAY.has(first) and PAY[first].has(n):
-			win += int(PAY[first][n])
-			won_lines.append(str(li + 1))
-			hl_lines.append(li)
+		elif PAY.has(sym) and PAY[sym].has(n):
+			win += int(PAY[sym][n])
+		else:
+			continue
+		won_lines.append(str(li + 1))
+		hl_lines.append(cells)
 	var msg := ""
 	if sevens:
 		if game.open_safe():

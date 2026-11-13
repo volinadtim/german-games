@@ -296,7 +296,7 @@ func _glass(delta: float) -> void:
 				now = true
 	if now and not on_glass and glass_cd <= 0.0 and Items.ITEMS.get(inv.equip["feet"], {}).get("glassproof", false):
 		glass_cd = 1.5
-		play_ui("tick", -14.0, 0.6)      # хруст под сапогом — без урона, но сапоги теряют 20% прочности
+		play_ui("tick", -22.0, 0.6)      # хруст под сапогом — без урона, но сапоги теряют 20% прочности
 		_wear("feet", Items.max_dur(inv.equip["feet"]) * 0.2)
 	elif now and not on_glass and glass_cd <= 0.0:
 		glass_cd = 1.5
@@ -305,7 +305,7 @@ func _glass(delta: float) -> void:
 			bleed_t = BLEED_TIME
 			hud.hurt_flash(0.5)
 			hud.toast("Стекло! Кровотечение", Color(1.0, 0.4, 0.3))
-			play_ui("hurt", -10.0, 0.9)
+			play_ui("hurt", -17.0, 0.9)
 	on_glass = now
 
 
