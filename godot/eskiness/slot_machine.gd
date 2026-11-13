@@ -19,6 +19,10 @@ const REELS := 4
 ## лента барабана (одна на все барабаны, у каждого свой сдвиг): семёрки далеко друг от друга,
 ## поэтому в окне одного барабана больше одной семёрки не бывает
 const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
+## Шанс символа в каждой клетке окна, % (промпт 23:36): чем ценнее, тем реже; шестёрка — ровно 0.666%.
+## Окно разыгрывается по этим весам, затем на ленты барабанов «впечатываются» выпавшие символы.
+## Выплаты подобраны симуляцией: в среднем ~9 монет с крутки за 10 (≈91%), выигрыш в ~35% круток.
+const WEIGHTS := {"cherry": 30.0, "lemon": 22.0, "plum": 17.0, "grape": 12.0, "seven": 10.0, "diamond": 8.334, "six": 0.666}
 ## линии — списки клеток [ряд (0 верх), барабан]; LINE_KIND — как линия платит:
 ##   row — 3 одинаковых подряд где угодно в ряду (барабаны 1–3 или 2–4) или все 4;
 ##   diag — малая диагональ из 3 клеток, все 3 одинаковых; bridge — мостик, только все 4.
@@ -32,11 +36,11 @@ const LINE_KIND := ["row", "row", "row", "diag", "diag", "diag", "diag", "bridge
 const SIX_KEEP := 0.35
 ## выплаты за линию: символ -> {сколько подряд слева: монет}
 const PAY := {
-	"cherry": {3: 15, 4: 40},
-	"lemon": {3: 20, 4: 50},
-	"plum": {3: 25, 4: 60},
+	"cherry": {3: 12, 4: 35},
+	"lemon": {3: 17, 4: 45},
+	"plum": {3: 22, 4: 55},
 	"grape": {3: 35, 4: 90},
-	"diamond": {3: 60, 4: 200},
+	"diamond": {3: 70, 4: 250},
 	"seven": {3: 100},
 }
 const R := 0.19            # радиус барабана
@@ -55,6 +59,8 @@ const BOARD_M := Vector2(1.35, 1.47)
 var game  # game.gd (выставляет game.gd; в меню — null)
 var busy := false
 var reels: Array[Node3D] = []
+var strips: Array = []          # лента каждого барабана (12 символов), обновляется к каждой крутке
+var strip_views: Array = []     # [SubViewport, Control] на барабан — перерисовка ленты
 var stops: Array[int] = [0, 0, 0, 0]
 var last_cell: Array[int] = [0, 0, 0, 0]
 var spinning: Array[bool] = [false, false, false, false]
@@ -181,48 +187,35 @@ func _build() -> void:
 	_box(rig, Vector3(0.88, 0.04, 0.68), Vector3(0, 1.2, 0), trim)
 	_box(rig, Vector3(0.88, 0.04, 0.68), Vector3(0, 1.56, 0), trim)
 
-	# барабаны: лента символов рисуется в SubViewport и натягивается на цилиндр
-	var sv := SubViewport.new()
-	sv.size = Vector2i(TEX, TEX * STRIP.size())
-	sv.transparent_bg = false
-	sv.render_target_update_mode = SubViewport.UPDATE_ONCE
-	add_child(sv)
-	var art := Control.new()
-	art.size = Vector2(sv.size)
-	art.draw.connect(func() -> void:
-		# лента цвета старой кости, по краям ячеек — тёмные полосы, поверх — пятна и царапины
-		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.66, 0.61, 0.51))
-		var gr := RandomNumberGenerator.new()
-		gr.seed = 66
-		for i in STRIP.size():
-			var r := Rect2(0, i * TEX, TEX, TEX)
-			art.draw_rect(Rect2(0, i * TEX, TEX, 3), Color(0.36, 0.3, 0.24))
-			art.draw_rect(Rect2(0, i * TEX + 3, TEX, 2), Color(0.55, 0.49, 0.4))
-			Sym.draw(art, STRIP[i], r.grow(-TEX * 0.1))
-		for k in 90:
-			var p := Vector2(gr.randi_range(0, TEX - 2), gr.randi_range(0, TEX * STRIP.size() - 2))
-			var sz := Vector2(gr.randi_range(1, 3), gr.randi_range(1, 2))
-			art.draw_rect(Rect2(p, sz), Color(0.25, 0.18, 0.12, gr.randf_range(0.3, 0.7)))
-		for k in 14:
-			var p := Vector2(gr.randi_range(0, TEX), gr.randi_range(0, TEX * STRIP.size()))
-			art.draw_line(p, p + Vector2(gr.randf_range(-12, 12), gr.randf_range(-4, 4)), Color(0.85, 0.8, 0.7, 0.35), 1.0)
-		# вуаль поверх ленты — символы чуть блеклые, выцветшие
-		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.08)))
-	sv.add_child(art)
-	var reel_mat := StandardMaterial3D.new()
-	reel_mat.albedo_texture = sv.get_texture()
-	reel_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
-	reel_mat.albedo_color = Color(0.82, 0.8, 0.77)
-	reel_mat.roughness = 0.7
-	reel_mat.emission_enabled = true
-	reel_mat.emission_texture = sv.get_texture()
-	reel_mat.emission = Color(0.85, 0.8, 0.72)
-	reel_mat.emission_energy_multiplier = 0.16
+	# барабаны: у каждого своя лента символов в SubViewport, натянутая на цилиндр
+	var reel_mats: Array = []
+	for ri in REELS:
+		strips.append(_random_strip())
+		var sv := SubViewport.new()
+		sv.size = Vector2i(TEX, TEX * STRIP.size())
+		sv.transparent_bg = false
+		sv.render_target_update_mode = SubViewport.UPDATE_ONCE
+		add_child(sv)
+		var art := Control.new()
+		art.size = Vector2(sv.size)
+		art.draw.connect(_draw_strip.bind(art, ri))
+		sv.add_child(art)
+		strip_views.append([sv, art])
+		var reel_mat := StandardMaterial3D.new()
+		reel_mat.albedo_texture = sv.get_texture()
+		reel_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
+		reel_mat.albedo_color = Color(0.82, 0.8, 0.77)
+		reel_mat.roughness = 0.7
+		reel_mat.emission_enabled = true
+		reel_mat.emission_texture = sv.get_texture()
+		reel_mat.emission = Color(0.85, 0.8, 0.72)
+		reel_mat.emission_energy_multiplier = 0.16
+		reel_mats.append(reel_mat)
 	var mesh := _reel_mesh()
 	for i in REELS:
 		var r := MeshInstance3D.new()
 		r.mesh = mesh
-		r.material_override = reel_mat
+		r.material_override = reel_mats[i]
 		r.position = Vector3((i - 1.5) * 0.145, REEL_Y, REEL_Z)
 		rig.add_child(r)
 		reels.append(r)
@@ -301,6 +294,53 @@ func _build() -> void:
 	cs.shape = shape
 	cs.position = Vector3(0, top / 2.0, RIG_Z)
 	add_child(cs)
+
+
+## Лента барабана ri: цвет старой кости, тёмные полосы между ячейками, пятна и царапины.
+func _draw_strip(art: Control, ri: int) -> void:
+	var strip: Array = strips[ri]
+	art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.66, 0.61, 0.51))
+	var gr := RandomNumberGenerator.new()
+	gr.seed = 66 + ri
+	for i in strip.size():
+		var r := Rect2(0, i * TEX, TEX, TEX)
+		art.draw_rect(Rect2(0, i * TEX, TEX, 3), Color(0.36, 0.3, 0.24))
+		art.draw_rect(Rect2(0, i * TEX + 3, TEX, 2), Color(0.55, 0.49, 0.4))
+		Sym.draw(art, strip[i], r.grow(-TEX * 0.1))
+	for k in 90:
+		var p := Vector2(gr.randi_range(0, TEX - 2), gr.randi_range(0, TEX * strip.size() - 2))
+		var sz := Vector2(gr.randi_range(1, 3), gr.randi_range(1, 2))
+		art.draw_rect(Rect2(p, sz), Color(0.25, 0.18, 0.12, gr.randf_range(0.3, 0.7)))
+	for k in 14:
+		var p := Vector2(gr.randi_range(0, TEX), gr.randi_range(0, TEX * strip.size()))
+		art.draw_line(p, p + Vector2(gr.randf_range(-12, 12), gr.randf_range(-4, 4)), Color(0.85, 0.8, 0.7, 0.35), 1.0)
+	# вуаль поверх ленты — символы чуть блеклые, выцветшие
+	art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.08))
+
+
+func _weighted_symbol() -> String:
+	var total := 0.0
+	for k in WEIGHTS:
+		total += float(WEIGHTS[k])
+	var r := randf() * total
+	for k in WEIGHTS:
+		r -= float(WEIGHTS[k])
+		if r <= 0.0:
+			return k
+	return "cherry"
+
+
+func _random_strip() -> Array:
+	var out: Array = []
+	for i in STRIP.size():
+		out.append(_weighted_symbol())
+	return out
+
+
+func _redraw_strips() -> void:
+	for v in strip_views:
+		(v[1] as Control).queue_redraw()
+		(v[0] as SubViewport).render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## Подсветка выигрышных линий: 12 светящихся рамок на стекле, мигают по линиям по очереди.
@@ -904,7 +944,8 @@ func _draw_board(ci: Control) -> void:
 		for n in [4, 3, 2]:
 			if pays.has(n):
 				parts.append("×%d — %d" % [n, pays[n]])
-		_fit(ci, Vector2(pad + 100, y + 54), "    ".join(parts), inner - 100, 30, text_col)
+		_fit(ci, Vector2(pad + 100, y + 54), "    ".join(parts), inner - 160, 30, text_col)
+		_fit(ci, Vector2(w - pad - 70, y + 54), "%.0f%%" % float(WEIGHTS[id]), 66, 18, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_RIGHT)
 		y += 100.0
 	y += 6.0
 	ci.draw_line(Vector2(pad, y), Vector2(w - pad, y), Color(0.85, 0.62, 0.25, 0.7), 2.0)
@@ -919,7 +960,7 @@ func _draw_board(ci: Control) -> void:
 	_fit(ci, Vector2(pad + 200, y + 28), "×3 где угодно в окне —", inner - 200, 24, Color(1.0, 0.3, 0.2))
 	_fit(ci, Vector2(pad + 200, y + 58), "автомат забирает всё, кроме 10", inner - 200, 22, Color(1.0, 0.3, 0.2))
 	y += 92.0
-	_fit(ci, Vector2(pad, y + 20), "4 семёрки и 4 шестёрки не выпадают никогда", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
+	_fit(ci, Vector2(pad, y + 20), "шанс в клетке: 7 — 10%, 6 — 0.666% · 4 семёрки и 4 шестёрки не выпадают", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
 	# правая колонка: 9 линий схемами 4×3
 	var x0 := w
 	var cw := ci.size.x - w - pad
@@ -989,22 +1030,30 @@ func interact(g) -> void:
 		rt.tween_callback(_reel_stopped.bind(i))
 
 
-## Случайные остановки; 4 семёрки или 4 шестёрки в окне исключаем перебросом.
+## Розыгрыш окна: каждая клетка — по весам WEIGHTS; 4+ семёрки или 4+ шестёрки перебрасываем.
+## Потом в ленту каждого барабана вокруг новой остановки «впечатываем» выпавшие 3 символа
+## (остальная лента — тоже по весам). Ленты перерисовываются, когда барабаны уже разогнались.
 func _roll_stops() -> void:
-	for attempt in 100:
-		for i in REELS:
-			stops[i] = randi() % STRIP.size()
-		var g := grid()
+	var cols: Array = []
+	for attempt in 200:
+		cols = []
 		var sevens := 0
 		var sixes := 0
-		for row in g:
-			sevens += row.count("seven")
-			sixes += row.count("six")
-		if sevens > 3 or sixes > 3:
-			continue
-		if sixes == 3 and randf() > SIX_KEEP:
-			continue
-		return
+		for i in REELS:
+			var col: Array = [_weighted_symbol(), _weighted_symbol(), _weighted_symbol()]
+			sevens += col.count("seven")
+			sixes += col.count("six")
+			cols.append(col)
+		if sevens <= 3 and sixes <= 3:
+			break
+	var n := STRIP.size()
+	for i in REELS:
+		stops[i] = randi() % n
+		var strip := _random_strip()
+		for r in 3:
+			strip[(stops[i] + r - 1 + n) % n] = cols[i][r]
+		strips[i] = strip
+	get_tree().create_timer(0.3).timeout.connect(_redraw_strips)
 
 
 ## Видимое окно: 3 ряда по 4 символа (сверху вниз).
@@ -1014,7 +1063,7 @@ func grid() -> Array:
 	for r in 3:
 		var row: Array = []
 		for i in REELS:
-			row.append(STRIP[(stops[i] + r - 1 + n) % n])
+			row.append(strips[i][(stops[i] + r - 1 + n) % n])
 		rows.append(row)
 	return rows
 
