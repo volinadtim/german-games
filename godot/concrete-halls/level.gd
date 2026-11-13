@@ -235,7 +235,7 @@ func _csg_wall(pos: Vector3, size: Vector3) -> CSGCombiner3D:
 
 ## Выбоина: случайный размер (чаще мелкие, иногда крупные), форма — кубик или шар, случайный поворот.
 func _chip(csg: CSGCombiner3D, pos: Vector3, scale_k := 1.0) -> void:
-	var s := lerpf(0.03, 0.26, pow(rng.randf(), 2.2)) * scale_k
+	var s := lerpf(0.06, 0.3, pow(rng.randf(), 1.6)) * scale_k
 	var c: CSGShape3D
 	if rng.randf() < 0.3:
 		var sp := CSGSphere3D.new()
@@ -257,7 +257,7 @@ func _chip(csg: CSGCombiner3D, pos: Vector3, scale_k := 1.0) -> void:
 ## Сколы по рёбрам стены у пола и потолка (там бетон бьют и он крошится), с обеих сторон.
 ## Скоплениями: в одном месте 1–4 выбоины рядом.
 func _edge_chips(csg: CSGCombiner3D, base: Vector3, length: float, along_z: bool, doors: Array) -> void:
-	var spots := int(length * rng.randf_range(0.5, 0.9))
+	var spots := int(length * rng.randf_range(0.35, 0.6))
 	for k in spots:
 		var u := rng.randf_range(-length / 2 + 0.3, length / 2 - 0.3)
 		var skip := false
@@ -272,7 +272,7 @@ func _edge_chips(csg: CSGCombiner3D, base: Vector3, length: float, along_z: bool
 		for j in rng.randi_range(1, 4):
 			var uu := u + rng.randf_range(-0.15, 0.15)
 			var yy := y + (rng.randf_range(0.0, 0.12) if y == 0.0 else -rng.randf_range(0.0, 0.12))
-			_chip(csg, base + (Vector3(f, yy, uu) if along_z else Vector3(uu, yy, f)), 0.8)
+			_chip(csg, base + (Vector3(f, yy, uu) if along_z else Vector3(uu, yy, f)), 1.4)
 
 
 ## Проём с неровными краями: слегка кривой прямоугольник + выбоины по кромкам,
@@ -538,16 +538,19 @@ func _box(pos: Vector3, size: Vector3, mat: Material, collide := true) -> Node3D
 	return root
 
 
+## Текстуры шума маленькие (128 px) и в шейдере берутся без сглаживания — крупные «пиксели».
+## Частота пересчитана так, чтобы рисунок остался прежнего масштаба; мелкие октавы срезаны, чтобы не рябило.
 func _noise_tex(seed_: int, freq: float, octaves: int, ntype := FastNoiseLite.TYPE_SIMPLEX_SMOOTH) -> NoiseTexture2D:
+	const SIZE := 128
 	var noise := FastNoiseLite.new()
 	noise.seed = seed_
 	noise.noise_type = ntype
-	noise.frequency = freq
-	noise.fractal_octaves = octaves
+	noise.frequency = freq * 512.0 / SIZE
+	noise.fractal_octaves = mini(octaves, 3)
 	noise.fractal_gain = 0.5
 	var t := NoiseTexture2D.new()
-	t.width = 512
-	t.height = 512
+	t.width = SIZE
+	t.height = SIZE
 	t.seamless = true
 	t.generate_mipmaps = true
 	t.noise = noise

@@ -93,9 +93,9 @@ static func whoosh(variant: int) -> AudioStreamWAV:
 	var n := int(RATE * dur)
 	var buf := PackedFloat32Array()
 	buf.resize(n)
-	var f := Svf.new(500.0, 0.9)
-	var f0 := rng.randf_range(350.0, 500.0)
-	var f1 := rng.randf_range(1100.0, 1700.0)
+	var f := Svf.new(400.0, 0.55)
+	var f0 := rng.randf_range(250.0, 350.0)
+	var f1 := rng.randf_range(650.0, 950.0)
 	for i in n:
 		var x := float(i) / n
 		f.set_fc(lerpf(f0, f1, sin(x * PI)))
@@ -111,9 +111,9 @@ static func exhale(variant: int) -> AudioStreamWAV:
 	var n := int(RATE * 0.32)
 	var buf := PackedFloat32Array()
 	buf.resize(n)
-	var f1 := Svf.new(rng.randf_range(850.0, 1150.0), 1.6)
-	var f2 := Svf.new(rng.randf_range(2300.0, 2800.0), 2.0)
-	var fv := Svf.new(rng.randf_range(600.0, 750.0), 2.5)
+	var f1 := Svf.new(rng.randf_range(750.0, 1000.0), 0.9)
+	var f2 := Svf.new(rng.randf_range(1900.0, 2300.0), 0.9)
+	var fv := Svf.new(rng.randf_range(550.0, 700.0), 1.1)
 	var pitch := rng.randf_range(105.0, 140.0)
 	var ph := 0.0
 	var voice := rng.randf_range(0.15, 0.35)
@@ -123,7 +123,7 @@ static func exhale(variant: int) -> AudioStreamWAV:
 		var env := _env(t, 0.0, 0.015, 9.0)
 		ph = fmod(ph + pitch * (1.0 - t * 0.6) / RATE, 1.0)
 		var glott := (1.0 - ph * 2.0) * _env(t, 0.0, 0.01, 22.0)
-		buf[i] = (f1.bp(w) + f2.bp(w) * 0.45) * env + fv.bp(glott) * voice
+		buf[i] = (f1.bp(w) + f2.bp(w) * 0.25) * env + fv.bp(glott) * voice
 	return _wav(buf, 0.7)
 
 
@@ -160,7 +160,7 @@ static func impact(variant: int) -> AudioStreamWAV:
 	buf.resize(n)
 	var lp1 := 0.0
 	var lp2 := 0.0
-	var smack := Svf.new(rng.randf_range(700.0, 1000.0), 0.8)
+	var smack := Svf.new(rng.randf_range(500.0, 750.0), 0.6)
 	var grit := Svf.new(2800.0, 0.7)
 	for i in n:
 		var t := float(i) / RATE
@@ -168,7 +168,7 @@ static func impact(variant: int) -> AudioStreamWAV:
 		lp1 += (w - lp1) * 0.06
 		lp2 += (lp1 - lp2) * 0.06
 		var v := lp2 * 9.0 * _env(t, 0.0, 0.002, 38.0)
-		v += smack.bp(w) * 0.5 * _env(t, 0.0, 0.001, 90.0)
+		v += smack.bp(w) * 0.2 * _env(t, 0.0, 0.001, 90.0)
 		var imp := rng.randf_range(-1.0, 1.0) if rng.randf() < 0.1 * _env(t, 0.005, 0.005, 30.0) else 0.0
 		v += grit.bp(imp) * 0.7
 		buf[i] = v

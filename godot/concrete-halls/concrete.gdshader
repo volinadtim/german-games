@@ -4,9 +4,9 @@ shader_type spatial;
 //                пыль на верхних гранях, затемнение у стыков, случайные трещины.
 //  polished = 1: пол/потолок — шлифованный бетон: ровный тон, лёгкий матовый блеск, случайные трещины, мягкая пыль.
 
-uniform sampler2D noise_big : filter_linear_mipmap, repeat_enable;
-uniform sampler2D noise_fine : filter_linear_mipmap, repeat_enable;
-uniform sampler2D noise_cell : filter_linear_mipmap, repeat_enable;   // ячеистый шум — зерно камня
+uniform sampler2D noise_big : filter_nearest_mipmap, repeat_enable;
+uniform sampler2D noise_fine : filter_nearest_mipmap, repeat_enable;
+uniform sampler2D noise_cell : filter_nearest_mipmap, repeat_enable;   // ячеистый шум — зерно камня
 uniform sampler2D noise_crack : filter_linear_mipmap, repeat_enable;  // извилистый шум — трещины
 uniform vec3 base_color : source_color = vec3(0.27, 0.265, 0.25);
 uniform vec3 mold_color : source_color = vec3(0.17, 0.18, 0.15);
@@ -14,7 +14,7 @@ uniform vec3 dust_color : source_color = vec3(0.33, 0.31, 0.29);
 uniform float ceiling_h = 3.2;
 uniform float polished = 0.0;
 uniform float bump = 0.25;
-uniform float grain_bump = 0.55;
+uniform float grain_bump = 0.4;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -47,7 +47,7 @@ void fragment() {
 	float h = wpos.y;
 	float big = tri(noise_big, wpos, wnrm, 0.025);
 	float mid = tri(noise_big, wpos + vec3(17.0, 3.0, 29.0), wnrm, 0.07);
-	float fine = tri(noise_fine, wpos, wnrm, 0.5);
+	float fine = tri(noise_fine, wpos, wnrm, 0.3);
 	vec3 col;
 	float rough;
 	float ao = 1.0;
@@ -62,8 +62,8 @@ void fragment() {
 		rough = 0.5 + 0.12 * big + 0.3 * dust + 0.3 * cr;
 		hgt = fine * 0.015 - cr * 0.3;
 	} else {
-		float cell = tri(noise_cell, wpos, wnrm, 0.9);
-		float grain = tri(noise_fine, wpos * 3.1, wnrm, 0.9);
+		float cell = tri(noise_cell, wpos, wnrm, 0.45);
+		float grain = tri(noise_fine, wpos * 1.4, wnrm, 0.6);
 		col = base_color * (0.95 + 0.1 * (big - 0.5) + 0.05 * (mid - 0.5) + 0.06 * (cell - 0.5) + 0.04 * (grain - 0.5));
 		float stain = smoothstep(0.35, 0.9, tri(noise_big, wpos * 0.5 + vec3(41.0), wnrm, 0.02));
 		col *= 1.0 - 0.05 * stain;

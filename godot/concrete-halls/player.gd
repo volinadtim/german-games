@@ -4,7 +4,7 @@ extends CharacterBody3D
 
 const Sfx := preload("res://sfx.gd")
 ## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы.
-const STEP_DB := -20.0      # громкость шага относительно ходьбы (-10 дБ)
+const STEP_DB := -23.0      # громкость шага относительно ходьбы (-10 дБ)
 
 const WALK := 3.4
 const SPRINT := 6.4
@@ -379,7 +379,7 @@ func toggle_fists() -> void:
 	for i in 2:
 		tw.tween_method(_pose_setter(i), arm_pose[i], GUARDS[i] if fists else REST, 0.3).set_trans(Tween.TRANS_SINE)
 	voice_player.stream = inhale_snd if fists else exhale_out_snd
-	voice_player.volume_db = -18.0
+	voice_player.volume_db = -25.0
 	voice_player.pitch_scale = randf_range(0.95, 1.05)
 	voice_player.play()
 
@@ -448,8 +448,8 @@ func _pose_setter(i: int) -> Callable:
 
 
 func _punch_sound() -> void:
-	_play(hit_player, whooshes, -10.0)
-	_play(voice_player, exhales, -9.0)
+	_play(hit_player, whooshes, -17.0)
+	_play(voice_player, exhales, -14.0)
 
 
 func _check_hit(arm: int) -> void:
@@ -459,7 +459,7 @@ func _check_hit(arm: int) -> void:
 	q.exclude = [get_rid()]
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if hit:
-		_play(hit_player, impacts, -4.0)
+		_play(hit_player, impacts, -11.0)
 		# лёгкая отдача в камеру
 		var tw := create_tween()
 		var side := -1.0 if arm == 0 else 1.0
