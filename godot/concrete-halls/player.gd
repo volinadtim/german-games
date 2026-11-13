@@ -563,10 +563,12 @@ func _part(parent: Node3D, mesh: Mesh, pos: Vector3, mat: Material) -> MeshInsta
 func _unhandled_input(event: InputEvent) -> void:
 	if not active:
 		return
+	# мышь, эмулированная из касаний (телефон), — обзор и удары там делает touch_controls.gd
+	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if event is InputEventMouseMotion and captured:
-		rotate_y(-event.relative.x * SENS)
-		head.rotation.x = clampf(head.rotation.x - event.relative.y * SENS, -1.5, 1.4)
+		look(event.relative)
 	elif event is InputEventMouseButton and event.pressed:
 		if not captured:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -574,6 +576,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_fists()
 		elif event.button_index == MOUSE_BUTTON_LEFT and fists:
 			punch()
+
+
+## Поворот обзора на смещение в пикселях (мышь или свайп по экрану).
+func look(rel: Vector2) -> void:
+	rotate_y(-rel.x * SENS)
+	head.rotation.x = clampf(head.rotation.x - rel.y * SENS, -1.5, 1.4)
 
 
 func toggle_fists() -> void:

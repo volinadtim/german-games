@@ -112,6 +112,12 @@ func _enter_game() -> void:
 	var game := Game.new()
 	add_child(game)
 	game.setup(player)
+	# экранное управление — только на телефонах (или с флагом запуска `-- --touch`)
+	var TouchControls := preload("res://touch_controls.gd")
+	if TouchControls.wanted():
+		var tc := TouchControls.new()
+		tc.setup(player, game)
+		add_child(tc)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 

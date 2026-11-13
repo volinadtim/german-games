@@ -812,6 +812,12 @@ func _make_env() -> Environment:
 	e.volumetric_fog_enabled = true
 	e.volumetric_fog_density = 0.008
 	e.volumetric_fog_albedo = Color(0.8, 0.8, 0.8)
+	# телефоны (Mobile/Compatibility): SSAO, SSR и объёмного тумана там нет — выключаем явно,
+	# обычный туман и glow остаются; на ПК (Forward+) ничего не меняется
+	if RenderingServer.get_current_rendering_method() != "forward_plus":
+		e.ssao_enabled = false
+		e.ssr_enabled = false
+		e.volumetric_fog_enabled = false
 	return e
 
 
