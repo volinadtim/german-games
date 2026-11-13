@@ -18,7 +18,7 @@ const FOV := 75.0
 ## false — старое тело из капсул (код оставлен, чтобы легко вернуть).
 const USE_MODEL := true
 const MODEL := preload("res://models/BaseHuman.fbx")
-const MODEL_Z := 0.1               # модель чуть позади камеры, чтобы лицо не лезло в кадр
+const MODEL_Z := 0.12              # модель чуть позади камеры, чтобы лицо не лезло в кадр
 var HIP_Y := 0.88
 var LEG_L1 := 0.40              # бедро
 var LEG_L2 := 0.40              # голень
@@ -777,7 +777,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	head.position.y = CAM_Y - (0.5 + 0.5 * cos(phase)) * 0.035 * bob - land_dip
 	head.position.x = sin(gait * TAU) * 0.012 * bob
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
-	head.position.z = lerpf(-0.22, 0.06, fist_blend)
+	head.position.z = lerpf(-0.22, -0.04, fist_blend)
 	var want_fov := FOV + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 	_apply_bones()
