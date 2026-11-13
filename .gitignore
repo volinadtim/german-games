@@ -24,3 +24,8 @@ desktop.ini
 .idea/
 *.swp
 *.tmp
+
+# Android-сборки (собираются на ПК Германа, в git не кладём)
+*.apk
+*.aab
+*.idsig
