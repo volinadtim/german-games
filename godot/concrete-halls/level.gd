@@ -72,16 +72,18 @@ func _build() -> void:
 	# балки под потолком коридора
 	var x := X0 + 4.0
 	while x < X1 - 0.1:
-		_box(Vector3(x, H - 0.2, 0), Vector3(0.35, 0.4, CW * 2), wall_mat, false)
+		_beam(Vector3(x, H - 0.2, 0), Vector3(0.35, 0.4, CW * 2))
 		x += 4.0
 
 	# колонны в южных комнатах
 	for px in [-8.5, 8.5]:
-		_box(Vector3(px, H / 2, 5.5), Vector3(0.55, H, 0.55), wall_mat)
+		_column(Vector3(px, H / 2, 5.5), Vector3(0.55, H, 0.55))
 
 	_debris()
 	_lights()
 	_cracks()
+	_cobwebs()
+	_floor_litter()
 	_dust_motes()
 	_low_dust()
 
@@ -206,19 +208,15 @@ func _lamp(pos: Vector3, energy: float, flicker: bool) -> void:
 
 
 func _wall_x(z: float, xa: float, xb: float, doors: Array) -> void:
-	if doors.is_empty():
-		_seg(Vector3((xa + xb) / 2, H / 2, z), Vector3(xb - xa, H, T))
-		return
 	var csg := _csg_wall(Vector3((xa + xb) / 2, H / 2, z), Vector3(xb - xa, H, T))
+	_edge_chips(csg, Vector3((xa + xb) / 2, 0, z), xb - xa, false, doors)
 	for dx in doors:
 		_cut_door(csg, Vector3(dx, 0, z), false)
 
 
 func _wall_z(x: float, za: float, zb: float, doors: Array) -> void:
-	if doors.is_empty():
-		_seg(Vector3(x, H / 2, (za + zb) / 2), Vector3(T, H, zb - za))
-		return
 	var csg := _csg_wall(Vector3(x, H / 2, (za + zb) / 2), Vector3(T, H, zb - za))
+	_edge_chips(csg, Vector3(x, 0, (za + zb) / 2), zb - za, true, doors)
 	for dz in doors:
 		_cut_door(csg, Vector3(x, 0, dz), true)
 
@@ -235,7 +233,50 @@ func _csg_wall(pos: Vector3, size: Vector3) -> CSGCombiner3D:
 	return csg
 
 
-## Проём с неровными краями: слегка кривой прямоугольник + выбоины по кромкам с обеих сторон стены.
+## Выбоина: случайный размер (чаще мелкие, иногда крупные), форма — кубик или шар, случайный поворот.
+func _chip(csg: CSGCombiner3D, pos: Vector3, scale_k := 1.0) -> void:
+	var s := lerpf(0.03, 0.26, pow(rng.randf(), 2.2)) * scale_k
+	var c: CSGShape3D
+	if rng.randf() < 0.3:
+		var sp := CSGSphere3D.new()
+		sp.radius = s * 0.6
+		sp.radial_segments = 6
+		sp.rings = 4
+		c = sp
+	else:
+		var b := CSGBox3D.new()
+		b.size = Vector3(s, s * rng.randf_range(0.4, 1.6), s * rng.randf_range(0.5, 1.3))
+		c = b
+	c.operation = CSGShape3D.OPERATION_SUBTRACTION
+	c.material = wall_mat
+	c.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+	c.position = pos + Vector3(rng.randf_range(-0.02, 0.02), rng.randf_range(-0.02, 0.02), rng.randf_range(-0.02, 0.02))
+	csg.add_child(c)
+
+
+## Сколы по рёбрам стены у пола и потолка (там бетон бьют и он крошится), с обеих сторон.
+## Скоплениями: в одном месте 1–4 выбоины рядом.
+func _edge_chips(csg: CSGCombiner3D, base: Vector3, length: float, along_z: bool, doors: Array) -> void:
+	var spots := int(length * rng.randf_range(0.5, 0.9))
+	for k in spots:
+		var u := rng.randf_range(-length / 2 + 0.3, length / 2 - 0.3)
+		var skip := false
+		for d in doors:
+			var dc: float = d - (base.z if along_z else base.x)
+			if absf(u - dc) < DOOR_W / 2 + 0.2:
+				skip = true
+		if skip:
+			continue
+		var y := 0.0 if rng.randf() < 0.55 else H
+		var f := (T / 2) * (1.0 if rng.randf() < 0.5 else -1.0)
+		for j in rng.randi_range(1, 4):
+			var uu := u + rng.randf_range(-0.15, 0.15)
+			var yy := y + (rng.randf_range(0.0, 0.12) if y == 0.0 else -rng.randf_range(0.0, 0.12))
+			_chip(csg, base + (Vector3(f, yy, uu) if along_z else Vector3(uu, yy, f)), 0.8)
+
+
+## Проём с неровными краями: слегка кривой прямоугольник + выбоины по кромкам,
+## гуще всего — в верхних углах проёма, где бетон слабее.
 func _cut_door(csg: CSGCombiner3D, base: Vector3, along_z: bool) -> void:
 	var w := DOOR_W + rng.randf_range(-0.06, 0.06)
 	var h := DOOR_H + rng.randf_range(-0.05, 0.05)
@@ -251,24 +292,226 @@ func _cut_door(csg: CSGCombiner3D, base: Vector3, along_z: bool) -> void:
 		hole.rotation.z = tilt
 	hole.position = base + Vector3(0, (h - 0.2) / 2, 0)
 	csg.add_child(hole)
-	for i in 16:
-		var chip := CSGBox3D.new()
-		chip.operation = CSGShape3D.OPERATION_SUBTRACTION
-		chip.material = wall_mat
-		var s := rng.randf_range(0.07, 0.2)
-		chip.size = Vector3(s, s * rng.randf_range(0.6, 1.5), s * rng.randf_range(0.6, 1.2))
-		chip.rotation = Vector3(rng.randf() * TAU, rng.randf() * TAU, rng.randf() * TAU)
+	var n := rng.randi_range(18, 32)
+	for i in n:
 		var u: float
 		var y: float
-		if i % 3 == 0:
+		var r := rng.randf()
+		if r < 0.4:
+			# верхние углы проёма
+			u = (w / 2) * (1.0 if rng.randf() < 0.5 else -1.0) + rng.randf_range(-0.12, 0.12)
+			y = h + rng.randf_range(-0.15, 0.08)
+		elif r < 0.55:
+			# нижние углы (бьют ногами и тележками)
+			u = (w / 2) * (1.0 if rng.randf() < 0.5 else -1.0)
+			y = rng.randf_range(0.0, 0.25)
+		elif r < 0.75:
 			u = rng.randf_range(-w / 2, w / 2)
 			y = h
 		else:
-			u = (w / 2) * (1.0 if i % 2 == 0 else -1.0)
+			u = (w / 2) * (1.0 if rng.randf() < 0.5 else -1.0)
 			y = rng.randf_range(0.05, h)
 		var f := (T / 2) * (1.0 if rng.randf() < 0.5 else -1.0)
-		chip.position = base + (Vector3(f, y, u) if along_z else Vector3(u, y, f))
-		csg.add_child(chip)
+		_chip(csg, base + (Vector3(f, y, u) if along_z else Vector3(u, y, f)), 1.1)
+
+
+## Колонна со сколами на вертикальных рёбрах — самые уязвимые места.
+func _column(pos: Vector3, size: Vector3) -> void:
+	var csg := _csg_wall(pos, size)
+	for e in 4:
+		var cx := size.x / 2 * (1.0 if e % 2 == 0 else -1.0)
+		var cz := size.z / 2 * (1.0 if e < 2 else -1.0)
+		for k in rng.randi_range(2, 5):
+			var y := rng.randf_range(0.0, size.y) if rng.randf() < 0.6 else rng.randf_range(0.0, 0.4)
+			_chip(csg, pos + Vector3(cx, y - size.y / 2, cz), 0.9)
+
+
+## Балка под потолком: сколы по нижним рёбрам.
+func _beam(pos: Vector3, size: Vector3) -> void:
+	var csg := CSGCombiner3D.new()
+	add_child(csg)
+	var b := CSGBox3D.new()
+	b.size = size
+	b.position = pos
+	b.material = wall_mat
+	csg.add_child(b)
+	for k in rng.randi_range(2, 5):
+		var ex := size.x / 2 * (1.0 if rng.randf() < 0.5 else -1.0)
+		var z := rng.randf_range(-size.z / 2, size.z / 2)
+		_chip(csg, pos + Vector3(ex, -size.y / 2, z), 0.7)
+
+
+# ---------- паутина в верхних углах ----------
+
+func _cobwebs() -> void:
+	var tex := _web_tex()
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.albedo_color = Color(0.85, 0.83, 0.8, 0.75)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.roughness = 1.0
+	m.disable_receive_shadows = true
+	# углы помещений у потолка: [точка угла, направление вдоль стены 1, вдоль стены 2]
+	var corners := []
+	var rooms := [
+		[X0 + T / 2, -T / 2, ZN + T / 2, -CW - T / 2], [T / 2, X1 - T / 2, ZN + T / 2, -CW - T / 2],
+		[X0 + T / 2, -T / 2, CW + T / 2, ZS - T / 2], [T / 2, X1 - T / 2, CW + T / 2, ZS - T / 2],
+		[X0 + T / 2, X1 - T / 2, -CW + T / 2, CW - T / 2],
+	]
+	for r in rooms:
+		for cx in [r[0], r[1]]:
+			for cz in [r[2], r[3]]:
+				var dx := 1.0 if cx == r[0] else -1.0
+				var dz := 1.0 if cz == r[2] else -1.0
+				corners.append([Vector3(cx, H - 0.01, cz), Vector3(dx, 0, 0), Vector3(0, 0, dz)])
+	corners.shuffle()
+	for k in 11:
+		var c: Array = corners[k]
+		var s := rng.randf_range(0.3, 0.75)
+		var a: Vector3 = c[0] + c[1] * s
+		var b: Vector3 = c[0] + c[2] * s * rng.randf_range(0.7, 1.3)
+		var d: Vector3 = c[0] + Vector3(0, -s * rng.randf_range(0.6, 1.1), 0)
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		st.set_uv(Vector2(0, 0)); st.add_vertex(a)
+		st.set_uv(Vector2(1, 0)); st.add_vertex(b)
+		st.set_uv(Vector2(0.5, 1)); st.add_vertex(d)
+		st.generate_normals()
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		mi.material_override = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+
+
+func _web_tex() -> ImageTexture:
+	var img := Image.create(256, 256, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var r := RandomNumberGenerator.new()
+	r.seed = 77
+	var hub := Vector2(128, 95)
+	var col := Color(0.9, 0.9, 0.88, 0.7)
+	# края треугольника (UV): A(0,0) B(256,0) D(128,256)
+	var edge := []
+	for i in 13:
+		var t := float(i) / 12.0
+		var p: Vector2
+		if t < 0.34:
+			p = Vector2(0, 0).lerp(Vector2(255, 0), t / 0.34)
+		elif t < 0.67:
+			p = Vector2(255, 0).lerp(Vector2(128, 255), (t - 0.34) / 0.33)
+		else:
+			p = Vector2(128, 255).lerp(Vector2(0, 0), (t - 0.67) / 0.33)
+		edge.append(p + Vector2(r.randf_range(-6, 6), r.randf_range(-6, 6)))
+	for p in edge:
+		_line(img, hub, p, 0.9, col)
+	# спираль из провисающих перемычек
+	var f := 0.12
+	while f < 0.95:
+		for i in edge.size():
+			var p0: Vector2 = hub.lerp(edge[i], f)
+			var p1: Vector2 = hub.lerp(edge[(i + 1) % edge.size()], f + 0.015)
+			if r.randf() < 0.85:
+				var mid := (p0 + p1) / 2.0 + (hub - (p0 + p1) / 2.0).normalized() * 3.0
+				_line(img, p0, mid, 0.7, col)
+				_line(img, mid, p1, 0.7, col)
+		f += r.randf_range(0.06, 0.1)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
+# ---------- пыль, мусор, стекло на полу ----------
+
+func _floor_litter() -> void:
+	# слои пыли: мягкие светлые пятна, чаще у стен и в углах
+	var dust_tex: Array[ImageTexture] = []
+	for i in 3:
+		dust_tex.append(_dust_tex(500 + i))
+	for k in 18:
+		var p := _near_wall_point(0.3, 1.6)
+		var s := rng.randf_range(0.8, 2.2)
+		var d := Decal.new()
+		d.texture_albedo = dust_tex[k % 3]
+		d.modulate = Color(0.55, 0.52, 0.47, rng.randf_range(0.35, 0.6))
+		d.size = Vector3(s, 0.2, s * rng.randf_range(0.6, 1.0))
+		d.position = Vector3(p.x, 0.0, p.z)
+		d.rotation.y = rng.randf() * TAU
+		d.normal_fade = 0.5
+		add_child(d)
+	# мусор: мелкие обломки бетона, кучками у стен
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	bm.material = wall_mat
+	mm.mesh = bm
+	var xforms: Array[Transform3D] = []
+	for k in 22:
+		var c := _near_wall_point(0.15, 1.2)
+		for j in rng.randi_range(4, 14):
+			var sz := Vector3(rng.randf_range(0.015, 0.07), rng.randf_range(0.01, 0.04), rng.randf_range(0.015, 0.07))
+			var p := c + Vector3(rng.randf_range(-0.35, 0.35), sz.y / 2 - 0.004, rng.randf_range(-0.35, 0.35))
+			var b := Basis.from_euler(Vector3(rng.randf_range(-0.3, 0.3), rng.randf() * TAU, rng.randf_range(-0.3, 0.3))).scaled(sz)
+			xforms.append(Transform3D(b, p))
+	mm.instance_count = xforms.size()
+	for i in xforms.size():
+		mm.set_instance_transform(i, xforms[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	add_child(mmi)
+	# осколки стекла: под поломанной лампой и в паре мест
+	var glass := StandardMaterial3D.new()
+	glass.albedo_color = Color(0.75, 0.85, 0.8, 0.35)
+	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass.roughness = 0.05
+	glass.metallic_specular = 0.9
+	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for spot in [[Vector3(-5.6, 0, 0.1), 0.9, 30], [Vector3(9.5, 0, -6.5), 0.5, 12], [Vector3(-9.0, 0, 6.8), 0.5, 10]]:
+		for j in spot[2]:
+			var pm := PrismMesh.new()
+			var a := rng.randf_range(0.015, 0.07)
+			pm.size = Vector3(a, a * rng.randf_range(0.8, 2.0), 0.003)
+			pm.left_to_right = rng.randf()
+			var mi := MeshInstance3D.new()
+			mi.mesh = pm
+			mi.material_override = glass
+			var off: Vector2 = Vector2.from_angle(rng.randf() * TAU) * float(spot[1]) * sqrt(rng.randf())
+			mi.position = (spot[0] as Vector3) + Vector3(off.x, 0.002, off.y)
+			mi.rotation = Vector3(-PI / 2 + rng.randf_range(-0.08, 0.08), rng.randf() * TAU, 0)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mi)
+
+
+## Случайная точка на полу недалеко от какой-нибудь стены (не в проёме).
+func _near_wall_point(dmin: float, dmax: float) -> Vector3:
+	for tries in 50:
+		var p := Vector3(rng.randf_range(X0 + 0.3, X1 - 0.3), 0, rng.randf_range(ZN + 0.3, ZS - 0.3))
+		var dz := minf(minf(absf(p.z - ZN), absf(p.z - ZS)), minf(absf(absf(p.z) - CW), 99.0))
+		var dx := minf(absf(p.x - X0), absf(p.x - X1))
+		if absf(p.z) > CW:
+			dx = minf(dx, absf(p.x))
+		var d := minf(dx, dz)
+		if d >= dmin and d <= dmax and not _in_doorway(p):
+			return p
+	return Vector3(X0 + 0.5, 0, ZN + 0.5)
+
+
+func _dust_tex(seed_: int) -> ImageTexture:
+	var n := FastNoiseLite.new()
+	n.seed = seed_
+	n.frequency = 0.04
+	n.fractal_octaves = 4
+	var img := Image.create(128, 128, false, Image.FORMAT_RGBA8)
+	for y in 128:
+		for x in 128:
+			var r := Vector2(x - 64, y - 64).length() / 64.0
+			var fall := clampf(1.0 - r, 0.0, 1.0)
+			var v := clampf(n.get_noise_2d(x, y) * 0.8 + 0.5, 0.0, 1.0)
+			var a := clampf(fall * fall * (0.3 + v), 0.0, 1.0)
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 
 func _seg(pos: Vector3, size: Vector3) -> void:
@@ -430,21 +673,22 @@ func _crack_branch(img: Image, r: RandomNumberGenerator, p: Vector2, ang: float,
 		p.x = clampf(p.x, 3.0, 125.0)
 
 
-func _line(img: Image, a: Vector2, b: Vector2, w: float) -> void:
+func _line(img: Image, a: Vector2, b: Vector2, w: float, col := Color(0.04, 0.04, 0.035)) -> void:
 	var n := int(a.distance_to(b)) + 1
 	for i in n + 1:
-		_dot(img, a.lerp(b, float(i) / n), w)
+		_dot(img, a.lerp(b, float(i) / n), w, col)
 
 
-func _dot(img: Image, c: Vector2, w: float) -> void:
+func _dot(img: Image, c: Vector2, w: float, col := Color(0.04, 0.04, 0.035)) -> void:
 	var rad := w * 0.5
 	for y in range(int(c.y - rad - 1.0), int(c.y + rad + 2.0)):
 		for x in range(int(c.x - rad - 1.0), int(c.x + rad + 2.0)):
 			if x < 0 or y < 0 or x >= img.get_width() or y >= img.get_height():
 				continue
 			var a := clampf(rad + 0.5 - Vector2(x + 0.5, y + 0.5).distance_to(c), 0.0, 1.0)
+			a *= col.a if col.a < 1.0 else 1.0
 			if a > img.get_pixel(x, y).a:
-				img.set_pixel(x, y, Color(0.04, 0.04, 0.035, a))
+				img.set_pixel(x, y, Color(col.r, col.g, col.b, a))
 
 
 # ---------- пыль ----------
@@ -540,7 +784,9 @@ func _make_env() -> Environment:
 	e.ssr_enabled = true
 	e.ssr_max_steps = 64
 	e.glow_enabled = true
-	e.glow_intensity = 0.6
+	e.glow_intensity = 0.7
+	e.glow_bloom = 0.12
+	e.glow_hdr_threshold = 0.85
 	e.fog_enabled = true
 	e.fog_light_color = Color(0.04, 0.04, 0.045)
 	e.fog_density = 0.02

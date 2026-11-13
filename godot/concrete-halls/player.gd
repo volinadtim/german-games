@@ -23,7 +23,7 @@ const ACCEL_SPRINT := 3.2
 
 # позы руки в градусах: x — подъём плеча вперёд, y — внутрь, z — в сторону, w — сгиб локтя
 const REST := Vector4(0, 0, 0, 10)
-const GUARD := Vector4(60, 10, 0, 60)
+const GUARDS: Array[Vector4] = [Vector4(66, 12, 4, 80), Vector4(54, 18, 6, 94)]
 const PUNCHES := {
 	"straight": [Vector4(55, 14, 2, 80), Vector4(100, 6, 0, 4)],
 	"hook": [Vector4(82, -30, 8, 40), Vector4(96, 32, 0, 28)],
@@ -48,6 +48,9 @@ var land_dip := 0.0
 var shoulders: Array[Node3D] = []
 var elbows: Array[Node3D] = []
 var arm_pose: Array[Vector4] = [REST, REST]
+var fist_fx: Array[CPUParticles3D] = []
+var post_mat: ShaderMaterial          # постобработка (задаёт main.gd)
+var foot_pitch: Array[float] = [0.0, 0.0]
 var reach: Array[float] = [0.0, 0.0]   # выпад плеча вперёд при ударе
 var fists := false
 var fist_blend := 0.0
@@ -156,7 +159,8 @@ func _build_body() -> void:
 	var jacket := _mat(Color(0.24, 0.27, 0.21))
 	var pants := _mat(Color(0.14, 0.14, 0.16))
 	var skin := _mat(Color(0.78, 0.6, 0.48))
-	var boots := _mat(Color(0.07, 0.06, 0.05))
+	var boots := _mat(Color(0.13, 0.1, 0.075))
+	var sole := _mat(Color(0.05, 0.045, 0.04))
 	var cuffs := _mat(Color(0.18, 0.2, 0.16))
 
 	var body := Node3D.new()
@@ -181,8 +185,8 @@ func _build_body() -> void:
 	n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 	# плечевой пояс — закрывает щели между торсом и руками
 	var yoke := CapsuleMesh.new()
-	yoke.radius = 0.1
-	yoke.height = 0.64
+	yoke.radius = 0.075
+	yoke.height = 0.5
 	var y := _part(body, yoke, Vector3(0, 1.42, 0.13), jacket)
 	y.rotation.z = PI / 2
 
@@ -205,16 +209,14 @@ func _build_body() -> void:
 		var ankle := Node3D.new()
 		ankle.position = Vector3(0, -LEG_L2, 0)
 		knee.add_child(ankle)
-		var boot := BoxMesh.new()
-		boot.size = Vector3(0.12, 0.09, 0.27)
-		_part(ankle, boot, Vector3(0, -0.045, -0.05), boots)
+		_build_shoe(ankle, boots, sole)
 		legs.append(hip)
 		knees.append(knee)
 		ankles.append(ankle)
 
 		# рука: плечо -> плечевая кость -> локоть -> предплечье -> кулак
 		var sh := Node3D.new()
-		sh.position = Vector3(0.24 * side, 1.44, 0.13)
+		sh.position = Vector3(0.215 * side, 1.43, 0.13)
 		body.add_child(sh)
 		var upper := CapsuleMesh.new()
 		upper.radius = 0.052
@@ -236,6 +238,31 @@ func _build_body() -> void:
 		_build_fist(el, skin, side)
 		shoulders.append(sh)
 		elbows.append(el)
+
+
+## Ботинок: подошва с каблуком, вытянутый верх, скруглённый носок, голенище.
+func _build_shoe(ankle: Node3D, leather: Material, sole_mat: Material) -> void:
+	var sole := BoxMesh.new()
+	sole.size = Vector3(0.1, 0.025, 0.27)
+	_part(ankle, sole, Vector3(0, -0.077, -0.05), sole_mat)
+	var heel := BoxMesh.new()
+	heel.size = Vector3(0.09, 0.02, 0.07)
+	_part(ankle, heel, Vector3(0, -0.06, 0.05), sole_mat)
+	var upper := CapsuleMesh.new()
+	upper.radius = 0.047
+	upper.height = 0.25
+	var u := _part(ankle, upper, Vector3(0, -0.042, -0.055), leather)
+	u.rotation.x = PI / 2
+	u.scale = Vector3(1.05, 1.0, 0.8)
+	var toe := SphereMesh.new()
+	toe.radius = 0.05
+	toe.height = 0.07
+	_part(ankle, toe, Vector3(0, -0.05, -0.15), leather)
+	var collar := CylinderMesh.new()
+	collar.top_radius = 0.06
+	collar.bottom_radius = 0.052
+	collar.height = 0.09
+	_part(ankle, collar, Vector3(0, 0.0, 0.0), leather)
 
 
 ## Кулак из нескольких частей: ладонь, ряд костяшек, подогнутые пальцы снизу, большой палец сверху.
@@ -274,6 +301,39 @@ func _build_fist(el: Node3D, skin: Material, side: float) -> void:
 	wrist.bottom_radius = 0.034
 	wrist.height = 0.04
 	_part(hand, wrist, Vector3(0, -0.005, 0), skin)
+	var fx := CPUParticles3D.new()
+	fx.emitting = false
+	fx.amount = 24
+	fx.lifetime = 0.22
+	fx.local_coords = false
+	fx.position = Vector3(0, -0.06, 0)
+	fx.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	fx.emission_sphere_radius = 0.05
+	fx.direction = Vector3(0, 1, 0)
+	fx.spread = 20.0
+	fx.initial_velocity_min = 0.5
+	fx.initial_velocity_max = 1.3
+	fx.gravity = Vector3.ZERO
+	fx.particle_flag_align_y = true
+	fx.scale_amount_min = 0.6
+	fx.scale_amount_max = 1.3
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1, 1, 1, 0.35))
+	ramp.set_color(1, Color(1, 1, 1, 0.0))
+	fx.color_ramp = ramp
+	var q := QuadMesh.new()
+	q.size = Vector2(0.006, 0.1)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	m.vertex_color_use_as_albedo = true
+	m.albedo_color = Color(0.9, 0.88, 0.8, 0.5)
+	q.material = m
+	fx.mesh = q
+	hand.add_child(fx)
+	fist_fx.append(fx)
 
 
 func _mat(c: Color) -> StandardMaterial3D:
@@ -317,7 +377,7 @@ func toggle_fists() -> void:
 	var tw := create_tween().set_parallel()
 	tw.tween_property(self, "fist_blend", 1.0 if fists else 0.0, 0.3).set_trans(Tween.TRANS_SINE)
 	for i in 2:
-		tw.tween_method(_pose_setter(i), arm_pose[i], GUARD if fists else REST, 0.3).set_trans(Tween.TRANS_SINE)
+		tw.tween_method(_pose_setter(i), arm_pose[i], GUARDS[i] if fists else REST, 0.3).set_trans(Tween.TRANS_SINE)
 	voice_player.stream = inhale_snd if fists else exhale_out_snd
 	voice_player.volume_db = -18.0
 	voice_player.pitch_scale = randf_range(0.95, 1.05)
@@ -352,12 +412,35 @@ func punch() -> void:
 	var tw := create_tween()
 	tw.tween_method(_pose_setter(i), arm_pose[i], keys[0], 0.08).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(_punch_sound)
+	tw.tween_callback(_punch_fx.bind(i, kind, true))
 	tw.tween_method(_pose_setter(i), keys[0], keys[1], 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_method(func(v: float) -> void: reach[i] = v, 0.0, 0.12, 0.09)
 	tw.tween_callback(_check_hit.bind(i))
-	tw.tween_method(_pose_setter(i), keys[1], GUARD, 0.22).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(_punch_fx.bind(i, kind, false))
+	tw.tween_method(_pose_setter(i), keys[1], GUARDS[i], 0.22).set_trans(Tween.TRANS_SINE)
 	tw.parallel().tween_method(func(v: float) -> void: reach[i] = v, 0.12, 0.0, 0.22)
 	tw.tween_callback(func(): punching = false)
+
+
+## Эффекты удара: размытие в движении (прямой — «зум», хук — по горизонтали, апперкот — по вертикали)
+## и потоки воздуха за кулаком.
+func _punch_fx(i: int, kind: String, on: bool) -> void:
+	fist_fx[i].emitting = on
+	if not on or post_mat == null:
+		return
+	var side := -1.0 if i == 0 else 1.0
+	var param := "blur_amt"
+	var peak := 0.022
+	if kind == "straight":
+		param = "zoom_amt"
+		peak = 0.05
+	elif kind == "hook":
+		post_mat.set_shader_parameter("blur_dir", Vector2(-side, 0.0))
+	else:
+		post_mat.set_shader_parameter("blur_dir", Vector2(0.0, 1.0))
+	var tw := create_tween()
+	tw.tween_method(func(v: float) -> void: post_mat.set_shader_parameter(param, v), 0.0, peak, 0.05)
+	tw.tween_method(func(v: float) -> void: post_mat.set_shader_parameter(param, v), peak, 0.0, 0.14)
 
 
 func _pose_setter(i: int) -> Callable:
@@ -478,6 +561,7 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 		for i in 2:
 			var tuck := Vector3(0, GROUND_Y + 0.24 + 0.04 * i, -0.14 + 0.2 * i)
 			foot[i] = foot[i].lerp(tuck, 1.0 - exp(-9.0 * delta))
+			foot_pitch[i] = lerpf(foot_pitch[i], -0.35, 1.0 - exp(-9.0 * delta))
 	elif spd > 0.4:
 		stopping = false
 		var run := clampf((spd - WALK) / (SPRINT - WALK), 0.0, 1.0)
@@ -496,6 +580,19 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 				var u := (ph - beta) / (1.0 - beta)
 				s = -amp + 2.0 * amp * smoothstep(0.0, 1.0, u)
 				h = lift * sin(PI * u)
+			# перекат стопы: удар пяткой (носок вверх) -> плоско -> отрыв с носка (пятка вверх)
+			var pitch := 0.0
+			if ph < beta:
+				var us := ph / beta
+				if us < 0.15:
+					pitch = 0.25 * (1.0 - us / 0.15)
+				elif us > 0.7:
+					pitch = -0.55 * (us - 0.7) / 0.3
+			else:
+				pitch = lerpf(-0.55, 0.25, smoothstep(0.0, 1.0, (ph - beta) / (1.0 - beta)))
+			foot_pitch[i] = lerpf(foot_pitch[i], pitch, 1.0 - exp(-25.0 * delta))
+			# поднимаем голеностоп, чтобы носок/пятка не уходили в пол
+			h += 0.16 * maxf(-sin(foot_pitch[i]), 0.0) + 0.08 * maxf(sin(foot_pitch[i]), 0.0)
 			var tgt := Vector3(move_dir.x * s, GROUND_Y + h, move_dir.z * s)
 			foot[i] = foot[i].lerp(tgt, 1.0 - exp(-30.0 * delta))
 			# стопа встала на пол — звук шага
@@ -503,25 +600,33 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 				_play_step(-6.0 if run > 0.5 else -10.0)
 			gait_prev[i] = ph
 	else:
-		# остановка: опорная нога остаётся на месте, нога в переносе дошагивает и встаёт рядом
+		# остановка как у людей: передняя нога остаётся, задняя подтягивается вперёд и встаёт рядом
 		if not stopping:
 			stopping = true
-			for i in 2:
-				if foot[i].y > GROUND_Y + 0.01:
-					var other := foot[1 - i]
-					settle_from[i] = foot[i]
-					settle_to[i] = Vector3(other.x * 0.2, GROUND_Y, other.z * 0.25)
-					settle_t[i] = 0.0
-				else:
-					settle_t[i] = 1.0
+			var md := Vector2(move_dir.x, move_dir.z)
+			var s0 := Vector2(foot[0].x, foot[0].z).dot(md)
+			var s1 := Vector2(foot[1].x, foot[1].z).dot(md)
+			var front := 0 if s0 >= s1 else 1
+			var rear := 1 - front
+			settle_from[front] = foot[front]
+			settle_to[front] = Vector3(foot[front].x, GROUND_Y, foot[front].z)
+			settle_t[front] = 1.0 if foot[front].y <= GROUND_Y + 0.01 else 0.5
+			settle_from[rear] = foot[rear]
+			settle_to[rear] = Vector3(foot[front].x * 0.3, GROUND_Y, foot[front].z)
+			settle_t[rear] = 0.0
+		# тело ещё скользит по инерции — стоящие стопы остаются на месте относительно пола
+		var slide := Vector3(v_local.x, 0, v_local.z) * delta
 		for i in 2:
+			foot_pitch[i] = lerpf(foot_pitch[i], 0.0, 1.0 - exp(-12.0 * delta))
+			settle_to[i] -= slide
 			if settle_t[i] < 1.0:
-				settle_t[i] = minf(settle_t[i] + delta / 0.2, 1.0)
+				settle_t[i] = minf(settle_t[i] + delta / 0.26, 1.0)
 				var k := smoothstep(0.0, 1.0, settle_t[i])
-				foot[i] = settle_from[i].lerp(settle_to[i], k) + Vector3(0, 0.05 * sin(PI * settle_t[i]), 0)
+				foot[i] = settle_from[i].lerp(settle_to[i], k) + Vector3(0, 0.06 * sin(PI * settle_t[i]), 0)
 				if settle_t[i] >= 1.0:
 					_play_step(-14.0)
 			else:
+				foot[i] -= slide
 				foot[i].y = move_toward(foot[i].y, GROUND_Y, delta * 0.5)
 	for i in 2:
 		_leg_ik(i, foot[i])
@@ -537,8 +642,8 @@ func _leg_ik(i: int, t: Vector3) -> void:
 	var a_knee := PI - acos(clampf((LEG_L1 * LEG_L1 + LEG_L2 * LEG_L2 - d * d) / (2.0 * LEG_L1 * LEG_L2), -1.0, 1.0))
 	legs[i].rotation = Vector3(aim + a_hip, 0.0, roll)
 	knees[i].rotation.x = -a_knee
-	# ботинок держим параллельно полу
-	ankles[i].rotation.x = -(aim + a_hip - a_knee)
+	# ботинок параллельно полу + перекат стопы
+	ankles[i].rotation.x = -(aim + a_hip - a_knee) + foot_pitch[i]
 
 
 func _play_step(db: float, _pitch := 1.0) -> void:

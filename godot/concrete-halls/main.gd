@@ -24,6 +24,7 @@ var in_game := false
 var player: CharacterBody3D
 var menu: CanvasLayer
 var fade: ColorRect
+var post_mat: ShaderMaterial
 
 
 func _ready() -> void:
@@ -48,6 +49,18 @@ func _ready() -> void:
 	menu = Menu.new()
 	add_child(menu)
 	menu.play_pressed.connect(_start_game)
+
+	# постобработка (постеризация, размытие ударов) — под меню и затемнением
+	var pl := CanvasLayer.new()
+	pl.layer = -1
+	add_child(pl)
+	var post := ColorRect.new()
+	post.set_anchors_preset(Control.PRESET_FULL_RECT)
+	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	post_mat = ShaderMaterial.new()
+	post_mat.shader = preload("res://post.gdshader")
+	post.material = post_mat
+	pl.add_child(post)
 
 	var fl := CanvasLayer.new()
 	fl.layer = 10
@@ -101,6 +114,7 @@ func _enter_game() -> void:
 	add_child(player)
 	player.cam.current = true
 	player.active = true
+	player.post_mat = post_mat
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
