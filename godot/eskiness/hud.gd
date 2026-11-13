@@ -10,6 +10,9 @@ var hp_lag := 100.0          # «догоняющая» светлая поло�
 var coins := 0
 var battery := 1.0
 var light_on := false
+var has_light := false     # фонарик есть в инвентаре — показываем заряд
+signal restart_pressed
+var restart_b: Button
 var knuckles := false
 var inv  # inventory.gd — для хотбара 1–5
 var cheat_l: Label
@@ -105,6 +108,21 @@ func _ready() -> void:
 	death_l.add_theme_color_override("font_color", Color(0.75, 0.2, 0.15))
 	death_l.modulate.a = 0.0
 	root.add_child(death_l)
+	restart_b = Button.new()
+	restart_b.text = "Начать заново"
+	restart_b.add_theme_font_size_override("font_size", 30)
+	restart_b.anchor_left = 0.5
+	restart_b.anchor_right = 0.5
+	restart_b.anchor_top = 0.5
+	restart_b.anchor_bottom = 0.5
+	restart_b.offset_left = -150
+	restart_b.offset_right = 150
+	restart_b.offset_top = 80
+	restart_b.offset_bottom = 140
+	restart_b.focus_mode = Control.FOCUS_NONE
+	restart_b.visible = false
+	restart_b.pressed.connect(func(): restart_pressed.emit())
+	root.add_child(restart_b)
 
 
 func _process(delta: float) -> void:
@@ -172,6 +190,7 @@ func cheat_warning(on: bool) -> void:
 
 
 func show_death(on: bool) -> void:
+	restart_b.visible = on
 	var tw := create_tween().set_parallel()
 	tw.tween_property(death_bg, "color:a", 0.75 if on else 0.0, 1.2 if on else 0.6)
 	tw.tween_property(death_l, "modulate:a", 1.0 if on else 0.0, 1.5 if on else 0.4)
@@ -251,14 +270,15 @@ func _paint() -> void:
 			paint.draw_string_outline(f, r.position + Vector2(4, 14), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.8))
 			paint.draw_string(f, r.position + Vector2(4, 14), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.8, 0.45))
 
-	# фонарик (справа снизу)
-	var bx := sz.x - 28.0 - 140.0
-	var by := sz.y - 46.0
-	var lbl := "ФОНАРИК" + ("" if light_on else " (F)")
-	paint.draw_string_outline(f, Vector2(bx, by - 8), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.7))
-	paint.draw_string(f, Vector2(bx, by - 8), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.8, 0.78, 0.72) if light_on else Color(0.55, 0.54, 0.5))
-	paint.draw_rect(Rect2(bx - 2, by - 2, 144, 14), Color(0, 0, 0, 0.6))
-	var bc := Color(0.75, 0.68, 0.4) if battery > 0.2 else Color(0.75, 0.3, 0.15)
-	if not light_on:
-		bc = bc.darkened(0.4)
-	paint.draw_rect(Rect2(bx, by, 140 * battery, 10), bc)
+	if has_light:
+		# фонарик (справа снизу)
+		var bx := sz.x - 28.0 - 140.0
+		var by := sz.y - 46.0
+		var lbl := "ФОНАРИК" + ("" if light_on else " (F)")
+		paint.draw_string_outline(f, Vector2(bx, by - 8), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.7))
+		paint.draw_string(f, Vector2(bx, by - 8), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.8, 0.78, 0.72) if light_on else Color(0.55, 0.54, 0.5))
+		paint.draw_rect(Rect2(bx - 2, by - 2, 144, 14), Color(0, 0, 0, 0.6))
+		var bc := Color(0.75, 0.68, 0.4) if battery > 0.2 else Color(0.75, 0.3, 0.15)
+		if not light_on:
+			bc = bc.darkened(0.4)
+		paint.draw_rect(Rect2(bx, by, 140 * battery, 10), bc)

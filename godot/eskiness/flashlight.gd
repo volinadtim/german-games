@@ -26,6 +26,9 @@ func attach(cam: Camera3D) -> void:
 
 
 func toggle() -> void:
+	if not on and game.inv.count("flashlight") == 0:
+		game.hud.toast("Фонарика нет — он в магазине снаряжения")
+		return
 	if not on and charge <= 0.0:
 		game.hud.toast("Батарейка села")
 		game.play_ui("click", -16.0)
@@ -42,6 +45,11 @@ func recharge() -> void:
 func _process(delta: float) -> void:
 	if light == null:
 		return
+	var have: bool = game.inv.count("flashlight") > 0
+	game.hud.has_light = have
+	if on and not have:
+		on = false
+		light.visible = false
 	if on:
 		charge = maxf(charge - DRAIN * delta, 0.0)
 		if charge <= 0.0:

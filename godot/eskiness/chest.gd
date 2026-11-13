@@ -3,6 +3,8 @@ extends StaticBody3D
 ## лут вылетает наружу и подбирается, когда подойдёшь. Лут — случайный из таблицы LOOT + гарантированный extra.
 ## Интерфейс взаимодействия (его дёргает game.gd): get_prompt(game) -> String, interact(game).
 
+const Fx := preload("res://fx.gd")
+
 ## [предмет, вес, мин, макс]
 const LOOT := [
 	["bandage", 16, 1, 3],
@@ -30,6 +32,10 @@ var extra: Array = []          # гарантированный лут: [[id, n]
 var locked := false            # сейф: открывается только тремя семёрками на автомате (force_open)
 var random_loot := true
 var opened := false
+var game                       # game.gd — для ломания ящика
+const CRATE_HP := 30.0
+var hp := CRATE_HP
+var broken := false
 var hinge: Node3D
 var snd: AudioStreamPlayer3D
 
@@ -135,7 +141,7 @@ func _build_safe() -> void:
 
 
 func get_prompt(game) -> String:
-	if opened:
+	if opened or broken:
 		return ""
 	if locked:
 		return "Сейф заперт  (откроют три семёрки на KILLBOX)"
@@ -176,11 +182,57 @@ func force_open(game) -> void:
 
 ## Закрыть ящик заново (магазин: «Обновить все ящики»). Лут выпадет новый — он выбирается при открытии.
 func reset() -> void:
+	if broken:
+		broken = false
+		hp = CRATE_HP
+		for c in get_children():
+			if c is Node3D and not c is AudioStreamPlayer3D:
+				c.visible = true
+			if c is CollisionShape3D:
+				c.set_deferred("disabled", false)
+		hinge.rotation = Vector3.ZERO
+		opened = false
+		return
 	if kind == "safe" or not opened:
 		return
 	opened = false
 	var tw := create_tween()
 	tw.tween_property(hinge, "rotation:x", 0.0, 0.6).set_trans(Tween.TRANS_SINE)
+
+
+## Удар кулаком или оружием: ящик трещит, летят щепки; на нуле разваливается —
+## выпадает его лут (если не открыт) и 1–2 деревяшки. Сейф не ломается.
+func take_hit(dmg: float, dir: Vector3) -> void:
+	if kind == "safe" or broken:
+		return
+	if game:
+		game.weapon_hit()
+	hp -= dmg
+	Fx.dust_burst(get_parent(), global_position + Vector3(0, 0.35, 0) - dir * 0.3, Color(0.42, 0.29, 0.16), 10)
+	var p0 := position
+	var tw := create_tween()
+	tw.tween_property(self, "position", p0 + Vector3(dir.x, 0, dir.z).normalized() * 0.03, 0.04)
+	tw.tween_property(self, "position", p0, 0.08)
+	if game:
+		game.play_at("creak", global_position, -12.0, 1.8)
+	if hp <= 0.0:
+		_break()
+
+
+func _break() -> void:
+	broken = true
+	for c in get_children():
+		if c is Node3D and not c is AudioStreamPlayer3D:
+			c.visible = false
+		if c is CollisionShape3D:
+			c.set_deferred("disabled", true)
+	Fx.dust_burst(get_parent(), global_position + Vector3(0, 0.3, 0), Color(0.45, 0.31, 0.17), 34)
+	if game:
+		game.play_at("thud", global_position, -6.0, 1.5)
+		if not opened:
+			_spill(game)
+		game.spawn_loot("wood", randi_range(1, 2), global_position + Vector3(0, 0.4, 0), Vector3(0, 2.2, 0), 1.2)
+	opened = true
 
 
 func _spill(game) -> void:

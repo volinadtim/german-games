@@ -34,6 +34,7 @@ var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
 var equip := {"head": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": ""}
 var hotbar: Array = ["", "", "", "", ""]
+var equip_dur := {}             # прочность надетого: слот -> значение
 var open := false
 var enabled := true
 var hover = null                 # int — ячейка сумки, String — слот экипировки
@@ -88,6 +89,12 @@ class Slot extends Control:
 				draw_string(f, Vector2(0, size.y / 2 + 5), inv.EQUIP_NAMES[key], HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, Color(0.6, 0.55, 0.45, 0.75))
 			return
 		Items.draw_icon(self, id, r.grow(-12))
+		# полоска прочности
+		var mx := Items.max_dur(id)
+		if mx > 0.0:
+			var fr := clampf(float(inv.get_dur(key)) / mx, 0.0, 1.0)
+			draw_rect(Rect2(6, size.y - 9, size.x - 12, 4), Color(0, 0, 0, 0.6))
+			draw_rect(Rect2(6, size.y - 9, (size.x - 12) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
 		if not is_eq:
 			var n: int = inv.slots[key]["n"]
 			if n > 1:
@@ -603,8 +610,20 @@ func move(from, to) -> void:
 
 # ---------- данные ----------
 
+## Прочность предмета в ячейке (int) или в слоте снаряжения (String).
+func get_dur(key) -> float:
+	if key is String:
+		var eid: String = equip[key]
+		return float(equip_dur.get(key, Items.max_dur(eid)))
+	var s = slots[key]
+	if s == null:
+		return 0.0
+	return float(s.get("dur", Items.max_dur(s["id"])))
+
+
 ## Добавить предметы; возвращает, сколько не влезло. Монеты идут в кошелёк.
-func add(id: String, n: int) -> int:
+## dur — прочность (для оружия/сапог, подобранных с пола), -1 — новая вещь.
+func add(id: String, n: int, dur := -1.0) -> int:
 	if id == "coin":
 		coins += n
 		_after_change()
@@ -623,6 +642,8 @@ func add(id: String, n: int) -> int:
 			break
 		var take := mini(n, mx)
 		slots[i] = {"id": id, "n": take}
+		if dur >= 0.0:
+			slots[i]["dur"] = dur
 		n -= take
 	_after_change()
 	return n

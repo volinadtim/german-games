@@ -17,6 +17,8 @@ const ITEMS := {
 		"icon": "choco", "color": Color(0.36, 0.2, 0.12), "buff": "resist", "power": 0.20, "time": 60.0},
 	"soda": {"name": "Газировка", "desc": "Напиток: +30% к скорости на 60 с.", "stack": 6,
 		"icon": "soda", "color": Color(0.75, 0.2, 0.15), "buff": "speed", "power": 0.30, "time": 60.0},
+	"flashlight": {"name": "Фонарик", "desc": "F или клавиша хотбара — включить. Нужны батарейки.", "stack": 1,
+		"icon": "flashlight", "color": Color(0.3, 0.32, 0.3)},
 	"battery": {"name": "Батарейка", "desc": "Полностью заряжает фонарик (F).", "stack": 10,
 		"icon": "battery", "color": Color(0.34, 0.44, 0.3)},
 	"knuckles": {"name": "Кастет", "desc": "Руки: удар кулаком ×1.5.", "stack": 1,
@@ -30,8 +32,8 @@ const ITEMS := {
 		"icon": "gloves", "color": Color(0.55, 0.48, 0.32), "equip": "hands", "fist": 1.2},
 	"pants": {"name": "Рабочие штаны", "desc": "Ноги: +8% к скорости.", "stack": 1,
 		"icon": "pants", "color": Color(0.2, 0.24, 0.32), "equip": "legs", "speed": 0.08},
-	"boots": {"name": "Кирзовые сапоги", "desc": "Обувь: стекло не ранит.", "stack": 1,
-		"icon": "boots", "color": Color(0.17, 0.13, 0.1), "equip": "feet", "glassproof": true},
+	"boots": {"name": "Кирзовые сапоги", "desc": "Обувь: стекло не ранит. Изнашиваются от ходьбы и стекла.", "stack": 1,
+		"icon": "boots", "color": Color(0.17, 0.13, 0.1), "equip": "feet", "glassproof": true, "dur": 100},
 	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 5,
 		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
 	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 6,
@@ -52,17 +54,17 @@ const ITEMS := {
 		"icon": "nut", "color": Color(0.46, 0.46, 0.46)},
 	# оружие ближнего боя из магазина (weapons.gd): «использовать» — взять в правую руку
 	"bat": {"name": "Бита", "desc": "Деревянная бита. Урон ×2.0, бьёт чуть дальше.", "stack": 1,
-		"icon": "bat", "color": Color(0.55, 0.38, 0.22), "weapon": true},
+		"icon": "bat", "color": Color(0.55, 0.38, 0.22), "weapon": true, "dur": 40},
 	"pipe": {"name": "Труба", "desc": "Стальная труба. Урон ×2.5.", "stack": 1,
-		"icon": "pipe", "color": Color(0.42, 0.43, 0.44), "weapon": true},
+		"icon": "pipe", "color": Color(0.42, 0.43, 0.44), "weapon": true, "dur": 60},
 	"crowbar": {"name": "Монтировка", "desc": "Тяжёлая, красная. Урон ×3.0.", "stack": 1,
-		"icon": "crowbar", "color": Color(0.6, 0.14, 0.1), "weapon": true},
+		"icon": "crowbar", "color": Color(0.6, 0.14, 0.1), "weapon": true, "dur": 80},
 	"machete": {"name": "Мачете", "desc": "Широкий клинок. Урон ×3.6.", "stack": 1,
-		"icon": "machete", "color": Color(0.62, 0.63, 0.62), "weapon": true},
+		"icon": "machete", "color": Color(0.62, 0.63, 0.62), "weapon": true, "dur": 70},
 	"shield": {"name": "Щит", "desc": "В левой руке — 50% блокирует удар. В правой — бьёт краем (чуть слабее биты).", "stack": 1,
-		"icon": "shield", "color": Color(0.38, 0.39, 0.4), "weapon": true},
+		"icon": "shield", "color": Color(0.38, 0.39, 0.4), "weapon": true, "dur": 40},
 	"knife": {"name": "Ножик", "desc": "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.4.", "stack": 1,
-		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true},
+		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true, "dur": 12},
 	# материалы для крафта
 	"wood": {"name": "Деревяшка", "desc": "Обломок доски. Нужна для крафта.", "stack": 5,
 		"icon": "wood", "color": Color(0.5, 0.35, 0.2)},
@@ -97,6 +99,11 @@ static func fits(id: String, slot: String) -> bool:
 	if k == "hand":
 		return slot == "left" or slot == "right"
 	return k != "" and k == slot
+
+
+## Прочность предмета (0 — вечный): оружие ломается от ударов, сапоги — от ходьбы и стекла.
+static func max_dur(id: String) -> float:
+	return float(ITEMS[id].get("dur", 0)) if ITEMS.has(id) else 0.0
 
 
 static func item_name(id: String) -> String:
@@ -212,6 +219,12 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				c + Vector2(s * 0.24, -s * 0.1), c + Vector2(s * 0.1, s * 0.32)])
 			ci.draw_colored_polygon(pts, Color(col.r, col.g, col.b, 0.75))
 			ci.draw_line(c + Vector2(-s * 0.05, -s * 0.2), c + Vector2(s * 0.05, s * 0.1), Color(1, 1, 1, 0.8), maxf(1.0, s * 0.03))
+		"flashlight":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.32, -s * 0.08), Vector2(s * 0.42, s * 0.16)), col)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(s * 0.1, -s * 0.08), c + Vector2(s * 0.3, -s * 0.16),
+				c + Vector2(s * 0.3, s * 0.16), c + Vector2(s * 0.1, s * 0.08)]), col.lightened(0.2))
+			ci.draw_rect(Rect2(c + Vector2(s * 0.3, -s * 0.15), Vector2(s * 0.05, s * 0.3)), Color(1.0, 0.92, 0.6))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.12, -s * 0.13), Vector2(s * 0.08, s * 0.05)), Color(0.7, 0.2, 0.15))
 		"helmet":
 			ci.draw_arc(c + Vector2(0, s * 0.08), s * 0.3, PI, TAU, 16, col, s * 0.02)
 			var dome := PackedVector2Array()
@@ -342,6 +355,13 @@ static func make_mesh(id: String) -> Node3D:
 			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			m.albedo_color = Color(col.r, col.g, col.b, 0.6)
 			m.roughness = 0.1
+		"flashlight":
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.03
+			cm.bottom_radius = 0.022
+			cm.height = 0.16
+			mi.mesh = cm
+			mi.rotation.z = PI / 2
 		"helmet":
 			var sm := SphereMesh.new()
 			sm.radius = 0.13

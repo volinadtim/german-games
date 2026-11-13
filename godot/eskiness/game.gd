@@ -11,6 +11,7 @@ const Items := preload("res://items.gd")
 const Fx := preload("res://fx.gd")
 const Pickup := preload("res://pickup.gd")
 const Flashlight := preload("res://flashlight.gd")
+const TapeSpot := preload("res://tape_spot.gd")
 const Enemy := preload("res://enemy.gd")
 const Dummy := preload("res://dummy.gd")
 const Chest := preload("res://chest.gd")
@@ -73,6 +74,7 @@ func setup(p: Player) -> void:
 	inv.message.connect(func(t: String): hud.toast(t))
 	hud.inv = inv
 	hud.set_hp(hp, MAX_HP)
+	hud.restart_pressed.connect(restart)
 
 	if USE_FLASHLIGHT:
 		flashlight = Flashlight.new()
@@ -80,13 +82,15 @@ func setup(p: Player) -> void:
 		add_child(flashlight)
 		flashlight.attach(player.cam)
 
-	# стартовый набор, чтобы сразу было что попробовать (крутка автомата — 10 монет)
+	# стартовый набор (крутка автомата — 10 монет). Фонарика нет — он в магазине снаряжения.
 	inv.add("coin", 30)
 	inv.add("bandage", 1)
 
 	if USE_DUMMY:
+		# манекен — в левой комнате, ближайшей к старту (северо-западная)
 		var d := Dummy.new()
-		d.position = Vector3(-8.6, 0.0, -0.95)
+		d.game = self
+		d.position = Vector3(-8.0, 0.0, -3.6)
 		add_child(d)
 	if USE_ENEMIES:
 		for s in ENEMY_SPOTS:
@@ -119,6 +123,11 @@ func setup(p: Player) -> void:
 			slot.rotation.y = PI
 			add_child(slot)
 		slot.game = self
+	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
+	var tape := TapeSpot.new()
+	tape.game = self
+	tape.position = Vector3(-6.95, 0.95, 8.66)
+	add_child(tape)
 	# осколки стекла на полу (там, где битое стекло) — материал для ножика
 	for gp in [Vector3(-5.4, 0.1, 0.4), Vector3(9.6, 0.1, -6.3), Vector3(-9.1, 0.1, 6.6)]:
 		_make_pickup("glass", 1, gp, Vector3.ZERO)
@@ -136,6 +145,7 @@ func open_safe() -> bool:
 
 func _chest(pos: Vector3, rot: float, extra: Array) -> void:
 	var c := Chest.new()
+	c.game = self
 	chests.append(c)
 	c.extra = extra
 	c.position = pos
@@ -257,12 +267,20 @@ const GLASS_SPOTS := [[Vector3(-5.6, 0, 0.1), 0.9], [Vector3(9.5, 0, -6.5), 0.5]
 const BLEED_TIME := 10.0
 const BLEED_DPS := 3.0
 var on_glass := false
+var last_feet_pos := Vector3.INF
 var glass_cd := 0.0
 var bleed_t := 0.0
 
 
 func _glass(delta: float) -> void:
 	glass_cd -= delta
+	# сапоги стираются от ходьбы: 1 прочности за 8 м
+	var pp0 := player.global_position
+	if inv.equip["feet"] != "" and player.is_on_floor() and last_feet_pos != Vector3.INF:
+		var step := Vector2(pp0.x - last_feet_pos.x, pp0.z - last_feet_pos.z).length()
+		if step < 1.0:
+			_wear("feet", step / 8.0)
+	last_feet_pos = pp0
 	if bleed_t > 0.0:
 		bleed_t = maxf(bleed_t - delta, 0.0)
 		drain_hp(BLEED_DPS * delta)
@@ -278,7 +296,8 @@ func _glass(delta: float) -> void:
 				now = true
 	if now and not on_glass and glass_cd <= 0.0 and Items.ITEMS.get(inv.equip["feet"], {}).get("glassproof", false):
 		glass_cd = 1.5
-		play_ui("tick", -14.0, 0.6)      # хруст под сапогом — без урона
+		play_ui("tick", -14.0, 0.6)      # хруст под сапогом — без урона, но сапоги теряют 20% прочности
+		_wear("feet", Items.max_dur(inv.equip["feet"]) * 0.2)
 	elif now and not on_glass and glass_cd <= 0.0:
 		glass_cd = 1.5
 		drain_hp(5.0)
@@ -288,6 +307,33 @@ func _glass(delta: float) -> void:
 			hud.toast("Стекло! Кровотечение", Color(1.0, 0.4, 0.3))
 			play_ui("hurt", -10.0, 0.9)
 	on_glass = now
+
+
+# ---------- прочность (промпт 21:46) ----------
+
+## Попадание по врагу/манекену/ящику: изнашивается оружие в бьющей руке (player.last_arm).
+func weapon_hit() -> void:
+	if player == null or player.last_arm < 0:
+		return
+	_wear("left" if player.last_arm == 0 else "right", 1.0)
+
+
+## Снять прочность с надетой вещи; на нуле вещь ломается и пропадает.
+func _wear(slot_: String, amount: float) -> void:
+	var id: String = inv.equip[slot_]
+	if id == "" or Items.max_dur(id) <= 0.0:
+		return
+	var d: float = float(inv.equip_dur.get(slot_, Items.max_dur(id))) - amount
+	inv.equip_dur[slot_] = d
+	if d <= 0.0:
+		inv.equip[slot_] = ""
+		inv.equip_dur.erase(slot_)
+		_apply_equip(slot_)
+		hud.toast("Сломано: %s" % Items.item_name(id) if id != "boots" else "Сапоги развалились", Color(1.0, 0.5, 0.35))
+		play_ui("thud", -10.0, 1.6)
+		inv.notify()
+	elif inv.open:
+		inv._refresh()
 
 
 ## Бинт или аптечка останавливают кровотечение. true — было что останавливать.
@@ -357,6 +403,7 @@ func damage_player(amount: float, from: Vector3) -> void:
 	# щит в левой руке: половина ударов блокируется полностью
 	if inv.equip["left"] == "shield" and randf() < 0.5:
 		hud.block_flash()
+		_wear("left", 1.0)
 		play_ui("clunk", -6.0, 0.8)
 		var bpush := player.global_position - from
 		bpush.y = 0.0
@@ -399,17 +446,14 @@ func _die() -> void:
 	inv.close()
 	inv.enabled = false
 	hud.show_death(true)
-	await get_tree().create_timer(3.0).timeout
-	player.global_position = START
-	player.rotation.y = -PI / 2.0
-	player.velocity = Vector3.ZERO
-	hp = MAX_HP
-	hud.set_hp(hp, MAX_HP)
-	hud.show_death(false)
-	alive = true
-	player.active = true
-	inv.enabled = true
-	hud.toast("Ты очнулся у входа")
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## «Начать заново»: полный сброс — сцена перезагружается и сразу стартует игра (main.gd), минуя меню.
+func restart() -> void:
+	Engine.set_meta("eskiness_autostart", true)
+	get_tree().paused = false
+	get_tree().reload_current_scene()
 
 
 func _quick_heal() -> void:
@@ -475,6 +519,9 @@ func use_item(idx: int) -> void:
 			stop_bleeding()
 		hud.toast("%s: +%d здоровья" % [def["name"], int(def["heal"])], Color(0.7, 0.9, 0.6))
 		play_ui("pickup", -12.0, 0.8)
+	elif id == "flashlight":
+		if flashlight:
+			flashlight.toggle()
 	elif id == "battery":
 		if flashlight == null:
 			return
@@ -514,8 +561,11 @@ func equip(idx: int, slot_: String) -> void:
 		return
 	var id: String = s["id"]
 	var prev: String = inv.equip[slot_]
-	inv.slots[idx] = {"id": prev, "n": 1} if prev != "" else null
+	var prev_d: float = inv.equip_dur.get(slot_, Items.max_dur(prev))
+	var new_d: float = float(s.get("dur", Items.max_dur(id)))
+	inv.slots[idx] = {"id": prev, "n": 1, "dur": prev_d} if prev != "" else null
 	inv.equip[slot_] = id
+	inv.equip_dur[slot_] = new_d
 	_apply_equip(slot_)
 	inv.notify()
 	play_ui("click", -10.0, 0.8)
@@ -536,7 +586,8 @@ func unequip(slot_: String, to := -1) -> bool:
 	if to < 0:
 		hud.toast("Сумка полна — некуда снять")
 		return false
-	inv.slots[to] = {"id": id, "n": 1}
+	inv.slots[to] = {"id": id, "n": 1, "dur": float(inv.equip_dur.get(slot_, Items.max_dur(id)))}
+	inv.equip_dur.erase(slot_)
 	inv.equip[slot_] = ""
 	_apply_equip(slot_)
 	inv.notify()
@@ -548,12 +599,16 @@ func drop_equipped(slot_: String) -> void:
 	var id: String = inv.equip[slot_]
 	if id == "":
 		return
+	var d: float = inv.equip_dur.get(slot_, Items.max_dur(id))
 	inv.equip[slot_] = ""
+	inv.equip_dur.erase(slot_)
 	_apply_equip(slot_)
 	inv.notify()
 	var fwd := -player.global_transform.basis.z
 	var p := _make_pickup(id, 1, player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5, fwd * 2.0 + Vector3(0, 1.0, 0))
 	p.need_leave = true
+	if Items.max_dur(id) > 0.0:
+		p.set_meta("dur", d)
 
 
 func _apply_equip(slot_: String) -> void:
@@ -634,6 +689,7 @@ func drop_item(idx: int, all: bool) -> void:
 
 
 func drop_count(idx: int, n: int) -> void:
+	var dur: float = float(inv.slots[idx].get("dur", -1.0)) if inv.slots[idx] != null else -1.0
 	var got: Array = inv.take_at(idx, n)
 	if got[1] <= 0:
 		return
@@ -641,6 +697,8 @@ func drop_count(idx: int, n: int) -> void:
 	var pos := player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5
 	var p := _make_pickup(got[0], got[1], pos, fwd * 2.0 + Vector3(0, 1.0, 0))
 	p.need_leave = true
+	if dur >= 0.0:
+		p.set_meta("dur", dur)
 
 
 ## Выбросить монеты из кошелька (запоминаем сколько — см. анти-мухлёж в cheat_check).
@@ -738,7 +796,8 @@ func _make_pickup(id: String, n: int, pos: Vector3, vel: Vector3) -> Pickup:
 
 ## Вызывается лежащим предметом, когда игрок рядом. Возвращает, сколько не влезло.
 func collect(id: String, n: int, from: Node = null) -> int:
-	var left: int = inv.add(id, n)
+	var d: float = float(from.get_meta("dur", -1.0)) if from != null else -1.0
+	var left: int = inv.add(id, n, d)
 	var got := n - left
 	if id == "coin" and from != null and from.get_meta("dropped", false):
 		dropped_coins = maxi(dropped_coins - got, 0)

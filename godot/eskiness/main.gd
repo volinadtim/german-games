@@ -84,6 +84,10 @@ func _ready() -> void:
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fl.add_child(fade)
 	create_tween().tween_property(fade, "color:a", 0.0, 1.5)
+	# «Начать заново» после смерти (game.gd: restart) — сразу в игру, минуя меню
+	if Engine.has_meta("eskiness_autostart"):
+		Engine.remove_meta("eskiness_autostart")
+		_start_game.call_deferred()
 
 
 func _process(delta: float) -> void:

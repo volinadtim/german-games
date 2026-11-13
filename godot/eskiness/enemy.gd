@@ -392,6 +392,7 @@ func _animate(delta: float, spd: float) -> void:
 func take_hit(dmg: float, dir: Vector3) -> void:
 	if state == "dead":
 		return
+	game.weapon_hit()
 	hp -= dmg
 	bar_t = 4.0
 	bar_fg.scale.x = maxf(hp / MAX_HP, 0.0)

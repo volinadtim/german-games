@@ -10,6 +10,7 @@ var ang_v := Vector2.ZERO
 var combo := 0.0
 var combo_t := 0.0
 var label: Label3D
+var game                       # game.gd — износ оружия
 
 
 func _ready() -> void:
@@ -97,6 +98,8 @@ func _physics_process(delta: float) -> void:
 
 
 func take_hit(dmg: float, dir: Vector3) -> void:
+	if game:
+		game.weapon_hit()
 	var local := global_transform.basis.inverse() * dir
 	ang_v += Vector2(local.z, -local.x) * (2.0 + dmg * 0.08)
 	combo += dmg
