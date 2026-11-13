@@ -4,10 +4,15 @@ shader_type spatial;
 //                пыль на верхних гранях, затемнение у стыков, случайные трещины.
 //  polished = 1: пол/потолок — шлифованный бетон: ровный тон, лёгкий матовый блеск, случайные трещины, мягкая пыль.
 
-uniform sampler2D noise_big : filter_nearest_mipmap, repeat_enable;
-uniform sampler2D noise_fine : filter_nearest_mipmap, repeat_enable;
-uniform sampler2D noise_cell : filter_nearest_mipmap, repeat_enable;   // ячеистый шум — зерно камня
-uniform sampler2D noise_crack : filter_nearest_mipmap, repeat_enable;  // извилистый шум — трещины
+// сглаженные копии — для рельефа (иначе на границах «пикселей» появляется сетка из полос)
+uniform sampler2D noise_big : filter_linear_mipmap, repeat_enable;
+uniform sampler2D noise_fine : filter_linear_mipmap, repeat_enable;
+uniform sampler2D noise_cell : filter_linear_mipmap, repeat_enable;   // ячеистый шум — зерно камня
+uniform sampler2D noise_crack : filter_linear_mipmap, repeat_enable;  // извилистый шум — трещины
+// те же текстуры без сглаживания — для цвета: крупные «пиксели»
+uniform sampler2D noise_big_px : filter_nearest_mipmap, repeat_enable;
+uniform sampler2D noise_fine_px : filter_nearest_mipmap, repeat_enable;
+uniform sampler2D noise_cell_px : filter_nearest_mipmap, repeat_enable;
 uniform vec3 base_color : source_color = vec3(0.27, 0.265, 0.25);
 uniform vec3 mold_color : source_color = vec3(0.17, 0.18, 0.15);
 uniform vec3 dust_color : source_color = vec3(0.33, 0.31, 0.29);
@@ -30,6 +35,12 @@ float tri(sampler2D t, vec3 p, vec3 n, float s) {
 	return texture(t, p.zy * s).r * w.x + texture(t, p.xz * s).r * w.y + texture(t, p.xy * s).r * w.z;
 }
 
+float tri_px(sampler2D t, vec3 p, vec3 n, float s) {
+	vec3 w = pow(abs(n), vec3(4.0));
+	w /= (w.x + w.y + w.z);
+	return texture(t, p.zy * s).r * w.x + texture(t, p.xz * s).r * w.y + texture(t, p.xy * s).r * w.z;
+}
+
 // Случайные трещины: тонкие «гребни» извилистого шума, только там, где их разрешает маска.
 float cracks(vec3 p, vec3 n, float density) {
 	vec3 warp = vec3(tri(noise_big, p, n, 0.11), 0.0, tri(noise_big, p + vec3(9.0), n, 0.11)) * 1.5;
@@ -45,9 +56,11 @@ void fragment() {
 	float wall = 1.0 - abs(wnrm.y);
 	float up = clamp(wnrm.y, 0.0, 1.0);
 	float h = wpos.y;
-	float big = tri(noise_big, wpos, wnrm, 0.025);
-	float mid = tri(noise_big, wpos + vec3(17.0, 3.0, 29.0), wnrm, 0.07);
-	float fine = tri(noise_fine, wpos, wnrm, 0.3);
+	float big = tri_px(noise_big_px, wpos, wnrm, 0.025);
+	float mid = tri_px(noise_big_px, wpos + vec3(17.0, 3.0, 29.0), wnrm, 0.07);
+	float fine = tri_px(noise_fine_px, wpos, wnrm, 0.3);
+	float h_big = tri(noise_big, wpos, wnrm, 0.025);
+	float h_mid = tri(noise_big, wpos + vec3(17.0, 3.0, 29.0), wnrm, 0.07);
 	vec3 col;
 	float rough;
 	float ao = 1.0;
@@ -57,31 +70,33 @@ void fragment() {
 		col = base_color * (0.95 + 0.07 * (big - 0.5) + 0.05 * (mid - 0.5) + 0.03 * (fine - 0.5));
 		float cr = 0.0;
 		col *= 1.0 - 0.5 * cr;
-		float dust = smoothstep(0.55, 0.85, tri(noise_big, wpos + vec3(31.0, 0.0, 7.0), wnrm, 0.08)) * up;
+		float dust = smoothstep(0.55, 0.85, tri_px(noise_big_px, wpos + vec3(31.0, 0.0, 7.0), wnrm, 0.08)) * up;
 		col = mix(col, dust_color, dust * 0.1);
 		rough = 0.5 + 0.12 * big + 0.3 * dust + 0.3 * cr;
-		hgt = fine * 0.015 - cr * 0.3;
+		hgt = 0.0;
 	} else {
-		float cell = tri(noise_cell, wpos, wnrm, 0.45);
-		float grain = tri(noise_fine, wpos * 1.4, wnrm, 0.6);
+		float cell = tri_px(noise_cell_px, wpos, wnrm, 0.45);
+		float grain = tri_px(noise_fine_px, wpos * 1.4, wnrm, 0.6);
+		float h_cell = tri(noise_cell, wpos, wnrm, 0.45);
+		float h_grain = tri(noise_fine, wpos * 1.4, wnrm, 0.6);
 		col = base_color * (0.95 + 0.1 * (big - 0.5) + 0.05 * (mid - 0.5) + 0.06 * (cell - 0.5) + 0.04 * (grain - 0.5));
-		float stain = smoothstep(0.35, 0.9, tri(noise_big, wpos * 0.5 + vec3(41.0), wnrm, 0.02));
+		float stain = smoothstep(0.35, 0.9, tri_px(noise_big_px, wpos * 0.5 + vec3(41.0), wnrm, 0.02));
 		col *= 1.0 - 0.05 * stain;
-		float streak = texture(noise_big, vec2((wpos.x + wpos.z) * 0.25, wpos.y * 0.02)).r;
+		float streak = texture(noise_big_px, vec2((wpos.x + wpos.z) * 0.25, wpos.y * 0.02)).r;
 		col *= 1.0 - 0.06 * smoothstep(0.5, 0.85, streak) * wall;
 		float near_floor = 1.0 - smoothstep(0.0, 1.3, h);
 		float near_ceil = smoothstep(ceiling_h - 0.8, ceiling_h, h);
-		float mold_n = tri(noise_big, wpos + vec3(5.0, 0.0, 9.0), wnrm, 0.06);
+		float mold_n = tri_px(noise_big_px, wpos + vec3(5.0, 0.0, 9.0), wnrm, 0.06);
 		float mold = smoothstep(0.45, 0.95, mold_n + near_floor * 0.3 + near_ceil * 0.15);
 		col = mix(col, mold_color, mold * 0.28);
-		float dust = smoothstep(0.35, 0.75, tri(noise_big, wpos + vec3(31.0, 0.0, 7.0), wnrm, 0.12)) * up;
+		float dust = smoothstep(0.35, 0.75, tri_px(noise_big_px, wpos + vec3(31.0, 0.0, 7.0), wnrm, 0.12)) * up;
 		col = mix(col, dust_color, dust * 0.2);
 		float cr = 0.0;
 		col *= 1.0 - 0.45 * cr;
 		ao = 1.0 - 0.4 * (1.0 - smoothstep(0.0, 0.5, h)) * wall - 0.3 * smoothstep(ceiling_h - 0.45, ceiling_h, h) * wall;
 		rough = 0.94 - mold * 0.12;
 		// плавные волны + шероховатое зерно камня + углубления трещин
-		hgt = (mid * 0.7 + big * 0.3) * (bump / grain_bump) + cell * 0.05 + grain * 0.03 - cr * 0.12;
+		hgt = (h_mid * 0.7 + h_big * 0.3) * (bump / grain_bump) + h_cell * 0.05 + h_grain * 0.03 - cr * 0.12;
 	}
 
 	ALBEDO = col;
