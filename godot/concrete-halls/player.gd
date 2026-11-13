@@ -16,9 +16,19 @@ var arms: Array[Node3D] = []
 var sprint_carry := 0.0   # 1 сразу после бега, плавно падает — от него зависит «занос»
 var phase := 0.0
 var bob := 0.0
+var steps: Array[AudioStreamWAV] = []
+var step_player: AudioStreamPlayer
+var step_idx := 0
+var last_step := -1
 
 
 func _ready() -> void:
+	step_player = AudioStreamPlayer.new()
+	step_player.max_polyphony = 3
+	add_child(step_player)
+	for i in 5:
+		steps.append(_make_step(i))
+
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.3
@@ -153,5 +163,47 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
 	head.position.y = CAM_Y + sin(phase * 2.0) * 0.03 * bob
 	head.position.x = sin(phase) * 0.015 * bob
+	# шаг — каждый раз, когда нога проходит нижнюю точку (полпериода качания)
+	var s := int(floor(phase / PI))
+	if s != last_step:
+		last_step = s
+		if spd > 0.6 and is_on_floor():
+			step_idx = (step_idx + 1 + randi() % (steps.size() - 1)) % steps.size()
+			step_player.stream = steps[step_idx]
+			step_player.volume_db = (-6.0 if sprinting else -12.0) + randf_range(-1.5, 1.5)
+			step_player.pitch_scale = randf_range(0.9, 1.08) * (1.05 if sprinting else 1.0)
+			step_player.play()
 	var want_fov := FOV + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
+
+
+## Звук шага по бетону: глухой удар + шорох песка. Генерируется, без файлов.
+func _make_step(variant: int) -> AudioStreamWAV:
+	var rate := 22050
+	var n := int(rate * 0.22)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 100 + variant
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	var lp := 0.0
+	var lp2 := 0.0
+	var thump_f := rng.randf_range(70.0, 110.0)
+	var grit_delay := rng.randf_range(0.015, 0.04)
+	for i in n:
+		var t := float(i) / rate
+		var w := rng.randf() * 2.0 - 1.0
+		lp += (w - lp) * 0.35
+		lp2 += (lp - lp2) * 0.35
+		var thump := sin(TAU * thump_f * t) * exp(-t * 45.0) * 0.6
+		var scuff := lp2 * exp(-t * 28.0) * 0.9
+		var grit := 0.0
+		if t > grit_delay:
+			grit = (w - lp) * exp(-(t - grit_delay) * 60.0) * 0.12
+		var v := clampf((thump + scuff + grit) * minf(t * 400.0, 1.0), -1.0, 1.0)
+		data.encode_s16(i * 2, int(v * 30000.0))
+	var st := AudioStreamWAV.new()
+	st.format = AudioStreamWAV.FORMAT_16_BITS
+	st.mix_rate = rate
+	st.stereo = false
+	st.data = data
+	return st

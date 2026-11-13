@@ -1,29 +1,33 @@
 extends Node3D
-## Заброшенное бетонное помещение: общий коридор вдоль X, комнаты по обе стороны.
-##   север (z < 0): три комнаты с центрами x = -12, 0, 12
-##   юг    (z > 0): две комнаты с центрами x = -9, 9, между ними дверь
+## Заброшенное бетонное помещение: короткий общий коридор вдоль X, по две комнаты с каждой стороны.
+##   север (z < 0): комнаты с центрами x = -6, 6
+##   юг    (z > 0): комнаты с центрами x = -6, 6, между ними дверь
 
 const FlickerLight := preload("res://flicker_light.gd")
+const ConcreteShader := preload("res://concrete.gdshader")
 
 const H := 3.2        # высота потолка
 const T := 0.3        # толщина стен
 const CW := 1.6       # половина ширины коридора
-const X0 := -18.0
-const X1 := 18.0
-const ZN := -10.0
-const ZS := 10.0
+const X0 := -12.0
+const X1 := 12.0
+const ZN := -9.0
+const ZS := 9.0
 const DOOR_W := 1.7
 const DOOR_H := 2.3
+const WARM := Color(1.0, 0.78, 0.52)
 
-var wall_mat: StandardMaterial3D
-var floor_mat: StandardMaterial3D
+var wall_mat: ShaderMaterial
+var floor_mat: ShaderMaterial
 var rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	rng.seed = 7
-	wall_mat = _make_concrete(Color(0.56, 0.56, 0.54), 11, 0.35)
-	floor_mat = _make_concrete(Color(0.40, 0.39, 0.37), 23, 0.5)
+	var big := _noise_tex(11, 0.006, 3)
+	var fine := _noise_tex(23, 0.04, 4)
+	wall_mat = _concrete(big, fine, Color(0.27, 0.265, 0.25))
+	floor_mat = _concrete(big, fine, Color(0.22, 0.21, 0.2))
 	_build()
 
 
@@ -40,13 +44,12 @@ func _build() -> void:
 	_wall_z(X1, ZN, ZS, [])
 
 	# стены коридора с проёмами
-	_wall_x(-CW, X0, X1, [-12.0, 0.0, 12.0])
-	_wall_x(CW, X0, X1, [-9.0, 9.0])
+	_wall_x(-CW, X0, X1, [-6.0, 6.0])
+	_wall_x(CW, X0, X1, [-6.0, 6.0])
 
 	# перегородки между комнатами
-	_wall_z(-6.0, ZN, -CW, [])
-	_wall_z(6.0, ZN, -CW, [])
-	_wall_z(0.0, CW, ZS, [6.5])
+	_wall_z(0.0, ZN, -CW, [])
+	_wall_z(0.0, CW, ZS, [5.5])
 
 	# балки под потолком коридора
 	var x := X0 + 2.0
@@ -55,19 +58,18 @@ func _build() -> void:
 		x += 4.0
 
 	# колонны в южных комнатах
-	for px in [-13.0, -5.0, 5.0, 13.0]:
-		_box(Vector3(px, H / 2, 5.8), Vector3(0.55, H, 0.55), wall_mat)
+	for px in [-8.5, 8.5]:
+		_box(Vector3(px, H / 2, 5.5), Vector3(0.55, H, 0.55), wall_mat)
 
 	_debris()
 	_lights()
 
 
 func _debris() -> void:
-	# обломки и старые бетонные блоки
 	var spots := [
-		Vector3(-15, 0, -8), Vector3(-9, 0, -3.5), Vector3(-2.5, 0, -8.5), Vector3(3, 0, -4),
-		Vector3(15, 0, -7), Vector3(10, 0, -3), Vector3(-15, 0, 8.5), Vector3(-3, 0, 3.5),
-		Vector3(3, 0, 8.5), Vector3(15.5, 0, 4), Vector3(-17, 0, 1), Vector3(16.8, 0, -0.8),
+		Vector3(-10, 0, -7.5), Vector3(-3, 0, -4), Vector3(2.5, 0, -7.8), Vector3(10, 0, -3.5),
+		Vector3(-10.5, 0, 8), Vector3(-2.5, 0, 3.5), Vector3(3, 0, 8), Vector3(10.8, 0, 3.5),
+		Vector3(11.2, 0, -0.8),
 	]
 	for s in spots:
 		var n := rng.randi_range(1, 4)
@@ -76,35 +78,28 @@ func _debris() -> void:
 			var p: Vector3 = s + Vector3(rng.randf_range(-0.8, 0.8), sz.y / 2, rng.randf_range(-0.8, 0.8))
 			var b := _box(p, sz, wall_mat)
 			b.rotation.y = rng.randf_range(0, TAU)
-	# пара упавших плит у стен
-	var slab := _box(Vector3(-0.5, 0.6, -9.3), Vector3(2.4, 0.2, 1.4), wall_mat)
+	var slab := _box(Vector3(-5.5, 0.6, -8.3), Vector3(2.4, 0.2, 1.4), wall_mat)
 	slab.rotation.x = 1.1
-	var slab2 := _box(Vector3(11, 0.5, 9.2), Vector3(2.0, 0.2, 1.2), wall_mat)
+	var slab2 := _box(Vector3(7.5, 0.5, 8.2), Vector3(2.0, 0.2, 1.2), wall_mat)
 	slab2.rotation.x = -1.0
 
 
 func _lights() -> void:
-	var warm := Color(1.0, 0.85, 0.65)
-	var cold := Color(0.75, 0.88, 1.0)
-	# коридор: редкие лампы, часть мерцает, одна мёртвая
-	_lamp(Vector3(-15, H, 0), warm, 1.6, true)
-	_lamp(Vector3(-7, H, 0), cold, 1.2, false)
-	_lamp(Vector3(1, H, 0), warm, 0.0, false)  # не горит
-	_lamp(Vector3(9, H, 0), warm, 1.6, true)
-	_lamp(Vector3(16, H, 0), cold, 1.0, true)
-	# комнаты: не во всех есть свет
-	_lamp(Vector3(-12, H, -6), cold, 1.8, true)
-	_lamp(Vector3(12, H, -6), warm, 1.5, false)
-	_lamp(Vector3(-9, H, 6), warm, 1.4, true)
-	_lamp(Vector3(9, H, 6.5), cold, 1.7, true)
+	# только тёплый свет, неяркий; часть мерцает, одна лампа мёртвая, одна комната без света
+	_lamp(Vector3(-8, H, 0), 0.75, true)
+	_lamp(Vector3(0, H, 0), 0.7, false)
+	_lamp(Vector3(8, H, 0), 0.0, false)
+	_lamp(Vector3(-6, H, -5.5), 0.8, true)
+	_lamp(Vector3(6, H, -5.5), 0.65, false)
+	_lamp(Vector3(6, H, 5.5), 0.8, true)
 
 
-func _lamp(pos: Vector3, color: Color, energy: float, flicker: bool) -> void:
+func _lamp(pos: Vector3, energy: float, flicker: bool) -> void:
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.15, 0.15, 0.15)
+	mat.albedo_color = Color(0.12, 0.12, 0.12)
 	mat.emission_enabled = energy > 0.0
-	mat.emission = color
-	mat.emission_energy_multiplier = 3.0
+	mat.emission = WARM
+	mat.emission_energy_multiplier = 1.5
 	var mi := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3(1.0, 0.08, 0.18)
@@ -116,12 +111,12 @@ func _lamp(pos: Vector3, color: Color, energy: float, flicker: bool) -> void:
 	if energy <= 0.0:
 		return
 	var l: OmniLight3D = FlickerLight.new()
-	l.light_color = color
+	l.light_color = WARM
 	l.base_energy = energy
 	l.flicker = flicker
 	l.lamp_mat = mat
-	l.omni_range = 8.0
-	l.omni_attenuation = 1.4
+	l.omni_range = 8.5
+	l.omni_attenuation = 1.0
 	l.shadow_enabled = true
 	l.position = pos - Vector3(0, 0.3, 0)
 	add_child(l)
@@ -169,40 +164,27 @@ func _box(pos: Vector3, size: Vector3, mat: Material, collide := true) -> Node3D
 	return root
 
 
-func _make_concrete(tint: Color, seed_: int, scale: float) -> StandardMaterial3D:
+func _noise_tex(seed_: int, freq: float, octaves: int) -> NoiseTexture2D:
 	var noise := FastNoiseLite.new()
 	noise.seed = seed_
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	noise.frequency = 0.025
-	noise.fractal_octaves = 6
-	noise.fractal_gain = 0.55
+	noise.frequency = freq
+	noise.fractal_octaves = octaves
+	noise.fractal_gain = 0.5
+	var t := NoiseTexture2D.new()
+	t.width = 512
+	t.height = 512
+	t.seamless = true
+	t.generate_mipmaps = true
+	t.noise = noise
+	return t
 
-	var ramp := Gradient.new()
-	ramp.set_color(0, tint.darkened(0.45))
-	ramp.set_color(1, tint.lightened(0.12))
-	ramp.add_point(0.55, tint)
 
-	var alb := NoiseTexture2D.new()
-	alb.width = 512
-	alb.height = 512
-	alb.seamless = true
-	alb.noise = noise
-	alb.color_ramp = ramp
-
-	var nrm := NoiseTexture2D.new()
-	nrm.width = 512
-	nrm.height = 512
-	nrm.seamless = true
-	nrm.noise = noise
-	nrm.as_normal_map = true
-	nrm.bump_strength = 6.0
-
-	var m := StandardMaterial3D.new()
-	m.albedo_texture = alb
-	m.normal_enabled = true
-	m.normal_texture = nrm
-	m.roughness = 0.95
-	m.uv1_triplanar = true
-	m.uv1_world_triplanar = true
-	m.uv1_scale = Vector3(scale, scale, scale)
+func _concrete(big: Texture2D, fine: Texture2D, base: Color) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = ConcreteShader
+	m.set_shader_parameter("noise_big", big)
+	m.set_shader_parameter("noise_fine", fine)
+	m.set_shader_parameter("base_color", base)
+	m.set_shader_parameter("ceiling_h", H)
 	return m

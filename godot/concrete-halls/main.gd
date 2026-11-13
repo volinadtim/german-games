@@ -7,15 +7,14 @@ const Menu := preload("res://menu.gd")
 const Ambience := preload("res://ambience.gd")
 
 const FLY_POINTS := [
-	Vector3(-12.0, 1.8, -8.0),
-	Vector3(-12.5, 1.6, -4.0),
-	Vector3(-12.0, 1.6, -1.2),
-	Vector3(-9.5, 1.5, 0.2),
-	Vector3(-2.0, 1.5, -0.3),
-	Vector3(6.5, 1.6, 0.3),
-	Vector3(9.0, 1.6, 2.2),
-	Vector3(9.5, 1.8, 5.0),
-	Vector3(8.0, 2.0, 8.0),
+	Vector3(-6.0, 1.8, -7.5),
+	Vector3(-6.3, 1.6, -3.5),
+	Vector3(-6.0, 1.6, -1.2),
+	Vector3(-3.5, 1.5, 0.2),
+	Vector3(3.5, 1.5, -0.2),
+	Vector3(6.0, 1.6, 2.0),
+	Vector3(6.3, 1.8, 5.0),
+	Vector3(5.0, 2.0, 7.5),
 ]
 
 var menu_cam: Camera3D
@@ -102,7 +101,7 @@ func _start_game() -> void:
 func _enter_game() -> void:
 	menu.visible = false
 	player = Player.new()
-	player.position = Vector3(-14.5, 0.05, 0.0)
+	player.position = Vector3(-10.5, 0.05, 0.0)
 	player.rotation.y = -PI / 2.0
 	add_child(player)
 	player.cam.current = true
@@ -128,10 +127,14 @@ func _make_env() -> Environment:
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color(0.01, 0.01, 0.012)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.55, 0.57, 0.6)
-	e.ambient_light_energy = 0.1
+	e.ambient_light_color = Color(0.62, 0.55, 0.46)
+	e.ambient_light_energy = 0.16
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.ssao_enabled = true
+	e.ssao_radius = 1.4
+	e.ssao_intensity = 3.0
+	e.ssao_power = 2.0
+	e.ssao_light_affect = 0.3
 	e.glow_enabled = true
 	e.glow_intensity = 0.6
 	e.fog_enabled = true

@@ -14,7 +14,7 @@ func _ready() -> void:
 	gen.mix_rate = RATE
 	gen.buffer_length = 0.3
 	stream = gen
-	volume_db = -6.0
+	volume_db = -18.0
 	play()
 	playback = get_stream_playback()
 
