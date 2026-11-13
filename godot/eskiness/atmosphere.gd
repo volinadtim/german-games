@@ -349,29 +349,30 @@ func _steam() -> void:
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	pm.emission_sphere_radius = 0.03
 	pm.direction = Vector3(0.2, -0.6, 1.0)
-	pm.spread = 18.0
-	pm.initial_velocity_min = 0.5
-	pm.initial_velocity_max = 0.9
-	pm.gravity = Vector3(0, 0.12, 0)
-	pm.damping_min = 0.6
-	pm.damping_max = 1.0
+	pm.spread = 25.0
+	pm.initial_velocity_min = 0.9
+	pm.initial_velocity_max = 1.4
+	pm.gravity = Vector3(0, 0.25, 0)
+	pm.damping_min = 0.3
+	pm.damping_max = 0.5
 	pm.turbulence_enabled = true
 	pm.turbulence_noise_strength = 1.0
 	pm.turbulence_noise_scale = 2.0
-	pm.turbulence_influence_min = 0.03
-	pm.turbulence_influence_max = 0.08
+	pm.turbulence_influence_min = 0.08
+	pm.turbulence_influence_max = 0.18
 	pm.scale_min = 0.6
 	pm.scale_max = 1.0
 	var sc := Curve.new()
-	sc.add_point(Vector2(0, 0.25))
-	sc.add_point(Vector2(1, 1.6))
+	sc.add_point(Vector2(0, 0.3))
+	sc.add_point(Vector2(1, 2.6))
 	var sct := CurveTexture.new()
 	sct.curve = sc
 	pm.scale_curve = sct
 	var ramp := Gradient.new()
 	ramp.set_color(0, Color(1, 1, 1, 0))
 	ramp.set_color(1, Color(1, 1, 1, 0))
-	ramp.add_point(0.12, Color(1, 1, 1, 1))
+	ramp.add_point(0.12, Color(1, 1, 1, 0.35))
+	ramp.add_point(0.4, Color(1, 1, 1, 1))
 	var rt := GradientTexture1D.new()
 	rt.gradient = ramp
 	pm.color_ramp = rt
@@ -390,16 +391,17 @@ func _steam() -> void:
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	m.vertex_color_use_as_albedo = true
 	m.albedo_texture = dt
-	m.albedo_color = Color(0.75, 0.75, 0.73, 0.13)
+	m.albedo_color = Color(0.42, 0.4, 0.37, 0.07)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED   # плоские спрайты почти не ловят свет лампы — тусклый собственный тон
 	m.roughness = 1.0
 	m.disable_receive_shadows = true
 	var q := QuadMesh.new()
 	q.size = Vector2(0.4, 0.4)
 	q.material = m
 	var ps := GPUParticles3D.new()
-	ps.amount = 36
-	ps.lifetime = 2.6
-	ps.preprocess = 3.0
+	ps.amount = 60
+	ps.lifetime = 3.5
+	ps.preprocess = 4.0
 	ps.process_material = pm
 	ps.draw_pass_1 = q
 	ps.position = leak
