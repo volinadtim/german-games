@@ -349,6 +349,31 @@ func _build_ui() -> void:
 	all_b.add_theme_font_size_override("font_size", 20)
 	all_b.pressed.connect(_sell_all_junk)
 	sell_col.add_child(all_b)
+	# удача для KILLBOX (промпт 23:57): +50% к шансу символа на несколько круток
+	sell_col.add_child(_label(" ", 8, Color.WHITE))
+	sell_col.add_child(_label("УДАЧА KILLBOX", 28, Color(1.0, 0.45, 0.3)))
+	sell_col.add_child(_label("+50% к шансу символа на несколько круток", 14, Color(0.65, 0.63, 0.58)))
+	var SM := preload("res://slot_machine.gd")
+	var SymS := preload("res://slot_symbols.gd")
+	for sym in SM.LUCK:
+		var d: Array = SM.LUCK[sym]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var ic := Control.new()
+		ic.custom_minimum_size = Vector2(32, 32)
+		ic.draw.connect(func(): SymS.draw(ic, sym, Rect2(Vector2.ZERO, ic.size)))
+		row.add_child(ic)
+		var l := _label("%s — %d круток" % [SymS.NAMES[sym], int(d[1])], 16, Color(0.88, 0.86, 0.8))
+		l.custom_minimum_size = Vector2(170, 0)
+		row.add_child(l)
+		var b := Button.new()
+		b.text = "%d" % int(d[2])
+		b.custom_minimum_size = Vector2(56, 30)
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 16)
+		b.pressed.connect(_buy_luck.bind(sym, int(d[2])))
+		row.add_child(b)
+		sell_col.add_child(row)
 	box.add_child(_label("TRINKETS MARKET", 28, Color(0.55, 1.0, 0.6)))
 	coins_l = _label("", 22, Color(0.92, 0.8, 0.5))
 	box.add_child(coins_l)
@@ -492,6 +517,20 @@ func _refresh_chests() -> void:
 	info_l.text = "Ящики обновлены: %d" % opened
 	game.hud.toast("Ящики на уровне снова полны", Color(0.9, 0.8, 0.55))
 	game.play_ui("creak", -10.0, 0.8)
+	_refresh()
+
+
+func _buy_luck(sym: String, price: int) -> void:
+	if game.slot == null:
+		return
+	if game.inv.count("coin") < price:
+		info_l.text = "Не хватает монет"
+		game.play_ui("buzz", -14.0)
+		return
+	game.inv.remove("coin", price)
+	game.slot.add_luck(sym)
+	info_l.text = "Удача: %s +50%%" % preload("res://slot_symbols.gd").NAMES[sym]
+	game.play_ui("coin", -10.0)
 	_refresh()
 
 

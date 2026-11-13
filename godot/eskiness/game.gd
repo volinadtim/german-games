@@ -258,7 +258,7 @@ func _physics_process(delta: float) -> void:
 
 ## Одно окно за раз: пока открыт инвентарь или магазин, другие окна не открываются.
 func window_open() -> bool:
-	return (inv != null and inv.open) or (shop != null and shop.opened)
+	return (inv != null and inv.open) or (shop != null and shop.opened) or (slot != null and slot.pack_open)
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -902,6 +902,8 @@ func save_state() -> Dictionary:
 		"floor": floor_items,
 		"dropped_coins": dropped_coins,
 		"hunters": alive_hunters,
+		"slot_credits": slot.credits if slot else 0,
+		"slot_luck": slot.luck.duplicate(true) if slot else {},
 	}
 
 
@@ -968,6 +970,15 @@ func load_state(d: Dictionary) -> void:
 		if bool(it.get("dropped", false)):
 			p.set_meta("dropped", true)
 	dropped_coins = int(d.get("dropped_coins", 0))
+	if slot:
+		slot.credits = int(d.get("slot_credits", 0))
+		slot.luck = {}
+		var lk: Dictionary = d.get("slot_luck", {})
+		for k in lk:
+			if slot.WEIGHTS.has(k):
+				slot.luck[k] = [float(lk[k][0]), int(lk[k][1])]
+		slot.screen.text = ""
+		slot._update_screen_hint()
 	var h := int(d.get("hunters", 0))
 	if h > 0:
 		hud.cheat_warning(true)

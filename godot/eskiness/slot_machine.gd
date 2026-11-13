@@ -4,7 +4,7 @@ extends StaticBody3D
 ## вращаются и останавливаются по очереди. 9 линий (LINES): 3 ряда, 4 малые диагонали по 3 клетки, 2 мостика.
 ## В рядах выигрывают 3–4 одинаковых подряд слева направо, на мостиках — только все 4.
 ##   3 шестёрки где угодно в окне — автомат забирает все монеты, оставляет 10 (выпадают редко).
-##   3 семёрки подряд на линии — открывают сейф; если сейф уже открыт — 100 монет.
+##   3 семёрки подряд на линии — открывают сейф; если сейф уже открыт — 20 монет.
 ## 4 семёрки или 4 шестёрки в окне не выпадают никогда (исключены при генерации).
 ## Справа от автомата на стене — доска выплат. Автомат стоит в тёмной комнате и мерцает.
 ## Вид: над вывеской — арка с черепом и венцом из шипов, по углам лампы в проволочных клетках,
@@ -14,15 +14,23 @@ extends StaticBody3D
 const Sym := preload("res://slot_symbols.gd")
 const WornMetal := preload("res://worn_metal.gdshader")
 
-const COST := 10
+const COST := 3                  # цена одной крутки в пакете «3 за 9» (для подписей)
+## пакеты круток (промпт 23:57): [круток, монет]
+const PACKS := [[3, 9], [6, 16]]
+## баффы удачи из магазина: символ -> [прибавка к весу, круток, цена]; чем реже символ, тем дороже
+const LUCK := {
+	"cherry": [0.5, 6, 4], "lemon": [0.5, 6, 6], "plum": [0.5, 6, 8],
+	"grape": [0.5, 6, 12], "diamond": [0.5, 5, 20], "seven": [0.5, 5, 30],
+}
 const REELS := 4
 ## лента барабана (одна на все барабаны, у каждого свой сдвиг): семёрки далеко друг от друга,
 ## поэтому в окне одного барабана больше одной семёрки не бывает
 const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
-## Шанс символа в каждой клетке окна, % (промпт 23:36): чем ценнее, тем реже; шестёрка — ровно 0.666%.
+## Шанс символа в каждой клетке окна, %: чем ценнее, тем реже. Вес шестёрки подобран симуляцией так,
+## чтобы три шестёрки в окне выпадали ≈1% круток (промпт 23:57).
 ## Окно разыгрывается по этим весам, затем на ленты барабанов «впечатываются» выпавшие символы.
-## Выплаты подобраны симуляцией: в среднем ~9 монет с крутки за 10 (≈91%), выигрыш в ~35% круток.
-const WEIGHTS := {"cherry": 30.0, "lemon": 22.0, "plum": 17.0, "grape": 12.0, "seven": 10.0, "diamond": 8.334, "six": 0.666}
+## Выплаты в 5 раз меньше прежних (промпт 23:57): в среднем ~1.5 монеты с крутки, выигрыш в ~33% круток.
+const WEIGHTS := {"cherry": 30.0, "lemon": 22.0, "plum": 17.0, "grape": 12.0, "seven": 10.0, "diamond": 8.334, "six": 4.3}
 ## линии — списки клеток [ряд (0 верх), барабан]; LINE_KIND — как линия платит:
 ##   row — 3 одинаковых подряд где угодно в ряду (барабаны 1–3 или 2–4) или все 4;
 ##   diag — малая диагональ из 3 клеток, все 3 одинаковых; bridge — мостик, только все 4.
@@ -36,12 +44,12 @@ const LINE_KIND := ["row", "row", "row", "diag", "diag", "diag", "diag", "bridge
 const SIX_KEEP := 0.35
 ## выплаты за линию: символ -> {сколько подряд слева: монет}
 const PAY := {
-	"cherry": {3: 12, 4: 35},
-	"lemon": {3: 17, 4: 45},
-	"plum": {3: 22, 4: 55},
-	"grape": {3: 35, 4: 90},
-	"diamond": {3: 70, 4: 250},
-	"seven": {3: 100},
+	"cherry": {3: 2, 4: 7},
+	"lemon": {3: 3, 4: 9},
+	"plum": {3: 4, 4: 11},
+	"grape": {3: 7, 4: 18},
+	"diamond": {3: 14, 4: 50},
+	"seven": {3: 20},
 }
 const R := 0.19            # радиус барабана
 const RW := 0.125          # ширина барабана
@@ -58,6 +66,11 @@ const BOARD_M := Vector2(1.35, 1.47)
 
 var game  # game.gd (выставляет game.gd; в меню — null)
 var busy := false
+var credits := 0                 # оплаченные крутки
+var luck := {}                   # символ -> [прибавка к весу, осталось круток]
+var pack_ui: CanvasLayer
+var pack_open := false
+var pack_info: Label
 var reels: Array[Node3D] = []
 var strips: Array = []          # лента каждого барабана (12 символов), обновляется к каждой крутке
 var strip_views: Array = []     # [SubViewport, Control] на барабан — перерисовка ленты
@@ -223,7 +236,7 @@ func _build() -> void:
 	# вывеска
 	_neon_sign(trim, black)
 	screen = Label3D.new()
-	screen.text = "КРУТКА — %d МОНЕТ" % COST
+	screen.text = "3 КРУТКИ — 9 · 6 — 16"
 	screen.font_size = 40
 	screen.pixel_size = 0.0009
 	screen.outline_size = 0
@@ -318,13 +331,20 @@ func _draw_strip(art: Control, ri: int) -> void:
 	art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.08))
 
 
+func _w(k: String) -> float:
+	var w := float(WEIGHTS[k])
+	if luck.has(k):
+		w *= 1.0 + float(luck[k][0])
+	return w
+
+
 func _weighted_symbol() -> String:
 	var total := 0.0
 	for k in WEIGHTS:
-		total += float(WEIGHTS[k])
+		total += _w(k)
 	var r := randf() * total
 	for k in WEIGHTS:
-		r -= float(WEIGHTS[k])
+		r -= _w(k)
 		if r <= 0.0:
 			return k
 	return "cherry"
@@ -930,7 +950,7 @@ func _draw_board(ci: Control) -> void:
 	ci.draw_rect(Rect2(Vector2(18, 18), ci.size - Vector2(36, 36)), Color(0.85, 0.2, 0.15, 0.6), false, 2.0)
 	_fit(ci, Vector2(pad, 82), "KILLBOX", inner, 64, Color(1.0, 0.35, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
 	_fit(ci, Vector2(pad, 124), "ТАБЛИЦА ВЫПЛАТ", inner, 30, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
-	_fit(ci, Vector2(pad, 158), "крутка %d монет · 3 подряд в любом месте линии" % COST, inner, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
+	_fit(ci, Vector2(pad, 158), "3 крутки — 9 монет, 6 — 16 · 3 подряд в любом месте линии", inner, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
 	var y := 184.0
 	var text_col := Color(0.95, 0.9, 0.78)
 	var rows := ["diamond", "grape", "plum", "lemon", "cherry"]
@@ -953,14 +973,14 @@ func _draw_board(ci: Control) -> void:
 	for k in 3:
 		Sym.draw(ci, "seven", Rect2(pad + k * 62, y, 62, 62))
 	_fit(ci, Vector2(pad + 200, y + 28), "×3 на линии — открывают сейф", inner - 200, 24, Color(1.0, 0.85, 0.4))
-	_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — 100 монет", inner - 200, 22, text_col)
+	_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — 20 монет", inner - 200, 22, text_col)
 	y += 96.0
 	for k in 3:
 		Sym.draw(ci, "six", Rect2(pad + k * 62, y, 62, 62))
 	_fit(ci, Vector2(pad + 200, y + 28), "×3 где угодно в окне —", inner - 200, 24, Color(1.0, 0.3, 0.2))
 	_fit(ci, Vector2(pad + 200, y + 58), "автомат забирает всё, кроме 10", inner - 200, 22, Color(1.0, 0.3, 0.2))
 	y += 92.0
-	_fit(ci, Vector2(pad, y + 20), "шанс в клетке: 7 — 10%, 6 — 0.666% · 4 семёрки и 4 шестёрки не выпадают", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
+	_fit(ci, Vector2(pad, y + 20), "три шестёрки — около 1% круток · 4 семёрки и 4 шестёрки не выпадают", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
 	# правая колонка: 9 линий схемами 4×3
 	var x0 := w
 	var cw := ci.size.x - w - pad
@@ -991,25 +1011,32 @@ func _draw_board(ci: Control) -> void:
 
 
 func get_prompt(_game) -> String:
-	return "" if busy else "[E] Крутить KILLBOX (%d монет)" % COST
+	if busy:
+		return ""
+	return "[E] Крутить KILLBOX (осталось %d)" % credits if credits > 0 else "[E] KILLBOX — купить крутки"
 
 
 func interact(g) -> void:
 	game = g
 	if busy:
 		return
-	if not g.inv.remove("coin", COST):
-		g.hud.toast("Нужно %d монет" % COST)
-		g.play_at("buzz", global_position, -14.0)
-		screen.text = "НУЖНО %d МОНЕТ" % COST
+	if credits <= 0:
+		_open_packs()
 		return
+	credits -= 1
+	# бафф удачи тратится с каждой круткой
+	for k in luck.keys():
+		luck[k][1] = int(luck[k][1]) - 1
 	busy = true
 	screen.text = "КРУТИТСЯ..."
 	if g.has_method("cheat_check"):
 		g.cheat_check()
 	if g.has_method("save_now"):
-		g.save_now()      # монеты уже списаны — перезагрузка не вернёт их
+		g.save_now()      # крутка уже списана — перезагрузка не вернёт её
 	_roll_stops()
+	for k in luck.keys():
+		if int(luck[k][1]) <= 0:
+			luck.erase(k)
 	hl_lines = []
 	hl_t = 0.0
 	for row in hl_cells:
@@ -1203,4 +1230,118 @@ func _payout() -> void:
 	screen.text = msg if msg != "" else "ПУСТО"
 	if game.has_method("save_now"):
 		game.call_deferred("save_now")
+	_update_screen_hint()
 
+
+## Экран автомата между крутками: сколько круток осталось и активная удача.
+func _update_screen_hint() -> void:
+	if credits <= 0 and luck.is_empty():
+		return
+	var parts := PackedStringArray()
+	if credits > 0:
+		parts.append("КРУТОК: %d" % credits)
+	for k in luck:
+		parts.append("%s +%d%% (%d)" % [Sym.NAMES[k].to_upper(), int(float(luck[k][0]) * 100), int(luck[k][1])])
+	screen.text = (screen.text + "\n" if screen.text != "" else "") + " · ".join(parts)
+
+
+# ---------- покупка круток (окно) ----------
+
+func _open_packs() -> void:
+	if pack_ui == null:
+		_build_packs()
+	pack_open = true
+	pack_ui.visible = true
+	pack_info.text = "Монет: %d" % game.inv.coins
+	game.player.active = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func close_packs() -> void:
+	pack_open = false
+	if pack_ui:
+		pack_ui.visible = false
+	if game and game.player:
+		game.player.active = true
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _input(e: InputEvent) -> void:
+	if pack_open and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory")):
+		get_viewport().set_input_as_handled()
+		if not e.is_echo():
+			close_packs()
+
+
+func _build_packs() -> void:
+	pack_ui = CanvasLayer.new()
+	pack_ui.layer = 5
+	add_child(pack_ui)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.5)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pack_ui.add_child(dim)
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pack_ui.add_child(cc)
+	var panel := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.03, 0.02, 0.96)
+	sb.border_color = Color(0.85, 0.2, 0.1, 0.8)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(4)
+	sb.set_content_margin_all(22)
+	panel.add_theme_stylebox_override("panel", sb)
+	cc.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	panel.add_child(v)
+	var t := Label.new()
+	t.text = "KILLBOX — КРУТКИ"
+	t.add_theme_font_size_override("font_size", 30)
+	t.add_theme_color_override("font_color", Color(1.0, 0.4, 0.25))
+	v.add_child(t)
+	pack_info = Label.new()
+	pack_info.add_theme_font_size_override("font_size", 20)
+	pack_info.add_theme_color_override("font_color", Color(0.92, 0.8, 0.5))
+	v.add_child(pack_info)
+	for pk in PACKS:
+		var b := Button.new()
+		b.text = "%d крутки — %d монет" % [pk[0], pk[1]] if int(pk[0]) < 5 else "%d круток — %d монет" % [pk[0], pk[1]]
+		b.custom_minimum_size = Vector2(320, 48)
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 22)
+		b.pressed.connect(_buy_pack.bind(int(pk[0]), int(pk[1])))
+		v.add_child(b)
+	var c := Button.new()
+	c.text = "Закрыть (E / Esc)"
+	c.focus_mode = Control.FOCUS_NONE
+	c.add_theme_font_size_override("font_size", 18)
+	c.pressed.connect(close_packs)
+	v.add_child(c)
+	pack_ui.visible = false
+
+
+func _buy_pack(n: int, price: int) -> void:
+	if not game.inv.remove("coin", price):
+		pack_info.text = "Не хватает монет (есть %d)" % game.inv.coins
+		game.play_ui("buzz", -14.0)
+		return
+	credits += n
+	game.play_ui("coin", -10.0)
+	game.hud.toast("KILLBOX: +%d круток" % n, Color(1.0, 0.8, 0.4))
+	screen.text = ""
+	_update_screen_hint()
+	game.save_now()
+	close_packs()
+
+
+## Магазин: бафф удачи на символ. Повторная покупка того же символа добавляет крутки.
+func add_luck(sym: String) -> void:
+	var d: Array = LUCK[sym]
+	if luck.has(sym):
+		luck[sym][1] = int(luck[sym][1]) + int(d[1])
+	else:
+		luck[sym] = [float(d[0]), int(d[1])]
+	screen.text = ""
+	_update_screen_hint()
