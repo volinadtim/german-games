@@ -47,15 +47,18 @@ func _ready() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.add_child(center)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# главное меню и пауза — колонкой справа, название над кнопками
 	var right := MarginContainer.new()
 	right.anchor_left = 0.5
 	right.anchor_right = 1.0
 	right.anchor_bottom = 1.0
 	right.add_theme_constant_override("margin_right", 90)
+	right.mouse_filter = Control.MOUSE_FILTER_IGNORE   # не перехватывать клики (ползунки настроек под ней)
 	root.add_child(right)
 	var right_col := VBoxContainer.new()
 	right_col.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right.add_child(right_col)
 	# --- главное меню
 	main_box = _vbox(right_col)
