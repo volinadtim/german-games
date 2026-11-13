@@ -49,6 +49,9 @@ var exhales: Array[AudioStreamWAV] = []
 var impacts: Array[AudioStreamWAV] = []
 var inhale_snd: AudioStreamWAV
 var step_player: AudioStreamPlayer
+var step_noise_player: AudioStreamPlayer
+var step_noise: AudioStreamWAV
+var step_eq: AudioEffectEQ6
 var voice_player: AudioStreamPlayer
 var hit_player: AudioStreamPlayer
 var step_idx := 0
@@ -63,6 +66,9 @@ func _ready() -> void:
 		exhales.append(Sfx.exhale(i))
 		impacts.append(Sfx.impact(i))
 	inhale_snd = Sfx.inhale()
+	step_noise_player = _audio(3)
+	step_noise = Sfx.step_noise()
+	_setup_step_bus()
 
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -81,6 +87,42 @@ func _ready() -> void:
 	head.add_child(cam)
 
 	_build_body()
+
+
+## Шина «Steps»: компрессор приглушает самый громкий момент (удар), затем случайный эквалайзер.
+func _setup_step_bus() -> void:
+	var bi := AudioServer.get_bus_index("Steps")
+	if bi == -1:
+		AudioServer.add_bus()
+		bi = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(bi, "Steps")
+		AudioServer.set_bus_send(bi, "Master")
+		var comp := AudioEffectCompressor.new()
+		comp.threshold = -16.0
+		comp.ratio = 4.0
+		comp.attack_us = 300.0
+		comp.release_ms = 120.0
+		AudioServer.add_bus_effect(bi, comp)
+		AudioServer.add_bus_effect(bi, AudioEffectEQ6.new())
+	for e in AudioServer.get_bus_effect_count(bi):
+		if AudioServer.get_bus_effect(bi, e) is AudioEffectEQ6:
+			step_eq = AudioServer.get_bus_effect(bi, e)
+	step_player.bus = "Steps"
+	step_noise_player.bus = "Steps"
+
+
+## Каждый шаг слегка «подрезан эквалайзером» в случайных местах: 1–2 полосы глушим, иногда одну чуть поднимаем.
+func _randomize_step_eq() -> void:
+	if step_eq == null:
+		return
+	for b in step_eq.get_band_count():
+		step_eq.set_band_gain_db(b, 0.0)
+	var bands := [1, 2, 3, 4, 5]   # 100 Гц, 320 Гц, 1 кГц, 3.2 кГц, 10 кГц
+	bands.shuffle()
+	for k in randi_range(1, 2):
+		step_eq.set_band_gain_db(bands[k], randf_range(-10.0, -4.0))
+	if randf() < 0.35:
+		step_eq.set_band_gain_db(bands[2], randf_range(1.0, 3.0))
 
 
 func _audio(poly: int) -> AudioStreamPlayer:
@@ -377,7 +419,12 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 
 
-func _play_step(db: float, pitch := 1.0) -> void:
+func _play_step(db: float, _pitch := 1.0) -> void:
+	_randomize_step_eq()
 	step_player.stream = STEP_SND
-	step_player.volume_db = db
+	step_player.volume_db = db - 6.0           # тише, чем файл
 	step_player.play()
+	# совсем немного шума поверх шага
+	step_noise_player.stream = step_noise
+	step_noise_player.volume_db = db - 30.0
+	step_noise_player.play()

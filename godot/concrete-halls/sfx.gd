@@ -166,3 +166,19 @@ static func impact(variant: int) -> AudioStreamWAV:
 		v += grit.bp(imp) * 0.7
 		buf[i] = v
 	return _wav(buf, 0.9)
+
+
+## Тихий шум-«подложка» для шага: мягкий шорох, затухающий вместе со звуком шага.
+static func step_noise() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 800
+	var n := int(RATE * 0.6)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var lp := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var w := rng.randf() * 2.0 - 1.0
+		lp += (w - lp) * 0.35
+		buf[i] = lp * _env(t, 0.0, 0.004, 7.0)
+	return _wav(buf, 0.9)
