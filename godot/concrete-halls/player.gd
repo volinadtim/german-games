@@ -10,18 +10,18 @@ const GRAVITY := 22.0
 const FALL_MULT := 1.35      # вниз падаем быстрее, чем взлетаем — прыжок не «плывёт»
 const JUMP := 5.0            # ~0.55 м
 const SENS := 0.0022
-const CAM_Y := 1.62
+const CAM_Y := 1.7
 const FOV := 75.0
 const ACCEL_WALK := 5.0
 const ACCEL_SPRINT := 3.2
 
 # позы руки в градусах: x — подъём плеча вперёд, y — внутрь, z — в сторону, w — сгиб локтя
 const REST := Vector4(0, 0, 0, 10)
-const GUARD := Vector4(65, 13, 4, 65)
+const GUARD := Vector4(85, 10, 0, 30)
 const PUNCHES := {
-	"straight": [Vector4(60, 16, 4, 80), Vector4(98, 8, 0, 6)],
-	"hook": [Vector4(78, -32, 12, 40), Vector4(92, 34, 0, 28)],
-	"upper": [Vector4(35, 12, 6, 105), Vector4(88, 12, 0, 48)],
+	"straight": [Vector4(75, 14, 2, 55), Vector4(100, 6, 0, 4)],
+	"hook": [Vector4(82, -30, 8, 40), Vector4(96, 32, 0, 28)],
+	"upper": [Vector4(45, 12, 6, 100), Vector4(95, 12, 0, 58)],
 }
 
 var active := false
@@ -31,6 +31,7 @@ var legs: Array[Node3D] = []
 var shoulders: Array[Node3D] = []
 var elbows: Array[Node3D] = []
 var arm_pose: Array[Vector4] = [REST, REST]
+var reach: Array[float] = [0.0, 0.0]   # выпад плеча вперёд при ударе
 var fists := false
 var fist_blend := 0.0
 var punching := false
@@ -95,6 +96,7 @@ func _build_body() -> void:
 	var pants := _mat(Color(0.14, 0.14, 0.16))
 	var skin := _mat(Color(0.78, 0.6, 0.48))
 	var boots := _mat(Color(0.07, 0.06, 0.05))
+	var cuffs := _mat(Color(0.18, 0.2, 0.16))
 
 	var body := Node3D.new()
 	add_child(body)
@@ -141,23 +143,63 @@ func _build_body() -> void:
 		sh.position = Vector3(0.24 * side, 1.44, 0.13)
 		body.add_child(sh)
 		var upper := CapsuleMesh.new()
-		upper.radius = 0.062
-		upper.height = 0.36
+		upper.radius = 0.052
+		upper.height = 0.34
 		_part(sh, upper, Vector3(0, -0.15, 0), jacket)
 		var el := Node3D.new()
 		el.position = Vector3(0, -0.3, 0)
 		sh.add_child(el)
 		var fore := CapsuleMesh.new()
-		fore.radius = 0.055
-		fore.height = 0.34
-		_part(el, fore, Vector3(0, -0.14, 0), jacket)
-		var fist := SphereMesh.new()
-		fist.radius = 0.05
-		fist.height = 0.11
-		var f := _part(el, fist, Vector3(0, -0.32, 0), skin)
-		f.scale = Vector3(1.0, 1.15, 1.2)
+		fore.radius = 0.044
+		fore.height = 0.3
+		_part(el, fore, Vector3(0, -0.13, 0), jacket)
+		# манжета рукава
+		var cuff := CylinderMesh.new()
+		cuff.top_radius = 0.048
+		cuff.bottom_radius = 0.05
+		cuff.height = 0.035
+		_part(el, cuff, Vector3(0, -0.265, 0), cuffs)
+		_build_fist(el, skin, side)
 		shoulders.append(sh)
 		elbows.append(el)
+
+
+## Кулак из нескольких частей: ладонь, ряд костяшек, подогнутые пальцы снизу, большой палец сверху.
+## В локальных осях предплечья: -Y — вперёд по руке, -Z — тыльная сторона (в стойке смотрит вверх).
+func _build_fist(el: Node3D, skin: Material, side: float) -> void:
+	var hand := Node3D.new()
+	hand.position = Vector3(0, -0.3, 0)
+	el.add_child(hand)
+	var palm := BoxMesh.new()
+	palm.size = Vector3(0.072, 0.07, 0.05)
+	var p := _part(hand, palm, Vector3(0, -0.04, 0), skin)
+	p.rotation.x = 0.08
+	# костяшки: четыре согнутых пальца, видны как бугорки спереди
+	for k in 4:
+		var x := (k - 1.5) * 0.019
+		var knuckle := CapsuleMesh.new()
+		knuckle.radius = 0.0115
+		knuckle.height = 0.05
+		var kn := _part(hand, knuckle, Vector3(x, -0.078 + absf(k - 1.5) * 0.004, -0.004), skin)
+		kn.rotation.x = PI / 2
+		# средние фаланги, подогнутые к ладони снизу
+		var tip := CapsuleMesh.new()
+		tip.radius = 0.0105
+		tip.height = 0.04
+		var t := _part(hand, tip, Vector3(x, -0.06, 0.026), skin)
+		t.rotation.x = 0.3
+	# большой палец поперёк поверх согнутых пальцев
+	var thumb := CapsuleMesh.new()
+	thumb.radius = 0.012
+	thumb.height = 0.06
+	var th := _part(hand, thumb, Vector3(-0.012 * side, -0.06, -0.03), skin)
+	th.rotation.z = PI / 2 - 0.35 * side
+	# запястье
+	var wrist := CylinderMesh.new()
+	wrist.top_radius = 0.03
+	wrist.bottom_radius = 0.034
+	wrist.height = 0.04
+	_part(hand, wrist, Vector3(0, -0.005, 0), skin)
 
 
 func _mat(c: Color) -> StandardMaterial3D:
@@ -221,8 +263,10 @@ func punch() -> void:
 	tw.tween_method(_pose_setter(i), arm_pose[i], keys[0], 0.08).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(_punch_sound)
 	tw.tween_method(_pose_setter(i), keys[0], keys[1], 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_method(func(v: float) -> void: reach[i] = v, 0.0, 0.12, 0.09)
 	tw.tween_callback(_check_hit.bind(i))
 	tw.tween_method(_pose_setter(i), keys[1], GUARD, 0.22).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_method(func(v: float) -> void: reach[i] = v, 0.12, 0.0, 0.22)
 	tw.tween_callback(func(): punching = false)
 
 
@@ -318,11 +362,12 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 			deg_to_rad(p.y) * side,
 			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend))
 		elbows[i].rotation.x = deg_to_rad(p.w)
+		shoulders[i].position.z = 0.13 - reach[i]
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
 	head.position.y = CAM_Y + sin(phase * 2.0) * 0.03 * bob
 	head.position.x = sin(phase) * 0.015 * bob
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
-	head.position.z = lerpf(-0.22, -0.02, fist_blend)
+	head.position.z = lerpf(-0.22, 0.06, fist_blend)
 	# шаг — каждый раз, когда нога проходит нижнюю точку (полпериода качания)
 	var s := int(floor(phase / PI))
 	if s != last_step:
