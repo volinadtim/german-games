@@ -127,19 +127,22 @@ func _build() -> void:
 	var art := Control.new()
 	art.size = Vector2(sv.size)
 	art.draw.connect(func() -> void:
-		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.93, 0.89, 0.8))
+		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.76, 0.72, 0.64))
 		for i in STRIP.size():
 			var r := Rect2(0, i * TEX, TEX, TEX)
 			art.draw_rect(Rect2(0, i * TEX, TEX, 2), Color(0.7, 0.64, 0.55))
-			Sym.draw(art, STRIP[i], r.grow(-14)))
+			Sym.draw(art, STRIP[i], r.grow(-14))
+		# серая вуаль поверх ленты — символы блеклые, выцветшие
+		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.3)))
 	sv.add_child(art)
 	var reel_mat := StandardMaterial3D.new()
 	reel_mat.albedo_texture = sv.get_texture()
-	reel_mat.roughness = 0.5
+	reel_mat.albedo_color = Color(0.82, 0.8, 0.77)
+	reel_mat.roughness = 0.7
 	reel_mat.emission_enabled = true
 	reel_mat.emission_texture = sv.get_texture()
-	reel_mat.emission = Color(1.0, 0.9, 0.75)
-	reel_mat.emission_energy_multiplier = 0.45
+	reel_mat.emission = Color(0.85, 0.8, 0.72)
+	reel_mat.emission_energy_multiplier = 0.16
 	var mesh := _reel_mesh()
 	for i in REELS:
 		var r := MeshInstance3D.new()
