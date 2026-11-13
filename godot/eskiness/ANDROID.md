@@ -80,7 +80,7 @@
 2. Подключи телефон кабелем и разреши отладку на экране телефона.
 3. В Godot справа вверху появится значок Android. Нажми его, и игра поставится
    и запустится сама.
-4. Можно и командой: `C:\Android\Sdk\platform-tools\adb.exe install -r ..\eskiNess.apk`.
+4. Можно и командой из папки репозитория: `C:\Android\Sdk\platform-tools\adb.exe install -r godot\eskiNess.apk`.
 
 ## Управление на телефоне
 
