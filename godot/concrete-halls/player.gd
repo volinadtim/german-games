@@ -3,9 +3,7 @@ extends CharacterBody3D
 ## WASD, Shift — бег, пробел — прыжок, ПКМ — режим кулаков (руки в стойку), ЛКМ — удар.
 
 const Sfx := preload("res://sfx.gd")
-const STEP_SND := preload("res://sounds/step.mp3")   # звук шага, присланный в чат
-const STEP_SPEED := 1.6     # во сколько раз ускоряем
-const STEP_PITCH := 1.0     # итоговая высота тона относительно оригинала (1.0 — как в файле)
+const STEP_SND := preload("res://sounds/step.mp3")   # звук шага, присланный в чат — играет как есть
 
 const WALK := 3.4
 const SPRINT := 6.4
@@ -51,7 +49,6 @@ var exhales: Array[AudioStreamWAV] = []
 var impacts: Array[AudioStreamWAV] = []
 var inhale_snd: AudioStreamWAV
 var step_player: AudioStreamPlayer
-var step_eq: AudioEffectEQ6
 var voice_player: AudioStreamPlayer
 var hit_player: AudioStreamPlayer
 var step_idx := 0
@@ -61,7 +58,6 @@ func _ready() -> void:
 	step_player = _audio(3)
 	voice_player = _audio(2)
 	hit_player = _audio(3)
-	_setup_step_bus()
 	for i in 4:
 		whooshes.append(Sfx.whoosh(i))
 		exhales.append(Sfx.exhale(i))
@@ -85,39 +81,6 @@ func _ready() -> void:
 	head.add_child(cam)
 
 	_build_body()
-
-
-## Шина «Steps»: ускорение делаем через pitch_scale плеера (оно же поднимает тон),
-## а эффект PitchShift на шине опускает тон обратно до STEP_PITCH.
-func _setup_step_bus() -> void:
-	if AudioServer.get_bus_index("Steps") == -1:
-		AudioServer.add_bus()
-		var idx := AudioServer.bus_count - 1
-		AudioServer.set_bus_name(idx, "Steps")
-		AudioServer.set_bus_send(idx, "Master")
-		var ps := AudioEffectPitchShift.new()
-		ps.pitch_scale = STEP_PITCH / STEP_SPEED
-		AudioServer.add_bus_effect(idx, ps)
-		AudioServer.add_bus_effect(idx, AudioEffectEQ6.new())
-	step_player.bus = "Steps"
-	var bi := AudioServer.get_bus_index("Steps")
-	for e in AudioServer.get_bus_effect_count(bi):
-		if AudioServer.get_bus_effect(bi, e) is AudioEffectEQ6:
-			step_eq = AudioServer.get_bus_effect(bi, e)
-
-
-## Каждый шаг слегка «подрезан эквалайзером» в случайных местах: 1–2 полосы глушим, иногда одну чуть поднимаем.
-func _randomize_step_eq() -> void:
-	if step_eq == null:
-		return
-	for b in step_eq.get_band_count():
-		step_eq.set_band_gain_db(b, 0.0)
-	var bands := [1, 2, 3, 4, 5]   # 100 Гц, 320 Гц, 1 кГц, 3.2 кГц, 10 кГц
-	bands.shuffle()
-	for k in randi_range(1, 2):
-		step_eq.set_band_gain_db(bands[k], randf_range(-10.0, -4.0))
-	if randf() < 0.35:
-		step_eq.set_band_gain_db(bands[2], randf_range(1.0, 3.0))
 
 
 func _audio(poly: int) -> AudioStreamPlayer:
@@ -409,14 +372,12 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 	if s != last_step:
 		last_step = s
 		if spd > 0.6 and is_on_floor():
-			_play_step((-6.0 if sprinting else -12.0) + randf_range(-1.5, 1.5), 1.05 if sprinting else 1.0)
+			_play_step(-6.0 if sprinting else -10.0)
 	var want_fov := FOV + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 
 
 func _play_step(db: float, pitch := 1.0) -> void:
-	_randomize_step_eq()
 	step_player.stream = STEP_SND
 	step_player.volume_db = db
-	step_player.pitch_scale = STEP_SPEED * randf_range(0.95, 1.05) * pitch
 	step_player.play()
