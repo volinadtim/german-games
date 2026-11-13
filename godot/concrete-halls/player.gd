@@ -3,6 +3,9 @@ extends CharacterBody3D
 ## WASD, Shift — бег, пробел — прыжок, ПКМ — режим кулаков (руки в стойку), ЛКМ — удар.
 
 const Sfx := preload("res://sfx.gd")
+const STEP_SND := preload("res://sounds/step.mp3")   # звук шага, присланный в чат
+const STEP_SPEED := 1.6     # во сколько раз ускоряем
+const STEP_PITCH := 0.88    # итоговая высота тона относительно оригинала (чуть ниже)
 
 const WALK := 3.4
 const SPRINT := 6.4
@@ -57,8 +60,7 @@ func _ready() -> void:
 	step_player = _audio(3)
 	voice_player = _audio(2)
 	hit_player = _audio(3)
-	for i in 5:
-		steps.append(Sfx.step(i))
+	_setup_step_bus()
 	for i in 4:
 		whooshes.append(Sfx.whoosh(i))
 		exhales.append(Sfx.exhale(i))
@@ -82,6 +84,20 @@ func _ready() -> void:
 	head.add_child(cam)
 
 	_build_body()
+
+
+## Шина «Steps»: ускорение делаем через pitch_scale плеера (оно же поднимает тон),
+## а эффект PitchShift на шине опускает тон обратно до STEP_PITCH.
+func _setup_step_bus() -> void:
+	if AudioServer.get_bus_index("Steps") == -1:
+		AudioServer.add_bus()
+		var idx := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(idx, "Steps")
+		AudioServer.set_bus_send(idx, "Master")
+		var ps := AudioEffectPitchShift.new()
+		ps.pitch_scale = STEP_PITCH / STEP_SPEED
+		AudioServer.add_bus_effect(idx, ps)
+	step_player.bus = "Steps"
 
 
 func _audio(poly: int) -> AudioStreamPlayer:
@@ -379,8 +395,7 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 
 
 func _play_step(db: float, pitch := 1.0) -> void:
-	step_idx = (step_idx + 1 + randi() % (steps.size() - 1)) % steps.size()
-	step_player.stream = steps[step_idx]
+	step_player.stream = STEP_SND
 	step_player.volume_db = db
-	step_player.pitch_scale = randf_range(0.92, 1.06) * pitch
+	step_player.pitch_scale = STEP_SPEED * randf_range(0.95, 1.05) * pitch
 	step_player.play()
