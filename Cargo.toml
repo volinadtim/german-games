@@ -1,0 +1,18 @@
+# Общий Cargo workspace для всех Rust-игр.
+# Каждая игра — отдельный крейт в rust/<имя-игры>.
+[workspace]
+resolver = "2"
+members = ["rust/*"]
+exclude = ["rust/.gitkeep"]
+
+[workspace.package]
+edition = "2021"
+
+[profile.dev]
+opt-level = 1            # чтобы игры не тормозили в debug
+
+[profile.dev.package."*"]
+opt-level = 3            # зависимости (движки) — всегда оптимизированы
+
+[profile.release]
+lto = "thin"

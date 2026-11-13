@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Runner</title>
+<style>
+  :root { --neon: #00e5ff; --pink: #ff3df2; --yellow: #ffe14d; --green: #39ff88; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #02030a; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color: #d5f6ff; }
+  #wrap { position: relative; width: min(100vw, 177.78vh); aspect-ratio: 16 / 9; background: #05060f; box-shadow: 0 0 40px rgba(0, 229, 255, 0.15); }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px; text-align: center; background: rgba(2, 3, 12, 0.82); }
+  .screen.hidden { display: none; }
+  .title { font-size: clamp(34px, 8vw, 84px); font-weight: 800; letter-spacing: 0.08em; color: #fff; text-shadow: 0 0 8px var(--neon), 0 0 22px var(--neon), 0 0 46px #0077ff; }
+  .title.pink { text-shadow: 0 0 8px var(--pink), 0 0 22px var(--pink), 0 0 46px #8a00ff; }
+  .title.win { text-shadow: 0 0 8px var(--green), 0 0 22px var(--green), 0 0 46px #00aa55; }
+  .subtitle { font-size: clamp(14px, 2.4vw, 22px); color: #8fdcff; letter-spacing: 0.1em; }
+  .info { max-width: 640px; font-size: clamp(12px, 2vw, 16px); line-height: 1.6; color: #a9c9d8; }
+  .info b { color: var(--yellow); font-weight: 600; }
+  .score { font-size: clamp(18px, 3vw, 28px); color: var(--yellow); text-shadow: 0 0 10px var(--yellow); }
+  button { font: inherit; font-size: clamp(16px, 2.6vw, 24px); font-weight: 700; letter-spacing: 0.1em; padding: 12px 40px; color: #00151f; background: var(--neon); border: none; border-radius: 6px; cursor: pointer; box-shadow: 0 0 12px var(--neon), 0 0 30px rgba(0, 229, 255, 0.5); transition: transform 0.12s, box-shadow 0.12s; }
+  button:hover { transform: scale(1.06); box-shadow: 0 0 20px var(--neon), 0 0 46px var(--neon); }
+  button:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game" width="960" height="540"></canvas>
+
+  <div id="menu" class="screen">
+    <div class="title">NEON RUNNER</div>
+    <div class="subtitle">НЕОНОВЫЙ БЕГУН</div>
+    <div class="info">Собери все <b>жёлтые кристаллы</b> на уровне, чтобы открыть <b>зелёный портал</b> и выйти дальше. Шипы и падение в пропасть возвращают к началу уровня. Патрульный <b>дрон</b> можно уничтожить, прыгнув на него сверху (+250), но удар сбоку — проигрыш.</div>
+    <div class="info">A / D или ← → — движение · W / Пробел / ↑ — прыжок (второй прыжок в воздухе) · P / Esc — пауза</div>
+    <button id="btnPlay">ИГРАТЬ</button>
+  </div>
+
+  <div id="gameover" class="screen hidden">
+    <div class="title pink">GAME OVER</div>
+    <div class="subtitle">Тебя сбил патрульный дрон</div>
+    <div class="score">Очки: <span id="goScore">0</span></div>
+    <button id="btnRetry">ЗАНОВО</button>
+  </div>
+
+  <div id="win" class="screen hidden">
+    <div class="title win">Победа!</div>
+    <div class="subtitle">Все три уровня пройдены</div>
+    <div class="score">Итоговый счёт: <span id="winScore">0</span></div>
+    <button id="btnWinAgain">ИГРАТЬ СНОВА</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ===================== КОНСТАНТЫ =====================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const VW = canvas.width;   // 960
+const VH = canvas.height;  // 540
+
+const STEP = 1 / 120;          // фиксированный шаг физики
+const GRAVITY = 2400;
+const MAX_FALL = 1100;
+const RUN_MAX = 340;
+const ACCEL_GROUND = 2600;
+const ACCEL_AIR = 1700;
+const FRIC_GROUND = 1800;      // торможение на земле (инерция)
+const FRIC_AIR = 500;          // торможение в воздухе
+const JUMP_V = 830;
+const DOUBLE_V = 700;
+const COYOTE_TIME = 0.1;
+const JUMP_BUFFER = 0.12;
+const PLAYER_SIZE = 26;
+const STOMP_SCORE = 250;
+const CRYSTAL_SCORE = 100;
+
+const KEYS = {
+  KeyA: 'left', ArrowLeft: 'left',
+  KeyD: 'right', ArrowRight: 'right',
+  KeyW: 'jump', ArrowUp: 'jump', Space: 'jump'
+};
+
+// ===================== ДАННЫЕ УРОВНЕЙ =====================
+// platforms: [x, y, w, h]; высота 20 = платформа с кристаллом над ней, 60 = земля
+// spikes: [x, y(верх шипов), ширина]; drones: x0, y0, range (амплитуда), speed, phase
+const LEVELS = [
+  {
+    name: 'Неон-Окраина',
+    accent: '#00e5ff',
+    width: 3200, height: 720,
+    start: [80, 600],
+    portal: [3080, 570],
+    platforms: [
+      // земля
+      [0, 660, 700, 60], [800, 660, 500, 60], [1400, 660, 900, 60], [2400, 660, 800, 60],
+      // платформы
+      [300, 540, 140, 20], [520, 440, 140, 20], [740, 540, 120, 20], [1000, 520, 160, 20],
+      [1240, 430, 140, 20], [1480, 520, 160, 20], [1700, 430, 160, 20], [1950, 520, 140, 20],
+      [2150, 400, 140, 20], [2360, 500, 120, 20], [2620, 440, 160, 20], [2880, 400, 120, 20]
+    ],
+    spikes: [
+      [900, 644, 60], [1900, 644, 60], [1020, 504, 60], [2650, 424, 60]
+    ],
+    extraCrystals: [[200, 620], [1050, 620], [1800, 620], [2600, 620]],
+    drones: [
+      { x0: 1550, y0: 330, range: 120, speed: 1.2, phase: 0 },
+      { x0: 2000, y0: 300, range: 140, speed: 1.5, phase: 1.5 },
+      { x0: 2700, y0: 300, range: 150, speed: 1.7, phase: 0.7 }
+    ]
+  },
+  {
+    name: 'Подземный канал',
+    accent: '#ff3df2',
+    width: 3800, height: 720,
+    start: [80, 600],
+    portal: [3660, 570],
+    platforms: [
+      // земля
+      [0, 660, 600, 60], [700, 660, 300, 60], [1100, 660, 400, 60],
+      [1650, 660, 300, 60], [2100, 660, 600, 60], [2850, 660, 950, 60],
+      // платформы
+      [250, 540, 130, 20], [450, 450, 130, 20], [650, 360, 140, 20], [880, 500, 140, 20],
+      [1080, 400, 120, 20], [1280, 300, 140, 20], [1480, 420, 140, 20], [1700, 540, 140, 20],
+      [1900, 440, 120, 20], [2080, 340, 160, 20], [2320, 260, 130, 20], [2520, 380, 140, 20],
+      [2720, 500, 140, 20], [2940, 420, 140, 20], [3150, 320, 130, 20], [3380, 460, 140, 20],
+      [3560, 380, 120, 20]
+    ],
+    spikes: [
+      [800, 644, 60], [1400, 644, 60], [2250, 644, 70], [2950, 644, 60], [3300, 644, 80],
+      [1290, 284, 120], [2090, 324, 140], [2530, 364, 100]
+    ],
+    extraCrystals: [[400, 610], [1300, 610], [2300, 610], [3300, 610]],
+    drones: [
+      { x0: 520, y0: 300, range: 160, speed: 1.6, phase: 0 },
+      { x0: 1500, y0: 230, range: 170, speed: 1.8, phase: 1.2 },
+      { x0: 2300, y0: 150, range: 200, speed: 2.0, phase: 2.5 },
+      { x0: 2950, y0: 300, range: 150, speed: 2.2, phase: 0.5 },
+      { x0: 3400, y0: 200, range: 180, speed: 2.4, phase: 1.1 }
+    ]
+  },
+  {
+    name: 'Небоскрёбы Сити',
+    accent: '#ff9800',
+    width: 4400, height: 720,
+    start: [60, 600],
+    portal: [4240, 570],
+    platforms: [
+      // земля
+      [0, 660, 500, 60], [620, 660, 200, 60], [960, 660, 260, 60], [1360, 660, 200, 60],
+      [1700, 660, 600, 60], [2620, 660, 700, 60], [3500, 660, 900, 60],
+      // платформы
+      [220, 560, 110, 20], [400, 470, 110, 20], [560, 380, 110, 20], [740, 300, 110, 20],
+      [930, 400, 120, 20], [1110, 300, 120, 20], [1300, 200, 130, 20], [1500, 320, 120, 20],
+      [1690, 420, 120, 20], [1880, 320, 110, 20], [2050, 230, 130, 20], [2250, 340, 110, 20],
+      [2440, 440, 120, 20], [2630, 360, 120, 20], [2820, 270, 130, 20], [3010, 380, 110, 20],
+      [3200, 480, 120, 20], [3380, 360, 120, 20], [3600, 280, 140, 20], [3800, 400, 130, 20],
+      [4000, 500, 150, 20]
+    ],
+    spikes: [
+      [660, 644, 60], [1000, 644, 70], [1400, 644, 60], [1800, 644, 70], [2700, 644, 60], [3000, 644, 60],
+      [1130, 284, 80], [1890, 304, 60], [2060, 214, 110], [3390, 344, 110], [4010, 484, 70]
+    ],
+    extraCrystals: [[700, 620], [1100, 620], [1500, 620], [2000, 620], [2900, 620], [3900, 620]],
+    drones: [
+      { x0: 600, y0: 200, range: 200, speed: 2.0, phase: 0 },
+      { x0: 1100, y0: 170, range: 180, speed: 2.4, phase: 1 },
+      { x0: 1800, y0: 240, range: 220, speed: 2.2, phase: 2 },
+      { x0: 2400, y0: 300, range: 150, speed: 2.8, phase: 0.3 },
+      { x0: 3100, y0: 200, range: 200, speed: 2.5, phase: 1.7 },
+      { x0: 3650, y0: 300, range: 160, speed: 3.0, phase: 0.8 }
+    ]
+  }
+];
+
+// ===================== СОСТОЯНИЕ =====================
+let state = 'menu';         // 'menu' | 'playing' | 'gameover' | 'win'
+let paused = false;
+let level = null;
+let player = null;
+let score = 0;
+let levelStartScore = 0;
+let camX = 0, camY = 0;
+let particles = [];
+let trail = [];
+let trailTimer = 0;
+let gameTime = 0;
+let banner = { text: '', sub: '', t: 0 };
+let jumpBuffer = 0;
+const keys = { left: false, right: false, jumpHeld: false };
+let lastTs = performance.now();
+let acc = 0;
+
+const SCREENS = {
+  menu: document.getElementById('menu'),
+  gameover: document.getElementById('gameover'),
+  win: document.getElementById('win')
+};
+
+// ===================== УТИЛИТЫ =====================
+function overlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+function onScreen(x, y, w, h) {
+  return x + w > camX - 40 && x < camX + VW + 40 && y + h > camY - 40 && y < camY + VH + 40;
+}
+
+function droneCenter(d) {
+  return {
+    x: d.x0 + Math.sin(gameTime * d.speed + d.phase) * d.range,
+    y: d.y0 + Math.sin(gameTime * d.speed * 1.9 + d.phase) * 10
+  };
+}
+
+function allCollected() {
+  return level.crystals.every(c => c.got);
+}
+
+function burst(x, y, count, color, minSpeed, maxSpeed, life, size) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = minSpeed + Math.random() * (maxSpeed - minSpeed);
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp,
+      life, max: life,
+      size: size * (0.6 + Math.random() * 0.8),
+      color
+    });
+  }
+  if (particles.length > 400) particles.splice(0, particles.length - 400);
+}
+
+// ===================== ЗАГРУЗКА УРОВНЕЙ =====================
+function buildLevel(index) {
+  const def = LEVELS[index];
+  const platforms = def.platforms.map(([x, y, w, h]) => ({ x, y, w, h }));
+  const crystals = [];
+  for (const p of platforms) {
+    if (p.h === 20) crystals.push({ x: p.x + p.w / 2, y: p.y - 40, got: false });
+  }
+  for (const [x, y] of def.extraCrystals) crystals.push({ x, y, got: false });
+  return {
+    def,
+    index,
+    width: def.width,
+    height: def.height,
+    platforms,
+    spikes: def.spikes.map(([x, y, w]) => ({ x, y, w, h: 16 })),
+    drones: def.drones.map(d => ({ ...d, dead: false })),
+    crystals,
+    portal: { x: def.portal[0], y: def.portal[1], w: 60, h: 90 }
+  };
+}
+
+function createPlayer(x, y) {
+  return {
+    x, y,
+    w: PLAYER_SIZE, h: PLAYER_SIZE,
+    vx: 0, vy: 0,
+    onGround: false,
+    coyote: 0,
+    canDouble: false,
+    prevBottom: y + PLAYER_SIZE,
+    facing: 1
+  };
+}
+
+function loadLevel(index) {
+  level = buildLevel(index);
+  levelStartScore = score;
+  player = createPlayer(level.def.start[0], level.def.start[1]);
+  trail = [];
+  particles = [];
+  banner = { text: 'УРОВЕНЬ ' + (index + 1), sub: level.def.name, t: 2.2 };
+  updateCamera(0, true);
+}
+
+// Перезапуск уровня (шипы, пропасть): кристаллы и очки этого уровня откатываются
+function restartLevel() {
+  score = levelStartScore;
+  level = buildLevel(level.index);
+  player = createPlayer(level.def.start[0], level.def.start[1]);
+  trail = [];
+  updateCamera(0, true);
+}
+
+function gameOver() {
+  state = 'gameover';
+  paused = false;
+  document.getElementById('goScore').textContent = score;
+  showScreen('gameover');
+}
+
+function winGame() {
+  state = 'win';
+  paused = false;
+  document.getElementById('winScore').textContent = score;
+  showScreen('win');
+}
+
+function startGame() {
+  if (state === 'playing') return;
+  state = 'playing';
+  paused = false;
+  score = 0;
+  jumpBuffer = 0;
+  showScreen(null);
+  loadLevel(0);
+}
+
+function showScreen(name) {
+  for (const key in SCREENS) {
+    SCREENS[key].classList.toggle('hidden', key !== name);
+  }
+}
+
+// ===================== ФИЗИКА =====================
+function update(dt) {
+  gameTime += dt;
+  if (banner.t > 0) banner.t -= dt;
+
+  const p = player;
+  const solids = level.platforms;
+  p.prevBottom = p.y + p.h;
+
+  // --- горизонталь: ускорение и инерция ---
+  let dir = 0;
+  if (keys.left) dir -= 1;
+  if (keys.right) dir += 1;
+  if (dir !== 0) {
+    p.facing = dir;
+    p.vx += dir * (p.onGround ? ACCEL_GROUND : ACCEL_AIR) * dt;
+    p.vx = clamp(p.vx, -RUN_MAX, RUN_MAX);
+  } else {
+    const fr = (p.onGround ? FRIC_GROUND : FRIC_AIR) * dt;
+    if (Math.abs(p.vx) <= fr) p.vx = 0;
+    else p.vx -= Math.sign(p.vx) * fr;
+  }
+
+  // --- гравитация ---
+  p.vy = Math.min(p.vy + GRAVITY * dt, MAX_FALL);
+
+  // --- койот-тайм ---
+  if (p.onGround) p.coyote = COYOTE_TIME;
+  else p.coyote -= dt;
+
+  // --- прыжок, двойной прыжок, буфер ---
+  if (jumpBuffer > 0) {
+    if (p.onGround || p.coyote > 0) {
+      p.vy = -JUMP_V;
+      p.onGround = false;
+      p.coyote = 0;
+      p.canDouble = true;
+      jumpBuffer = 0;
+      burst(p.x + p.w / 2, p.y + p.h, 8, '#00e5ff', 40, 150, 0.45, 4);
+    } else if (p.canDouble) {
+      p.vy = -DOUBLE_V;
+      p.canDouble = false;
+      jumpBuffer = 0;
+      burst(p.x + p.w / 2, p.y + p.h / 2, 12, '#9ff7ff', 80, 200, 0.5, 4);
+    }
+  }
+  jumpBuffer -= dt;
+
+  // короткое нажатие = низкий прыжок
+  if (!keys.jumpHeld && p.vy < 0) p.vy *= (1 - 10 * dt);
+
+  // --- перемещение по X и коллизии ---
+  p.x += p.vx * dt;
+  if (p.x < 0) { p.x = 0; p.vx = 0; }
+  if (p.x > level.width - p.w) { p.x = level.width - p.w; p.vx = 0; }
+  for (const s of solids) {
+    if (overlap(p, s)) {
+      if (p.vx > 0) p.x = s.x - p.w;
+      else if (p.vx < 0) p.x = s.x + s.w;
+      p.vx = 0;
+    }
+  }
+
+  // --- перемещение по Y и коллизии ---
+  p.y += p.vy * dt;
+  p.onGround = false;
+  for (const s of solids) {
+    if (overlap(p, s)) {
+      if (p.vy > 0) {
+        p.y = s.y - p.h;
+        p.onGround = true;
+        p.canDouble = true;
+      } else if (p.vy < 0) {
+        p.y = s.y + s.h;
+      }
+      p.vy = 0;
+    }
+  }
+
+  // --- след за игроком ---
+  trailTimer += dt;
+  if ((Math.abs(p.vx) > 40 || !p.onGround) && trailTimer >= 0.012) {
+    trailTimer = 0;
+    trail.push({ x: p.x + p.w / 2, y: p.y + p.h / 2, age: 0 });
+  }
+  for (const t of trail) t.age += dt;
+  trail = trail.filter(t => t.age < 0.35);
+
+  // --- пропасть ---
+  if (p.y > level.height + 80) { restartLevel(); return; }
+
+  // --- шипы: мгновенный рестарт уровня ---
+  const hb = { x: p.x + 5, y: p.y + 4, w: p.w - 10, h: p.h - 4 };
+  for (const s of level.spikes) {
+    if (overlap(hb, s)) {
+      burst(p.x + p.w / 2, p.y + p.h / 2, 16, '#ff2d55', 60, 220, 0.6, 4);
+      restartLevel();
+      return;
+    }
+  }
+
+  // --- кристаллы ---
+  for (const c of level.crystals) {
+    if (!c.got && overlap(p, { x: c.x - 11, y: c.y - 11, w: 22, h: 22 })) {
+      c.got = true;
+      score += CRYSTAL_SCORE;
+      burst(c.x, c.y, 12, '#ffe14d', 60, 200, 0.6, 4);
+    }
+  }
+
+  // --- портал ---
+  if (allCollected() && overlap(p, level.portal)) {
+    if (level.index + 1 >= LEVELS.length) winGame();
+    else loadLevel(level.index + 1);
+    return;
+  }
+
+  // --- дроны: прыжок сверху = уничтожение, удар сбоку = проигрыш ---
+  for (const d of level.drones) {
+    if (d.dead) continue;
+    const c = droneCenter(d);
+    const box = { x: c.x - 14, y: c.y - 14, w: 28, h: 28 };
+    if (!overlap(p, box)) continue;
+    if (p.vy > 0 && p.prevBottom <= box.y + 12) {
+      d.dead = true;
+      score += STOMP_SCORE;
+      p.vy = -560;
+      p.onGround = false;
+      p.canDouble = true;
+      p.coyote = 0;
+      burst(c.x, c.y, 18, '#ff1744', 80, 260, 0.6, 5);
+    } else {
+      burst(p.x + p.w / 2, p.y + p.h / 2, 20, '#ff1744', 80, 260, 0.7, 5);
+      gameOver();
+      return;
+    }
+  }
+
+  // --- частицы ---
+  for (const pa of particles) {
+    pa.life -= dt;
+    pa.x += pa.vx * dt;
+    pa.y += pa.vy * dt;
+    pa.vy += 500 * dt;
+  }
+  particles = particles.filter(pa => pa.life > 0);
+}
+
+// ===================== КАМЕРА =====================
+function updateCamera(dt, snap) {
+  const p = player;
+  const tx = clamp(p.x + p.w / 2 - VW * 0.45 + p.vx * 0.25, 0, level.width - VW);
+  const ty = clamp(p.y + p.h / 2 - VH * 0.6, 0, level.height - VH);
+  if (snap) {
+    camX = tx;
+    camY = ty;
+  } else {
+    const k = 1 - Math.exp(-dt * 5);
+    camX += (tx - camX) * k;
+    camY += (ty - camY) * k;
+  }
+}
+
+// ===================== ОТРИСОВКА =====================
+function drawGrid(accent) {
+  ctx.save();
+  ctx.strokeStyle = accent;
+  ctx.globalAlpha = 0.09;
+  ctx.lineWidth = 1;
+  const step = 48;
+  const ox = -((camX * 0.5) % step);
+  const oy = -((camY * 0.5) % step);
+  ctx.beginPath();
+  for (let x = ox; x <= VW; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, VH); }
+  for (let y = oy; y <= VH; y += step) { ctx.moveTo(0, y); ctx.lineTo(VW, y); }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPlatforms(accent) {
+  for (const pl of level.platforms) {
+    if (!onScreen(pl.x, pl.y, pl.w, pl.h)) continue;
+    ctx.fillStyle = '#0b1230';
+    ctx.fillRect(pl.x, pl.y, pl.w, pl.h);
+    ctx.save();
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(pl.x + 1, pl.y + 1, pl.w - 2, pl.h - 2);
+    ctx.restore();
+  }
+}
+
+function drawSpikes() {
+  ctx.save();
+  ctx.fillStyle = '#ff2d55';
+  ctx.shadowColor = '#ff2d55';
+  ctx.shadowBlur = 12;
+  for (const s of level.spikes) {
+    if (!onScreen(s.x, s.y, s.w, s.h)) continue;
+    const n = Math.max(1, Math.round(s.w / 14));
+    const tw = s.w / n;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x0 = s.x + i * tw;
+      ctx.moveTo(x0, s.y + s.h);
+      ctx.lineTo(x0 + tw / 2, s.y);
+      ctx.lineTo(x0 + tw, s.y + s.h);
+    }
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawCrystals() {
+  ctx.save();
+  ctx.fillStyle = '#ffe14d';
+  ctx.shadowColor = '#ffe14d';
+  ctx.shadowBlur = 16;
+  for (const c of level.crystals) {
+    if (c.got) continue;
+    if (!onScreen(c.x - 10, c.y - 14, 20, 28)) continue;
+    const y = c.y + Math.sin(gameTime * 3 + c.x * 0.02) * 4;
+    ctx.beginPath();
+    ctx.moveTo(c.x, y - 11);
+    ctx.lineTo(c.x + 8, y);
+    ctx.lineTo(c.x, y + 11);
+    ctx.lineTo(c.x - 8, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawPortal() {
+  const pt = level.portal;
+  if (!onScreen(pt.x, pt.y, pt.w, pt.h)) return;
+  const open = allCollected();
+  const cx = pt.x + pt.w / 2;
+  const cy = pt.y + pt.h / 2;
+  const pulse = open ? 1 + Math.sin(gameTime * 5) * 0.06 : 1;
+  ctx.save();
+  ctx.globalAlpha = open ? 1 : 0.35;
+  ctx.shadowColor = '#39ff88';
+  ctx.shadowBlur = open ? 30 : 8;
+  ctx.fillStyle = open ? 'rgba(57, 255, 136, 0.22)' : 'rgba(57, 255, 136, 0.06)';
+  ctx.strokeStyle = '#39ff88';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, (pt.w / 2) * pulse, (pt.h / 2) * pulse, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDrones() {
+  for (const d of level.drones) {
+    if (d.dead) continue;
+    const c = droneCenter(d);
+    if (!onScreen(c.x - 22, c.y - 22, 44, 44)) continue;
+    ctx.save();
+    ctx.shadowColor = '#ff1744';
+    ctx.shadowBlur = 20;
+    const g = ctx.createRadialGradient(c.x - 4, c.y - 4, 2, c.x, c.y, 16);
+    g.addColorStop(0, '#ffb3b3');
+    g.addColorStop(0.4, '#ff1744');
+    g.addColorStop(1, '#7a0018');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#ff6b8a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 21, gameTime * 6, gameTime * 6 + Math.PI * 1.1);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawTrail() {
+  ctx.save();
+  ctx.fillStyle = '#00e5ff';
+  for (const t of trail) {
+    const a = 1 - t.age / 0.35;
+    if (a <= 0) continue;
+    const s = 4 + 20 * a;
+    ctx.globalAlpha = a * 0.55;
+    ctx.fillRect(t.x - s / 2, t.y - s / 2, s, s);
+  }
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const p = player;
+  ctx.save();
+  ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+  if (!p.onGround) ctx.rotate(clamp(p.vx * 0.0012, -0.45, 0.45));
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = 24;
+  const g = ctx.createLinearGradient(-13, -13, 13, 13);
+  g.addColorStop(0, '#c9fbff');
+  g.addColorStop(0.5, '#00e5ff');
+  g.addColorStop(1, '#0057ff');
+  ctx.fillStyle = g;
+  ctx.fillRect(-13, -13, 26, 26);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#ffffff';
+  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-12, -12, 24, 24);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#03131f';
+  ctx.fillRect(p.facing * 5 - 3, -6, 6, 5);
+  ctx.restore();
+}
+
+function drawParticles() {
+  ctx.save();
+  ctx.shadowBlur = 8;
+  for (const pa of particles) {
+    ctx.globalAlpha = Math.max(0, pa.life / pa.max);
+    ctx.fillStyle = pa.color;
+    ctx.shadowColor = pa.color;
+    ctx.fillRect(pa.x - pa.size / 2, pa.y - pa.size / 2, pa.size, pa.size);
+  }
+  ctx.restore();
+}
+
+function drawHUD() {
+  const accent = level.def.accent;
+  const total = level.crystals.length;
+  const got = level.crystals.filter(c => c.got).length;
+  const open = got === total;
+  ctx.save();
+  ctx.fillStyle = 'rgba(4, 8, 24, 0.8)';
+  ctx.fillRect(0, 0, VW, 44);
+  ctx.fillStyle = accent;
+  ctx.shadowColor = accent;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(0, 43, VW, 2);
+  ctx.shadowBlur = 0;
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 17px "Segoe UI", Tahoma, Arial, sans-serif';
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#d5f6ff';
+  ctx.fillText('УРОВЕНЬ ' + (level.index + 1) + ' / ' + LEVELS.length + '  ·  ' + level.def.name, 16, 22);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffe14d';
+  ctx.shadowColor = '#ffe14d';
+  ctx.shadowBlur = 8;
+  ctx.fillText('ОЧКИ: ' + score, VW / 2, 22);
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'right';
+  ctx.fillStyle = open ? '#39ff88' : '#ffe14d';
+  ctx.fillText('КРИСТАЛЛЫ: ' + got + ' / ' + total + '  (осталось ' + (total - got) + ')', VW - 16, 22);
+
+  ctx.textAlign = 'center';
+  ctx.font = '14px "Segoe UI", Tahoma, Arial, sans-serif';
+  ctx.fillStyle = open ? '#39ff88' : 'rgba(213, 246, 255, 0.6)';
+  ctx.fillText(open ? 'Портал открыт — добирайся до выхода!' : 'Собери все кристаллы, чтобы открыть портал', VW / 2, 62);
+  ctx.restore();
+}
+
+function drawBanner() {
+  const accent = level.def.accent;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, banner.t);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 56px "Segoe UI", Tahoma, Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = accent;
+  ctx.shadowBlur = 24;
+  ctx.fillText(banner.text, VW / 2, VH / 2 - 20);
+  ctx.font = '22px "Segoe UI", Tahoma, Arial, sans-serif';
+  ctx.fillStyle = accent;
+  ctx.shadowBlur = 10;
+  ctx.fillText(banner.sub, VW / 2, VH / 2 + 24);
+  ctx.restore();
+}
+
+function drawPause() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(2, 3, 12, 0.6)';
+  ctx.fillRect(0, 0, VW, VH);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 48px "Segoe UI", Tahoma, Arial, sans-serif';
+  ctx.fillStyle = '#00e5ff';
+  ctx.shadowColor = '#00e5ff';
+  ctx.shadowBlur = 20;
+  ctx.fillText('ПАУЗА', VW / 2, VH / 2 - 10);
+  ctx.font = '18px "Segoe UI", Tahoma, Arial, sans-serif';
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#d5f6ff';
+  ctx.fillText('P / Esc — продолжить', VW / 2, VH / 2 + 30);
+  ctx.restore();
+}
+
+function render() {
+  const accent = level ? level.def.accent : '#00e5ff';
+  const bg = ctx.createLinearGradient(0, 0, 0, VH);
+  bg.addColorStop(0, '#0a0f2c');
+  bg.addColorStop(1, '#02030a');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, VW, VH);
+  drawGrid(accent);
+
+  if (!level) return;
+
+  ctx.save();
+  ctx.translate(-Math.round(camX), -Math.round(camY));
+  drawPlatforms(accent);
+  drawSpikes();
+  drawCrystals();
+  drawPortal();
+  drawDrones();
+  drawTrail();
+  drawPlayer();
+  drawParticles();
+  ctx.restore();
+
+  drawHUD();
+  if (banner.t > 0) drawBanner();
+  if (paused) drawPause();
+}
+
+// ===================== ВВОД =====================
+window.addEventListener('keydown', e => {
+  const act = KEYS[e.code];
+  const isGameKey = act || e.code === 'Enter' || e.code === 'KeyP' || e.code === 'Escape';
+  if (isGameKey && (e.code === 'Space' || e.code.startsWith('Arrow'))) e.preventDefault();
+
+  if (state !== 'playing') {
+    if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) {
+      e.preventDefault();
+      startGame();
+    }
+    return;
+  }
+
+  if (act === 'left') keys.left = true;
+  else if (act === 'right') keys.right = true;
+  else if (act === 'jump') {
+    if (!e.repeat) jumpBuffer = JUMP_BUFFER;
+    keys.jumpHeld = true;
+  }
+
+  if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) {
+    paused = !paused;
+  }
+});
+
+window.addEventListener('keyup', e => {
+  const act = KEYS[e.code];
+  if (act === 'left') keys.left = false;
+  else if (act === 'right') keys.right = false;
+  else if (act === 'jump') keys.jumpHeld = false;
+});
+
+window.addEventListener('blur', () => {
+  keys.left = false;
+  keys.right = false;
+  keys.jumpHeld = false;
+  if (state === 'playing') paused = true;
+});
+
+document.getElementById('btnPlay').addEventListener('click', startGame);
+document.getElementById('btnRetry').addEventListener('click', startGame);
+document.getElementById('btnWinAgain').addEventListener('click', startGame);
+
+// ===================== ИГРОВОЙ ЦИКЛ =====================
+function frame(ts) {
+  let dt = (ts - lastTs) / 1000;
+  lastTs = ts;
+  if (dt > 0.1) dt = 0.1;
+  if (dt < 0) dt = 0;
+
+  if (state === 'playing' && !paused) {
+    acc += dt;
+    while (acc >= STEP && state === 'playing' && !paused) {
+      update(STEP);
+      acc -= STEP;
+    }
+    if (state === 'playing') updateCamera(dt, false);
+  } else {
+    acc = 0;
+  }
+
+  render();
+  requestAnimationFrame(frame);
+}
+
+showScreen('menu');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
