@@ -20,6 +20,16 @@ const LEASH := 14.0
 const WANDER_SPEED := 0.85
 ## проёмы между комнатами и коридором — через них враг обходит стены
 const DOORWAYS := [Vector3(-6, 0, -1.6), Vector3(-6, 0, 1.6), Vector3(6, 0, -1.6), Vector3(6, 0, 1.6), Vector3(0, 0, 5.5)]
+## точки пути по бункеру: коридор, обе стороны каждого проёма, середины комнат, выход к лестнице.
+## Между ними ищется кратчайший путь (связи — где точки видят друг друга), так враг находит дорогу в любую комнату.
+const WAYPOINTS := [
+	Vector3(-10.5, 0, 0), Vector3(-6, 0, 0), Vector3(0, 0, 0), Vector3(6, 0, 0), Vector3(11.3, 0, 0),
+	Vector3(-6, 0, -0.9), Vector3(-6, 0, -2.4), Vector3(6, 0, -0.9), Vector3(6, 0, -2.4),
+	Vector3(-6, 0, 0.9), Vector3(-6, 0, 2.4), Vector3(6, 0, 0.9), Vector3(6, 0, 2.4),
+	Vector3(-0.9, 0, 5.5), Vector3(0.9, 0, 5.5),
+	Vector3(-6, 0, -5.3), Vector3(6, 0, -5.3), Vector3(-6, 0, 5.3), Vector3(6, 0, 5.3),
+]
+static var _wp_links: Array = []    # для каждой точки — индексы видимых соседей (считаются один раз)
 
 var game  # game.gd
 var home := Vector3.ZERO
@@ -37,6 +47,12 @@ var growl_t := 3.0
 var bar_t := 0.0
 ## на поверхности: бродит по поляне, гонится напрямую (без проёмов), в будку-выход не заходит
 var surface := false
+## агро: враг с поляны, заметивший игрока, идёт за ним и в будку, и вниз по лестнице в бункер —
+## сейвзоны нет. Потерял из виду на LOSE_T секунд — поднимается обратно на поляну (состояние "return").
+const LOSE_T := 8.0
+const CHASE_MAX := 45.0     # дольше этого без вида игрока — точно сдаётся
+var lost_t := 0.0
+var blind_t := 0.0
 var wander_t := 0.0
 
 var vis: Node3D
@@ -231,6 +247,8 @@ func _physics_process(delta: float) -> void:
 			elif game.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos)) and _clear(global_position, ppos):
 				_set_state("chase")
 				_growl()
+			elif surface and _zone(global_position) != 0:
+				_set_state("return")
 			elif surface:
 				want = _wander(delta)
 			elif Vector2(home.x - global_position.x, home.z - global_position.z).length() > 0.6:
@@ -239,8 +257,20 @@ func _physics_process(delta: float) -> void:
 			growl_t -= delta
 			if growl_t <= 0.0:
 				_growl()
-			if not game.alive or not hunter and (not surface and global_position.distance_to(home) > LEASH) 					or (surface and (not Surface.on_meadow(ppos) or _from_center(global_position) > Surface.MEADOW_R + 8.0)):
-				_set_state("idle")
+			if surface and not hunter:
+				# видит — агро держится; не видит дольше LOSE_T — сдаётся
+				# пока идёт в зону игрока (лестница, бункер), «потерю» не считаем — он идёт по следу
+				if d < SIGHT * 1.6 and _clear(global_position, ppos):
+					lost_t = 0.0
+					blind_t = 0.0
+				else:
+					blind_t += delta
+					if _zone(global_position) == _zone(ppos):
+						lost_t += delta
+			if not game.alive or (not hunter and not surface and global_position.distance_to(home) > LEASH) 					or (surface and not hunter and (lost_t > LOSE_T or blind_t > CHASE_MAX or (_zone(global_position) == 0 and _zone(ppos) == 0 and _from_center(global_position) > Surface.MEADOW_R + 8.0))):
+				lost_t = 0.0
+				blind_t = 0.0
+				_set_state("return" if surface and _zone(global_position) != 0 else "idle")
 			elif d < ATTACK_RANGE and cool <= 0.0:
 				_set_state("windup")
 			elif d > 1.1:
@@ -258,7 +288,17 @@ func _physics_process(delta: float) -> void:
 		"stagger":
 			if st > 0.4:
 				_set_state("chase")
-	if surface and want != Vector3.ZERO and Surface.in_hut(global_position + want.normalized() * 0.7, 0.3):
+		"return":
+			# назад на поляну: через лестницу и будку; увидел игрока — снова в погоню
+			if game.alive and d < SIGHT and _clear(global_position, ppos):
+				_set_state("chase")
+				_growl()
+			elif _zone(global_position) == 0:
+				wander_t = 0.0
+				_set_state("idle")
+			else:
+				want = _steer(Vector3(25.0, Surface.G, 0.0), delta) * SPEED * 0.7
+	if surface and state == "idle" and want != Vector3.ZERO and Surface.in_hut(global_position + want.normalized() * 0.7, 0.3):
 		want = Vector3.ZERO
 	velocity.x = want.x + knock.x
 	velocity.z = want.z + knock.z
@@ -284,16 +324,12 @@ func _steer(goal: Vector3, delta: float) -> Vector3:
 		var up := global_position.x > 12.4
 		if hunter and up != (goal.x > 12.4):
 			target = Vector3(11.4, global_position.y, 0.0) if up else Vector3(13.6, 0.0, 0.0)
-		elif not surface and not _clear(global_position, goal):
-			var best := INF
-			for dw in DOORWAYS:
-				var p: Vector3 = dw
-				if Vector2(p.x - global_position.x, p.z - global_position.z).length() < 0.7:
-					continue
-				var cost := global_position.distance_to(p) + p.distance_to(goal)
-				if cost < best and _clear(global_position, p):
-					best = cost
-					target = p
+		elif surface and _zone(global_position) != _zone(goal):
+			target = _route(goal)
+			if _zone(global_position) == 2 and not _clear(global_position, target):
+				target = _doorway_to(target)
+		elif (not surface or _zone(global_position) == 2) and not _clear(global_position, goal):
+			target = _doorway_to(goal)
 	var dir := target - global_position
 	dir.y = 0.0
 	if dir.length() < 0.05:
@@ -301,6 +337,92 @@ func _steer(goal: Vector3, delta: float) -> Vector3:
 	dir = dir.normalized()
 	_face(dir, delta)
 	return dir
+
+
+## Где точка: 0 — поляна (поверху, не в будке), 1 — будка и лестница, 2 — бункер.
+func _zone(p: Vector3) -> int:
+	if p.y > Surface.G - 1.0 and not Surface.in_hut(p):
+		return 0
+	if p.x < Surface.X_WALL:
+		return 2
+	return 1
+
+
+## Промежуточная точка пути между зонами: поляна ↔ вход в будку ↔ лестница ↔ бункер.
+func _route(goal: Vector3) -> Vector3:
+	var p := global_position
+	var gz := _zone(goal)
+	match _zone(p):
+		0:
+			var sz := 1.0 if p.z >= 0.0 else -1.0
+			if p.x < 21.4 and absf(p.z) < 3.0:
+				return Vector3(p.x, Surface.G, 4.4 * sz)       # сбоку/позади будки — отойти от стены
+			if p.x < 21.4:
+				return Vector3(24.0, Surface.G, 4.4 * sz)      # обогнуть угол (мимо обломков у входа)
+			if p.x < 23.6 and absf(p.z) < 1.0:
+				return Vector3(19.6, Surface.G, 0.0)           # у входа — внутрь, на площадку
+			return Vector3(23.0, Surface.G, 0.0)               # к входу
+		1:
+			return Vector3(11.2, 0.0, 0.0) if gz == 2 else Vector3(23.0, Surface.G, 0.0)
+		_:
+			return Vector3(13.2, 0.0, 0.0)                     # к проёму на лестницу
+
+
+## Следующая точка пути по бункеру к цели (кратчайший путь по WAYPOINTS, Дейкстра на ~20 точках).
+func _doorway_to(goal: Vector3) -> Vector3:
+	var n := WAYPOINTS.size()
+	if _wp_links.is_empty():
+		for i in n:
+			var l: Array = []
+			for j in n:
+				if i != j and _clear(WAYPOINTS[i], WAYPOINTS[j]):
+					l.append(j)
+			_wp_links.append(l)
+	# старт и финиш подключаем к видимым точкам
+	var from_me: Array = []
+	var to_goal := {}
+	for i in n:
+		var q: Vector3 = WAYPOINTS[i]
+		if Vector2(q.x - global_position.x, q.z - global_position.z).length() > 0.5 and _clear(global_position, q):
+			from_me.append(i)
+		if _clear(q, goal):
+			to_goal[i] = true
+	var dist: Array = []
+	var prev: Array = []
+	var done: Array = []
+	for i in n:
+		dist.append(INF)
+		prev.append(-1)
+		done.append(false)
+	for i in from_me:
+		dist[i] = global_position.distance_to(WAYPOINTS[i])
+	var best_end := -1
+	var best_cost := INF
+	for it in n:
+		var u := -1
+		for i in n:
+			if not done[i] and dist[i] < INF and (u == -1 or dist[i] < dist[u]):
+				u = i
+		if u == -1:
+			break
+		done[u] = true
+		if to_goal.has(u):
+			var c: float = dist[u] + (WAYPOINTS[u] as Vector3).distance_to(goal)
+			if c < best_cost:
+				best_cost = c
+				best_end = u
+		for v in _wp_links[u]:
+			var nd: float = dist[u] + (WAYPOINTS[u] as Vector3).distance_to(WAYPOINTS[v])
+			if nd < dist[v]:
+				dist[v] = nd
+				prev[v] = u
+	if best_end == -1:
+		return goal
+	var k := best_end
+	while prev[k] != -1:
+		k = prev[k]
+	var t: Vector3 = WAYPOINTS[k]
+	return Vector3(t.x, global_position.y, t.z)
 
 
 ## Блуждание по поляне: идёт к случайной точке, постоит, выбирает следующую.
