@@ -1,6 +1,16 @@
 # Последний ответ
 
-**Промпты:** 13.11 19:00–20:32 МСК.
+**Промпты:** 13.11 19:00–20:36 МСК.
+
+## «Could not determine SDK root» (скрин 20:36)
+Всё нормально, осталось одно: sdkmanager ищет себя в `cmdline-tools\latest`, а у тебя он прямо в `cmdline-tools`. Ничего не переноси — просто добавь в команды путь к SDK **`--sdk_root=C:\Android\Sdk`**:
+```
+.\sdkmanager.bat --sdk_root=C:\Android\Sdk --licenses
+.\sdkmanager.bat --sdk_root=C:\Android\Sdk "platform-tools" "build-tools;35.0.1" "platforms;android-35"
+```
+- На вопросы про лицензии отвечай `y`.
+- Предупреждение `WARNING: ... deprecated` можно не замечать: программа работает.
+- В Godot потом в **Android SDK Path** укажи `C:\Android\Sdk`.
 
 ## Всё ещё «не найдено» (скрин 20:32)
 С `.\` команда написана правильно. Значит, в папке `bin` **нет файла `sdkmanager.bat`**: туда не распакован нужный архив. Скорее всего, папки созданы вручную или туда распакован `platform-tools` (это другой архив).
