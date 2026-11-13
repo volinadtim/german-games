@@ -1,21 +1,29 @@
 extends StaticBody3D
-## Ящик с лутом / сейф на ключ (сундуки). E — открыть: крышка (или дверца сейфа) откидывается со скрипом,
+## Ящик с лутом / сейф (сундуки). E — открыть: крышка (или дверца сейфа) откидывается со скрипом,
 ## лут вылетает наружу и подбирается, когда подойдёшь. Лут — случайный из таблицы LOOT + гарантированный extra.
 ## Интерфейс взаимодействия (его дёргает game.gd): get_prompt(game) -> String, interact(game).
 
 ## [предмет, вес, мин, макс]
 const LOOT := [
-	["bandage", 18, 1, 2],
+	["bandage", 16, 1, 3],
 	["medkit", 7, 1, 1],
-	["battery", 14, 1, 1],
-	["rusk", 16, 1, 3],
-	["nut", 12, 1, 3],
-	["coin", 18, 2, 5],
+	["pills", 10, 1, 2],
+	["canned", 9, 1, 2],
+	["water", 12, 1, 2],
+	["rusk", 14, 1, 4],
+	["battery", 12, 1, 2],
+	["wallet", 6, 1, 1],
+	["nut", 10, 1, 4],
+	["scrap", 9, 1, 3],
+	["gear", 8, 1, 2],
+	["tape", 7, 1, 2],
+	["photo", 4, 1, 1],
+	["coin", 16, 5, 15],
 ]
 
 var kind := "crate"            # crate | safe
 var extra: Array = []          # гарантированный лут: [[id, n], ...]
-var need_key := ""             # id ключа, без которого не открыть
+var locked := false            # сейф: открывается только тремя семёрками на автомате (force_open)
 var random_loot := true
 var opened := false
 var hinge: Node3D
@@ -125,25 +133,23 @@ func _build_safe() -> void:
 func get_prompt(game) -> String:
 	if opened:
 		return ""
+	if locked:
+		return "Сейф заперт  (откроют три семёрки на KILLBOX)"
 	if kind == "safe":
-		var has_key: bool = need_key == "" or game.inv.count(need_key) > 0
-		return "[E] Открыть сейф" + ("" if has_key else "  (нужен ключ)")
+		return "[E] Открыть сейф"
 	return "[E] Открыть ящик"
 
 
 func interact(game) -> void:
 	if opened:
 		return
-	if need_key != "":
-		if game.inv.count(need_key) == 0:
-			game.hud.toast("Заперто. Нужен ключ.")
-			game.play_at("buzz", global_position, -14.0)
-			var tw := create_tween()
-			tw.tween_property(hinge, "rotation:y", -0.03, 0.05)
-			tw.tween_property(hinge, "rotation:y", 0.0, 0.08)
-			return
-		game.inv.remove(need_key, 1)
-		game.hud.toast("Ключ провернулся в замке", Color(0.9, 0.8, 0.55))
+	if locked:
+		game.hud.toast("Заперто. Сейф откроют три семёрки на автомате KILLBOX.")
+		game.play_at("buzz", global_position, -14.0)
+		var tw := create_tween()
+		tw.tween_property(hinge, "rotation:y", -0.03, 0.05)
+		tw.tween_property(hinge, "rotation:y", 0.0, 0.08)
+		return
 	opened = true
 	collision_layer = 1
 	snd.stream = game.snd["creak"][randi() % 2]
@@ -158,6 +164,12 @@ func interact(game) -> void:
 	get_tree().create_timer(0.35).timeout.connect(_spill.bind(game))
 
 
+## Открыть без проверки замка (три семёрки на автомате).
+func force_open(game) -> void:
+	locked = false
+	interact(game)
+
+
 func _spill(game) -> void:
 	var items: Array = extra.duplicate()
 	if random_loot:
@@ -170,11 +182,11 @@ func _spill(game) -> void:
 
 
 func _roll() -> Array:
-	var out: Array = [["coin", randi_range(3, 9)]]
+	var out: Array = [["coin", randi_range(10, 25)]]
 	var total := 0
 	for e in LOOT:
 		total += int(e[1])
-	for k in randi_range(1, 3):
+	for k in randi_range(3, 5):
 		var r := randi() % total
 		for e in LOOT:
 			r -= int(e[1])

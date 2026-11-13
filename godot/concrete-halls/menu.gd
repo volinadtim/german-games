@@ -48,7 +48,7 @@ func _ready() -> void:
 	root.add_child(center)
 	# --- главное меню
 	main_box = _vbox(center)
-	main_box.add_child(_title("БЕТОН", 96))
+	main_box.add_child(_title("eskiNess", 96))
 	main_box.add_child(_gap(30))
 	main_box.add_child(_button("Играть", func(): play_pressed.emit()))
 	main_box.add_child(_button("Настройки", func(): _open_settings("main")))

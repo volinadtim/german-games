@@ -1,26 +1,20 @@
 extends Node3D
-## Точка входа: уровень, меню с пролётом камеры, переход в игру.
+## Точка входа: уровень, меню (камера смотрит на игровой автомат), переход в игру.
 
 const Player := preload("res://player.gd")
 const Menu := preload("res://menu.gd")
 const Ambience := preload("res://ambience.gd")
 const Game := preload("res://game.gd")   # тестовые механики (боёвка, лут, инвентарь, автомат…)
+const SlotMachine := preload("res://slot_machine.gd")
 
-const FLY_POINTS := [
-	Vector3(-6.0, 1.8, -7.5),
-	Vector3(-6.3, 1.6, -3.5),
-	Vector3(-6.0, 1.6, -1.2),
-	Vector3(-3.5, 1.5, 0.2),
-	Vector3(3.5, 1.5, -0.2),
-	Vector3(6.0, 1.6, 2.0),
-	Vector3(6.3, 1.8, 5.0),
-	Vector3(5.0, 2.0, 7.5),
-]
+## Меню: неподвижная камера под углом к игровому автомату KILLBOX (он стоит в юго-западной комнате).
+const SLOT_POS := Vector3(-6.0, 0.0, 8.5)
+const MENU_CAM_POS := Vector3(-7.15, 1.5, 6.85)
+const MENU_CAM_LOOK := Vector3(-6.2, 1.12, 8.5)
 
 var menu_cam: Camera3D
-var curve: Curve3D
 var fly_t := 0.0
-var fly_yaw := 0.0
+var slot: Node3D
 var in_game := false
 var player: CharacterBody3D
 var menu: CanvasLayer
@@ -34,15 +28,15 @@ func _ready() -> void:
 	# уровень (и освещение/окружение) — узел Level в main.tscn, он виден и в редакторе
 	add_child(Ambience.new())
 
-	curve = Curve3D.new()
-	for i in FLY_POINTS.size():
-		var prev: Vector3 = FLY_POINTS[max(i - 1, 0)]
-		var next: Vector3 = FLY_POINTS[min(i + 1, FLY_POINTS.size() - 1)]
-		var h := (next - prev) * 0.25
-		curve.add_point(FLY_POINTS[i], -h, h)
+	# игровой автомат — часть сцены меню (фон), в игре game.gd берёт его же
+	slot = SlotMachine.new()
+	slot.name = "SlotMachine"
+	slot.position = SLOT_POS
+	slot.rotation.y = PI
+	add_child(slot)
 
 	menu_cam = Camera3D.new()
-	menu_cam.fov = 70.0
+	menu_cam.fov = 62.0
 	add_child(menu_cam)
 	menu_cam.current = true
 	_update_fly(0.0, true)
@@ -81,21 +75,11 @@ func _process(delta: float) -> void:
 		_update_fly(delta, false)
 
 
-func _update_fly(delta: float, snap: bool) -> void:
+## Камера меню стоит на месте, только чуть «дышит».
+func _update_fly(delta: float, _snap: bool) -> void:
 	fly_t += delta
-	var length := curve.get_baked_length()
-	var w := PI * 0.9 / length  # средняя скорость ~0.9 м/с
-	var u := length * (0.5 - 0.5 * cos(fly_t * w))
-	var dir_sign := 1.0 if sin(fly_t * w) >= 0.0 else -1.0
-	var pos := curve.sample_baked(u, true)
-	var tng := (curve.sample_baked(min(u + 0.5, length), true) - curve.sample_baked(max(u - 0.5, 0.0), true)) * dir_sign
-	var want := atan2(-tng.x, -tng.z) if tng.length() > 0.01 else fly_yaw
-	if snap:
-		fly_yaw = want
-	else:
-		fly_yaw = lerp_angle(fly_yaw, want, 1.0 - exp(-0.8 * delta))
-	menu_cam.position = pos + Vector3(0, sin(fly_t * 0.7) * 0.05, 0)
-	menu_cam.rotation = Vector3(-0.05 + sin(fly_t * 0.37) * 0.04, fly_yaw + sin(fly_t * 0.23) * 0.12, sin(fly_t * 0.31) * 0.015)
+	menu_cam.position = MENU_CAM_POS + Vector3(sin(fly_t * 0.31) * 0.01, sin(fly_t * 0.7) * 0.012, 0)
+	menu_cam.look_at_from_position(menu_cam.position, MENU_CAM_LOOK + Vector3(sin(fly_t * 0.23) * 0.02, 0, 0))
 
 
 func _start_game() -> void:

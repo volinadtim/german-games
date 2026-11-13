@@ -40,6 +40,8 @@ var focus: Object = null
 var snd := {}
 var ui_player: AudioStreamPlayer
 var full_toast_t := 0.0
+var safe: Chest
+var slot: SlotMachine
 
 
 func setup(p: Player) -> void:
@@ -65,8 +67,8 @@ func setup(p: Player) -> void:
 		add_child(flashlight)
 		flashlight.attach(player.cam)
 
-	# стартовый набор, чтобы сразу было что попробовать
-	inv.add("coin", 3)
+	# стартовый набор, чтобы сразу было что попробовать (крутка автомата — 10 монет)
+	inv.add("coin", 30)
 	inv.add("bandage", 1)
 
 	if USE_DUMMY:
@@ -78,22 +80,36 @@ func setup(p: Player) -> void:
 			_spawn_enemy(s)
 	if USE_CHESTS:
 		_chest(Vector3(-3.0, 0.0, -8.5), 0.0, [])
-		_chest(Vector3(9.0, 0.0, -8.5), 0.0, [["key", 1]])           # ключ от сейфа
+		_chest(Vector3(9.0, 0.0, -8.5), 0.0, [])
 		_chest(Vector3(-11.5, 0.0, 3.2), PI / 2.0, [])
-		var safe := Chest.new()
+		_chest(Vector3(2.2, 0.0, -2.15), PI, [])
+		_chest(Vector3(2.2, 0.0, 2.15), 0.0, [])
+		# сейф открывается только тремя семёрками на автомате KILLBOX (open_safe)
+		safe = Chest.new()
 		safe.kind = "safe"
-		safe.need_key = "key"
+		safe.locked = true
 		safe.random_loot = false
-		safe.extra = [["knuckles", 1], ["coin", 15], ["medkit", 1], ["battery", 1]]
+		safe.extra = [["knuckles", 1], ["coin", 60], ["medkit", 2], ["battery", 2], ["canned", 2], ["wallet", 1]]
 		safe.position = Vector3(11.5, 0.0, 7.0)
 		safe.rotation.y = -PI / 2.0
 		add_child(safe)
 	if USE_SLOTS:
-		var sm := SlotMachine.new()
-		sm.position = Vector3(-6.0, 0.0, 8.5)
-		sm.rotation.y = PI
-		add_child(sm)
+		# автомат создаёт main.gd (он же фон меню); если его нет — ставим свой
+		slot = get_parent().get_node_or_null("SlotMachine") as SlotMachine
+		if slot == null:
+			slot = SlotMachine.new()
+			slot.position = Vector3(-6.0, 0.0, 8.5)
+			slot.rotation.y = PI
+			add_child(slot)
+		slot.game = self
 
+
+## Три семёрки на автомате: открыть сейф. false — если сейф уже открыт (или его нет).
+func open_safe() -> bool:
+	if safe == null or not is_instance_valid(safe) or safe.opened:
+		return false
+	safe.force_open(self)
+	return true
 
 func _chest(pos: Vector3, rot: float, extra: Array) -> void:
 	var c := Chest.new()
@@ -257,7 +273,9 @@ func _quick_heal() -> void:
 	var best_v := INF
 	var biggest := ""
 	var biggest_v := 0.0
-	for id in ["rusk", "bandage", "medkit"]:
+	for id in Items.ITEMS:
+		if not Items.ITEMS[id].has("heal"):
+			continue
 		if inv.count(id) == 0:
 			continue
 		var v: float = Items.ITEMS[id]["heal"]
@@ -311,8 +329,12 @@ func use_item(idx: int) -> void:
 		play_ui("coin", -12.0, 0.6)
 	elif id == "coin":
 		hud.toast("Монеты тратятся в игровом автомате")
-	elif id == "key":
-		hud.toast("Ключ подходит к сейфу — подойди к нему и нажми E")
+	elif id == "wallet":
+		inv.take_at(idx, 1)
+		var c := randi_range(10, 40)
+		inv.add("coin", c)
+		hud.toast("В кошельке нашлось %d монет" % c, Color(0.92, 0.82, 0.55))
+		play_ui("coin", -11.0)
 	else:
 		hud.toast("Это нельзя использовать")
 

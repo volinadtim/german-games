@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Инвентарь (тестовая механика): сетка 5×4, стаки, Tab / I — открыть/закрыть (игра на паузе).
+## Инвентарь (тестовая механика): сетка 6×5, стаки, Tab / I — открыть/закрыть (игра на паузе).
 ## ЛКМ по слоту — использовать, ПКМ — выбросить 1 шт., Shift+ПКМ — выбросить весь стак.
 ## Сам инвентарь только хранит предметы и шлёт сигналы; что делает предмет — решает game.gd.
 
@@ -8,8 +8,8 @@ signal use_requested(idx: int)
 signal drop_requested(idx: int, all: bool)
 
 const Items := preload("res://items.gd")
-const COLS := 5
-const ROWS := 4
+const COLS := 6
+const ROWS := 5
 const SLOT := 76.0
 
 var slots: Array = []        # null или {"id": String, "n": int}
