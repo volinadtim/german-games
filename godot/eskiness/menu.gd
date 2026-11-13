@@ -46,17 +46,28 @@ func _ready() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.add_child(center)
+	# главное меню и пауза — колонкой справа, название над кнопками
+	var right := MarginContainer.new()
+	right.anchor_left = 0.5
+	right.anchor_right = 1.0
+	right.anchor_bottom = 1.0
+	right.add_theme_constant_override("margin_right", 90)
+	root.add_child(right)
+	var right_col := VBoxContainer.new()
+	right_col.alignment = BoxContainer.ALIGNMENT_CENTER
+	right.add_child(right_col)
 	# --- главное меню
-	main_box = _vbox(center)
-	main_box.add_child(_title("eskiNess", 96))
-	main_box.add_child(_gap(30))
+	main_box = _vbox(right_col)
+	main_box.add_child(_title("eskiNess", 104))
+	main_box.add_child(_subtitle("бункер. автомат. ничего хорошего."))
+	main_box.add_child(_gap(34))
 	main_box.add_child(_button("Играть", func(): play_pressed.emit()))
 	main_box.add_child(_button("Настройки", func(): _open_settings("main")))
 	main_box.add_child(_button("Выход", func(): get_tree().quit()))
 
 	# --- пауза
-	pause_box = _vbox(center)
-	pause_box.add_child(_title("ПАУЗА", 72))
+	pause_box = _vbox(right_col)
+	pause_box.add_child(_title("ПАУЗА", 80))
 	pause_box.add_child(_gap(24))
 	pause_box.add_child(_button("Продолжить", resume))
 	pause_box.add_child(_button("Настройки", func(): _open_settings("pause")))
@@ -229,19 +240,53 @@ func _save() -> void:
 
 func _vbox(parent: Control) -> VBoxContainer:
 	var b := VBoxContainer.new()
-	b.add_theme_constant_override("separation", 16)
+	b.add_theme_constant_override("separation", 12)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_END if parent is VBoxContainer else Control.SIZE_SHRINK_CENTER
 	parent.add_child(b)
 	return b
+
+
+## Мрачный шрифт меню: если в fonts/ лежит файл шрифта — берём его, иначе системный «тяжёлый».
+static var _font_cache: Font
+func _menu_font() -> Font:
+	if _font_cache:
+		return _font_cache
+	for path in ["res://fonts/menu.ttf", "res://fonts/menu.otf", "res://fonts/RubikDirt-Regular.ttf"]:
+		if ResourceLoader.exists(path):
+			_font_cache = load(path)
+			return _font_cache
+	var sf := SystemFont.new()
+	sf.font_names = PackedStringArray(["Bahnschrift SemiBold SemiConden", "Impact", "Franklin Gothic Demi Cond", "Arial Narrow", "sans-serif"])
+	sf.font_weight = 700
+	var fv := FontVariation.new()
+	fv.base_font = sf
+	fv.spacing_glyph = 2
+	_font_cache = fv
+	return _font_cache
 
 
 func _title(text: String, size: int) -> Label:
 	var t := Label.new()
 	t.text = text
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	t.add_theme_font_override("font", _menu_font())
 	t.add_theme_font_size_override("font_size", size)
-	t.add_theme_color_override("font_color", Color(0.86, 0.85, 0.8))
-	t.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.7))
-	t.add_theme_constant_override("shadow_offset_y", 4)
+	t.add_theme_color_override("font_color", Color(0.86, 0.82, 0.74))
+	t.add_theme_color_override("font_outline_color", Color(0.18, 0.03, 0.02, 0.9))
+	t.add_theme_constant_override("outline_size", 6)
+	t.add_theme_color_override("font_shadow_color", Color(0.5, 0.05, 0.03, 0.55))
+	t.add_theme_constant_override("shadow_offset_x", 3)
+	t.add_theme_constant_override("shadow_offset_y", 5)
+	return t
+
+
+func _subtitle(text: String) -> Label:
+	var t := Label.new()
+	t.text = text
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	t.add_theme_font_override("font", _menu_font())
+	t.add_theme_font_size_override("font_size", 20)
+	t.add_theme_color_override("font_color", Color(0.62, 0.5, 0.42, 0.85))
 	return t
 
 
@@ -251,21 +296,38 @@ func _gap(h: float) -> Control:
 	return g
 
 
+## Кнопка: тёмная полупрозрачная плашка, красная полоса слева, текст сдвигается при наведении.
 func _button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(280, 56)
-	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	b.add_theme_font_size_override("font_size", 30)
-	b.add_theme_color_override("font_color", Color(0.82, 0.81, 0.77))
-	b.add_theme_color_override("font_hover_color", Color(1, 1, 1))
-	b.add_theme_color_override("font_pressed_color", Color(0.7, 0.7, 0.7))
-	b.add_theme_stylebox_override("normal", _style(Color(0, 0, 0, 0.35), Color(1, 1, 1, 0.15)))
-	b.add_theme_stylebox_override("hover", _style(Color(1, 1, 1, 0.10), Color(1, 1, 1, 0.5)))
-	b.add_theme_stylebox_override("pressed", _style(Color(1, 1, 1, 0.05), Color(1, 1, 1, 0.3)))
+	b.text = text.to_upper()
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(340, 58)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_END
+	b.add_theme_font_override("font", _menu_font())
+	b.add_theme_font_size_override("font_size", 28)
+	b.add_theme_color_override("font_color", Color(0.8, 0.77, 0.7))
+	b.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.82))
+	b.add_theme_color_override("font_pressed_color", Color(0.85, 0.35, 0.25))
+	b.add_theme_stylebox_override("normal", _btn_style(Color(0.04, 0.02, 0.02, 0.55), Color(0.45, 0.08, 0.05, 0.85), 4, 22))
+	b.add_theme_stylebox_override("hover", _btn_style(Color(0.22, 0.05, 0.03, 0.6), Color(0.85, 0.18, 0.1), 8, 34))
+	b.add_theme_stylebox_override("pressed", _btn_style(Color(0.3, 0.05, 0.03, 0.7), Color(1.0, 0.3, 0.2), 8, 36))
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	b.pressed.connect(cb)
 	return b
+
+
+func _btn_style(bg: Color, accent: Color, bar: int, pad: float) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color = bg
+	s.border_color = accent
+	s.border_width_left = bar
+	s.border_width_bottom = 1
+	s.content_margin_left = pad
+	s.content_margin_right = 18
+	s.skew = Vector2(-0.12, 0)
+	s.shadow_color = Color(0, 0, 0, 0.45)
+	s.shadow_size = 6
+	return s
 
 
 func _style(bg: Color, border: Color) -> StyleBoxFlat:
