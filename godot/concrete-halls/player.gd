@@ -48,6 +48,9 @@ var whooshes: Array[AudioStreamWAV] = []
 var exhales: Array[AudioStreamWAV] = []
 var impacts: Array[AudioStreamWAV] = []
 var inhale_snd: AudioStreamWAV
+var exhale_out_snd: AudioStreamWAV   # опускание рук — тот же вдох задом наперёд
+var last_arm := -1
+var last_kind := ""
 var step_player: AudioStreamPlayer
 var step_noise_player: AudioStreamPlayer
 var step_noise: AudioStreamWAV
@@ -66,6 +69,7 @@ func _ready() -> void:
 		exhales.append(Sfx.exhale(i))
 		impacts.append(Sfx.impact(i))
 	inhale_snd = Sfx.inhale()
+	exhale_out_snd = Sfx.inhale(true)
 	step_noise_player = _audio(3)
 	step_noise = Sfx.step_noise()
 	_setup_step_bus()
@@ -285,20 +289,36 @@ func toggle_fists() -> void:
 	tw.tween_property(self, "fist_blend", 1.0 if fists else 0.0, 0.3).set_trans(Tween.TRANS_SINE)
 	for i in 2:
 		tw.tween_method(_pose_setter(i), arm_pose[i], GUARD if fists else REST, 0.3).set_trans(Tween.TRANS_SINE)
-	if fists:
-		voice_player.stream = inhale_snd
-		voice_player.volume_db = -14.0
-		voice_player.pitch_scale = randf_range(0.95, 1.05)
-		voice_player.play()
+	voice_player.stream = inhale_snd if fists else exhale_out_snd
+	voice_player.volume_db = -18.0
+	voice_player.pitch_scale = randf_range(0.95, 1.05)
+	voice_player.play()
 
 
 func punch() -> void:
 	if punching or fist_blend < 0.9:
 		return
 	punching = true
+	# рука: с шансом 75% другая, чем в прошлый раз
 	var i := randi() % 2
-	var r := randf()
-	var kind := "straight" if r < 0.45 else ("hook" if r < 0.75 else "upper")
+	if last_arm != -1:
+		i = (1 - last_arm) if randf() < 0.75 else last_arm
+	last_arm = i
+	# вид удара: базовые шансы, но прошлый вид выпадает реже (вес ×0.35)
+	var weights := {"straight": 0.45, "hook": 0.3, "upper": 0.25}
+	if last_kind != "":
+		weights[last_kind] *= 0.35
+	var total := 0.0
+	for k in weights:
+		total += weights[k]
+	var r := randf() * total
+	var kind := "straight"
+	for k in weights:
+		r -= weights[k]
+		if r <= 0.0:
+			kind = k
+			break
+	last_kind = kind
 	var keys: Array = PUNCHES[kind]
 	var tw := create_tween()
 	tw.tween_method(_pose_setter(i), arm_pose[i], keys[0], 0.08).set_trans(Tween.TRANS_SINE)

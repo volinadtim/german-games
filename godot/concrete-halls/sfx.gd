@@ -128,19 +128,26 @@ static func exhale(variant: int) -> AudioStreamWAV:
 
 
 ## Короткий вдох носом/ртом при поднятии рук.
-static func inhale() -> AudioStreamWAV:
+static func inhale(reverse := false) -> AudioStreamWAV:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 600
 	var n := int(RATE * 0.5)
 	var buf := PackedFloat32Array()
 	buf.resize(n)
-	var f1 := Svf.new(1700.0, 1.3)
-	var f2 := Svf.new(3800.0, 1.0)
+	var f1 := Svf.new(1500.0, 1.3)
+	var f2 := Svf.new(3400.0, 1.0)
+	var lo1 := 0.0
+	var lo2 := 0.0
 	for i in n:
 		var t := float(i) / RATE
 		var w := rng.randf() * 2.0 - 1.0
+		lo1 += (w - lo1) * 0.03      # ~100 Гц — лёгкий басовый призвук
+		lo2 += (lo1 - lo2) * 0.03
 		var env := smoothstep(0.0, 0.3, t) * (1.0 - smoothstep(0.32, 0.48, t))
-		buf[i] = (f1.bp(w) + f2.bp(w) * 0.4) * env
+		# верха чуть урезаны (вторая полоса тише и ниже), бас добавлен совсем немного
+		buf[i] = (f1.bp(w) + f2.bp(w) * 0.25 + lo2 * 1.2) * env
+	if reverse:
+		buf.reverse()
 	return _wav(buf, 0.45)
 
 
