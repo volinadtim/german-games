@@ -5,7 +5,7 @@ extends CharacterBody3D
 const Sfx := preload("res://sfx.gd")
 const STEP_SND := preload("res://sounds/step.mp3")   # звук шага, присланный в чат
 const STEP_SPEED := 1.6     # во сколько раз ускоряем
-const STEP_PITCH := 0.88    # итоговая высота тона относительно оригинала (чуть ниже)
+const STEP_PITCH := 1.0     # итоговая высота тона относительно оригинала (1.0 — как в файле)
 
 const WALK := 3.4
 const SPRINT := 6.4
