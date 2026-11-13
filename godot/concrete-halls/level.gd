@@ -1,3 +1,4 @@
+@tool
 extends Node3D
 ## Заброшенное бетонное помещение: короткий общий коридор вдоль X, по две комнаты с каждой стороны.
 ##   север (z < 0): комнаты с центрами x = -6, 6
@@ -24,6 +25,10 @@ var wire_mat: StandardMaterial3D
 var rng := RandomNumberGenerator.new()
 var noise_extra: Array = []
 
+## Кнопка в инспекторе (выдели узел Level): сохраняет сгенерированную локацию в обычную сцену
+## res://level_baked.tscn — с настоящими узлами, мешами и материалами, которые можно двигать и править руками.
+@export_tool_button("Запечь в level_baked.tscn", "PackedScene") var bake_action = _bake
+
 
 func _ready() -> void:
 	rng.seed = 7
@@ -39,6 +44,9 @@ func _ready() -> void:
 	wire_mat.albedo_color = Color(0.05, 0.05, 0.05)
 	wire_mat.roughness = 0.5
 	_build()
+	var we := WorldEnvironment.new()
+	we.environment = _make_env()
+	add_child(we)
 
 
 func _build() -> void:
@@ -311,3 +319,49 @@ func _concrete(big: Texture2D, fine: Texture2D, base: Color, polished := false) 
 	m.set_shader_parameter("ceiling_h", H)
 	m.set_shader_parameter("polished", 1.0 if polished else 0.0)
 	return m
+
+
+func _make_env() -> Environment:
+	var e := Environment.new()
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = Color(0.01, 0.01, 0.012)
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color(0.62, 0.55, 0.46)
+	e.ambient_light_energy = 0.16
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	e.ssao_enabled = true
+	e.ssao_radius = 1.4
+	e.ssao_intensity = 3.0
+	e.ssao_power = 2.0
+	e.ssao_light_affect = 0.3
+	e.ssr_enabled = true
+	e.ssr_max_steps = 64
+	e.glow_enabled = true
+	e.glow_intensity = 0.6
+	e.fog_enabled = true
+	e.fog_light_color = Color(0.04, 0.04, 0.045)
+	e.fog_density = 0.03
+	e.volumetric_fog_enabled = true
+	e.volumetric_fog_density = 0.025
+	e.volumetric_fog_albedo = Color(0.8, 0.8, 0.8)
+	return e
+
+
+func _bake() -> void:
+	var root := Node3D.new()
+	root.name = "LevelBaked"
+	for c in get_children():
+		var d := c.duplicate()
+		root.add_child(d)
+		_own(d, root)
+	var ps := PackedScene.new()
+	ps.pack(root)
+	var err := ResourceSaver.save(ps, "res://level_baked.tscn")
+	root.free()
+	print("level_baked.tscn: ", "сохранено" if err == OK else "ошибка %d" % err)
+
+
+func _own(n: Node, o: Node) -> void:
+	n.owner = o
+	for c in n.get_children():
+		_own(c, o)

@@ -1,9 +1,10 @@
+@tool
 extends OmniLight3D
 ## Лампа: ровный тёплый свет; у «больных» ламп — редкие случайные сбои (одно моргание, серия или долгий провал).
 
-var base_energy := 0.8
-var flicker := true
-var lamp_mat: StandardMaterial3D
+@export var base_energy := 0.8
+@export var flicker := true
+@export var lamp_mat: StandardMaterial3D
 
 var _t := 0.0
 var _off := 0.0        # сколько ещё лампа «провалена»
@@ -14,6 +15,9 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		set_process(false)   # в редакторе не мигаем
+		light_energy = base_energy
 	_rng.randomize()
 	_t = _rng.randf_range(0.0, 100.0)
 	_next = _rng.randf_range(3.0, 15.0)

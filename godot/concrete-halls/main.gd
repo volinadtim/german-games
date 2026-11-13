@@ -1,7 +1,6 @@
 extends Node3D
 ## Точка входа: уровень, меню с пролётом камеры, переход в игру.
 
-const Level := preload("res://level.gd")
 const Player := preload("res://player.gd")
 const Menu := preload("res://menu.gd")
 const Ambience := preload("res://ambience.gd")
@@ -30,11 +29,7 @@ var fade: ColorRect
 func _ready() -> void:
 	_setup_input()
 
-	var we := WorldEnvironment.new()
-	we.environment = _make_env()
-	add_child(we)
-
-	add_child(Level.new())
+	# уровень (и освещение/окружение) — узел Level в main.tscn, он виден и в редакторе
 	add_child(Ambience.new())
 
 	curve = Curve3D.new()
@@ -120,32 +115,6 @@ static func toggle_fullscreen() -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	else:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-
-
-func _make_env() -> Environment:
-	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color(0.01, 0.01, 0.012)
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.62, 0.55, 0.46)
-	e.ambient_light_energy = 0.16
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.ssao_enabled = true
-	e.ssao_radius = 1.4
-	e.ssao_intensity = 3.0
-	e.ssao_power = 2.0
-	e.ssao_light_affect = 0.3
-	e.ssr_enabled = true
-	e.ssr_max_steps = 64
-	e.glow_enabled = true
-	e.glow_intensity = 0.6
-	e.fog_enabled = true
-	e.fog_light_color = Color(0.04, 0.04, 0.045)
-	e.fog_density = 0.03
-	e.volumetric_fog_enabled = true
-	e.volumetric_fog_density = 0.025
-	e.volumetric_fog_albedo = Color(0.8, 0.8, 0.8)
-	return e
 
 
 func _setup_input() -> void:
