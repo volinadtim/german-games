@@ -3,8 +3,8 @@ shader_type canvas_item;
 // и затемнение справа — будто игровой автомат светит в темноту.
 
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
-uniform float lod : hint_range(0.0, 6.0) = 1.0;
-uniform float spread = 2.0;
+uniform float lod : hint_range(0.0, 6.0) = 1.4;
+uniform float spread = 2.6;
 uniform float darken = 0.88;
 uniform float vignette = 0.55;
 uniform float grain = 0.045;

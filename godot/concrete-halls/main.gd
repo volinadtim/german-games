@@ -9,8 +9,8 @@ const SlotMachine := preload("res://slot_machine.gd")
 
 ## Меню: неподвижная камера под углом к игровому автомату KILLBOX (он стоит в юго-западной комнате).
 const SLOT_POS := Vector3(-6.0, 0.0, 8.5)
-const MENU_CAM_POS := Vector3(-7.7, 1.5, 6.95)
-const MENU_CAM_LOOK := Vector3(-4.9, 1.35, 7.75)
+const MENU_CAM_POS := Vector3(-7.25, 1.5, 6.45)
+const MENU_CAM_LOOK := Vector3(-4.75, 1.4, 7.95)
 
 var menu_cam: Camera3D
 var fly_t := 0.0
