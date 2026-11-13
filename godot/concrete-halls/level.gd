@@ -385,7 +385,7 @@ func _decal(tex: Texture2D, pos: Vector3, proj_up: Vector3, base_dir: Vector3, s
 	var d := Decal.new()
 	d.texture_albedo = tex
 	d.size = size
-	d.modulate = Color(1, 1, 1, 0.55)
+	d.modulate = Color(1, 1, 1, 0.7)
 	d.normal_fade = 0.4
 	d.upper_fade = 0.1
 	d.lower_fade = 0.1
@@ -401,7 +401,8 @@ func _crack_tex(seed_: int) -> ImageTexture:
 	img.fill(Color(0, 0, 0, 0))
 	var r := RandomNumberGenerator.new()
 	r.seed = seed_
-	_crack_branch(img, r, Vector2(64 + r.randf_range(-10, 10), 255), -PI / 2 + r.randf_range(-0.4, 0.4), 2.2, r.randf_range(150, 240), 2)
+	_crack_branch(img, r, Vector2(64 + r.randf_range(-10, 10), 255), -PI / 2 + r.randf_range(-0.4, 0.4), 3.2, r.randf_range(150, 240), 2)
+	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
 
@@ -410,17 +411,23 @@ func _crack_branch(img: Image, r: RandomNumberGenerator, p: Vector2, ang: float,
 	var travelled := 0.0
 	while travelled < length:
 		# ломаная: короткие прямые отрезки с резкими изломами
-		ang = clampf(ang + r.randf_range(-0.9, 0.9), base - 0.9, base + 0.9)
+		ang = clampf(ang + r.randf_range(-0.8, 0.8), base - 0.6, base + 0.6)
+		# у края текстуры разворачиваемся к центру
+		if p.x < 20.0:
+			ang = clampf(ang, -PI / 2 - 0.2, -PI / 2 + 0.6)
+		elif p.x > 108.0:
+			ang = clampf(ang, -PI / 2 - 0.6, -PI / 2 + 0.2)
 		var seg := r.randf_range(4.0, 11.0)
 		var q := p + Vector2(cos(ang), sin(ang)) * seg
 		var k := 1.0 - travelled / length
-		_line(img, p, q, maxf(width * k, 0.6))
+		_line(img, p, q, maxf(width * k, 1.0))
 		if depth > 0 and r.randf() < 0.1:
 			_crack_branch(img, r, q, ang + r.randf_range(-1.0, 1.0), width * 0.6 * k, length * 0.35 * k, depth - 1)
 		travelled += seg
 		p = q
-		if p.y < 2.0 or p.x < 2.0 or p.x > 125.0:
+		if p.y < 2.0:
 			break
+		p.x = clampf(p.x, 3.0, 125.0)
 
 
 func _line(img: Image, a: Vector2, b: Vector2, w: float) -> void:

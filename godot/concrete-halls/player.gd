@@ -17,11 +17,11 @@ const ACCEL_SPRINT := 3.2
 
 # позы руки в градусах: x — подъём плеча вперёд, y — внутрь, z — в сторону, w — сгиб локтя
 const REST := Vector4(0, 0, 0, 10)
-const GUARD := Vector4(72, 16, 6, 68)
+const GUARD := Vector4(65, 13, 4, 65)
 const PUNCHES := {
-	"straight": [Vector4(66, 20, 4, 80), Vector4(88, 9, 0, 4)],
-	"hook": [Vector4(78, -30, 30, 85), Vector4(84, 38, 26, 80)],
-	"upper": [Vector4(30, 12, 6, 105), Vector4(98, 14, 0, 60)],
+	"straight": [Vector4(60, 16, 4, 80), Vector4(98, 8, 0, 6)],
+	"hook": [Vector4(78, -32, 12, 40), Vector4(92, 34, 0, 28)],
+	"upper": [Vector4(35, 12, 6, 105), Vector4(88, 12, 0, 48)],
 }
 
 var active := false
@@ -152,7 +152,7 @@ func _build_body() -> void:
 		fore.height = 0.34
 		_part(el, fore, Vector3(0, -0.14, 0), jacket)
 		var fist := SphereMesh.new()
-		fist.radius = 0.058
+		fist.radius = 0.05
 		fist.height = 0.11
 		var f := _part(el, fist, Vector3(0, -0.32, 0), skin)
 		f.scale = Vector3(1.0, 1.15, 1.2)
@@ -321,6 +321,8 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
 	head.position.y = CAM_Y + sin(phase * 2.0) * 0.03 * bob
 	head.position.x = sin(phase) * 0.015 * bob
+	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
+	head.position.z = lerpf(-0.22, -0.02, fist_blend)
 	# шаг — каждый раз, когда нога проходит нижнюю точку (полпериода качания)
 	var s := int(floor(phase / PI))
 	if s != last_step:
