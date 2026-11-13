@@ -28,6 +28,7 @@ const EQUIP_NAMES := {"head": "Голова", "body": "Тело", "hands": "Ру
 const DOLL_POS := {"head": Vector2(113, 4), "body": Vector2(113, 92), "left": Vector2(16, 92), "right": Vector2(210, 92),
 	"hands": Vector2(210, 180), "legs": Vector2(113, 180), "feet": Vector2(113, 266)}
 const HOLD_TIME := 0.35
+const TOUCH_HOLD := 0.5                 # палец: столько держать на ячейке, чтобы выбросить
 
 var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
@@ -44,6 +45,9 @@ var craft_box: VBoxContainer
 var _press_key = null
 var hold_key = null              # что выбрасываем удержанием ПКМ: номер ячейки или "coin"
 var hold_t := 0.0
+var touch_key = null             # палец держит эту ячейку (долгое нажатие = выбросить)
+var touch_t := 0.0
+var touch_sel = null             # последняя ячейка, которой коснулись (для привязки к хотбару без наведения)
 var wallet_l: Label
 var dlg: PanelContainer           # окно «сколько выбросить»
 var dlg_title: Label
@@ -95,6 +99,16 @@ class Slot extends Control:
 			draw_string(f, Vector2(5, 17), str(hk + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.8, 0.4))
 
 	func _gui_input(e: InputEvent) -> void:
+		# палец (мышь, эмулированная из касаний): долгое нажатие — как ПКМ, выбросить
+		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.device == InputEvent.DEVICE_ID_EMULATION:
+			if e.pressed:
+				inv.touch_sel = key
+				inv.set_hover(key)
+				if item_id() != "":
+					inv.touch_key = key
+					inv.touch_t = 0.0
+			else:
+				inv.touch_key = null
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_RIGHT and item_id() != "":
 			if key is String:
 				inv.drop_equipped_requested.emit(key)
@@ -263,7 +277,11 @@ func _build_ui() -> void:
 	info_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_desc.custom_minimum_size = Vector2(COLS * (SLOT + 6), 42)
 	vb.add_child(info_desc)
-	var hint := _label("ЛКМ — использовать    ПКМ — выбросить    1–5 — хотбар    Tab — закрыть", 14, Color(0.55, 0.55, 0.52))
+	var hint_text := "ЛКМ — использовать    ПКМ — выбросить    1–5 — хотбар    Tab — закрыть"
+	if preload("res://touch_controls.gd").wanted():
+		hint_text = "Нажать — использовать    Подержать — выбросить
+Перетащить — переложить    Коснулся предмета + ячейка 1–5 внизу — хотбар"
+	var hint := _label(hint_text, 14, Color(0.55, 0.55, 0.52))
 	vb.add_child(hint)
 
 	var cb := VBoxContainer.new()
@@ -440,6 +458,7 @@ func start_hold(key, _mx: int) -> void:
 
 
 func _process(delta: float) -> void:
+	_touch_hold(delta)
 	if hold_key == null:
 		return
 	hold_t += delta
@@ -450,6 +469,26 @@ func _process(delta: float) -> void:
 			open_drop_dialog(k)
 		else:
 			_finish_hold_key(k)
+
+
+## Палец держат на ячейке TOUCH_HOLD секунд и не тащат — окно «сколько выбросить» (снаряжение — снять на пол).
+func _touch_hold(delta: float) -> void:
+	if touch_key == null:
+		return
+	if not open or get_viewport().gui_is_dragging():
+		touch_key = null
+		return
+	touch_t += delta
+	if touch_t < TOUCH_HOLD:
+		return
+	var k = touch_key
+	touch_key = null
+	_press_key = null   # отпускание пальца уже не «использовать»
+	if k is String:
+		if equip[k] != "":
+			drop_equipped_requested.emit(k)
+	elif slots[k] != null:
+		open_drop_dialog(k)
 
 
 func _finish_hold() -> void:
@@ -464,13 +503,14 @@ func _finish_hold_key(k) -> void:
 
 
 func _bind_hover(k: int) -> void:
-	if hover == null:
+	var h = hover if hover != null else touch_sel
+	if h == null:
 		return
 	var id := ""
-	if hover is String:
-		id = equip[hover]
-	elif slots[hover] != null:
-		id = slots[hover]["id"]
+	if h is String:
+		id = equip[h]
+	elif slots[h] != null:
+		id = slots[h]["id"]
 	if id == "":
 		return
 	if hotbar[k] == id:
@@ -500,6 +540,8 @@ func close() -> void:
 	root.visible = false
 	hover = null
 	hold_key = null
+	touch_key = null
+	touch_sel = null
 	dlg.visible = false
 	if not get_tree().paused:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

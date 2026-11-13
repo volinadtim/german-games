@@ -6,6 +6,7 @@ const Menu := preload("res://menu.gd")
 const Ambience := preload("res://ambience.gd")
 const Game := preload("res://game.gd")   # тестовые механики (боёвка, лут, инвентарь, автомат…)
 const SlotMachine := preload("res://slot_machine.gd")
+const TouchControls := preload("res://touch_controls.gd")   # экранное управление (телефон)
 
 ## Меню: неподвижная камера под углом к игровому автомату KILLBOX (он стоит в юго-западной комнате).
 const SLOT_POS := Vector3(-6.0, 0.0, 8.5)
@@ -25,6 +26,10 @@ var post_mat: ShaderMaterial
 
 func _ready() -> void:
 	_setup_input()
+	# телефон: интерфейс крупнее, но так, чтобы окна влезали при любом соотношении сторон
+	if TouchControls.wanted():
+		TouchControls.fit_ui(get_window())
+		get_window().size_changed.connect(func(): TouchControls.fit_ui(get_window()))
 
 	# уровень (и освещение/окружение) — узел Level в main.tscn, он виден и в редакторе
 	add_child(Ambience.new())
@@ -120,7 +125,6 @@ func _enter_game() -> void:
 	add_child(game)
 	game.setup(player)
 	# экранное управление — только на телефонах (или с флагом запуска `-- --touch`)
-	var TouchControls := preload("res://touch_controls.gd")
 	if TouchControls.wanted():
 		var tc := TouchControls.new()
 		tc.setup(player, game)

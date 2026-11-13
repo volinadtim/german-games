@@ -20,12 +20,28 @@ var stick_on := false
 var held := {}               # кнопки, которые сейчас зажаты (для подсветки)
 var capture_seen := false    # захват мыши на этом устройстве вообще работает
 var gameplay := false
+var inv_open := false
 var _pressed_moves := {}
 
 
 ## Нужно ли экранное управление на этом устройстве.
 static func wanted() -> bool:
 	return OS.has_feature("mobile") or "--touch" in OS.get_cmdline_user_args()
+
+
+## Крупнее интерфейс на телефоне: увеличиваем масштаб, пока окна игры (инвентарь ~1220×480,
+## магазин ~1200×580) ещё влезают. Работает только вместе с stretch mode canvas_items (project.godot, .mobile).
+static func fit_ui(win: Window) -> void:
+	if win.content_scale_mode == Window.CONTENT_SCALE_MODE_DISABLED:
+		return
+	var sz := Vector2(win.size)
+	if sz.x <= 0 or sz.y <= 0:
+		return
+	var base := Vector2(win.content_scale_size)   # 1280×720
+	# логический размер при масштабе 1 (aspect = expand: короткая сторона не меньше базовой)
+	var ratio := sz.x / sz.y
+	var logical := Vector2(base.y * ratio, base.y) if ratio >= base.x / base.y else Vector2(base.x, base.x / ratio)
+	win.content_scale_factor = clampf(minf(logical.x / 1240.0, logical.y / 600.0), 1.0, 1.25)
 
 
 func setup(p: Node, g: Node) -> void:
@@ -45,20 +61,30 @@ func _ready() -> void:
 
 # ---------- раскладка ----------
 
-## Кнопки: имя -> [центр, радиус, подпись, только в игре (а не в меню/инвентаре)].
+## Кнопки: имя -> [центр, радиус, подпись, когда видна: "game" — в игре,
+## "bag" — в игре и в открытом инвентаре, "any" — всегда (кроме паузы)].
 func _buttons() -> Dictionary:
 	var s := root.size
 	return {
-		"attack": [Vector2(s.x - 150, s.y - 190), 72.0, "УДАР", true],
-		"fists": [Vector2(s.x - 300, s.y - 120), 46.0, "СТОЙКА", true],
-		"jump": [Vector2(s.x - 300, s.y - 255), 46.0, "ПРЫЖОК", true],
-		"interact": [Vector2(s.x - 175, s.y - 365), 44.0, "E", true],
-		"flashlight": [Vector2(s.x - 60, 190), 34.0, "СВЕТ", true],
-		"gasmask": [Vector2(s.x - 60, 270), 34.0, "МАСКА", true],
-		"quick_heal": [Vector2(s.x - 60, 350), 34.0, "ЛЕЧИТЬ", true],
-		"inventory": [Vector2(s.x - 140, 50), 32.0, "СУМКА", false],
-		"ui_cancel": [Vector2(s.x - 55, 50), 32.0, "II", true],
+		"attack": [Vector2(s.x - 160, s.y - 150), 74.0, "УДАР", "game"],
+		"fists": [Vector2(s.x - 320, s.y - 90), 48.0, "СТОЙКА", "game"],
+		"jump": [Vector2(s.x - 320, s.y - 235), 48.0, "ПРЫЖОК", "game"],
+		"interact": [Vector2(s.x - 200, s.y - 330), 46.0, "E", "game"],
+		"flashlight": [Vector2(s.x - 58, 150), 40.0, "СВЕТ", "game"],
+		"gasmask": [Vector2(s.x - 58, 240), 40.0, "МАСКА", "game"],
+		"quick_heal": [Vector2(s.x - 58, 330), 40.0, "ЛЕЧИТЬ", "game"],
+		"inventory": [Vector2(s.x - 150, 52), 38.0, "СУМКА", "bag"],
+		"ui_cancel": [Vector2(s.x - 58, 52), 38.0, "II", "any"],
 	}
+
+
+func _shown(b: Array) -> bool:
+	match b[3]:
+		"game":
+			return gameplay
+		"bag":
+			return gameplay or inv_open
+	return true
 
 
 ## Ячейки хотбара — там же, где их рисует hud.gd (внизу по центру).
@@ -80,7 +106,8 @@ func _process(_delta: float) -> void:
 	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		capture_seen = true
 	var ui_open := get_tree().paused
-	if game and game.inv and game.inv.open:
+	inv_open = game != null and game.inv != null and game.inv.open
+	if inv_open:
 		ui_open = true
 	if game and game.shop and game.shop.opened:
 		ui_open = true
@@ -131,13 +158,15 @@ func _role_at(p: Vector2) -> String:
 	var bs := _buttons()
 	for name in bs:
 		var b: Array = bs[name]
-		if (gameplay or not b[3]) and p.distance_to(b[0]) <= b[1] + 10.0:
+		if _shown(b) and p.distance_to(b[0]) <= b[1] + 10.0:
 			return name
+	# хотбар: в игре — использовать, в инвентаре — привязать выбранный предмет
+	if gameplay or inv_open:
+		for k in 5:
+			if _hot_rect(k).has_point(p):
+				return "hot_%d" % (k + 1)
 	if not gameplay:
 		return ""
-	for k in 5:
-		if _hot_rect(k).has_point(p):
-			return "hot_%d" % (k + 1)
 	if p.x < root.size.x * 0.4:
 		return "stick" if p.y > root.size.y * 0.3 else ""
 	return "look"
@@ -226,7 +255,7 @@ func _draw_ui() -> void:
 	var bs := _buttons()
 	for name in bs:
 		var b: Array = bs[name]
-		if b[3] and not gameplay:
+		if not _shown(b):
 			continue
 		var c: Vector2 = b[0]
 		var r: float = b[1]
@@ -235,6 +264,13 @@ func _draw_ui() -> void:
 		root.draw_arc(c, r, 0, TAU, 40, Color(1, 0.85, 0.55, 0.75) if on else Color(1, 1, 1, 0.35), 2.0, true)
 		var fs := 22 if r > 60 else (16 if r > 40 else 13)
 		var label: String = b[2]
+		if name == "ui_cancel" and not gameplay:
+			# в окнах эта кнопка закрывает окно — рисуем крестик
+			var k := r * 0.38
+			var cc := Color(1, 1, 1, 0.85)
+			root.draw_line(c + Vector2(-k, -k), c + Vector2(k, k), cc, 3.0, true)
+			root.draw_line(c + Vector2(-k, k), c + Vector2(k, -k), cc, 3.0, true)
+			continue
 		if name == "fists" and player and player.fists:
 			label = "ОПУСТИТЬ"
 			fs = 12
