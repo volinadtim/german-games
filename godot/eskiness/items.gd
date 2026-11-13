@@ -17,6 +17,8 @@ const ITEMS := {
 		"icon": "choco", "color": Color(0.36, 0.2, 0.12), "buff": "resist", "power": 0.20, "time": 60.0},
 	"soda": {"name": "Газировка", "desc": "Напиток: +30% к скорости на 60 с.", "stack": 6,
 		"icon": "soda", "color": Color(0.75, 0.2, 0.15), "buff": "speed", "power": 0.30, "time": 60.0},
+	"broom": {"name": "Метла с совком", "desc": "Использовать у битого стекла — вымести его.", "stack": 1,
+		"icon": "broom", "color": Color(0.6, 0.48, 0.25)},
 	"flashlight": {"name": "Фонарик", "desc": "F или клавиша хотбара — включить. Нужны батарейки.", "stack": 1,
 		"icon": "flashlight", "color": Color(0.3, 0.32, 0.3)},
 	"battery": {"name": "Батарейка", "desc": "Полностью заряжает фонарик (F).", "stack": 10,
@@ -219,6 +221,11 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				c + Vector2(s * 0.24, -s * 0.1), c + Vector2(s * 0.1, s * 0.32)])
 			ci.draw_colored_polygon(pts, Color(col.r, col.g, col.b, 0.75))
 			ci.draw_line(c + Vector2(-s * 0.05, -s * 0.2), c + Vector2(s * 0.05, s * 0.1), Color(1, 1, 1, 0.8), maxf(1.0, s * 0.03))
+		"broom":
+			ci.draw_line(c + Vector2(-s * 0.3, -s * 0.36), c + Vector2(s * 0.08, s * 0.12), Color(0.5, 0.36, 0.2), maxf(2.0, s * 0.06))
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, s * 0.06), c + Vector2(s * 0.16, -s * 0.06),
+				c + Vector2(s * 0.36, s * 0.22), c + Vector2(s * 0.16, s * 0.36)]), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.38, s * 0.2), Vector2(s * 0.3, s * 0.14)), Color(0.3, 0.32, 0.3))
 		"flashlight":
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.32, -s * 0.08), Vector2(s * 0.42, s * 0.16)), col)
 			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(s * 0.1, -s * 0.08), c + Vector2(s * 0.3, -s * 0.16),
@@ -355,6 +362,10 @@ static func make_mesh(id: String) -> Node3D:
 			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			m.albedo_color = Color(col.r, col.g, col.b, 0.6)
 			m.roughness = 0.1
+		"broom":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.6, 0.03, 0.12)
+			mi.mesh = bm
 		"flashlight":
 			var cm := CylinderMesh.new()
 			cm.top_radius = 0.03

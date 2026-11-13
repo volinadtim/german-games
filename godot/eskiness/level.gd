@@ -484,46 +484,7 @@ func _floor_litter() -> void:
 	var mmi := MultiMeshInstance3D.new()
 	mmi.multimesh = mm
 	add_child(mmi)
-	# осколки стекла: под поломанной лампой и в паре мест
-	var glass := StandardMaterial3D.new()
-	# осколки заметнее: крупнее, светлее, с лёгким свечением и бликами-искрами
-	glass.albedo_color = Color(0.62, 0.72, 0.7, 0.5)
-	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass.roughness = 0.02
-	glass.metallic_specular = 1.0
-	glass.emission_enabled = true
-	glass.emission = Color(0.55, 0.65, 0.62)
-	glass.emission_energy_multiplier = 0.25
-	var glint := StandardMaterial3D.new()
-	glint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	glint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glint.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	glint.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	glint.albedo_color = Color(0.9, 0.95, 1.0, 0.55)
-	var glint_q := QuadMesh.new()
-	glint_q.size = Vector2(0.014, 0.014)
-	glass.cull_mode = BaseMaterial3D.CULL_DISABLED
-	for spot in [[Vector3(-5.6, 0, 0.1), 0.9, 30], [Vector3(9.5, 0, -6.5), 0.5, 12], [Vector3(-9.0, 0, 6.8), 0.5, 10]]:
-		for j in spot[2]:
-			var pm := PrismMesh.new()
-			var a := rng.randf_range(0.02, 0.06)
-			pm.size = Vector3(a, a * rng.randf_range(0.8, 2.0), 0.003)
-			pm.left_to_right = rng.randf()
-			var mi := MeshInstance3D.new()
-			mi.mesh = pm
-			mi.material_override = glass
-			var off: Vector2 = Vector2.from_angle(rng.randf() * TAU) * float(spot[1]) * sqrt(rng.randf())
-			mi.position = (spot[0] as Vector3) + Vector3(off.x, 0.002, off.y)
-			mi.rotation = Vector3(-PI / 2 + rng.randf_range(-0.08, 0.08), rng.randf() * TAU, 0)
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			add_child(mi)
-			if j % 4 == 0:
-				var gl := MeshInstance3D.new()
-				gl.mesh = glint_q
-				gl.material_override = glint
-				gl.position = mi.position + Vector3(0, 0.012, 0)
-				gl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				add_child(gl)
+	# битое стекло теперь раскидывает game.gd (glass_floor.gd) — случайно в каждой новой игре
 
 
 ## Случайная точка на полу недалеко от какой-нибудь стены (не в проёме).

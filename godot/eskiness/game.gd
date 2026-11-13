@@ -8,6 +8,7 @@ const Player := preload("res://player.gd")
 const Hud := preload("res://hud.gd")
 const Inventory := preload("res://inventory.gd")
 const Items := preload("res://items.gd")
+const GlassFloor := preload("res://glass_floor.gd")
 const Save := preload("res://save.gd")
 const Fx := preload("res://fx.gd")
 const Pickup := preload("res://pickup.gd")
@@ -131,8 +132,11 @@ func setup(p: Player) -> void:
 	tape.position = Vector3(-6.95, 0.95, 8.66)
 	add_child(tape)
 	# осколки стекла на полу (там, где битое стекло) — материал для ножика
-	for gp in [Vector3(-5.4, 0.1, 0.4), Vector3(9.6, 0.1, -6.3), Vector3(-9.1, 0.1, 6.6)]:
-		_make_pickup("glass", 1, gp, Vector3.ZERO)
+	glass_floor = GlassFloor.new()
+	add_child(glass_floor)
+	glass_floor.generate()
+	for sp in glass_floor.spots:
+		_make_pickup("glass", 1, (sp[0] as Vector3) + Vector3(0.2, 0.1, 0.2), Vector3.ZERO)
 	shop = get_parent().get_node_or_null("Shop") as Shop
 	if shop:
 		shop.game = self
@@ -280,7 +284,7 @@ func _unhandled_input(e: InputEvent) -> void:
 # ---------- стекло и кровотечение (промпт 20:02) ----------
 ## Битое стекло на полу (те же места, что в level.gd: _floor_litter): наступил — −5 здоровья
 ## и кровотечение 10 с по 3 в секунду. Повторный наступ обновляет таймер. Снимает бинт или аптечка.
-const GLASS_SPOTS := [[Vector3(-5.6, 0, 0.1), 0.9], [Vector3(9.5, 0, -6.5), 0.5], [Vector3(-9.0, 0, 6.8), 0.5]]
+var glass_floor: GlassFloor   # кучки стекла (glass_floor.gd), случайные каждую новую игру
 const BLEED_TIME := 10.0
 const BLEED_DPS := 3.0
 var on_glass := false
@@ -307,7 +311,7 @@ func _glass(delta: float) -> void:
 	var pp := player.global_position
 	var now := false
 	if alive and player.is_on_floor() and pp.y < 0.4:
-		for g in GLASS_SPOTS:
+		for g in glass_floor.spots:
 			var c: Vector3 = g[0]
 			if Vector2(pp.x - c.x, pp.z - c.z).length() < float(g[1]) + 0.1:
 				now = true
@@ -537,6 +541,16 @@ func use_item(idx: int) -> void:
 			stop_bleeding()
 		hud.toast("%s: +%d здоровья" % [def["name"], int(def["heal"])], Color(0.7, 0.9, 0.6))
 		play_ui("pickup", -12.0, 0.8)
+	elif id == "broom":
+		var gi := glass_floor.nearest(player.global_position, 1.8)
+		if gi < 0:
+			hud.toast("Рядом нет стекла")
+		else:
+			var c: Vector3 = glass_floor.spots[gi][0]
+			glass_floor.sweep(gi)
+			Fx.dust_burst(self, c + Vector3(0, 0.1, 0), Color(0.42, 0.4, 0.37), 12)
+			play_at("creak", c, -18.0, 2.2)
+			hud.toast("Стекло выметено", Color(0.8, 0.85, 0.7))
 	elif id == "flashlight":
 		if flashlight:
 			flashlight.toggle()
@@ -744,7 +758,7 @@ func drop_coins(n: int) -> void:
 ## Выбросил много монет (CHEAT_DROP+), оставил себе мало (≤ CHEAT_KEEP) и пошёл крутить KILLBOX —
 ## с поверхности по лестнице спускаются 5 монстров и охотятся на игрока прямо в бункере.
 ## Подобрал выброшенные монеты обратно — счётчик уменьшается.
-const CHEAT_DROP := 30
+const CHEAT_DROP := 10        # стартовых монет мало, поэтому порог низкий (промпт 23:59)
 const CHEAT_KEEP := 20
 var dropped_coins := 0
 var chests: Array = []
@@ -763,7 +777,7 @@ var hunters: Array = []
 
 ## Вызывает автомат после оплаты крутки. true — мухлёж пойман.
 func cheat_check() -> bool:
-	if dropped_coins < CHEAT_DROP or inv.coins > CHEAT_KEEP:
+	if dropped_coins < CHEAT_DROP or inv.coins > CHEAT_KEEP or dropped_coins < inv.coins:
 		return false
 	dropped_coins = 0
 	hud.cheat_warning(true)
@@ -902,6 +916,7 @@ func save_state() -> Dictionary:
 		"floor": floor_items,
 		"dropped_coins": dropped_coins,
 		"hunters": alive_hunters,
+		"glass": glass_floor.to_save(),
 		"slot_credits": slot.credits if slot else 0,
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
 	}
@@ -970,6 +985,8 @@ func load_state(d: Dictionary) -> void:
 		if bool(it.get("dropped", false)):
 			p.set_meta("dropped", true)
 	dropped_coins = int(d.get("dropped_coins", 0))
+	if d.has("glass"):
+		glass_floor.from_save(d["glass"])
 	if slot:
 		slot.credits = int(d.get("slot_credits", 0))
 		slot.luck = {}
