@@ -6,7 +6,7 @@ extends StaticBody3D
 ##   flask   — круглая колба с длинным горлом, внутри мутная светящаяся жидкость;
 ##   cone    — коническая колба (как в лаборатории), тоже с жидкостью.
 ## Удар кулаком или оружием (take_hit) — разбивается: звон стекла или хруст керамики, осколки разлетаются
-## и остаются лежать, из него выпадает лут (иногда пусто). Большие кувшины выдерживают один удар.
+## и остаются лежать; открывается окно лута (что не взял — остаётся на полу). Иногда пусто. Большие кувшины выдерживают один удар.
 
 const Fx := preload("res://fx.gd")
 const Chest := preload("res://chest.gd")
@@ -225,11 +225,17 @@ func _shatter(dir: Vector3) -> void:
 		var v := (Vector3(r.randf_range(-1, 1), r.randf_range(0.6, 1.6), r.randf_range(-1, 1)) * 1.6 + flat * 1.5)
 		var w := Vector3(r.randf_range(-12, 12), r.randf_range(-12, 12), r.randf_range(-12, 12))
 		shards.append([sh, global_transform.basis.inverse() * v, w])
-	# лут
+	# лут — в окне лута (game.open_loot_items, «Забрать всё» на R); что не взяли — остаётся на полу у осколков
 	if game:
-		var pos := global_position + Vector3(0, height * size * 0.5 + 0.1, 0)
-		for it in _roll(r):
-			game.spawn_loot(it[0], it[1], pos, Vector3(0, 2.0, 0) + flat * 0.8, 1.0)
+		var pos := global_position + Vector3(0, 0.15, 0)
+		var items := _roll(r)
+		if items.is_empty():
+			game.hud.toast("Пусто", Color(0.7, 0.68, 0.62), false)
+		elif game.has_method("open_loot_items"):
+			game.open_loot_items(items, pos, "КОЛБА" if glass else "КУВШИН")
+		else:
+			for it in items:
+				game.spawn_loot(it[0], it[1], pos, Vector3(0, 2.0, 0) + flat * 0.8, 1.0)
 
 
 func _hide_body() -> void:
