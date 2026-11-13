@@ -135,6 +135,7 @@ func open_safe() -> bool:
 
 func _chest(pos: Vector3, rot: float, extra: Array) -> void:
 	var c := Chest.new()
+	chests.append(c)
 	c.extra = extra
 	c.position = pos
 	c.rotation.y = rot
@@ -529,6 +530,17 @@ func drop_coins(n: int) -> void:
 const CHEAT_DROP := 30
 const CHEAT_KEEP := 20
 var dropped_coins := 0
+var chests: Array = []
+
+
+## Магазин: закрыть все открытые ящики — при новом открытии в них будет новый лут. Сейф не трогаем.
+func refresh_chests() -> int:
+	var n := 0
+	for c in chests:
+		if is_instance_valid(c) and c.opened:
+			c.reset()
+			n += 1
+	return n
 var hunters: Array = []
 
 

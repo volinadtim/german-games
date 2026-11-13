@@ -13,6 +13,8 @@ var info_l: Label
 var opened := false
 
 
+const CHEST_REFRESH := 80   # «Обновить все ящики»
+
 func _ready() -> void:
 	_build()
 
@@ -183,12 +185,25 @@ func _build_ui() -> void:
 		box.add_child(row)
 	info_l = _label("", 18, Color(0.8, 0.78, 0.7))
 	box.add_child(info_l)
+	# внизу: обновить все ящики уровня (сейф не трогаем) и закрыть
+	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", 10)
+	box.add_child(bottom)
+	var rb := Button.new()
+	rb.text = "Обновить все ящики — %d мон." % CHEST_REFRESH
+	rb.tooltip_text = "Открытые ящики закроются и снова наполнятся лутом. Сейф не меняется."
+	rb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rb.focus_mode = Control.FOCUS_NONE
+	rb.add_theme_font_size_override("font_size", 20)
+	rb.pressed.connect(_refresh_chests)
+	bottom.add_child(rb)
 	var close := Button.new()
 	close.text = "Закрыть (E / Esc)"
+	close.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	close.focus_mode = Control.FOCUS_NONE
 	close.add_theme_font_size_override("font_size", 20)
 	close.pressed.connect(_close)
-	box.add_child(close)
+	bottom.add_child(close)
 
 
 func _label(t: String, size: int, col: Color) -> Label:
@@ -202,6 +217,26 @@ func _label(t: String, size: int, col: Color) -> Label:
 
 func _refresh() -> void:
 	coins_l.text = "Монет: %d" % game.inv.count("coin")
+
+
+func _refresh_chests() -> void:
+	var opened := 0
+	for c in game.chests:
+		if is_instance_valid(c) and c.opened:
+			opened += 1
+	if opened == 0:
+		info_l.text = "Все ящики и так закрыты"
+		return
+	if game.inv.count("coin") < CHEST_REFRESH:
+		info_l.text = "Не хватает монет"
+		game.play_ui("buzz", -14.0)
+		return
+	game.inv.remove("coin", CHEST_REFRESH)
+	game.refresh_chests()
+	info_l.text = "Ящики обновлены: %d" % opened
+	game.hud.toast("Ящики на уровне снова полны", Color(0.9, 0.8, 0.55))
+	game.play_ui("creak", -10.0, 0.8)
+	_refresh()
 
 
 func _buy(id: String, price: int) -> void:

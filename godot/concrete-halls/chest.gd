@@ -172,6 +172,15 @@ func force_open(game) -> void:
 	interact(game)
 
 
+## Закрыть ящик заново (магазин: «Обновить все ящики»). Лут выпадет новый — он выбирается при открытии.
+func reset() -> void:
+	if kind == "safe" or not opened:
+		return
+	opened = false
+	var tw := create_tween()
+	tw.tween_property(hinge, "rotation:x", 0.0, 0.6).set_trans(Tween.TRANS_SINE)
+
+
 func _spill(game) -> void:
 	var items: Array = extra.duplicate()
 	if random_loot:
