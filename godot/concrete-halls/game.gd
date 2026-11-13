@@ -63,6 +63,8 @@ func setup(p: Player) -> void:
 	inv.changed.connect(func(): hud.set_coins(inv.count("coin")))
 	inv.use_requested.connect(use_item)
 	inv.drop_requested.connect(drop_item)
+	inv.drop_count_requested.connect(drop_count)
+	inv.drop_coins_requested.connect(drop_coins)
 	inv.equip_requested.connect(equip)
 	inv.unequip_requested.connect(func(slot_: String, to: int): unequip(slot_, to))
 	inv.drop_equipped_requested.connect(drop_equipped)
@@ -490,13 +492,74 @@ func drop_item(idx: int, all: bool) -> void:
 	var s = inv.slots[idx]
 	if s == null:
 		return
-	var got: Array = inv.take_at(idx, int(s["n"]) if all else 1)
+	drop_count(idx, int(s["n"]) if all else 1)
+
+
+func drop_count(idx: int, n: int) -> void:
+	var got: Array = inv.take_at(idx, n)
 	if got[1] <= 0:
 		return
 	var fwd := -player.global_transform.basis.z
 	var pos := player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5
 	var p := _make_pickup(got[0], got[1], pos, fwd * 2.0 + Vector3(0, 1.0, 0))
 	p.need_leave = true
+
+
+## Выбросить монеты из кошелька (запоминаем сколько — см. анти-мухлёж в cheat_check).
+func drop_coins(n: int) -> void:
+	n = mini(n, inv.coins)
+	if n <= 0 or not inv.remove("coin", n):
+		return
+	dropped_coins += n
+	var fwd := -player.global_transform.basis.z
+	var pos := player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5
+	var parts := clampi(n, 1, 6)
+	for k in parts:
+		var cnt := n / parts + (1 if k < n % parts else 0)
+		var p := _make_pickup("coin", cnt, pos, fwd * 2.0 + Vector3(randf_range(-0.6, 0.6), 1.0, randf_range(-0.6, 0.6)))
+		p.need_leave = true
+		p.set_meta("dropped", true)
+	play_ui("coin", -11.0, 0.9)
+
+
+# ---------- анти-мухлёж ----------
+## Выбросил много монет (CHEAT_DROP+), оставил себе мало (≤ CHEAT_KEEP) и пошёл крутить KILLBOX —
+## с поверхности по лестнице спускаются 5 монстров и охотятся на игрока прямо в бункере.
+## Подобрал выброшенные монеты обратно — счётчик уменьшается.
+const CHEAT_DROP := 30
+const CHEAT_KEEP := 20
+var dropped_coins := 0
+var hunters: Array = []
+
+
+## Вызывает автомат после оплаты крутки. true — мухлёж пойман.
+func cheat_check() -> bool:
+	if dropped_coins < CHEAT_DROP or inv.coins > CHEAT_KEEP:
+		return false
+	dropped_coins = 0
+	hud.cheat_warning(true)
+	play_ui("buzz", -4.0, 0.55)
+	_spawn_hunters()
+	return true
+
+
+func _spawn_hunters() -> void:
+	for k in 5:
+		var e := Enemy.new()
+		e.game = self
+		e.position = Vector3(20.0 - (k % 2) * 0.8, 4.1, -0.6 + (k % 3) * 0.6)
+		e.rotation.y = PI / 2.0
+		add_child(e)
+		e.make_hunter()
+		hunters.append(e)
+		e.died.connect(_hunter_died)
+		await get_tree().create_timer(0.6).timeout
+
+
+func _hunter_died(e: Node) -> void:
+	hunters.erase(e)
+	if hunters.is_empty():
+		hud.cheat_warning(false)
 
 
 ## Высыпать лут: монеты разбиваются на несколько монеток, разлетаются с разбросом spread.
@@ -525,9 +588,11 @@ func _make_pickup(id: String, n: int, pos: Vector3, vel: Vector3) -> Pickup:
 
 
 ## Вызывается лежащим предметом, когда игрок рядом. Возвращает, сколько не влезло.
-func collect(id: String, n: int) -> int:
+func collect(id: String, n: int, from: Node = null) -> int:
 	var left: int = inv.add(id, n)
 	var got := n - left
+	if id == "coin" and from != null and from.get_meta("dropped", false):
+		dropped_coins = maxi(dropped_coins - got, 0)
 	if got > 0:
 		var nm := Items.item_name(id)
 		hud.toast("+%d  %s" % [got, nm] if got > 1 else "+ " + nm, Color(0.92, 0.82, 0.55) if id == "coin" else Color(0.85, 0.85, 0.8))

@@ -27,7 +27,7 @@ func _ready() -> void:
 	var s := Vector3(0.1, 0.05, 0.1)
 	if mi is MeshInstance3D:
 		s = (mi as MeshInstance3D).mesh.get_aabb().size
-	elif id in ["bat", "pipe", "crowbar", "machete"]:
+	elif id in ["bat", "pipe", "crowbar", "machete", "knife"]:
 		s = Vector3(0.7, 0.06, 0.06)
 	bs.size = Vector3(maxf(s.x, 0.04), maxf(s.y, 0.03), maxf(s.z, 0.04))
 	cs.shape = bs
@@ -46,7 +46,7 @@ func _physics_process(delta: float) -> void:
 			need_leave = false
 		return
 	if d < 1.0 and dy > -0.4 and dy < 1.9:
-		var left: int = game.collect(id, n)
+		var left: int = game.collect(id, n, self)
 		if left <= 0:
 			queue_free()
 		else:

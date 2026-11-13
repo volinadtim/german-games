@@ -23,6 +23,7 @@ const DOORWAYS := [Vector3(-6, 0, -1.6), Vector3(-6, 0, 1.6), Vector3(6, 0, -1.6
 
 var game  # game.gd
 var home := Vector3.ZERO
+var hunter := false   # наказание за мухлёж (game.gd: cheat_check): всегда гонится, спускается в бункер
 var hp := MAX_HP
 var state := "idle"
 var st := 0.0
@@ -225,7 +226,9 @@ func _physics_process(delta: float) -> void:
 		"dead":
 			pass
 		"idle":
-			if game.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos)) and _clear(global_position, ppos):
+			if hunter and game.alive:
+				_set_state("chase")
+			elif game.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos)) and _clear(global_position, ppos):
 				_set_state("chase")
 				_growl()
 			elif surface:
@@ -236,7 +239,7 @@ func _physics_process(delta: float) -> void:
 			growl_t -= delta
 			if growl_t <= 0.0:
 				_growl()
-			if not game.alive or (not surface and global_position.distance_to(home) > LEASH) 					or (surface and (not Surface.on_meadow(ppos) or _from_center(global_position) > Surface.MEADOW_R + 8.0)):
+			if not game.alive or not hunter and (not surface and global_position.distance_to(home) > LEASH) 					or (surface and (not Surface.on_meadow(ppos) or _from_center(global_position) > Surface.MEADOW_R + 8.0)):
 				_set_state("idle")
 			elif d < ATTACK_RANGE and cool <= 0.0:
 				_set_state("windup")
@@ -263,13 +266,25 @@ func _physics_process(delta: float) -> void:
 	_animate(delta, want.length())
 
 
+## Сделать охотником (наказание за мухлёж): гонится всегда, без привязи к дому и поляне.
+func make_hunter() -> void:
+	hunter = true
+	surface = false
+	_set_state("chase")
+	_growl()
+
+
 ## Направление движения к цели: напрямую, если видно, иначе через ближайший подходящий проём.
 func _steer(goal: Vector3, delta: float) -> Vector3:
 	think -= delta
 	if think <= 0.0:
 		think = 0.3
 		target = goal
-		if not surface and not _clear(global_position, goal):
+		# охотник: между поляной/лестницей и бункером ходит через низ лестницы
+		var up := global_position.x > 12.4
+		if hunter and up != (goal.x > 12.4):
+			target = Vector3(11.4, global_position.y, 0.0) if up else Vector3(13.6, 0.0, 0.0)
+		elif not surface and not _clear(global_position, goal):
 			var best := INF
 			for dw in DOORWAYS:
 				var p: Vector3 = dw

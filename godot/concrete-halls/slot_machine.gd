@@ -450,6 +450,8 @@ func interact(g) -> void:
 		return
 	busy = true
 	screen.text = "КРУТИТСЯ..."
+	if g.has_method("cheat_check"):
+		g.cheat_check()
 	_roll_stops()
 	g.play_at("coin", global_position + Vector3(0.0, 0.7, 0.0), -10.0)
 	var tw := create_tween()
