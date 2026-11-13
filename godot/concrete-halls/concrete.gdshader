@@ -7,7 +7,7 @@ shader_type spatial;
 uniform sampler2D noise_big : filter_nearest_mipmap, repeat_enable;
 uniform sampler2D noise_fine : filter_nearest_mipmap, repeat_enable;
 uniform sampler2D noise_cell : filter_nearest_mipmap, repeat_enable;   // ячеистый шум — зерно камня
-uniform sampler2D noise_crack : filter_linear_mipmap, repeat_enable;  // извилистый шум — трещины
+uniform sampler2D noise_crack : filter_nearest_mipmap, repeat_enable;  // извилистый шум — трещины
 uniform vec3 base_color : source_color = vec3(0.27, 0.265, 0.25);
 uniform vec3 mold_color : source_color = vec3(0.17, 0.18, 0.15);
 uniform vec3 dust_color : source_color = vec3(0.33, 0.31, 0.29);
