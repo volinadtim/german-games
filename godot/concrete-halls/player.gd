@@ -3,7 +3,9 @@ extends CharacterBody3D
 ## WASD, Shift — бег, пробел — прыжок, ПКМ — режим кулаков (руки в стойку), ЛКМ — удар.
 
 const Sfx := preload("res://sfx.gd")
-const STEP_SND := preload("res://sounds/step.mp3")   # звук шага, присланный в чат — играет как есть
+## Шаг — приглушённый шорох (sfx.gd: step_noise). Присланный sounds/step.mp3 сейчас не используется:
+## в нём 0.2 с тишины перед ударом, и на слух шорох шёл раньше него — оставили только шорох.
+const STEP_DB := -20.0      # громкость шага относительно ходьбы (-10 дБ)
 
 const WALK := 3.4
 const SPRINT := 6.4
@@ -441,10 +443,6 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 
 func _play_step(db: float, _pitch := 1.0) -> void:
 	_randomize_step_eq()
-	step_player.stream = STEP_SND
-	step_player.volume_db = db - 6.0           # тише, чем файл
-	step_player.play()
-	# совсем немного шума поверх шага
 	step_noise_player.stream = step_noise
-	step_noise_player.volume_db = db - 30.0
+	step_noise_player.volume_db = db + STEP_DB
 	step_noise_player.play()
