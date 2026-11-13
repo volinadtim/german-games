@@ -37,6 +37,41 @@ const PUNCHES := {
 # кулаки сильно ослаблены (было 18/24/30): без оружия враг падает с ~9 ударов
 const PUNCH_DMG := {"straight": 6.0, "hook": 8.0, "upper": 10.0}
 const Weapons := preload("res://weapons.gd")
+# удары оружием — отдельный набор. Каждый мах: замах (wind) -> удар (hit, тут проверка попадания) ->
+# проводка по инерции (thru) -> возврат в стойку. tw — поворот корпуса в этих точках (рад, для правой руки),
+# t — длительности [замах, удар, проводка, возврат], rc — выпад плеча [замах, удар].
+const SWINGS := {
+	"heavy": [   # бита, труба, монтировка: широко из-за плеча, всем корпусом, тяжело
+		{"wind": Vector4(150, -15, 45, 105), "hit": Vector4(60, 28, 4, 18), "thru": Vector4(28, 48, 0, 26),
+			"tw": [-0.45, 0.35, 0.6], "t": [0.24, 0.11, 0.16, 0.36], "rc": [-0.03, 0.06], "blur": "upper"},
+		{"wind": Vector4(92, -60, 35, 78), "hit": Vector4(88, 28, 0, 14), "thru": Vector4(80, 62, 0, 34),
+			"tw": [-0.6, 0.3, 0.7], "t": [0.22, 0.11, 0.16, 0.34], "rc": [-0.03, 0.05], "blur": "hook"},
+		{"wind": Vector4(172, 0, 14, 125), "hit": Vector4(62, 8, 0, 10), "thru": Vector4(25, 12, 0, 22),
+			"tw": [-0.18, 0.12, 0.2], "t": [0.26, 0.1, 0.14, 0.36], "rc": [-0.05, 0.1], "blur": "upper"},
+	],
+	"machete": [   # быстрые рубящие махи
+		{"wind": Vector4(140, -10, 35, 95), "hit": Vector4(62, 30, 0, 14), "thru": Vector4(40, 52, 0, 30),
+			"tw": [-0.3, 0.25, 0.4], "t": [0.1, 0.07, 0.07, 0.2], "rc": [-0.02, 0.06], "blur": "upper"},
+		{"wind": Vector4(86, -52, 30, 62), "hit": Vector4(86, 34, 0, 14), "thru": Vector4(80, 60, 0, 34),
+			"tw": [-0.4, 0.25, 0.45], "t": [0.1, 0.07, 0.07, 0.2], "rc": [-0.02, 0.05], "blur": "hook"},
+		{"wind": Vector4(92, 58, 0, 92), "hit": Vector4(88, -24, 25, 14), "thru": Vector4(80, -44, 35, 28),
+			"tw": [0.35, -0.2, -0.35], "t": [0.1, 0.07, 0.07, 0.2], "rc": [0.0, 0.04], "blur": "hook"},
+	],
+	"knife": [   # короткий тычок или чирк
+		{"wind": Vector4(52, 12, 0, 108), "hit": Vector4(98, 8, 0, 4), "thru": Vector4(100, 8, 0, 2),
+			"tw": [-0.12, 0.2, 0.22], "t": [0.06, 0.055, 0.04, 0.17], "rc": [-0.04, 0.17], "blur": "straight"},
+		{"wind": Vector4(80, -36, 16, 46), "hit": Vector4(82, 30, 0, 30), "thru": Vector4(80, 50, 0, 40),
+			"tw": [-0.25, 0.15, 0.25], "t": [0.06, 0.055, 0.05, 0.17], "rc": [-0.01, 0.05], "blur": "hook"},
+	],
+	"shield": [   # толчок щитом или удар краем
+		{"wind": Vector4(60, 12, 4, 115), "hit": Vector4(92, 10, 0, 26), "thru": Vector4(95, 10, 0, 20),
+			"tw": [-0.2, 0.25, 0.28], "t": [0.12, 0.08, 0.06, 0.26], "rc": [-0.05, 0.2], "blur": "straight"},
+		{"wind": Vector4(122, -10, 25, 96), "hit": Vector4(56, 24, 0, 40), "thru": Vector4(44, 30, 0, 46),
+			"tw": [-0.3, 0.25, 0.35], "t": [0.12, 0.08, 0.08, 0.26], "rc": [-0.03, 0.08], "blur": "upper"},
+	],
+}
+# конец оружия (по длинной оси +Y модели) — по нему тянется след
+const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28}
 const Fx := preload("res://fx.gd")
 
 var active := false
@@ -84,6 +119,8 @@ var trail_mat: StandardMaterial3D
 var post_mat: ShaderMaterial          # постобработка (задаёт main.gd)
 var foot_pitch: Array[float] = [0.0, 0.0]
 var reach: Array[float] = [0.0, 0.0]   # выпад плеча вперёд при ударе
+var swing_twist := 0.0                  # поворот корпуса в махе оружием (+ — правое плечо вперёд)
+var last_swing := [-1, -1]
 var fists := false
 # --- модель с ригом ---
 var skel: Skeleton3D
@@ -121,6 +158,7 @@ var land_speed := 0.0
 
 var steps: Array[AudioStreamWAV] = []
 var whooshes: Array[AudioStreamWAV] = []
+var heavy_whooshes: Array[AudioStreamWAV] = []   # мах тяжёлым оружием — ниже и дольше
 var exhales: Array[AudioStreamWAV] = []
 var impacts: Array[AudioStreamWAV] = []
 var inhale_snd: AudioStreamWAV
@@ -143,6 +181,7 @@ func _ready() -> void:
 	hit_player = _audio(3)
 	for i in 4:
 		whooshes.append(Sfx.whoosh(i))
+		heavy_whooshes.append(Sfx.whoosh(i, true))
 		exhales.append(Sfx.exhale(i))
 		impacts.append(Sfx.impact(i))
 	inhale_snd = Sfx.inhale()
@@ -523,9 +562,9 @@ func _apply_bones() -> void:
 	var rr := (leg_rot * rig_rel).inverse()
 	var rest_p := func(b: int) -> Basis: return rig_rel * skel.get_bone_global_rest(b).basis.orthonormalized()
 	# корпус доворачивается за бьющей рукой, ключица выносит плечо вперёд
-	var twist := (reach[1] - reach[0]) * 1.6
+	var twist := (reach[1] - reach[0]) * 2.2 + swing_twist
 	var dt := torso_off - leg_off
-	var spine_a := [leg_off + dt * 0.3, leg_off + dt * 0.65, torso_off + twist]
+	var spine_a := [leg_off + dt * 0.3 + swing_twist * 0.3, leg_off + dt * 0.65 + swing_twist * 0.6, torso_off + twist]
 	for k in spine_bones.size():
 		_set_global_rot(spine_bones[k], rr * Basis(Vector3.UP, spine_a[k]) * rest_p.call(spine_bones[k]))
 	if neck_bone != -1:
@@ -618,7 +657,14 @@ func punch() -> void:
 	var i := randi() % 2
 	if last_arm != -1:
 		i = (1 - last_arm) if randf() < 0.75 else last_arm
+	# оружие только в одной руке — чаще бьём им
+	var armed0 := weapon_ids[0] != ""
+	if armed0 != (weapon_ids[1] != "") and randf() < 0.75:
+		i = 0 if armed0 else 1
 	last_arm = i
+	if weapon_ids[i] != "":
+		_weapon_swing(i, weapon_ids[i])
+		return
 	# вид удара: базовые шансы, но прошлый вид выпадает реже (вес ×0.35)
 	var weights := {"straight": 0.45, "hook": 0.3, "upper": 0.25}
 	if last_kind != "":
@@ -635,17 +681,83 @@ func punch() -> void:
 			break
 	last_kind = kind
 	var keys: Array = PUNCHES[kind]
+	var rs := _reach_setter(i)
+	# хлёстко: короткий замах (плечо чуть назад) -> очень быстрый выброс с перелётом ->
+	# короткая фиксация -> мягкий возврат
 	var tw := create_tween()
-	tw.tween_method(_pose_setter(i), arm_pose[i], keys[0], 0.08).set_trans(Tween.TRANS_SINE)
+	tw.tween_method(_pose_setter(i), arm_pose[i], keys[0], 0.06).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_method(rs, reach[i], -0.035, 0.06).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(_punch_sound)
 	tw.tween_callback(_punch_fx.bind(i, kind, true))
-	tw.tween_method(_pose_setter(i), keys[0], keys[1], 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	tw.parallel().tween_method(func(v: float) -> void: reach[i] = v, 0.0, 0.12, 0.09)
+	tw.tween_method(_pose_setter(i), keys[0], keys[1], 0.07).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_method(rs, -0.035, 0.15, 0.07).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_callback(_check_hit.bind(i, kind))
+	tw.tween_interval(0.05)
 	tw.tween_callback(_punch_fx.bind(i, kind, false))
-	tw.tween_method(_pose_setter(i), keys[1], GUARDS[i], 0.22).set_trans(Tween.TRANS_SINE)
-	tw.parallel().tween_method(func(v: float) -> void: reach[i] = v, 0.12, 0.0, 0.22)
+	tw.tween_method(_pose_setter(i), keys[1], GUARDS[i], 0.24).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_method(rs, 0.15, 0.0, 0.24).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_callback(func(): punching = false)
+
+
+func _reach_setter(i: int) -> Callable:
+	return func(v: float) -> void: reach[i] = v
+
+
+func _twist_setter(v: float) -> void:
+	swing_twist = v
+
+
+## Мах оружием: свой набор траекторий и таймингов для каждого типа, вариация случайная
+## (прошлая повторяется реже).
+func _weapon_swing(i: int, wid: String) -> void:
+	var group := "heavy"
+	if wid in ["machete", "knife", "shield"]:
+		group = wid
+	var set_: Array = SWINGS[group]
+	var v := randi() % set_.size()
+	if v == last_swing[i] and randf() < 0.65:
+		v = (v + 1 + randi() % maxi(set_.size() - 1, 1)) % set_.size()
+	last_swing[i] = v
+	var sw: Dictionary = set_[v]
+	var side := -1.0 if i == 0 else 1.0
+	var t: Array = sw["t"]
+	var tws: Array = sw["tw"]
+	var rc: Array = sw["rc"]
+	var heavy := group == "heavy" or group == "shield"
+	var ps := _pose_setter(i)
+	var rs := _reach_setter(i)
+	var tw := create_tween()
+	# замах — с разгоном и торможением в верхней точке
+	tw.tween_method(ps, arm_pose[i], sw["wind"], t[0]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_method(_twist_setter, swing_twist, tws[0] * side, t[0]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_method(rs, reach[i], rc[0], t[0]).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(_swing_sound.bind(heavy))
+	tw.tween_callback(_punch_fx.bind(i, sw["blur"], true))
+	# удар: тяжёлое разгоняется (ease-in), лезвие срывается сразу (ease-out)
+	var ez := Tween.EASE_IN if group == "heavy" else Tween.EASE_OUT
+	var trans := Tween.TRANS_QUAD if group == "heavy" else Tween.TRANS_CUBIC
+	tw.tween_method(ps, sw["wind"], sw["hit"], t[1]).set_trans(trans).set_ease(ez)
+	tw.parallel().tween_method(_twist_setter, tws[0] * side, tws[1] * side, t[1]).set_trans(trans).set_ease(ez)
+	tw.parallel().tween_method(rs, rc[0], rc[1], t[1]).set_trans(trans).set_ease(ez)
+	tw.tween_callback(_check_hit.bind(i, "hook"))
+	# проводка по инерции и плавное торможение
+	tw.tween_method(ps, sw["hit"], sw["thru"], t[2]).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_method(_twist_setter, tws[1] * side, tws[2] * side, t[2]).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(_punch_fx.bind(i, sw["blur"], false))
+	# возврат в стойку
+	tw.tween_method(ps, sw["thru"], GUARDS[i], t[3]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_method(_twist_setter, tws[2] * side, 0.0, t[3]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_method(rs, rc[1], 0.0, t[3]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(func(): punching = false)
+
+
+func _swing_sound(heavy: bool) -> void:
+	_play(hit_player, heavy_whooshes if heavy else whooshes, -14.0 if heavy else -16.0)
+	if not heavy:
+		hit_player.pitch_scale = randf_range(1.1, 1.25)   # лезвие свистит выше
+	_play(voice_player, exhales, -13.0 if heavy else -15.0)
+	if heavy:
+		voice_player.pitch_scale = randf_range(0.85, 0.95)
 
 
 ## Эффекты удара: размытие в движении (прямой — «зум», хук — по горизонтали, апперкот — по вертикали)
@@ -658,7 +770,7 @@ func _punch_fx(i: int, kind: String, on: bool) -> void:
 	if not on or post_mat == null:
 		return
 	# размытие только вокруг кулака и слабее
-	var fp := fist_fx[i].global_position
+	var fp := _trail_point(i)
 	if not cam.is_position_behind(fp):
 		post_mat.set_shader_parameter("blur_center", cam.unproject_position(fp) / get_viewport().get_visible_rect().size)
 	var side := -1.0 if i == 0 else 1.0
@@ -706,10 +818,15 @@ func _check_hit(arm: int, kind := "straight") -> void:
 				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.35, 0), "КРИТ!", Color(1.0, 0.25, 0.15))
 			hit.collider.take_hit(dmg, -cam.global_transform.basis.z)
 		# лёгкая отдача в камеру
-		var tw := create_tween()
+		# короткий «дёрг» камеры: крен в сторону руки и кивок, оружием — сильнее
+		var k := 1.6 if armed else 1.0
 		var side := -1.0 if arm == 0 else 1.0
-		tw.tween_property(cam, "rotation:z", 0.02 * side, 0.04)
-		tw.tween_property(cam, "rotation:z", 0.0, 0.15)
+		var tw := create_tween()
+		tw.tween_property(cam, "rotation:z", 0.022 * side * k, 0.03).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(cam, "rotation:z", 0.0, 0.16).set_trans(Tween.TRANS_SINE)
+		var tw2 := create_tween()
+		tw2.tween_property(cam, "rotation:x", -0.014 * k, 0.03).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw2.tween_property(cam, "rotation:x", 0.0, 0.14).set_trans(Tween.TRANS_SINE)
 
 
 ## Взять оружие в руку arm (0 — левая, 1 — правая; "" — убрать). Модель крепится к кости кисти.
@@ -786,14 +903,22 @@ func _process(delta: float) -> void:
 	for i in 2:
 		var pts: Array = trail_pts[i]
 		if trail_on[i]:
-			var fp := fist_fx[i].global_position
+			var fp := _trail_point(i)
 			if pts.is_empty() or (pts[-1] as Vector3).distance_to(fp) > 0.015:
 				pts.append(fp)
-				if pts.size() > 7:
+				if pts.size() > (10 if weapon_ids[i] != "" else 7):
 					pts.pop_front()
 		else:
 			trail_alpha[i] = maxf(trail_alpha[i] - delta * 7.0, 0.0)
 		_draw_trail(i)
+
+
+## Точка, за которой тянется след: конец оружия, а без оружия — кулак.
+func _trail_point(i: int) -> Vector3:
+	var n = weapon_nodes[i]
+	if n != null and is_instance_valid(n) and n.is_inside_tree():
+		return (n as Node3D).global_transform * Vector3(0, WEAPON_TIP.get(weapon_ids[i], 0.4), 0)
+	return fist_fx[i].global_position
 
 
 func _make_trails() -> void:
@@ -822,7 +947,8 @@ func _draw_trail(i: int) -> void:
 	if pts.size() < 3 or trail_alpha[i] <= 0.0:
 		return
 	var view := -cam.global_transform.basis.z
-	for stroke in [[0.0, 0.01, 0.2], [0.03, 0.004, 0.12]]:
+	var wide := 1.8 if weapon_ids[i] != "" else 1.0
+	for stroke in [[0.0, 0.01 * wide, 0.2], [0.03 * wide, 0.004 * wide, 0.12]]:
 		im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 		var n := pts.size()
 		for k in n:

@@ -86,16 +86,17 @@ static func step(variant: int) -> AudioStreamWAV:
 
 
 ## Взмах кулака: шум с плавающей полосой.
-static func whoosh(variant: int) -> AudioStreamWAV:
+## heavy — мах тяжёлым оружием: длиннее, ниже и «гуще».
+static func whoosh(variant: int, heavy := false) -> AudioStreamWAV:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 400 + variant
-	var dur := rng.randf_range(0.18, 0.26)
+	rng.seed = 400 + variant + (50 if heavy else 0)
+	var dur := rng.randf_range(0.3, 0.4) if heavy else rng.randf_range(0.18, 0.26)
 	var n := int(RATE * dur)
 	var buf := PackedFloat32Array()
 	buf.resize(n)
-	var f := Svf.new(400.0, 0.55)
-	var f0 := rng.randf_range(250.0, 350.0)
-	var f1 := rng.randf_range(650.0, 950.0)
+	var f := Svf.new(400.0, 0.8 if heavy else 0.55)
+	var f0 := rng.randf_range(110.0, 160.0) if heavy else rng.randf_range(250.0, 350.0)
+	var f1 := rng.randf_range(320.0, 440.0) if heavy else rng.randf_range(650.0, 950.0)
 	for i in n:
 		var x := float(i) / n
 		f.set_fc(lerpf(f0, f1, sin(x * PI)))
