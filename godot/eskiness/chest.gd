@@ -27,7 +27,7 @@ const LOOT := [
 	["coin", 16, 5, 15],
 ]
 
-var kind := "crate"            # crate | safe
+var kind := "crate"            # crate | safe | storage (сундук-хранилище, промпт 00:08)
 var extra: Array = []          # гарантированный лут: [[id, n], ...]
 var locked := false            # сейф: открывается только тремя семёрками на автомате (force_open)
 var random_loot := true
@@ -46,6 +46,10 @@ func _ready() -> void:
 		_build_safe()
 	else:
 		_build_crate()
+	if kind == "storage":
+		random_loot = false
+		# сундук: окованный, с навесным замком — отличается от ящиков
+		_part(self, Vector3(0.12, 0.14, 0.03), Vector3(0, 0.33, 0.29), _mat(Color(0.55, 0.42, 0.2), 0.8, 0.35))
 	snd = AudioStreamPlayer3D.new()
 	snd.position.y = 0.5
 	snd.unit_size = 4.0
@@ -142,6 +146,8 @@ func _build_safe() -> void:
 
 
 func get_prompt(game) -> String:
+	if kind == "storage":
+		return "[E] Сундук (%d)" % contents.size() if not contents.is_empty() else "[E] Сундук"
 	if broken:
 		return ""
 	if opened:
@@ -154,6 +160,15 @@ func get_prompt(game) -> String:
 
 
 func interact(game) -> void:
+	if kind == "storage":
+		if not opened:
+			opened = true
+			snd.stream = game.snd["creak"][randi() % 2]
+			snd.volume_db = -16.0
+			snd.play()
+			create_tween().tween_property(hinge, "rotation:x", -1.95, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		game.open_loot(self)
+		return
 	if opened:
 		if not contents.is_empty() and game.has_method("open_loot"):
 			game.open_loot(self)
@@ -248,8 +263,16 @@ func reset() -> void:
 
 ## Удар кулаком или оружием: ящик трещит, летят щепки; на нуле разваливается —
 ## выпадает его лут (если не открыт) и 1–2 деревяшки. Сейф не ломается.
+## Окно сундука закрыто — крышка опускается.
+func on_loot_closed() -> void:
+	if kind != "storage":
+		return
+	opened = false
+	create_tween().tween_property(hinge, "rotation:x", 0.0, 0.5).set_trans(Tween.TRANS_SINE)
+
+
 func take_hit(dmg: float, dir: Vector3) -> void:
-	if kind == "safe" or broken:
+	if kind == "safe" or kind == "storage" or broken:
 		return
 	if game:
 		game.weapon_hit()

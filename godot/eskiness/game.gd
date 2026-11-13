@@ -132,6 +132,12 @@ func setup(p: Player) -> void:
 	loot_window = LootWindow.new()
 	loot_window.game = self
 	add_child(loot_window)
+	# сундук-хранилище (один, у старта): складывать вещи (промпт 00:08)
+	storage = Chest.new()
+	storage.kind = "storage"
+	storage.position = Vector3(-11.45, 0.0, -2.7)
+	storage.rotation.y = PI / 2.0
+	add_child(storage)
 	glass_floor = GlassFloor.new()
 	add_child(glass_floor)
 	glass_floor.generate()
@@ -358,11 +364,25 @@ func window_open() -> bool:
 		or (loot_window != null and loot_window.open)
 
 
-## Открыть окно лута ящика (если не открыто другое окно).
+## Открыть окно лута: obj с полем contents [[id, n], ...] (ящик, сейф, сундук, кувшин…).
 func open_loot(c) -> void:
 	if not alive or (window_open() and not (loot_window and loot_window.open)):
 		return
 	loot_window.show_for(c)
+
+
+## Разовый лут (разбитый кувшин/колба): окно с items [[id, n], ...]; не взятое высыпется на пол в pos.
+func open_loot_items(items: Array, pos: Vector3, title := "ЛУТ") -> void:
+	var bag := LootWindow.LootBag.new()
+	bag.game = self
+	bag.pos = pos
+	bag.loot_title = title
+	for it in items:
+		bag.contents.append([String(it[0]), int(it[1])])
+	if not alive or window_open():
+		bag.on_loot_closed()
+		return
+	loot_window.show_for(bag)
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -385,6 +405,7 @@ func _unhandled_input(e: InputEvent) -> void:
 ## Битое стекло на полу (те же места, что в level.gd: _floor_litter): наступил — −5 здоровья
 ## и кровотечение 10 с по 3 в секунду. Повторный наступ обновляет таймер. Снимает бинт или аптечка.
 var loot_window: LootWindow   # окно лута ящиков и сейфа
+var storage: Chest            # сундук-хранилище
 var glass_floor: GlassFloor   # кучки стекла (glass_floor.gd), случайные каждую новую игру
 const BLEED_TIME := 10.0
 const BLEED_DPS := 3.0
@@ -1017,6 +1038,7 @@ func save_state() -> Dictionary:
 		"chests": cs,
 		"chest_pos": chest_pos,
 		"safe_open": safe != null and is_instance_valid(safe) and safe.opened,
+		"storage": storage.contents.duplicate(true) if storage else [],
 		"safe_contents": safe.contents.duplicate(true) if safe != null and is_instance_valid(safe) else [],
 		"floor": floor_items,
 		"dropped_coins": dropped_coins,
@@ -1098,6 +1120,13 @@ func load_state(d: Dictionary) -> void:
 		if bool(it.get("dropped", false)):
 			p.set_meta("dropped", true)
 	dropped_coins = int(d.get("dropped_coins", 0))
+	if storage:
+		storage.contents = []
+		for it in d.get("storage", []):
+			var e: Array = [String(it[0]), int(it[1])]
+			if it.size() > 2:
+				e.append(float(it[2]))
+			storage.contents.append(e)
 	if d.has("glass"):
 		glass_floor.from_save(d["glass"])
 	if slot:

@@ -413,14 +413,6 @@ func _build_ui() -> void:
 	var bottom := HBoxContainer.new()
 	bottom.add_theme_constant_override("separation", 10)
 	box.add_child(bottom)
-	var rb := Button.new()
-	rb.text = "Обновить все ящики — %d мон." % CHEST_REFRESH
-	rb.tooltip_text = "Открытые ящики закроются и снова наполнятся лутом. Сейф не меняется."
-	rb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rb.focus_mode = Control.FOCUS_NONE
-	rb.add_theme_font_size_override("font_size", 20)
-	rb.pressed.connect(_refresh_chests)
-	bottom.add_child(rb)
 	var close := Button.new()
 	close.text = "Закрыть (E / Esc)"
 	close.size_flags_horizontal = Control.SIZE_EXPAND_FILL
