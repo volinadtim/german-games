@@ -247,7 +247,7 @@ func _physics_process(delta: float) -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if not alive or player == null:
 		return
-	if e.is_action_pressed("interact"):
+	if e.is_action_pressed("interact") and not e.is_echo():
 		if focus != null and is_instance_valid(focus):
 			focus.interact(self)
 	elif e.is_action_pressed("flashlight") and flashlight:

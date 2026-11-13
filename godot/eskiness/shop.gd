@@ -263,8 +263,14 @@ func get_prompt(_game) -> String:
 	return "[E] Trinkets Market"
 
 
+var _last_toggle := -10000   # защита от «закликивания» E: окно не переключается чаще раза в 0.35 с
+
+
 func interact(g) -> void:
 	game = g
+	if Time.get_ticks_msec() - _last_toggle < 350:
+		return
+	_last_toggle = Time.get_ticks_msec()
 	if opened:
 		_close()
 	else:
@@ -295,6 +301,9 @@ func _close() -> void:
 func _input(e: InputEvent) -> void:
 	if opened and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact")):
 		get_viewport().set_input_as_handled()
+		if e.is_echo() or Time.get_ticks_msec() - _last_toggle < 350:
+			return
+		_last_toggle = Time.get_ticks_msec()
 		_close()
 
 

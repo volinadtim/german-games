@@ -7,7 +7,7 @@ const Sfx := preload("res://sfx.gd")
 const STEP_DB := -23.0      # громкость шага относительно ходьбы (-10 дБ)
 
 const WALK := 3.4
-const SPRINT := 6.4
+const SPRINT := 5.4          # было 6.4 — слишком быстро
 const GRAVITY := 22.0
 const FALL_MULT := 1.35      # вниз падаем быстрее, чем взлетаем — прыжок не «плывёт»
 const JUMP := 5.0            # ~0.55 м
@@ -1170,7 +1170,7 @@ func _physics_process(delta: float) -> void:
 	if sprinting:
 		sprint_carry = 1.0
 	else:
-		sprint_carry = move_toward(sprint_carry, 0.0, delta * 0.7)
+		sprint_carry = move_toward(sprint_carry, 0.0, delta * 2.0)
 
 	var target := dir * (SPRINT if sprinting else WALK) * speed_mult * lerpf(1.0, CROUCH_SPEED, crouch)
 	var hv := Vector3(velocity.x, 0, velocity.z)
@@ -1183,7 +1183,8 @@ func _physics_process(delta: float) -> void:
 		hv = d * spd
 	else:
 		# торможение мягкое; после бега — ещё мягче
-		var rate := (7.0 if moving else lerpf(6.0, 2.6, sprint_carry)) * air
+		# торможение: после бега тоже быстро, чтобы отпущенный Shift не «катил» дальше
+		var rate := (10.0 if moving else lerpf(8.0, 5.0, sprint_carry)) * air
 		hv = hv.lerp(target, 1.0 - exp(-rate * delta))
 	velocity.x = hv.x
 	velocity.z = hv.z
