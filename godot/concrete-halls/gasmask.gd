@@ -121,7 +121,7 @@ func _process(delta: float) -> void:
 		tox = maxf(tox - TOX_DOWN * delta, 0.0)
 	# урон: наверху быстро, в бункере остатки отравления ещё немного жгут
 	if tox > 0.0 and game.alive:
-		var rate := (4.0 + 14.0 * tox) if (out and not protected) else 5.0 * tox * tox
+		var rate := (2.0 + 7.0 * tox) if (out and not protected) else 3.0 * tox * tox
 		game.drain_hp(rate * delta)
 	# замедление и искажения
 	game.player.speed_mult = 1.0 - 0.55 * tox

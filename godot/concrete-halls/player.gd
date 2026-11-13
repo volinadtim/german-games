@@ -44,7 +44,7 @@ var speed_mult := 1.0         # замедление (отравление на�
 var weapon_id := ""           # оружие в правой руке (магазин, weapons.gd)
 var weapon_node: Node3D
 # как оружие лежит в кулаке относительно точки кисти (подобрано по скриншотам)
-var WEAPON_GRIP := Transform3D(Basis.from_euler(Vector3(1.5, 0.0, 0.0)), Vector3(0, 0.03, 0))
+var WEAPON_GRIP := Transform3D(Basis.IDENTITY, Vector3(0, 0.03, 0))   # оружие поднято вверх из кулака
 var cam: Camera3D
 var head: Node3D
 var legs: Array[Node3D] = []      # тазобедренные шарниры
