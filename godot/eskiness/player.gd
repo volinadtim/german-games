@@ -158,6 +158,17 @@ var weight := 0.0                 # перенос веса: -1 — на лев�
 var weight_to := 0.0
 var weight_timer := 3.0
 var hip_off := Vector3.ZERO       # смещение таза (оси ног), стопы стоят на месте
+# --- присед: Ctrl — удерживать, C — переключить ---
+const CROUCH_HIP := 0.34          # насколько опускается таз
+const CROUCH_CAM := 0.5           # насколько опускается камера
+const CROUCH_H := 1.15            # высота капсулы в приседе (стоя 1.8)
+const CROUCH_SPEED := 0.45        # скорость ходьбы вприсядку относительно обычной
+var crouched := false             # сейчас в приседе (цель)
+var crouch_toggled := false
+var crouch_hold_block := false    # Ctrl держат, но игрок встал (бег/прыжок) — ждём отпускания
+var crouch := 0.0                 # плавный переход 0..1
+var col_shape: CollisionShape3D
+var col_cap: CapsuleShape3D
 var idle_pitch: Array[float] = [0.0, 0.0]   # приподнятая пятка разгруженной ноги
 var fidget := ""                  # текущее случайное движение
 var fidget_t := 0.0
@@ -216,6 +227,9 @@ func _ready() -> void:
 	cs.shape = cap
 	cs.position.y = 0.9
 	add_child(cs)
+	col_shape = cs
+	col_cap = cap
+	_add_crouch_keys()
 
 	head = Node3D.new()
 	head.position = Vector3(0, CAM_Y, -0.22)
@@ -576,7 +590,7 @@ func _apply_bones() -> void:
 	var torso_off := angle_difference(rotation.y, torso_yaw)
 	var leg_rot := Basis(Vector3.UP, leg_off)
 	model_root.rotation.y = PI + leg_off
-	model_root.position = leg_rot * (Vector3(0, 0, MODEL_Z) + hip_off)
+	model_root.position = leg_rot * (Vector3(0, 0, MODEL_Z) + _hip())
 	var rr := (leg_rot * rig_rel).inverse()
 	var rest_p := func(b: int) -> Basis: return rig_rel * skel.get_bone_global_rest(b).basis.orthonormalized()
 	# idle: дыхание, наклон таза на опорную ногу, покачивание корпуса, редкие движения
@@ -589,7 +603,9 @@ func _apply_bones() -> void:
 	var sway_p := sin(it * 0.41 + 1.0) * 0.012 * idle_amt
 	if pelvis_bone != -1:
 		_set_global_rot(pelvis_bone, rr * leg_rot * Basis(Vector3.BACK, weight * 0.045 * idle_amt) * rest_p.call(pelvis_bone))
-	var spine_x := [sway_p * 0.5 - box * 0.05, sway_p + breath * 0.012 - box * 0.08, breath * 0.035 - box * 0.06 - bounce * 0.03]
+	var ck := _crouch_k()
+	var spine_x := [sway_p * 0.5 - box * 0.05 - ck * 0.22, sway_p + breath * 0.012 - box * 0.08 - ck * 0.1,
+			breath * 0.035 - box * 0.06 - bounce * 0.03 - ck * 0.04]
 	var spine_z := [-weight * 0.03 * idle_amt + sway_r, sway_r, sway_r * 0.5]
 	# корпус доворачивается за бьющей рукой, ключица выносит плечо вперёд
 	var twist := (reach[1] - reach[0]) * 2.2 + swing_twist
@@ -714,6 +730,69 @@ func look(rel: Vector2) -> void:
 
 
 ## Поворот камеры стрелками — для тачпада, который Windows глушит, пока зажаты клавиши.
+## Клавиши приседа (физические, как в main.gd): Ctrl — удерживать, C — переключить.
+func _add_crouch_keys() -> void:
+	for a in [["crouch", [KEY_CTRL]], ["crouch_toggle", [KEY_C]]]:
+		if InputMap.has_action(a[0]):
+			continue
+		InputMap.add_action(a[0])
+		for k in a[1]:
+			var ev := InputEventKey.new()
+			ev.physical_keycode = k
+			InputMap.action_add_event(a[0], ev)
+
+
+## Плавность приседа (ease in-out) — для таза, камеры и наклона.
+func _crouch_k() -> float:
+	return smoothstep(0.0, 1.0, crouch)
+
+
+## Таз: перенос веса/покачивание стоя + опускание в приседе (чуть назад).
+func _hip() -> Vector3:
+	var ck := _crouch_k()
+	return hip_off + Vector3(0, -CROUCH_HIP * ck, 0.05 * ck)
+
+
+## Встать (по бегу или прыжку): переключатель снимаем, удержание Ctrl игнорируем до отпускания.
+func _stand_request() -> void:
+	crouch_toggled = false
+	if Input.is_action_pressed("crouch"):
+		crouch_hold_block = true
+
+
+func _update_crouch(delta: float) -> void:
+	if active and Input.is_action_just_pressed("crouch_toggle"):
+		crouch_toggled = not crouch_toggled
+	if active and Input.is_action_just_pressed("crouch"):
+		crouch_hold_block = false
+	if not Input.is_action_pressed("crouch"):
+		crouch_hold_block = false
+	var want := active and (crouch_toggled or (Input.is_action_pressed("crouch") and not crouch_hold_block))
+	if want:
+		crouched = true
+	elif crouched and not _head_blocked():
+		crouched = false
+	crouch = move_toward(crouch, 1.0 if crouched else 0.0, delta * 4.0)
+	# капсула: верх опускается, низ стоит на полу
+	var h := lerpf(1.8, CROUCH_H, crouch)
+	if absf(col_cap.height - h) > 0.001:
+		col_cap.height = h
+		col_shape.position.y = h / 2.0
+
+
+## Можно ли встать: лучи вверх от верха приседа до роста стоя (центр и 4 точки по краю).
+func _head_blocked() -> bool:
+	var space := get_world_3d().direct_space_state
+	for o in [Vector3.ZERO, Vector3(0.22, 0, 0), Vector3(-0.22, 0, 0), Vector3(0, 0, 0.22), Vector3(0, 0, -0.22)]:
+		var from: Vector3 = global_position + o + Vector3(0, CROUCH_H - 0.05, 0)
+		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, 1.85 - CROUCH_H + 0.05, 0))
+		q.exclude = [get_rid()]
+		q.collision_mask = 1
+		if space.intersect_ray(q):
+			return true
+	return false
+
+
 func _key_look(delta: float) -> void:
 	if not active:
 		return
@@ -1064,9 +1143,14 @@ func _draw_trail(i: int) -> void:
 func _physics_process(delta: float) -> void:
 	_key_look(delta)
 	var on_floor := is_on_floor()
+	# прыжок из приседа сначала поднимает игрока
+	var jump_now := active and Input.is_action_just_pressed("jump")
+	if jump_now and crouched:
+		_stand_request()
+		jump_now = false
 	if not on_floor:
 		velocity.y -= GRAVITY * (FALL_MULT if velocity.y < 0.0 else 1.0) * delta
-	elif active and Input.is_action_just_pressed("jump"):
+	elif jump_now:
 		velocity.y = JUMP
 		on_floor = false
 
@@ -1076,13 +1160,19 @@ func _physics_process(delta: float) -> void:
 	var dir := transform.basis * Vector3(inp.x, 0, inp.y)
 	var moving := dir.length() > 0.01
 	var sprinting := active and moving and inp.y < -0.1 and Input.is_action_pressed("sprint")
+	# бег из приседа сначала поднимает игрока
+	if sprinting and crouched:
+		_stand_request()
+	_update_crouch(delta)
+	if crouched:
+		sprinting = false
 
 	if sprinting:
 		sprint_carry = 1.0
 	else:
 		sprint_carry = move_toward(sprint_carry, 0.0, delta * 0.7)
 
-	var target := dir * (SPRINT if sprinting else WALK) * speed_mult
+	var target := dir * (SPRINT if sprinting else WALK) * speed_mult * lerpf(1.0, CROUCH_SPEED, crouch)
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	var air := 1.0 if on_floor else 0.25
 	if moving and target.length() > hv.length() + 0.01:
@@ -1134,10 +1224,11 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
 	land_dip = move_toward(land_dip, 0.0, delta * 0.35)
 	# голова ниже всего в момент постановки стопы (дважды за цикл)
-	head.position.y = CAM_Y - (0.5 + 0.5 * cos(phase)) * 0.035 * bob - land_dip + hip_off.y * 0.6
+	head.position.y = CAM_Y - (0.5 + 0.5 * cos(phase)) * 0.035 * bob * (1.0 - 0.5 * crouch) - land_dip + hip_off.y * 0.6 \
+			- CROUCH_CAM * _crouch_k()
 	head.position.x = sin(gait * TAU) * 0.012 * bob
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
-	head.position.z = lerpf(-0.22, -0.04, fist_blend)
+	head.position.z = lerpf(-0.22, -0.04, fist_blend) - 0.06 * _crouch_k()
 	var want_fov := FOV + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 	_apply_bones()
@@ -1226,7 +1317,10 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 	if turn_foot >= 0:
 		_turn_step(delta)
 	for i in 2:
-		var t := foot[i] - hip_off
+		var t := foot[i] - _hip()
+		# в приседе стопы чуть шире, левая немного впереди
+		var ck := _crouch_k()
+		t += Vector3((-1.0 if i == 0 else 1.0) * 0.05, 0.0, -0.07 if i == 0 else 0.05) * ck
 		# разгруженная нога: пятка чуть приподнята, колено подсогнуто
 		t.y += 0.16 * maxf(-sin(idle_pitch[i]), 0.0)
 		_leg_ik(i, t, idle_pitch[i])
@@ -1367,6 +1461,7 @@ func _leg_ik(i: int, t: Vector3, extra_pitch := 0.0) -> void:
 
 
 func _play_step(db: float, _pitch := 1.0) -> void:
+	db -= 9.0 * crouch   # вприсядку шаги тише
 	_randomize_step_eq()
 	if _ground_kind() == "grass":
 		step_noise_player.stream = grass_steps[randi() % grass_steps.size()]
