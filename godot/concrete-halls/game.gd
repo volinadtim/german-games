@@ -63,6 +63,12 @@ func setup(p: Player) -> void:
 	inv.changed.connect(func(): hud.set_coins(inv.count("coin")))
 	inv.use_requested.connect(use_item)
 	inv.drop_requested.connect(drop_item)
+	inv.equip_requested.connect(equip)
+	inv.unequip_requested.connect(func(slot_: String, to: int): unequip(slot_, to))
+	inv.drop_equipped_requested.connect(drop_equipped)
+	inv.craft_requested.connect(craft)
+	inv.message.connect(func(t: String): hud.toast(t))
+	hud.inv = inv
 	hud.set_hp(hp, MAX_HP)
 
 	if USE_FLASHLIGHT:
@@ -110,6 +116,9 @@ func setup(p: Player) -> void:
 			slot.rotation.y = PI
 			add_child(slot)
 		slot.game = self
+	# осколки стекла на полу (там, где битое стекло) — материал для ножика
+	for gp in [Vector3(-5.4, 0.1, 0.4), Vector3(9.6, 0.1, -6.3), Vector3(-9.1, 0.1, 6.6)]:
+		_make_pickup("glass", 1, gp, Vector3.ZERO)
 	shop = get_parent().get_node_or_null("Shop") as Shop
 	if shop:
 		shop.game = self
@@ -229,6 +238,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		flashlight.toggle()
 	elif e.is_action_pressed("quick_heal"):
 		_quick_heal()
+	else:
+		for k in 5:
+			if e.is_action_pressed("hot_%d" % (k + 1)):
+				hotbar_use(k)
 
 
 # ---------- здоровье ----------
@@ -342,24 +355,10 @@ func use_item(idx: int) -> void:
 		flashlight.recharge()
 		hud.toast("Фонарик заряжен", Color(0.9, 0.85, 0.55))
 		play_ui("click", -12.0)
-	elif def.has("weapon"):
-		if player.weapon_id == id:
-			player.set_weapon("")
-			hud.toast("%s убрано" % def["name"])
-		else:
-			player.set_weapon(id)
-			hud.toast("%s в правой руке — бей правой (ЛКМ в стойке)" % def["name"], Color(0.9, 0.85, 0.7))
-		play_ui("click", -10.0, 0.8)
-	elif id == "gasmask":
-		hud.toast("Противогаз надевается на G")
+	elif Items.equip_slot(id) != "":
+		equip(idx, Items.equip_slot(id))
 	elif id == "filter":
 		hud.toast("Фильтр ставится сам, когда кончается старый")
-	elif id == "knuckles":
-		inv.take_at(idx, 1)
-		player.dmg_mult = 1.5
-		hud.knuckles = true
-		hud.toast("Кастет надет: удары сильнее", Color(0.9, 0.85, 0.7))
-		play_ui("coin", -12.0, 0.6)
 	elif id == "coin":
 		hud.toast("Монеты тратятся в игровом автомате")
 	elif id == "wallet":
@@ -370,6 +369,121 @@ func use_item(idx: int) -> void:
 		play_ui("coin", -11.0)
 	else:
 		hud.toast("Это нельзя использовать")
+
+
+# ---------- экипировка, хотбар, крафт ----------
+
+## Надеть предмет из ячейки idx в слот (что было в слоте — встаёт на его место в сумке).
+func equip(idx: int, slot_: String) -> void:
+	var s = inv.slots[idx]
+	if s == null or Items.equip_slot(s["id"]) != slot_:
+		return
+	var id: String = s["id"]
+	var prev: String = inv.equip[slot_]
+	inv.slots[idx] = {"id": prev, "n": 1} if prev != "" else null
+	inv.equip[slot_] = id
+	_apply_equip(slot_)
+	inv.notify()
+	play_ui("click", -10.0, 0.8)
+
+
+## Снять в ячейку to (или в первую свободную). false — некуда.
+func unequip(slot_: String, to := -1) -> bool:
+	var id: String = inv.equip[slot_]
+	if id == "":
+		return false
+	if to >= 0 and inv.slots[to] != null:
+		if Items.equip_slot(inv.slots[to]["id"]) == slot_:
+			equip(to, slot_)       # обмен
+			return true
+		to = -1
+	if to < 0:
+		to = inv.slots.find(null)
+	if to < 0:
+		hud.toast("Сумка полна — некуда снять")
+		return false
+	inv.slots[to] = {"id": id, "n": 1}
+	inv.equip[slot_] = ""
+	_apply_equip(slot_)
+	inv.notify()
+	play_ui("click", -12.0, 0.7)
+	return true
+
+
+func drop_equipped(slot_: String) -> void:
+	var id: String = inv.equip[slot_]
+	if id == "":
+		return
+	inv.equip[slot_] = ""
+	_apply_equip(slot_)
+	inv.notify()
+	var fwd := -player.global_transform.basis.z
+	var p := _make_pickup(id, 1, player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5, fwd * 2.0 + Vector3(0, 1.0, 0))
+	p.need_leave = true
+
+
+func _apply_equip(slot_: String) -> void:
+	var id: String = inv.equip[slot_]
+	match slot_:
+		"weapon":
+			player.set_weapon(id)
+			if id != "":
+				hud.toast("%s в правой руке — бей правой (ЛКМ в стойке)" % Items.item_name(id), Color(0.9, 0.85, 0.7))
+		"head":
+			if gasmask:
+				gasmask.set_worn(id == "gasmask")
+		"hands":
+			player.dmg_mult = 1.5 if id == "knuckles" else 1.0
+			hud.knuckles = id == "knuckles"
+			if id != "":
+				hud.toast("Кастет надет: удары сильнее", Color(0.9, 0.85, 0.7))
+
+
+## G: надеть противогаз из сумки / снять его.
+func toggle_gasmask() -> void:
+	if inv.equip["head"] == "gasmask":
+		unequip("head")
+		return
+	var i := inv.bag_index("gasmask")
+	if i < 0:
+		hud.toast("Противогаза нет — он продаётся в магазине оружия")
+		return
+	equip(i, "head")
+
+
+## Клавиша 1–5: использовать привязанный предмет; надетый — снять.
+func hotbar_use(k: int) -> void:
+	var id: String = inv.hotbar[k]
+	if id == "":
+		return
+	var sl := Items.equip_slot(id)
+	if sl != "" and inv.equip[sl] == id:
+		unequip(sl)
+		return
+	var i := inv.bag_index(id)
+	if i < 0:
+		hud.toast("Нет: %s" % Items.item_name(id))
+		return
+	use_item(i)
+
+
+func craft(r: int) -> void:
+	var rec: Dictionary = Items.RECIPES[r]
+	var need: Dictionary = rec["need"]
+	for id in need:
+		if inv.count(id) < int(need[id]):
+			hud.toast("Не хватает: %s" % Items.item_name(id))
+			return
+	for id in need:
+		inv.remove(id, int(need[id]))
+	var out: String = rec["out"]
+	if inv.add(out, 1) > 0:
+		var fwd := -player.global_transform.basis.z
+		_make_pickup(out, 1, player.global_position + Vector3(0, 1.0, 0) + fwd * 0.4, Vector3.ZERO).need_leave = true
+		hud.toast("Сумка полна — %s на полу" % Items.item_name(out))
+	else:
+		hud.toast("Скрафчено: %s" % Items.item_name(out), Color(0.8, 0.9, 0.6))
+	play_ui("creak", -14.0, 1.6)
 
 
 func drop_item(idx: int, all: bool) -> void:

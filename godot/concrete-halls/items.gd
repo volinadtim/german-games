@@ -43,12 +43,38 @@ const ITEMS := {
 		"icon": "crowbar", "color": Color(0.6, 0.14, 0.1), "weapon": true},
 	"machete": {"name": "Мачете", "desc": "Широкий клинок. Урон ×3.6.", "stack": 1,
 		"icon": "machete", "color": Color(0.62, 0.63, 0.62), "weapon": true},
+	"knife": {"name": "Ножик", "desc": "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.4.", "stack": 1,
+		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true},
+	# материалы для крафта
+	"wood": {"name": "Деревяшка", "desc": "Обломок доски. Нужна для крафта.", "stack": 5,
+		"icon": "wood", "color": Color(0.5, 0.35, 0.2)},
+	"glass": {"name": "Кусочек стекла", "desc": "Острый осколок. Нужен для крафта.", "stack": 5,
+		"icon": "glass", "color": Color(0.6, 0.78, 0.76)},
 	# противогаз (G — надеть/снять) и фильтры к нему
 	"gasmask": {"name": "Противогаз", "desc": "G — надеть/снять. Наверху без него плохо.", "stack": 1,
 		"icon": "gasmask", "color": Color(0.22, 0.25, 0.2)},
 	"filter": {"name": "Фильтр", "desc": "Сменный фильтр противогаза: 90 секунд наверху.", "stack": 10,
 		"icon": "filter", "color": Color(0.36, 0.38, 0.3)},
 }
+
+
+## Рецепты крафта: что получится и что нужно.
+const RECIPES := [
+	{"out": "knife", "need": {"wood": 1, "glass": 1, "tape": 1}},
+]
+
+
+## В какой слот экипировки идёт предмет: weapon (правая рука), head (голова), hands (руки) или "".
+static func equip_slot(id: String) -> String:
+	if not ITEMS.has(id):
+		return ""
+	if ITEMS[id].has("weapon"):
+		return "weapon"
+	if id == "gasmask":
+		return "head"
+	if id == "knuckles":
+		return "hands"
+	return ""
 
 
 static func item_name(id: String) -> String:
@@ -63,7 +89,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var s := minf(r.size.x, r.size.y)
 	var col: Color = ITEMS[id]["color"]
 	var dark := col.darkened(0.45)
-	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "gasmask", "filter"]:
+	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter"]:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
@@ -142,6 +168,16 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_rect(box.grow(-s * 0.06), Color(0.3, 0.27, 0.22))
 			ci.draw_circle(c + Vector2(-s * 0.1, -s * 0.06), s * 0.07, col.darkened(0.2))
 			ci.draw_circle(c + Vector2(s * 0.1, -s * 0.06), s * 0.07, col.darkened(0.2))
+		"wood":
+			var a := c + Vector2(-s * 0.32, s * 0.18)
+			var b := c + Vector2(s * 0.32, -s * 0.18)
+			ci.draw_line(a, b, col, maxf(4.0, s * 0.2))
+			ci.draw_line(a.lerp(b, 0.2), a.lerp(b, 0.8), col.darkened(0.3), maxf(1.0, s * 0.03))
+		"glass":
+			var pts := PackedVector2Array([c + Vector2(-s * 0.2, s * 0.3), c + Vector2(-s * 0.05, -s * 0.34),
+				c + Vector2(s * 0.24, -s * 0.1), c + Vector2(s * 0.1, s * 0.32)])
+			ci.draw_colored_polygon(pts, Color(col.r, col.g, col.b, 0.75))
+			ci.draw_line(c + Vector2(-s * 0.05, -s * 0.2), c + Vector2(s * 0.05, s * 0.1), Color(1, 1, 1, 0.8), maxf(1.0, s * 0.03))
 		"nut":
 			var pts := PackedVector2Array()
 			for k in 6:
@@ -153,9 +189,9 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
 static func make_mesh(id: String) -> Node3D:
-	if id in ["bat", "pipe", "crowbar", "machete", "gasmask", "filter"]:
+	if id in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter"]:
 		var w := Weapons.make(id)
-		if id in ["bat", "pipe", "crowbar", "machete"]:
+		if id in ["bat", "pipe", "crowbar", "machete", "knife"]:
 			w.rotation.z = PI / 2   # на полу оружие лежит
 		return w
 	var col: Color = ITEMS[id]["color"] if ITEMS.has(id) else Color.WHITE
@@ -217,6 +253,18 @@ static func make_mesh(id: String) -> Node3D:
 			bm.size = {"pills": Vector3(0.1, 0.012, 0.06), "wallet": Vector3(0.12, 0.025, 0.09),
 				"photo": Vector3(0.1, 0.004, 0.13), "scrap": Vector3(0.18, 0.03, 0.06)}[id]
 			mi.mesh = bm
+		"wood":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.22, 0.03, 0.05)
+			mi.mesh = bm
+		"glass":
+			var pm := PrismMesh.new()
+			pm.size = Vector3(0.06, 0.09, 0.006)
+			mi.mesh = pm
+			mi.rotation.x = -PI / 2
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.albedo_color = Color(col.r, col.g, col.b, 0.6)
+			m.roughness = 0.1
 		"gear":
 			var cm := CylinderMesh.new()
 			cm.top_radius = 0.05

@@ -11,6 +11,7 @@ var coins := 0
 var battery := 1.0
 var light_on := false
 var knuckles := false
+var inv  # inventory.gd — для хотбара 1–5
 var hurt := 0.0
 var t := 0.0
 
@@ -169,6 +170,29 @@ func _paint() -> void:
 	paint.draw_string(f, Vector2(x + 36, y - 42), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.9, 0.78, 0.5))
 	if knuckles:
 		Items.draw_icon(paint, "knuckles", Rect2(x + 120, y - 66, 34, 34))
+
+	# хотбар 1–5 внизу по центру
+	if inv:
+		var cell := 50.0
+		var gap := 6.0
+		var x0 := sz.x / 2.0 - (cell * 5 + gap * 4) / 2.0
+		var y0 := sz.y - cell - 18.0
+		for k in 5:
+			var r := Rect2(x0 + k * (cell + gap), y0, cell, cell)
+			var id: String = inv.hotbar[k]
+			var cnt: int = inv.count(id) if id != "" else 0
+			var worn: bool = id != "" and Items.equip_slot(id) != "" and inv.equip[Items.equip_slot(id)] == id
+			paint.draw_rect(r, Color(0, 0, 0, 0.5))
+			paint.draw_rect(r, Color(0.95, 0.75, 0.4, 0.9) if worn else Color(1, 1, 1, 0.18), false, 2.0 if worn else 1.0)
+			if id != "":
+				Items.draw_icon(paint, id, r.grow(-9))
+				if cnt == 0:
+					paint.draw_rect(r.grow(-1), Color(0, 0, 0, 0.6))
+				elif cnt > 1:
+					paint.draw_string_outline(f, r.position + Vector2(0, cell - 4), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 4, 13, 3, Color(0, 0, 0, 0.8))
+					paint.draw_string(f, r.position + Vector2(0, cell - 4), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 4, 13, Color(0.92, 0.9, 0.84))
+			paint.draw_string_outline(f, r.position + Vector2(4, 14), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.8))
+			paint.draw_string(f, r.position + Vector2(4, 14), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.8, 0.45))
 
 	# фонарик (справа снизу)
 	var bx := sz.x - 28.0 - 140.0

@@ -7,6 +7,7 @@ const WEAPONS := {
 	"pipe": {"mult": 2.5, "reach": 1.55, "price": 60},
 	"crowbar": {"mult": 3.0, "reach": 1.45, "price": 90},
 	"machete": {"mult": 3.6, "reach": 1.5, "price": 140},
+	"knife": {"mult": 2.4, "reach": 1.25, "price": 0},     # крафт: деревяшка + стекло + изолента
 }
 
 # что продаёт магазин, по порядку
@@ -71,6 +72,22 @@ static func make(id: String) -> Node3D:
 			_box(root, Vector3(0.06, 0.012, 0.012), Vector3(0, 0.05, 0), _m(Color(0.3, 0.3, 0.3), 0.7, 0.5))
 			var blade := _box(root, Vector3(0.045, 0.45, 0.004), Vector3(0.008, 0.29, 0), _m(Color(0.62, 0.63, 0.62), 0.9, 0.3))
 			blade.rotation.z = -0.03
+		"knife":
+			# рукоять — деревяшка, примотанная изолентой к осколку стекла
+			_box(root, Vector3(0.03, 0.14, 0.022), Vector3(0, 0.02, 0), _m(Color(0.5, 0.35, 0.2)))
+			_cyl(root, 0.021, 0.021, 0.035, 0.03, _m(Color(0.15, 0.22, 0.5), 0.0, 0.4))
+			_cyl(root, 0.021, 0.021, 0.03, 0.085, _m(Color(0.15, 0.22, 0.5), 0.0, 0.4))
+			var gl := _m(Color(0.62, 0.8, 0.78, 0.55), 0.2, 0.05)
+			gl.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			gl.cull_mode = BaseMaterial3D.CULL_DISABLED
+			var pm := PrismMesh.new()
+			pm.size = Vector3(0.04, 0.17, 0.006)
+			pm.left_to_right = 0.3
+			var bl := MeshInstance3D.new()
+			bl.mesh = pm
+			bl.material_override = gl
+			bl.position.y = 0.17
+			root.add_child(bl)
 		"gasmask":
 			var rub := _m(Color(0.16, 0.18, 0.15))
 			var face := SphereMesh.new()
@@ -113,6 +130,13 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2, col: Color) -> void:
 		"machete":
 			ci.draw_line(a, a.lerp(b, 0.28), Color(0.1, 0.09, 0.08), w * 1.1)
 			ci.draw_line(a.lerp(b, 0.3), b, Color(0.7, 0.71, 0.7), w * 2.0)
+		"knife":
+			ci.draw_line(a, a.lerp(b, 0.42), Color(0.5, 0.35, 0.2), w * 1.3)
+			ci.draw_line(a.lerp(b, 0.25), a.lerp(b, 0.36), Color(0.15, 0.22, 0.5), w * 1.6)
+			var tip := b
+			var base := a.lerp(b, 0.42)
+			var nrm := Vector2(s * 0.07, s * 0.07)
+			ci.draw_colored_polygon(PackedVector2Array([base + nrm, base - nrm, tip]), Color(0.62, 0.8, 0.78, 0.85))
 		"gasmask":
 			ci.draw_circle(c, s * 0.3, col)
 			ci.draw_circle(c + Vector2(-s * 0.12, -s * 0.06), s * 0.08, Color(0.55, 0.62, 0.55))

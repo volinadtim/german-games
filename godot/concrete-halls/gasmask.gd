@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## Противогаз и отравленный воздух наверху.
-## G — надеть/снять (если противогаз есть в инвентаре). Фильтр работает 90 с, только пока ты наверху в маске;
+## G — надеть/снять (слот «Голова» в инвентаре, туда же можно перетащить мышью). Фильтр работает 90 с, только пока ты наверху в маске;
 ## кончился — автоматически ставится следующий из инвентаря.
 ## Наверху без защиты копится «отравление» tox (0..1): замедление, искажения в глазах, быстрая потеря здоровья.
 ## Если быстро вернуться в бункер — выжить можно: в бункере эффекты спадают постепенно.
@@ -75,13 +75,16 @@ func on_bought() -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("gasmask") and game and game.alive:
-		if game.inv.count("gasmask") == 0:
-			game.hud.toast("Противогаза нет — он продаётся в магазине оружия")
-			return
-		worn = not worn
-		overlay.visible = worn
-		game.play_ui("click", -10.0, 0.7)
-		game.hud.toast("Противогаз надет" if worn else "Противогаз снят", Color(0.75, 0.85, 0.7))
+		game.toggle_gasmask()
+
+
+## Надет ли противогаз — управляет слот «Голова» в инвентаре (game.gd: _apply_equip).
+func set_worn(on: bool) -> void:
+	if on == worn:
+		return
+	worn = on
+	overlay.visible = worn
+	game.hud.toast("Противогаз надет" if worn else "Противогаз снят", Color(0.75, 0.85, 0.7))
 
 
 func _outside() -> float:
