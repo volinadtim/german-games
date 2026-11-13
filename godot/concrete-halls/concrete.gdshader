@@ -14,7 +14,7 @@ uniform vec3 dust_color : source_color = vec3(0.33, 0.31, 0.29);
 uniform float ceiling_h = 3.2;
 uniform float polished = 0.0;
 uniform float bump = 0.25;
-uniform float grain_bump = 1.2;
+uniform float grain_bump = 0.55;
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -60,7 +60,7 @@ void fragment() {
 		float dust = smoothstep(0.55, 0.85, tri(noise_big, wpos + vec3(31.0, 0.0, 7.0), wnrm, 0.08)) * up;
 		col = mix(col, dust_color, dust * 0.25);
 		rough = 0.5 + 0.12 * big + 0.3 * dust + 0.3 * cr;
-		hgt = fine * 0.05 - cr * 0.15;
+		hgt = fine * 0.015 - cr * 0.3;
 	} else {
 		float cell = tri(noise_cell, wpos, wnrm, 0.9);
 		float grain = tri(noise_fine, wpos * 3.1, wnrm, 0.9);

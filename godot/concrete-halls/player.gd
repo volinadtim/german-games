@@ -7,7 +7,7 @@ const GRAVITY := 9.8
 const SENS := 0.0022
 const CAM_Y := 1.62
 const FOV := 75.0
-const JUMP := 4.6
+const JUMP := 3.7
 const ACCEL_WALK := 5.0
 const ACCEL_SPRINT := 3.2
 
