@@ -4,6 +4,7 @@ extends Node3D
 const Player := preload("res://player.gd")
 const Menu := preload("res://menu.gd")
 const Ambience := preload("res://ambience.gd")
+const Game := preload("res://game.gd")   # тестовые механики (боёвка, лут, инвентарь, автомат…)
 
 const FLY_POINTS := [
 	Vector3(-6.0, 1.8, -7.5),
@@ -118,6 +119,9 @@ func _enter_game() -> void:
 	player.cam.current = true
 	player.active = true
 	player.post_mat = post_mat
+	var game := Game.new()
+	add_child(game)
+	game.setup(player)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 

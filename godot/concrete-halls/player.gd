@@ -29,8 +29,10 @@ const PUNCHES := {
 	"hook": [Vector4(82, -30, 8, 40), Vector4(96, 32, 0, 28)],
 	"upper": [Vector4(45, 12, 6, 100), Vector4(95, 12, 0, 58)],
 }
+const PUNCH_DMG := {"straight": 18.0, "hook": 24.0, "upper": 30.0}
 
 var active := false
+var dmg_mult := 1.0           # множитель урона (кастет из сейфа — 1.5)
 var cam: Camera3D
 var head: Node3D
 var legs: Array[Node3D] = []      # тазобедренные шарниры
@@ -419,7 +421,7 @@ func punch() -> void:
 	tw.tween_callback(_punch_fx.bind(i, kind, true))
 	tw.tween_method(_pose_setter(i), keys[0], keys[1], 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_method(func(v: float) -> void: reach[i] = v, 0.0, 0.12, 0.09)
-	tw.tween_callback(_check_hit.bind(i))
+	tw.tween_callback(_check_hit.bind(i, kind))
 	tw.tween_callback(_punch_fx.bind(i, kind, false))
 	tw.tween_method(_pose_setter(i), keys[1], GUARDS[i], 0.22).set_trans(Tween.TRANS_SINE)
 	tw.parallel().tween_method(func(v: float) -> void: reach[i] = v, 0.12, 0.0, 0.22)
@@ -463,14 +465,18 @@ func _punch_sound() -> void:
 	_play(voice_player, exhales, -14.0)
 
 
-func _check_hit(arm: int) -> void:
+func _check_hit(arm: int, kind := "straight") -> void:
 	var from := cam.global_position
 	var to := from - cam.global_transform.basis.z * 1.0
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	q.exclude = [get_rid()]
+	q.collision_mask = 1
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if hit:
 		_play(hit_player, impacts, -11.0)
+		# урон врагам/манекену (тестовые механики, см. game.gd): у цели должен быть take_hit(урон, направление)
+		if hit.collider.has_method("take_hit"):
+			hit.collider.take_hit(PUNCH_DMG.get(kind, 20.0) * dmg_mult, -cam.global_transform.basis.z)
 		# лёгкая отдача в камеру
 		var tw := create_tween()
 		var side := -1.0 if arm == 0 else 1.0
