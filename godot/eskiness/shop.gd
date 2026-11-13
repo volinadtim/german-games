@@ -1,6 +1,6 @@
 extends StaticBody3D
-## Магазин оружия ближнего боя (слева от игрового автомата): прилавок, стена с оружием, вывеска.
-## E — открыть окно магазина; там покупка за монеты (оружие, противогаз, фильтры).
+## Магазин снаряжения «Trinkets Market» — зелёный торговый автомат слева от KILLBOX.
+## E — открыть окно: покупка за монеты (оружие, одежда, противогаз, фильтры, фонарик), скупка хлама, обновление ящиков.
 ## Интерфейс взаимодействия (его дёргает game.gd): get_prompt(game) -> String, interact(game).
 
 const Weapons := preload("res://weapons.gd")
@@ -45,60 +45,222 @@ func _box(size: Vector3, pos: Vector3, m: Material, collide := false) -> void:
 		add_child(cs)
 
 
-## Перед магазина — +Z.
+## Торговый автомат «Trinkets Market»: высокий зелёный корпус (облупленная краска — worn_metal.gdshader),
+## витрина за мутным стеклом с полками и спиралями, на спиралях — маленькие модели товаров,
+## справа панель с кнопками и щелью для монет, внизу лоток выдачи, сверху светящаяся вывеска.
+## Купленный товар падает с витрины в лоток (_vend), а в инвентарь кладётся сразу.
+## Перед — +Z.
+const W := 1.0          # ширина
+const H := 2.15         # высота корпуса
+const D := 0.7          # глубина
+const WIN_X0 := -0.47   # витрина по X
+const WIN_X1 := 0.17
+const SHELF_Y := [1.78, 1.44, 1.1, 0.76]
+const TRAY_Y := 0.3
+var shelf_pos := {}     # id товара -> где он лежит на витрине
+var _noise_tex: NoiseTexture2D
+
+
+func _worn(c: Color, chrome := false, wear := 0.3) -> ShaderMaterial:
+	if _noise_tex == null:
+		var n := FastNoiseLite.new()
+		n.seed = 91
+		n.frequency = 0.045
+		n.fractal_octaves = 3
+		_noise_tex = NoiseTexture2D.new()
+		_noise_tex.width = 128
+		_noise_tex.height = 128
+		_noise_tex.seamless = true
+		_noise_tex.noise = n
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://worn_metal.gdshader")
+	m.set_shader_parameter("n_px", _noise_tex)
+	m.set_shader_parameter("n_lin", _noise_tex)
+	m.set_shader_parameter("paint_color", c)
+	m.set_shader_parameter("chrome", 1.0 if chrome else 0.0)
+	m.set_shader_parameter("wear", wear)
+	m.set_shader_parameter("rust", 0.65)
+	m.set_shader_parameter("dust", 0.6)
+	return m
+
+
 func _build() -> void:
-	var wood := _mat(Color(0.32, 0.22, 0.14))
-	var dark := _mat(Color(0.16, 0.12, 0.09))
-	# прилавок
-	_box(Vector3(1.9, 0.95, 0.55), Vector3(0, 0.475, 0.45), wood, true)
-	_box(Vector3(2.0, 0.05, 0.62), Vector3(0, 0.975, 0.45), dark)
-	# задняя стенка-перфорация с оружием
-	_box(Vector3(2.1, 2.1, 0.06), Vector3(0, 1.25, -0.2), _mat(Color(0.24, 0.2, 0.16)), true)
-	for k in 6:
-		_box(Vector3(2.0, 0.015, 0.02), Vector3(0, 0.45 + k * 0.35, -0.165), dark)
-	var ids := ["bat", "pipe", "crowbar", "machete"]
-	for i in ids.size():
-		var w := Weapons.make(ids[i])
-		w.position = Vector3(-0.72 + i * 0.48, 1.0, -0.13)
-		w.rotation.z = 0.12 * (1 if i % 2 == 0 else -1)
-		add_child(w)
-		var tag := Label3D.new()
-		tag.text = "%d" % Weapons.WEAPONS[ids[i]]["price"]
-		tag.font_size = 40
-		tag.pixel_size = 0.002
-		tag.modulate = Color(0.95, 0.85, 0.5)
-		tag.position = Vector3(-0.72 + i * 0.48, 0.82, -0.12)
-		add_child(tag)
-	# противогаз на прилавке
-	var gm := Weapons.make("gasmask")
-	gm.position = Vector3(0.62, 1.08, 0.42)
-	gm.rotation.y = 0.5
-	add_child(gm)
-	# вывеска
-	var sign_bg := _mat(Color(0.12, 0.05, 0.04))
-	sign_bg.emission_enabled = true
-	sign_bg.emission = Color(0.5, 0.12, 0.05)
-	sign_bg.emission_energy_multiplier = 0.4
-	_box(Vector3(1.5, 0.3, 0.04), Vector3(0, 2.45, -0.15), sign_bg)
+	var green := _worn(Color(0.1, 0.27, 0.15), false, 0.3)
+	var steel := _worn(Color(0.5, 0.52, 0.5), true)
+	var dark := _mat(Color(0.03, 0.035, 0.03))
+	var inside := _mat(Color(0.12, 0.13, 0.12), 0.3, 0.7)
+	# корпус: задняя стенка, бока, верх, низ, панель справа, перемычка над лотком
+	_box(Vector3(W, H, 0.05), Vector3(0, H / 2, -D / 2 + 0.025), green)
+	for sx in [-1.0, 1.0]:
+		_box(Vector3(0.05, H, D), Vector3((W / 2 - 0.025) * sx, H / 2, 0), green)
+	_box(Vector3(W, 0.06, D), Vector3(0, H - 0.03, 0), green)
+	_box(Vector3(W, 0.12, D), Vector3(0, 0.06, 0), green)
+	_box(Vector3(W / 2 - WIN_X1, H - 0.18, 0.06), Vector3((WIN_X1 + W / 2) / 2, H / 2 + 0.03, D / 2 - 0.03), green)
+	_box(Vector3(WIN_X1 + W / 2, 0.42, 0.06), Vector3((WIN_X1 - W / 2) / 2, 0.33, D / 2 - 0.03), green)
+	_box(Vector3(WIN_X1 + W / 2, 0.07, 0.06), Vector3((WIN_X1 - W / 2) / 2, H - 0.095, D / 2 - 0.03), green)
+	# внутренности витрины
+	_box(Vector3(WIN_X1 - WIN_X0, 1.55, 0.02), Vector3((WIN_X0 + WIN_X1) / 2, 1.3, -D / 2 + 0.06), inside)
+	for y in SHELF_Y:
+		_box(Vector3(WIN_X1 - WIN_X0, 0.015, D - 0.14), Vector3((WIN_X0 + WIN_X1) / 2, y - 0.09, 0.0), steel)
+		# ценники вдоль края полки
+		_box(Vector3(WIN_X1 - WIN_X0, 0.03, 0.005), Vector3((WIN_X0 + WIN_X1) / 2, y - 0.1, D / 2 - 0.075), _mat(Color(0.75, 0.72, 0.62)))
+	# товары на спиралях: 4 полки × 4 места
+	var goods: Array = []
+	for e in Weapons.SHOP:
+		goods.append(e[0])
+	for i in mini(goods.size(), 16):
+		var row := i / 4
+		var col := i % 4
+		var x := WIN_X0 + 0.08 + col * 0.16
+		var y: float = SHELF_Y[row] - 0.06
+		var pos := Vector3(x, y, 0.08)
+		shelf_pos[goods[i]] = pos
+		_coil(Vector3(x, y - 0.02, 0.02), steel)
+		var mini_ := _mini(goods[i])
+		mini_.position = pos + Vector3(0, 0.02, 0)
+		add_child(mini_)
+	# мутное зеленоватое стекло витрины
+	var gm := StandardMaterial3D.new()
+	gm.albedo_color = Color(0.5, 0.6, 0.52, 0.1)
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	gm.roughness = 0.2
+	gm.metallic_specular = 0.8
+	var glass := MeshInstance3D.new()
+	var gq := QuadMesh.new()
+	gq.size = Vector2(WIN_X1 - WIN_X0, 1.55)
+	glass.mesh = gq
+	glass.material_override = gm
+	glass.position = Vector3((WIN_X0 + WIN_X1) / 2, 1.3, D / 2 - 0.01)
+	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(glass)
+	# лоток выдачи: тёмная ниша с откидной заслонкой
+	_box(Vector3(0.5, 0.16, 0.02), Vector3(-0.15, TRAY_Y, D / 2 + 0.005), dark)
+	_box(Vector3(0.52, 0.04, 0.03), Vector3(-0.15, TRAY_Y + 0.1, D / 2 + 0.01), steel)
+	# панель справа: экранчик, кнопки 4×3, щель для монет, возврат монет
+	var px := (WIN_X1 + W / 2) / 2
+	var screen_m := _mat(Color(0.05, 0.12, 0.06))
+	screen_m.emission_enabled = true
+	screen_m.emission = Color(0.3, 0.9, 0.4)
+	screen_m.emission_energy_multiplier = 0.35
+	_box(Vector3(0.22, 0.08, 0.01), Vector3(px, 1.62, D / 2 + 0.005), screen_m)
+	var scr := Label3D.new()
+	scr.text = "ВЫБОР"
+	scr.font_size = 32
+	scr.pixel_size = 0.0018
+	scr.modulate = Color(0.5, 1.0, 0.55)
+	scr.outline_size = 0
+	scr.position = Vector3(px, 1.62, D / 2 + 0.012)
+	add_child(scr)
+	var btn := _worn(Color(0.6, 0.6, 0.55), true)
+	for r in 4:
+		for c in 3:
+			_box(Vector3(0.05, 0.04, 0.02), Vector3(px - 0.07 + c * 0.07, 1.48 - r * 0.07, D / 2 + 0.01), btn)
+	_box(Vector3(0.05, 0.1, 0.02), Vector3(px, 1.12, D / 2 + 0.01), steel)
+	_box(Vector3(0.012, 0.06, 0.01), Vector3(px, 1.12, D / 2 + 0.021), dark)
+	_box(Vector3(0.1, 0.06, 0.03), Vector3(px, 0.92, D / 2 + 0.01), dark)
+	# вывеска сверху
+	var sign_m := _mat(Color(0.04, 0.09, 0.05))
+	sign_m.emission_enabled = true
+	sign_m.emission = Color(0.12, 0.5, 0.2)
+	sign_m.emission_energy_multiplier = 0.45
+	_box(Vector3(W + 0.04, 0.26, 0.12), Vector3(0, H + 0.13, 0.12), sign_m)
+	_box(Vector3(W + 0.06, 0.02, 0.14), Vector3(0, H + 0.27, 0.12), steel)
 	var title := Label3D.new()
-	title.text = "СНАРЯЖЕНИЕ"
-	title.font_size = 80
-	title.pixel_size = 0.0019
-	title.modulate = Color(1.0, 0.55, 0.3)
-	title.outline_size = 0
-	title.position = Vector3(0, 2.45, -0.12)
+	title.text = "Trinkets Market"
+	title.font_size = 64
+	title.pixel_size = 0.00175
+	title.outline_size = 6
+	title.outline_modulate = Color(0.02, 0.1, 0.03)
+	title.modulate = Color(0.6, 1.0, 0.62)
+	title.shaded = false
+	title.position = Vector3(0, H + 0.13, 0.185)
 	add_child(title)
-	# своя тусклая лампа
+	# свет витрины и вывески — тусклый зелёный
 	var l := OmniLight3D.new()
-	l.light_color = Color(1.0, 0.7, 0.45)
-	l.light_energy = 0.7
-	l.omni_range = 3.2
-	l.position = Vector3(0, 2.2, 0.6)
+	l.light_color = Color(0.55, 1.0, 0.6)
+	l.light_energy = 0.4
+	l.omni_range = 3.0
+	l.position = Vector3(-0.15, 1.6, D / 2 + 0.4)
 	add_child(l)
+	var inner := OmniLight3D.new()
+	inner.light_color = Color(0.75, 1.0, 0.8)
+	inner.light_energy = 0.12
+	inner.omni_range = 1.2
+	inner.position = Vector3(-0.15, 1.95, 0.05)
+	add_child(inner)
+	# коллизия
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(W, H + 0.3, D)
+	cs.shape = bs
+	cs.position = Vector3(0, (H + 0.3) / 2, 0)
+	add_child(cs)
+
+
+## Спираль-держатель товара: несколько колец вдоль глубины полки.
+func _coil(pos: Vector3, m: Material) -> void:
+	for k in 5:
+		var tm := TorusMesh.new()
+		tm.inner_radius = 0.045
+		tm.outer_radius = 0.052
+		tm.rings = 12
+		tm.ring_segments = 6
+		var mi := MeshInstance3D.new()
+		mi.mesh = tm
+		mi.material_override = m
+		mi.rotation.x = PI / 2
+		mi.position = pos + Vector3(0, 0, -0.18 + k * 0.07)
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(mi)
+
+
+## Маленькая модель товара, вписанная в ~13 см.
+func _mini(id: String) -> Node3D:
+	var n: Node3D = Items.make_mesh(id)
+	var box := AABB()
+	var first := true
+	var meshes: Array = n.find_children("*", "MeshInstance3D", true, false)
+	if n is MeshInstance3D:
+		meshes.append(n)
+	for mi in meshes:
+		if (mi as MeshInstance3D).mesh == null:
+			continue
+		var bb: AABB = (mi as MeshInstance3D).mesh.get_aabb()
+		if mi != n:
+			bb = (mi as Node3D).transform * bb
+		box = bb if first else box.merge(bb)
+		first = false
+	var holder := Node3D.new()
+	holder.add_child(n)
+	var mx := maxf(box.size.x, maxf(box.size.y, box.size.z))
+	holder.scale = Vector3.ONE * (0.15 / maxf(mx, 0.01))
+	n.position = -(n.transform * box.get_center())
+	return holder
+
+
+## Покупка: копия товара падает с витрины в лоток и пропадает.
+func _vend(id: String) -> void:
+	var from: Vector3 = shelf_pos.get(id, Vector3(-0.15, 1.4, 0.08))
+	var m := _mini(id)
+	m.position = from + Vector3(0, 0.02, 0.06)
+	add_child(m)
+	var tw := create_tween()
+	tw.tween_property(m, "position:z", from.z + 0.12, 0.35).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(m, "rotation:z", 0.4, 0.35)
+	tw.tween_property(m, "position", Vector3(from.x * 0.5 - 0.08, TRAY_Y + 0.02, D / 2 - 0.08), 0.45).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(m, "rotation:x", 1.8, 0.45)
+	tw.tween_callback(_vend_thud)
+	tw.tween_interval(1.2)
+	tw.tween_callback(m.queue_free)
+
+
+func _vend_thud() -> void:
+	if game:
+		game.play_at("thud", global_transform * Vector3(0, TRAY_Y, D / 2), -12.0, 1.8)
 
 
 func get_prompt(_game) -> String:
-	return "E — магазин снаряжения"
+	return "[E] Trinkets Market"
 
 
 func interact(g) -> void:
@@ -178,7 +340,7 @@ func _build_ui() -> void:
 	all_b.add_theme_font_size_override("font_size", 20)
 	all_b.pressed.connect(_sell_all_junk)
 	sell_col.add_child(all_b)
-	box.add_child(_label("МАГАЗИН СНАРЯЖЕНИЯ", 28, Color(1.0, 0.6, 0.35)))
+	box.add_child(_label("TRINKETS MARKET", 28, Color(0.55, 1.0, 0.6)))
 	coins_l = _label("", 22, Color(0.92, 0.8, 0.5))
 	box.add_child(coins_l)
 	var goods := GridContainer.new()
@@ -339,6 +501,7 @@ func _buy(id: String, price: int) -> void:
 		info_l.text = "Инвентарь полон"
 		return
 	info_l.text = "Куплено: %s" % Items.item_name(id)
+	_vend(id)
 	if id == "gasmask" and game.gasmask:
 		game.gasmask.on_bought()
 	game.play_ui("coin", -10.0)
