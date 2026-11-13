@@ -150,6 +150,21 @@ var turn_to_yaw := 0.0
 var turn_from_pos := Vector3.ZERO
 var turn_from_fy := 0.0
 var fist_blend := 0.0
+# --- живая поза стоя (idle): дыхание, перенос веса, покачивание, редкие движения;
+# в стойке с кулаками — пружинистое боксёрское покачивание ---
+var idle_amt := 0.0               # 0 — идёт/прыгает, 1 — стоит
+var idle_time := 0.0
+var weight := 0.0                 # перенос веса: -1 — на левую ногу, +1 — на правую
+var weight_to := 0.0
+var weight_timer := 3.0
+var hip_off := Vector3.ZERO       # смещение таза (оси ног), стопы стоят на месте
+var idle_pitch: Array[float] = [0.0, 0.0]   # приподнятая пятка разгруженной ноги
+var fidget := ""                  # текущее случайное движение
+var fidget_t := 0.0
+var fidget_dur := 1.0
+var fidget_side := 1.0
+var fidget_timer := 5.0
+var pelvis_bone := -1
 var punching := false
 var sprint_carry := 0.0   # 1 сразу после бега, плавно падает — от него зависит «занос»
 var phase := 0.0
@@ -530,6 +545,7 @@ func _build_model() -> void:
 	for n in ["spine01", "spine02", "spine03"]:
 		spine_bones.append(skel.find_bone(n))
 	neck_bone = skel.find_bone("neck")
+	pelvis_bone = skel.find_bone("pelvis")
 
 	# голова и шея: видимый меш со «схлопнутыми» головой и шеей (камера внутри головы),
 	# а копия с исходным скином рисует только тень — тень от головы остаётся
@@ -560,21 +576,45 @@ func _apply_bones() -> void:
 	var torso_off := angle_difference(rotation.y, torso_yaw)
 	var leg_rot := Basis(Vector3.UP, leg_off)
 	model_root.rotation.y = PI + leg_off
-	model_root.position = leg_rot * Vector3(0, 0, MODEL_Z)
+	model_root.position = leg_rot * (Vector3(0, 0, MODEL_Z) + hip_off)
 	var rr := (leg_rot * rig_rel).inverse()
 	var rest_p := func(b: int) -> Basis: return rig_rel * skel.get_bone_global_rest(b).basis.orthonormalized()
+	# idle: дыхание, наклон таза на опорную ногу, покачивание корпуса, редкие движения
+	var it := idle_time
+	var breath := (0.5 + 0.5 * sin(it * TAU / 4.2)) * idle_amt
+	var box := fist_blend * idle_amt
+	var bounce := (0.5 + 0.5 * sin(it * TAU * 1.8)) * box
+	var fk := sin(PI * fidget_t) if fidget != "" else 0.0
+	var sway_r := (sin(it * 0.63) * 0.012 + sin(it * 1.37) * 0.006) * idle_amt
+	var sway_p := sin(it * 0.41 + 1.0) * 0.012 * idle_amt
+	if pelvis_bone != -1:
+		_set_global_rot(pelvis_bone, rr * leg_rot * Basis(Vector3.BACK, weight * 0.045 * idle_amt) * rest_p.call(pelvis_bone))
+	var spine_x := [sway_p * 0.5 - box * 0.05, sway_p + breath * 0.012 - box * 0.08, breath * 0.035 - box * 0.06 - bounce * 0.03]
+	var spine_z := [-weight * 0.03 * idle_amt + sway_r, sway_r, sway_r * 0.5]
 	# корпус доворачивается за бьющей рукой, ключица выносит плечо вперёд
 	var twist := (reach[1] - reach[0]) * 2.2 + swing_twist
 	var dt := torso_off - leg_off
 	var spine_a := [leg_off + dt * 0.3 + swing_twist * 0.3, leg_off + dt * 0.65 + swing_twist * 0.6, torso_off + twist]
 	for k in spine_bones.size():
-		_set_global_rot(spine_bones[k], rr * Basis(Vector3.UP, spine_a[k]) * rest_p.call(spine_bones[k]))
+		_set_global_rot(spine_bones[k], rr * Basis(Vector3.UP, spine_a[k]) * Basis(Vector3.RIGHT, spine_x[k])
+				* Basis(Vector3.BACK, spine_z[k]) * rest_p.call(spine_bones[k]))
 	if neck_bone != -1:
-		_set_global_rot(neck_bone, rr * rest_p.call(neck_bone))
+		# разминка шеи: наклон к плечу и поворот
+		var nk := Basis.IDENTITY
+		if fidget == "neck":
+			nk = Basis(Vector3.UP, 0.35 * fidget_side * sin(TAU * fidget_t) * fk) * Basis(Vector3.BACK, 0.3 * fidget_side * fk)
+		_set_global_rot(neck_bone, rr * nk * rest_p.call(neck_bone))
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
 		var c := clav_bones[i]
-		_set_global_rot(c, rr * Basis(Vector3.UP, torso_off + side * reach[i] * 2.5 + twist) * rest_p.call(c))
+		# дыхание и пружинка стойки поднимают плечи; «поводит плечом» — вверх и назад по кругу
+		var up := breath * 0.03 + bounce * 0.025
+		var back := 0.0
+		if fidget == "shoulder" and (fidget_side > 0.0) == (i == 1):
+			up += 0.16 * fk
+			back += 0.14 * sin(TAU * fidget_t * 0.5 + 0.3) * fk
+		_set_global_rot(c, rr * Basis(Vector3.UP, torso_off + side * reach[i] * 2.5 + twist - side * back)
+				* Basis(Vector3.BACK, side * up) * rest_p.call(c))
 	var torso_rot := Basis(Vector3.UP, torso_off)
 	for e in bone_map:
 		var d: Node3D = e[1]
@@ -586,8 +626,12 @@ func _apply_bones() -> void:
 			var tw := deg_to_rad(90.0) * side * (0.1 + 0.6 * fist_blend) * (1.0 if e[4] else 0.5)
 			basis = basis * Basis(Vector3.UP, tw)
 		_set_global_rot(e[0], rr * basis * e[2])
-	for f in finger_bones:
-		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], fist_blend))
+	var wig := fk * idle_amt * (1.0 - fist_blend) if fidget == "fingers" else 0.0
+	for n in finger_bones.size():
+		var f: Array = finger_bones[n]
+		# шевелит пальцами — каждый палец сгибается в своём ритме
+		var b := clampf(fist_blend + wig * (0.22 + 0.22 * sin(idle_time * 13.0 + float(n) * 1.7)), 0.0, 1.0)
+		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], b))
 	_flex_weapons()
 
 
@@ -1051,17 +1095,21 @@ func _physics_process(delta: float) -> void:
 func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	var spd := v_local.length()
 	var grounded := is_on_floor()
+	_update_idle(delta, spd, grounded)
 	_animate_legs(delta, v_local, grounded)
 	var amt := clampf(spd / WALK, 0.0, 1.5) if grounded else 0.0
 	phase = gait * TAU * 2.0
+	var box_ph := sin(idle_time * TAU * 1.8) * fist_blend * idle_amt
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
 		var p: Vector4 = arm_pose[i]
 		# рука качается навстречу противоположной ноге
 		var arm_swing := clampf(-foot[1 - i].z * 1.1, -0.6, 0.6) * (1.0 - fist_blend)
-		var guard_bob := deg_to_rad(sin(phase + float(i)) * 3.0 * amt * fist_blend)
+		var guard_bob := deg_to_rad(sin(phase + float(i)) * 3.0 * amt * fist_blend + box_ph * 2.5)
+		# дыхание чуть разводит руки, в покое они слегка покачиваются
+		var rest_sway := (sin(idle_time * 0.9 + float(i) * 2.0) * 0.03) * idle_amt * (1.0 - fist_blend)
 		shoulders[i].rotation = Vector3(
-			deg_to_rad(p.x) + arm_swing + guard_bob,
+			deg_to_rad(p.x) + arm_swing + guard_bob + rest_sway,
 			deg_to_rad(p.y) * side,
 			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend))
 		elbows[i].rotation.x = deg_to_rad(p.w)
@@ -1070,7 +1118,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
 	land_dip = move_toward(land_dip, 0.0, delta * 0.35)
 	# голова ниже всего в момент постановки стопы (дважды за цикл)
-	head.position.y = CAM_Y - (0.5 + 0.5 * cos(phase)) * 0.035 * bob - land_dip
+	head.position.y = CAM_Y - (0.5 + 0.5 * cos(phase)) * 0.035 * bob - land_dip + hip_off.y * 0.6
 	head.position.x = sin(gait * TAU) * 0.012 * bob
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
 	head.position.z = lerpf(-0.22, -0.04, fist_blend)
@@ -1162,7 +1210,10 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 	if turn_foot >= 0:
 		_turn_step(delta)
 	for i in 2:
-		_leg_ik(i, foot[i])
+		var t := foot[i] - hip_off
+		# разгруженная нога: пятка чуть приподнята, колено подсогнуто
+		t.y += 0.16 * maxf(-sin(idle_pitch[i]), 0.0)
+		_leg_ik(i, t, idle_pitch[i])
 
 
 ## Торс догоняет взгляд с задержкой. На ходу и в прыжке ноги сразу смотрят по взгляду (как раньше);
@@ -1236,7 +1287,54 @@ func _turn_step(delta: float) -> void:
 			turn_hold = 0.0
 
 
-func _leg_ik(i: int, t: Vector3) -> void:
+## Живая поза стоя: таймеры переноса веса и случайных движений, смещение таза.
+func _update_idle(delta: float, spd: float, grounded: bool) -> void:
+	var still := grounded and spd < 0.3 and settle_t[0] >= 1.0 and settle_t[1] >= 1.0
+	idle_amt = move_toward(idle_amt, 1.0 if still else 0.0, delta * (1.5 if still else 4.0))
+	idle_time += delta
+	var box := fist_blend
+	# перенос веса: стоя — раз в 3–7 с на другую ногу; в стойке — пружинит с ноги на ногу
+	weight_timer -= delta
+	if weight_timer <= 0.0:
+		weight_timer = randf_range(3.0, 7.0)
+		weight_to = (-1.0 if weight > 0.0 else 1.0) * randf_range(0.6, 1.0)
+		if randf() < 0.25:
+			weight_to *= 0.2
+	var w_target := lerpf(weight_to, sin(idle_time * TAU * 0.9) * 0.5, box)
+	weight = lerpf(weight, w_target, 1.0 - exp(-(1.6 + 4.0 * box) * delta))
+	var bounce := 0.5 + 0.5 * sin(idle_time * TAU * 1.8)
+	var w := weight * idle_amt
+	# таз уходит на опорную ногу и чуть опускается (вес = -1 — левая, она на -X)
+	var tgt := Vector3(w * 0.035, -(absf(w) * 0.012 + 0.006 * (0.5 + 0.5 * sin(idle_time * TAU / 4.2)))
+			- box * idle_amt * (0.035 + 0.025 * bounce), 0.0)
+	hip_off = hip_off.lerp(tgt, 1.0 - exp(-10.0 * delta))
+	for i in 2:
+		var side := -1.0 if i == 0 else 1.0
+		var unload := clampf(-w * side, 0.0, 1.0) * (1.0 - box)   # нога на другой стороне от веса
+		idle_pitch[i] = lerpf(idle_pitch[i], -0.18 * unload, 1.0 - exp(-6.0 * delta))
+	# редкие случайные движения
+	if fidget != "":
+		fidget_t += delta / fidget_dur
+		if fidget_t >= 1.0:
+			fidget = ""
+	elif idle_amt > 0.9 and not punching:
+		fidget_timer -= delta
+		if fidget_timer <= 0.0:
+			fidget_timer = randf_range(4.0, 9.0)
+			var kinds := ["neck", "shoulder", "shift"] if box > 0.5 else ["neck", "shoulder", "fingers", "shift", "fingers"]
+			if box > 0.5:
+				kinds = ["shoulder", "shift"]
+			fidget = kinds[randi() % kinds.size()]
+			fidget_t = 0.0
+			fidget_side = -1.0 if randf() < 0.5 else 1.0
+			fidget_dur = {"neck": 1.8, "shoulder": 1.1, "fingers": 1.2, "shift": 0.6}[fidget]
+			if fidget == "shift" and turn_foot < 0:
+				# переминается: одна нога переступает на месте
+				turn_steps = 1
+				_start_turn_step(0 if fidget_side < 0.0 else 1)
+
+
+func _leg_ik(i: int, t: Vector3, extra_pitch := 0.0) -> void:
 	# разворот стопы — поворот всей ноги вокруг вертикали в бедре; цель считаем в повёрнутых осях
 	t = Basis(Vector3.UP, -foot_yaw[i]) * t
 	var roll := atan2(t.x, -t.y)                     # отвод ноги в сторону
@@ -1249,7 +1347,7 @@ func _leg_ik(i: int, t: Vector3) -> void:
 	legs[i].rotation = Vector3(aim + a_hip, foot_yaw[i], roll)
 	knees[i].rotation.x = -a_knee
 	# ботинок параллельно полу + перекат стопы
-	ankles[i].rotation.x = -(aim + a_hip - a_knee) + foot_pitch[i]
+	ankles[i].rotation.x = -(aim + a_hip - a_knee) + foot_pitch[i] + extra_pitch
 
 
 func _play_step(db: float, _pitch := 1.0) -> void:
