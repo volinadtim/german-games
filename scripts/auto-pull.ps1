@@ -22,6 +22,33 @@ if (-not (Test-Path (Join-Path $Dir ".git"))) {
     if ($LASTEXITCODE -ne 0) { Read-Host "Clone failed. Press Enter to exit"; exit 1 }
 }
 
+# Godot asks "files are newer on disk" for open scripts on every pull.
+# Turn on Editor Settings > Text Editor > Behavior > Files > Auto Reload Scripts on External Change.
+function Enable-GodotAutoReload {
+    $key = "text_editor/behavior/files/auto_reload_scripts_on_external_change"
+    $files = @(Get-ChildItem -ErrorAction SilentlyContinue "$env:APPDATA\Godot\editor_settings-4*.tres")
+    if (-not $files.Count) { return }
+    $todo = @($files | Where-Object { -not (Select-String -Quiet -Path $_.FullName -Pattern "^$([regex]::Escape($key)) = true") })
+    if (-not $todo.Count) { return }
+    if (Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like "godot*" }) {
+        Write-Host "Godot is open: close it once and restart this script to turn on auto-reload of scripts" -ForegroundColor Yellow
+        return
+    }
+    foreach ($f in $todo) {
+        $lines = [System.Collections.Generic.List[string]]([IO.File]::ReadAllLines($f.FullName))
+        $i = $lines.FindIndex({ param($l) $l.StartsWith("$key = ") })
+        if ($i -ge 0) { $lines[$i] = "$key = true" }
+        else {
+            $r = $lines.IndexOf("[resource]")
+            if ($r -lt 0) { continue }
+            $lines.Insert($r + 1, "$key = true")
+        }
+        [IO.File]::WriteAllLines($f.FullName, $lines, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "Godot: auto-reload of changed scripts turned on ($($f.Name))" -ForegroundColor Green
+    }
+}
+Enable-GodotAutoReload
+
 Set-Location $Dir
 Write-Host "Watching $Repo ($Branch) every $Interval s in $Dir. Close the window to stop." -ForegroundColor Cyan
 
