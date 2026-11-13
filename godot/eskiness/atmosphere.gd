@@ -1,7 +1,7 @@
 @tool
 extends Node3D
 ## Мелкие детали атмосферы бункера. Каждая добавка — своя функция; ненужную убрать, закомментировав строку в _ready.
-##   _moths            — мошки кружат в свете ламп, тихое жужжание
+##   _moths            — мошки кружат в свете ламп (без звука)
 ##   _broken_lamp_tremble — поломанная лампа на проводах чуть подрагивает, тени дрожат
 ##   _drips            — с потолка изредка падают капли (со звуком), под ними мокрые пятна и плесень
 ##   _steam            — ржавая труба под потолком, из трещины в ней сочится пар с шипением
@@ -53,7 +53,7 @@ func _process(delta: float) -> void:
 # ---------- мошки у ламп ----------
 
 func _moths() -> void:
-	var buzz: AudioStreamWAV = null if Engine.is_editor_hint() else _buzz_loop()
+	var buzz: AudioStreamWAV = null   # жужжание мошек выключено (промпт 21:39); вернуть: _buzz_loop()
 	var tex := _moth_tex()
 	var lights := level.find_children("*", "OmniLight3D", true, false)
 	var k := 0
