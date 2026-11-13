@@ -462,7 +462,7 @@ func _floor_litter() -> void:
 	add_child(mmi)
 	# осколки стекла: под поломанной лампой и в паре мест
 	var glass := StandardMaterial3D.new()
-	glass.albedo_color = Color(0.75, 0.85, 0.8, 0.35)
+	glass.albedo_color = Color(0.45, 0.52, 0.5, 0.2)
 	glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass.roughness = 0.05
 	glass.metallic_specular = 0.9
@@ -470,7 +470,7 @@ func _floor_litter() -> void:
 	for spot in [[Vector3(-5.6, 0, 0.1), 0.9, 30], [Vector3(9.5, 0, -6.5), 0.5, 12], [Vector3(-9.0, 0, 6.8), 0.5, 10]]:
 		for j in spot[2]:
 			var pm := PrismMesh.new()
-			var a := rng.randf_range(0.015, 0.07)
+			var a := rng.randf_range(0.008, 0.035)
 			pm.size = Vector3(a, a * rng.randf_range(0.8, 2.0), 0.003)
 			pm.left_to_right = rng.randf()
 			var mi := MeshInstance3D.new()
