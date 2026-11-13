@@ -38,6 +38,23 @@ function Enable-GodotAutoReload {
         ForEach-Object { (New-Object -ComObject WScript.Shell).CreateShortcut($_.FullName).TargetPath })
     foreach ($e in $exes) { if ($e) { $d = Split-Path -Parent $e; $dirs.Add("$d\editor_data"); $dirs.Add($d) } }
     $dirs.Add("$env:USERPROFILE\scoop\persist\godot\editor_data")
+    # Steam: Godot is self-contained there, settings in steamapps\common\Godot Engine\editor_data
+    $steam = $null
+    try { $steam = (Get-ItemProperty -ErrorAction Stop "HKCU:\Software\Valve\Steam").SteamPath } catch {}
+    $libs = New-Object System.Collections.Generic.List[string]
+    foreach ($s in @($steam, "${env:ProgramFiles(x86)}\Steam", "$env:ProgramFiles\Steam")) {
+        if (-not $s -or -not (Test-Path $s)) { continue }
+        $libs.Add($s)
+        $vdf = Join-Path $s "steamapps\libraryfolders.vdf"
+        if (Test-Path $vdf) {
+            Select-String -Path $vdf -Pattern '"path"\s+"([^"]+)"' | ForEach-Object { $libs.Add(($_.Matches[0].Groups[1].Value -replace '\\\\', '\')) }
+        }
+    }
+    foreach ($l in ($libs | Select-Object -Unique)) {
+        Get-ChildItem -ErrorAction SilentlyContinue -Directory (Join-Path $l "steamapps\common") |
+            Where-Object { $_.Name -like "*Godot*" } |
+            ForEach-Object { $dirs.Add("$($_.FullName)\editor_data") }
+    }
     $files = @($dirs | Select-Object -Unique | ForEach-Object { Get-ChildItem -ErrorAction SilentlyContinue "$_\editor_settings-4*.tres" } | Sort-Object FullName -Unique)
     if (-not $files.Count) {
         Write-Host "Godot settings not found (open Godot once, then restart this script). Or turn on by hand: Editor Settings > Text Editor > Behavior > Files > Auto Reload Scripts on External Change" -ForegroundColor Yellow
