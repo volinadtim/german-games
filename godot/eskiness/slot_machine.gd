@@ -7,6 +7,9 @@ extends StaticBody3D
 ##   3 семёрки подряд на линии — открывают сейф; если сейф уже открыт — 100 монет.
 ## 4 семёрки или 4 шестёрки в окне не выпадают никогда (исключены при генерации).
 ## Справа от автомата на стене — доска выплат. Автомат стоит в тёмной комнате и мерцает.
+## Вид: над вывеской — арка с черепом и венцом из шипов, по углам лампы в проволочных клетках,
+## неоновые буквы KILLBOX (одна «О» барахлит), лоток для монет — «пасть» с зубами и красным жаром,
+## решётки на боках, заклёпки, косые опоры, полосы «опасно».
 
 const Sym := preload("res://slot_symbols.gd")
 const WornMetal := preload("res://worn_metal.gdshader")
@@ -36,7 +39,7 @@ const R := 0.19            # радиус барабана
 const RW := 0.125          # ширина барабана
 const REEL_Y := 0.98
 const REEL_Z := 0.07
-const TEX := 128           # пикселей на символ в ленте
+const TEX := 64            # пикселей на символ в ленте (мало — крупные «пиксели», как у стен)
 const K := 1.3             # во сколько раз автомат больше «базового»
 const PED := 0.25          # высота подиума
 const RIG_Z := 0.1         # сдвиг вперёд, чтобы задняя стенка не уходила в стену
@@ -62,6 +65,13 @@ var hl_t := 0.0
 const HL_COLORS := [Color(1.0, 0.75, 0.25), Color(0.4, 1.0, 0.5), Color(0.4, 0.8, 1.0), Color(1.0, 0.45, 0.8), Color(1.0, 0.35, 0.2)]
 var light: OmniLight3D
 var screen: Label3D
+var neon: Array[Label3D] = []       # буквы KILLBOX
+var neon_col := Color(1.5, 0.3, 0.12)
+var broken_letter := 5              # «O» мигает и гаснет
+var eye_mats: Array[StandardMaterial3D] = []
+var cage_mats: Array[StandardMaterial3D] = []
+var maw_mat: StandardMaterial3D
+var neon_off := 0.0
 var party := 0.0
 var t := 0.0
 var tick_t := 0.0
@@ -176,16 +186,28 @@ func _build() -> void:
 	var art := Control.new()
 	art.size = Vector2(sv.size)
 	art.draw.connect(func() -> void:
-		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.76, 0.72, 0.64))
+		# лента цвета старой кости, по краям ячеек — тёмные полосы, поверх — пятна и царапины
+		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.66, 0.61, 0.51))
+		var gr := RandomNumberGenerator.new()
+		gr.seed = 66
 		for i in STRIP.size():
 			var r := Rect2(0, i * TEX, TEX, TEX)
-			art.draw_rect(Rect2(0, i * TEX, TEX, 2), Color(0.7, 0.64, 0.55))
-			Sym.draw(art, STRIP[i], r.grow(-14))
-		# серая вуаль поверх ленты — символы блеклые, выцветшие
-		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.3)))
+			art.draw_rect(Rect2(0, i * TEX, TEX, 3), Color(0.36, 0.3, 0.24))
+			art.draw_rect(Rect2(0, i * TEX + 3, TEX, 2), Color(0.55, 0.49, 0.4))
+			Sym.draw(art, STRIP[i], r.grow(-TEX * 0.1))
+		for k in 90:
+			var p := Vector2(gr.randi_range(0, TEX - 2), gr.randi_range(0, TEX * STRIP.size() - 2))
+			var sz := Vector2(gr.randi_range(1, 3), gr.randi_range(1, 2))
+			art.draw_rect(Rect2(p, sz), Color(0.25, 0.18, 0.12, gr.randf_range(0.3, 0.7)))
+		for k in 14:
+			var p := Vector2(gr.randi_range(0, TEX), gr.randi_range(0, TEX * STRIP.size()))
+			art.draw_line(p, p + Vector2(gr.randf_range(-12, 12), gr.randf_range(-4, 4)), Color(0.85, 0.8, 0.7, 0.35), 1.0)
+		# вуаль поверх ленты — символы чуть блеклые, выцветшие
+		art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.08)))
 	sv.add_child(art)
 	var reel_mat := StandardMaterial3D.new()
 	reel_mat.albedo_texture = sv.get_texture()
+	reel_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
 	reel_mat.albedo_color = Color(0.82, 0.8, 0.77)
 	reel_mat.roughness = 0.7
 	reel_mat.emission_enabled = true
@@ -202,15 +224,7 @@ func _build() -> void:
 		reels.append(r)
 
 	# вывеска
-	var sign_l := Label3D.new()
-	sign_l.text = "KILLBOX"
-	sign_l.font_size = 72
-	sign_l.pixel_size = 0.0021
-	sign_l.outline_size = 8
-	sign_l.outline_modulate = Color(0.15, 0.0, 0.0)
-	sign_l.modulate = Color(1.0, 0.3, 0.15)
-	sign_l.position = Vector3(0, 1.39, 0.335)
-	rig.add_child(sign_l)
+	_neon_sign(trim, black)
 	screen = Label3D.new()
 	screen.text = "КРУТКА — %d МОНЕТ" % COST
 	screen.font_size = 40
@@ -365,7 +379,7 @@ void fragment() {
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	rig.add_child(glass)
 	# наклейки: выцветшие, с оборванным краем
-	_sticker(Vector3(-0.22, 0.5, 0.302), Vector2(0.17, 0.1), 0.08, Color(0.78, 0.66, 0.28), 1, 0.0)
+	_sticker(Vector3(-0.24, 0.6, 0.302), Vector2(0.15, 0.09), 0.08, Color(0.78, 0.66, 0.28), 1, 0.0)
 	_sticker(Vector3(0.24, 0.16, 0.302), Vector2(0.11, 0.11), -0.25, Color(0.82, 0.8, 0.74), 2, 0.0)
 	_sticker(Vector3(0.405, 0.45, 0.05), Vector2(0.14, 0.09), 0.15, Color(0.7, 0.72, 0.6), 3, PI / 2.0)
 	# следы скотча: полупрозрачные пожелтевшие полоски
@@ -470,20 +484,14 @@ func _build_extras(body: Material, trim: Material, black: Material) -> void:
 	ped.set_shader_parameter("dust_color", Color(0.42, 0.4, 0.37))
 	_box(self, Vector3(0.9 * K + 0.06, PED, 0.68 * K + 0.06), Vector3(0, PED / 2.0, RIG_Z), ped)
 	_box(self, Vector3(0.9 * K + 0.08, 0.03, 0.68 * K + 0.08), Vector3(0, PED, RIG_Z), trim)
-	# надстройка над вывеской
-	_box(rig, Vector3(0.62, 0.32, 0.5), Vector3(0, 1.74, -0.02), body)
-	_box(rig, Vector3(0.66, 0.035, 0.54), Vector3(0, 1.91, -0.02), trim)
-	_box(rig, Vector3(0.5, 0.2, 0.01), Vector3(0, 1.74, 0.235), black)
-	var crown := Label3D.new()
-	crown.text = "777"
-	crown.font_size = 96
-	crown.pixel_size = 0.0019
-	crown.outline_size = 10
-	crown.outline_modulate = Color(0.3, 0.2, 0.0)
-	crown.modulate = Color(1.0, 0.85, 0.3)
-	crown.shaded = false
-	crown.position = Vector3(0, 1.74, 0.245)
-	rig.add_child(crown)
+	# надстройка над вывеской: арка с черепом и шипами; лампы в клетках; пасть, решётки, заклёпки, опоры
+	_arch_skull(body, trim, black)
+	_cage_lamps(trim)
+	_maw(trim, black)
+	_grilles(trim, black)
+	_braces(body, trim)
+	_rivets(trim)
+	_hazard_bands()
 	# цветные огни: по передним рёбрам корпуса и вдоль надстройки
 	var palette := [Color(1, 0.15, 0.1), Color(1, 0.55, 0.1), Color(1, 0.9, 0.2), Color(0.2, 1, 0.35), Color(0.2, 0.8, 1), Color(0.6, 0.3, 1)]
 	var spots: Array = []
@@ -512,6 +520,287 @@ func _build_extras(body: Material, trim: Material, black: Material) -> void:
 	for sx in [-1.0, 1.0]:
 		_box(rig, Vector3(0.012, 1.5, 0.02), Vector3(0.43 * sx, 0.78, 0.29), trim)
 
+
+# ---------- стиль: арка, череп, клетки, неон, пасть ----------
+
+func _emis(c: Color, energy: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c.darkened(0.6)
+	m.emission_enabled = true
+	m.emission = c
+	m.emission_energy_multiplier = energy
+	return m
+
+
+func _cyl(parent: Node3D, r: float, h: float, pos: Vector3, rot: Vector3, m: Material, seg := 16) -> MeshInstance3D:
+	var cm := CylinderMesh.new()
+	cm.top_radius = r
+	cm.bottom_radius = r
+	cm.height = h
+	cm.radial_segments = seg
+	cm.rings = 1
+	var mi := MeshInstance3D.new()
+	mi.mesh = cm
+	mi.material_override = m
+	mi.position = pos
+	mi.rotation = rot
+	parent.add_child(mi)
+	return mi
+
+
+func _sphere(parent: Node3D, r: float, pos: Vector3, m: Material, seg := 10) -> MeshInstance3D:
+	var sm := SphereMesh.new()
+	sm.radius = r
+	sm.height = r * 2.0
+	sm.radial_segments = seg
+	sm.rings = seg / 2
+	var mi := MeshInstance3D.new()
+	mi.mesh = sm
+	mi.material_override = m
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+func _prism(parent: Node3D, size: Vector3, pos: Vector3, rot_z: float, m: Material) -> MeshInstance3D:
+	var pm := PrismMesh.new()
+	pm.size = size
+	var mi := MeshInstance3D.new()
+	mi.mesh = pm
+	mi.material_override = m
+	mi.position = pos
+	mi.rotation.z = rot_z
+	parent.add_child(mi)
+	return mi
+
+
+## Арка над вывеской: полукруг корпуса с хромовым ободом, венец из ржавых шипов, в середине — череп
+## со светящимися глазами.
+func _arch_skull(body: Material, trim: Material, black: Material) -> void:
+	var cy := 1.58
+	_cyl(rig, 0.31, 0.5, Vector3(0, cy, -0.02), Vector3(PI / 2.0, 0, 0), body, 24)
+	_cyl(rig, 0.335, 0.05, Vector3(0, cy, 0.24), Vector3(PI / 2.0, 0, 0), trim, 24)
+	_cyl(rig, 0.27, 0.02, Vector3(0, cy, 0.262), Vector3(PI / 2.0, 0, 0), black, 24)
+	# шипы венцом
+	var rust := _worn(Color(0.3, 0.16, 0.08), true, 0.0, 1.0, 0.4)
+	for k in 9:
+		var a := lerpf(0.2, PI - 0.2, k / 8.0)
+		var long := 0.11 if k % 2 == 0 else 0.07
+		var p := Vector3(cos(a) * (0.34 + long * 0.45), cy + sin(a) * (0.34 + long * 0.45), 0.2)
+		_prism(rig, Vector3(0.045, long, 0.04), p, a - PI / 2.0, rust)
+	# череп
+	var bone := _worn(Color(0.6, 0.55, 0.44), false, 0.12, 0.35, 0.8)
+	var sk := Node3D.new()
+	sk.position = Vector3(0, cy + 0.13, 0.27)
+	rig.add_child(sk)
+	var cr := _sphere(sk, 0.1, Vector3(0, 0.02, 0), bone, 14)
+	cr.scale = Vector3(1.0, 0.92, 0.7)
+	var cheek := _box(sk, Vector3(0.13, 0.06, 0.08), Vector3(0, -0.06, 0.0), bone)
+	cheek.rotation.x = 0.1
+	var jaw := _box(sk, Vector3(0.1, 0.035, 0.07), Vector3(0, -0.105, 0.0), bone)
+	jaw.rotation.x = -0.12
+	for sx in [-1.0, 1.0]:
+		_sphere(sk, 0.03, Vector3(0.038 * sx, -0.005, 0.052), black, 8)
+		var em := _emis(Color(1.0, 0.12, 0.05), 3.0)
+		_sphere(sk, 0.012, Vector3(0.038 * sx, -0.005, 0.07), em, 6)
+		eye_mats.append(em)
+	_prism(sk, Vector3(0.026, 0.03, 0.02), Vector3(0, -0.045, 0.066), PI, black)
+	# зубы
+	for k in 6:
+		_box(sk, Vector3(0.013, 0.02, 0.01), Vector3(-0.034 + k * 0.0136, -0.084, 0.04), bone)
+	_box(sk, Vector3(0.09, 0.006, 0.012), Vector3(0, -0.095, 0.038), black)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.15, 0.05)
+	glow.light_energy = 0.35
+	glow.omni_range = 0.9
+	glow.position = Vector3(0, 0, 0.18)
+	sk.add_child(glow)
+
+
+## Лампы в проволочных клетках по углам над вывеской.
+func _cage_lamps(trim: Material) -> void:
+	for sx in [-1.0, 1.0]:
+		var base := Vector3(0.375 * sx, 1.6, 0.2)
+		_cyl(rig, 0.04, 0.03, base, Vector3.ZERO, trim, 10)
+		var em := _emis(Color(1.0, 0.42, 0.12), 2.0)
+		_sphere(rig, 0.032, base + Vector3(0, 0.06, 0), em, 10)
+		cage_mats.append(em)
+		for k in 6:
+			var a := TAU * k / 6.0
+			_cyl(rig, 0.004, 0.11, base + Vector3(cos(a) * 0.048, 0.065, sin(a) * 0.048), Vector3.ZERO, trim, 4)
+		_cyl(rig, 0.052, 0.012, base + Vector3(0, 0.12, 0), Vector3.ZERO, trim, 10)
+		_cyl(rig, 0.05, 0.006, base + Vector3(0, 0.065, 0), Vector3.ZERO, trim, 10)
+
+
+## Неоновые буквы KILLBOX шрифтом меню, каждая чуть криво — будто вешали вручную.
+## Тёмная подложка с хромовой рамкой.
+func _neon_sign(trim: Material, black: Material) -> void:
+	_box(rig, Vector3(0.78, 0.25, 0.012), Vector3(0, 1.385, 0.334), black)
+	for sy in [-1.0, 1.0]:
+		_box(rig, Vector3(0.8, 0.018, 0.02), Vector3(0, 1.385 + 0.125 * sy, 0.338), trim)
+	var font: Font = null
+	if ResourceLoader.exists("res://fonts/RubikDirt-Regular.ttf"):
+		font = load("res://fonts/RubikDirt-Regular.ttf")
+	var txt := "KILLBOX"
+	var fs := 110
+	var px := 0.0019
+	var widths: Array[float] = []
+	var total := 0.0
+	var f: Font = font if font else ThemeDB.fallback_font
+	for ch in txt:
+		var wdt := f.get_string_size(ch, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x * px * 0.92
+		widths.append(wdt)
+		total += wdt
+	# ужимаем, чтобы надпись влезла в подложку
+	var fit := minf(1.0, 0.68 / total)
+	px *= fit
+	total *= fit
+	for i in widths.size():
+		widths[i] *= fit
+	var x := -total / 2.0
+	var r := RandomNumberGenerator.new()
+	r.seed = 13
+	for i in txt.length():
+		var l := Label3D.new()
+		l.text = txt[i]
+		if font:
+			l.font = font
+		l.font_size = fs
+		l.pixel_size = px
+		l.outline_size = 14
+		l.outline_modulate = Color(0.35, 0.02, 0.0)
+		l.modulate = neon_col
+		l.shaded = false
+		l.double_sided = false
+		l.position = Vector3(x + widths[i] / 2.0, 1.385 + r.randf_range(-0.008, 0.008), 0.342)
+		l.rotation.z = r.randf_range(-0.07, 0.07)
+		rig.add_child(l)
+		neon.append(l)
+		x += widths[i]
+
+
+## Лоток для монет — «пасть»: тёмный зев с красным жаром внутри, сверху и снизу зубы.
+func _maw(trim: Material, black: Material) -> void:
+	_box(rig, Vector3(0.48, 0.17, 0.02), Vector3(0, 0.42, 0.301), black)
+	maw_mat = _emis(Color(0.9, 0.12, 0.04), 0.8)
+	_box(rig, Vector3(0.42, 0.1, 0.004), Vector3(0, 0.43, 0.313), maw_mat)
+	var bone := _worn(Color(0.58, 0.53, 0.42), false, 0.15, 0.6, 0.8)
+	for k in 8:
+		var x := -0.21 + k * 0.06
+		var h := 0.05 if k % 3 == 1 else 0.035
+		_prism(rig, Vector3(0.04, h, 0.03), Vector3(x, 0.505 - h / 2.0, 0.322), PI, bone)
+	for k in 7:
+		var x := -0.18 + k * 0.06
+		var h := 0.055 if k % 2 == 0 else 0.04
+		_prism(rig, Vector3(0.036, h, 0.02), Vector3(x, 0.43 + h / 2.0, 0.45), 0.0, bone)
+	# «губы» — хромовая полоса
+	_box(rig, Vector3(0.54, 0.03, 0.05), Vector3(0, 0.52, 0.305), trim)
+
+
+## Решётки вентиляции на боках: щели с тусклым красным светом изнутри.
+func _grilles(trim: Material, black: Material) -> void:
+	var glow := _emis(Color(0.7, 0.1, 0.04), 0.35)
+	for sx in [-1.0, 1.0]:
+		_box(rig, Vector3(0.012, 0.22, 0.34), Vector3(0.401 * sx, 0.66, 0.0), black)
+		_box(rig, Vector3(0.006, 0.2, 0.32), Vector3(0.398 * sx, 0.66, 0.0), glow)
+		for k in 6:
+			var sl := _box(rig, Vector3(0.02, 0.012, 0.34), Vector3(0.408 * sx, 0.565 + k * 0.038, 0.0), trim)
+			sl.rotation.x = 0.35
+		for sz in [-1.0, 1.0]:
+			_box(rig, Vector3(0.025, 0.25, 0.02), Vector3(0.41 * sx, 0.66, 0.18 * sz), trim)
+
+
+## Косые опоры по бокам у пола — силуэт шире книзу, как у тяжёлой станины.
+func _braces(body: Material, trim: Material) -> void:
+	for sx in [-1.0, 1.0]:
+		var b := _box(rig, Vector3(0.05, 0.42, 0.44), Vector3(0.43 * sx, 0.19, 0.0), body)
+		b.rotation.z = -0.22 * sx
+		_box(rig, Vector3(0.09, 0.03, 0.5), Vector3(0.45 * sx, 0.015, 0.0), trim)
+
+
+## Заклёпки по рамке окна, вывеске, рёбрам корпуса и арке.
+func _rivets(trim: Material) -> void:
+	var sm := SphereMesh.new()
+	sm.radius = 0.009
+	sm.height = 0.012
+	sm.radial_segments = 6
+	sm.rings = 3
+	var pts: Array[Vector3] = []
+	for k in 9:
+		var x := -0.28 + k * 0.07
+		pts.append(Vector3(x, 1.14, 0.302))
+		pts.append(Vector3(x, 0.82, 0.302))
+	for k in 12:
+		var y := 0.1 + k * 0.095
+		pts.append(Vector3(-0.385, y, 0.302))
+		pts.append(Vector3(0.385, y, 0.302))
+	for k in 8:
+		pts.append(Vector3(-0.35 + k * 0.1, 1.236, 0.341))
+		pts.append(Vector3(-0.35 + k * 0.1, 1.534, 0.341))
+	for k in 7:
+		var a := lerpf(0.15, PI - 0.15, k / 6.0)
+		pts.append(Vector3(cos(a) * 0.3, 1.58 + sin(a) * 0.3, 0.27))
+	for p in pts:
+		var mi := MeshInstance3D.new()
+		mi.mesh = sm
+		mi.material_override = trim
+		mi.position = p
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		rig.add_child(mi)
+
+
+## Полоса «опасно» (жёлто-чёрная, потёртая) внизу корпуса.
+func _hazard_bands() -> void:
+	var img := Image.create(64, 8, false, Image.FORMAT_RGBA8)
+	var r := RandomNumberGenerator.new()
+	r.seed = 5
+	for y in 8:
+		for x in 64:
+			var on := ((x + y) / 4) % 2 == 0
+			var c := Color(0.62, 0.48, 0.1) if on else Color(0.06, 0.05, 0.04)
+			if r.randf() < 0.18:
+				c = c.lerp(Color(0.25, 0.2, 0.15), 0.7)
+			img.set_pixel(x, y, c)
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = ImageTexture.create_from_image(img)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	m.roughness = 0.85
+	var q := QuadMesh.new()
+	q.size = Vector2(0.76, 0.06)
+	var mi := MeshInstance3D.new()
+	mi.mesh = q
+	mi.material_override = m
+	mi.position = Vector3(0, 0.08, 0.302)
+	rig.add_child(mi)
+
+
+func _animate_style(delta: float) -> void:
+	# неон: ровный с лёгким гулом; «О» барахлит — то гаснет, то трещит
+	var hum := 1.0 + 0.04 * sin(t * 50.0)
+	neon_off = maxf(neon_off - delta, 0.0)
+	if neon_off <= 0.0 and randf() < delta * 0.35:
+		neon_off = randf_range(0.08, 1.2)
+	for i in neon.size():
+		var k := hum
+		if i == broken_letter and neon_off > 0.0 and fmod(neon_off * 17.0, 1.0) > 0.3:
+			k = 0.12
+		if party > 0.0:
+			k *= 0.6 + 0.8 * float(int(t * 12.0 + i) % 2)
+		neon[i].modulate = Color(neon_col.r * k, neon_col.g * k, neon_col.b * k)
+	# глаза черепа тлеют, при выигрыше полыхают
+	var eye := 2.2 + 1.2 * sin(t * 1.7)
+	if party > 0.0:
+		eye = 6.0 if int(t * 10.0) % 2 == 0 else 1.0
+	for m in eye_mats:
+		m.emission_energy_multiplier = eye
+	# лампы в клетках дышат вразнобой
+	for i in cage_mats.size():
+		var v := 1.4 + 0.8 * sin(t * 2.1 + i * 2.4)
+		if party > 0.0:
+			v = 4.0 if (int(t * 8.0) + i) % 2 == 0 else 0.3
+		cage_mats[i].emission_energy_multiplier = v
+	if maw_mat:
+		maw_mat.emission_energy_multiplier = 0.7 + 0.3 * sin(t * 1.3) + (1.2 if party > 0.0 else 0.0)
 
 ## Цилиндр барабана вдоль оси X с развёрткой: v = 0..1 по окружности (сверху вниз по ленте).
 func _reel_mesh() -> ArrayMesh:
@@ -752,6 +1041,7 @@ func _process(delta: float) -> void:
 			leds[i].emission_energy_multiplier = 2.2 if (int(t * 12.0) + i) % 3 == 0 else 0.3
 		else:
 			leds[i].emission_energy_multiplier = 0.4 + 1.4 * maxf(w, 0.0)
+	_animate_style(delta)
 	# свечение мерцает и переливается от янтарного к красному
 	var flick := 0.06 * sin(t * 2.3) + 0.04 * sin(t * 7.1) + (0.12 if randf() < 0.02 else 0.0)
 	light.light_energy = 0.8 + flick + (0.35 * sin(t * 30.0) if party > 0.0 else 0.0)
