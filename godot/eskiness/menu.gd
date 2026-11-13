@@ -17,6 +17,7 @@ const SETTINGS := {
 	"posterize": ["Постеризация", 0.0, 100.0, 1.0, 70.0],
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
+	"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],      # 0 — выкл, 1 — вкл
 }
 
 var in_game := false          # выставляет main.gd, когда игра началась
@@ -203,6 +204,8 @@ func _slider_row(key: String) -> Control:
 
 
 func _fmt(key: String, v: float) -> String:
+	if key == "crosshair":
+		return "вкл" if v > 0.5 else "выкл"
 	if key == "volume" or key == "posterize" or key == "ui_scale":
 		return "%d%%" % int(v)
 	return "%.2f" % v
@@ -231,6 +234,7 @@ func _apply_ui_scale() -> void:
 func apply_settings() -> void:
 	_apply_ui_scale()
 	preload("res://player.gd").look_sens = values["sensitivity"]
+	preload("res://hud.gd").show_crosshair = values.get("crosshair", 1.0) > 0.5
 	var vol: float = values["volume"] / 100.0
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(vol, 0.0001)))
 	if post_mat:

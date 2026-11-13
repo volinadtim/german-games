@@ -7,6 +7,8 @@ extends CanvasLayer
 
 const Items := preload("res://items.gd")
 
+## прицел-точка в центре (меню «Настройки» → «Прицел»)
+static var show_crosshair := true
 var hp := 100.0
 var hp_max := 100.0
 var hp_lag := 100.0          # «догоняющая» светлая полоска
@@ -93,7 +95,7 @@ func _ready() -> void:
 	big_toasts.offset_left = -420
 	big_toasts.offset_right = 420
 	big_toasts.offset_top = -330
-	big_toasts.offset_bottom = -88
+	big_toasts.offset_bottom = -100
 	big_toasts.alignment = BoxContainer.ALIGNMENT_END
 	big_toasts.add_theme_constant_override("separation", 2)
 	big_toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -271,18 +273,20 @@ func _paint() -> void:
 	var sz := paint.size
 	var f := ThemeDB.fallback_font
 	# прицел — едва заметная точка
-	paint.draw_circle(sz / 2.0, 2.0, Color(1, 1, 1, 0.35))
+	if show_crosshair:
+		paint.draw_circle(sz / 2.0, 2.0, Color(1, 1, 1, 0.35))
 
 	# здоровье
 	var x := 28.0
-	var y := sz.y - 46.0
-	var w := 260.0
-	paint.draw_string_outline(f, Vector2(x, y - 8), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.7))
-	paint.draw_string(f, Vector2(x, y - 8), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.8, 0.78, 0.72))
-	paint.draw_rect(Rect2(x - 2, y - 2, w + 4, 18), Color(0, 0, 0, 0.6))
-	paint.draw_rect(Rect2(x, y, w * hp_lag / hp_max, 14), Color(0.85, 0.7, 0.55, 0.6))
-	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 14), Color(0.62, 0.12, 0.08))
-	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 4), Color(0.8, 0.25, 0.18))
+	# здоровье и хотбар — крупнее прежнего (~×1.25)
+	var y := sz.y - 50.0
+	var w := 330.0
+	paint.draw_string_outline(f, Vector2(x, y - 9), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 5, Color(0, 0, 0, 0.7))
+	paint.draw_string(f, Vector2(x, y - 9), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color(0.8, 0.78, 0.72))
+	paint.draw_rect(Rect2(x - 2, y - 2, w + 4, 22), Color(0, 0, 0, 0.6))
+	paint.draw_rect(Rect2(x, y, w * hp_lag / hp_max, 18), Color(0.85, 0.7, 0.55, 0.6))
+	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 18), Color(0.62, 0.12, 0.08))
+	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 5), Color(0.8, 0.25, 0.18))
 
 	# кровотечение: мигающая капля справа от полоски здоровья
 	if bleed > 0.0:
@@ -298,7 +302,7 @@ func _paint() -> void:
 	var bx0 := x
 	for k in buffs:
 		var bd: Dictionary = buffs[k]
-		var r := Rect2(bx0, y - 120, 40, 40)
+		var r := Rect2(bx0, y - 130, 40, 40)
 		paint.draw_rect(r, Color(0, 0, 0, 0.55))
 		paint.draw_rect(r, Color(0.5, 0.8, 1.0, 0.8) if k == "speed" else Color(0.9, 0.75, 0.4, 0.8), false, 2.0)
 		Items.draw_icon(paint, bd["icon"], r.grow(-6))
@@ -311,17 +315,17 @@ func _paint() -> void:
 		bx0 += 48.0
 
 	# монеты
-	Items.draw_icon(paint, "coin", Rect2(x - 4, y - 66, 34, 34))
+	Items.draw_icon(paint, "coin", Rect2(x - 4, y - 72, 34, 34))
 	var ct := "× %d" % coins
-	paint.draw_string_outline(f, Vector2(x + 36, y - 42), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.7))
-	paint.draw_string(f, Vector2(x + 36, y - 42), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.9, 0.78, 0.5))
+	paint.draw_string_outline(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.7))
+	paint.draw_string(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.9, 0.78, 0.5))
 	if knuckles:
-		Items.draw_icon(paint, "knuckles", Rect2(x + 120, y - 66, 34, 34))
+		Items.draw_icon(paint, "knuckles", Rect2(x + 120, y - 72, 34, 34))
 
 	# хотбар 1–5 внизу по центру
 	if inv:
-		var cell := 50.0
-		var gap := 6.0
+		var cell := 64.0
+		var gap := 8.0
 		var x0 := sz.x / 2.0 - (cell * 5 + gap * 4) / 2.0
 		var y0 := sz.y - cell - 18.0
 		for k in 5:
@@ -332,14 +336,14 @@ func _paint() -> void:
 			paint.draw_rect(r, Color(0, 0, 0, 0.5))
 			paint.draw_rect(r, Color(0.95, 0.75, 0.4, 0.9) if worn else Color(1, 1, 1, 0.18), false, 2.0 if worn else 1.0)
 			if id != "":
-				Items.draw_icon(paint, id, r.grow(-9))
+				Items.draw_icon(paint, id, r.grow(-11))
 				if cnt == 0:
 					paint.draw_rect(r.grow(-1), Color(0, 0, 0, 0.6))
 				elif cnt > 1:
-					paint.draw_string_outline(f, r.position + Vector2(0, cell - 4), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 4, 13, 3, Color(0, 0, 0, 0.8))
-					paint.draw_string(f, r.position + Vector2(0, cell - 4), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 4, 13, Color(0.92, 0.9, 0.84))
-			paint.draw_string_outline(f, r.position + Vector2(4, 14), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 3, Color(0, 0, 0, 0.8))
-			paint.draw_string(f, r.position + Vector2(4, 14), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.8, 0.45))
+					paint.draw_string_outline(f, r.position + Vector2(0, cell - 5), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 5, 16, 4, Color(0, 0, 0, 0.8))
+					paint.draw_string(f, r.position + Vector2(0, cell - 5), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 5, 16, Color(0.92, 0.9, 0.84))
+			paint.draw_string_outline(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.8))
+			paint.draw_string(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0, 0.8, 0.45))
 
 	if has_light:
 		# фонарик (справа снизу)
