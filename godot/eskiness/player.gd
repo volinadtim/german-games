@@ -985,6 +985,8 @@ func _check_hit(arm: int, kind := "straight") -> void:
 	var wid: String = weapon_ids[arm]
 	var armed := wid != ""
 	var reach_len: float = Weapons.WEAPONS[wid]["reach"] if armed else 1.0
+	# взгляд вниз: удар идёт ниже и тело наклоняется — достаём до низких целей (ящики) и стоя
+	reach_len *= 1.0 + 0.75 * clampf(-head.rotation.x, 0.0, 1.0)
 	var hit := _hit_scan(from, reach_len)
 	if hit:
 		_play(hit_player, impacts, -11.0)
