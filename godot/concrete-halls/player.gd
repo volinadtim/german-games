@@ -359,8 +359,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and captured:
 		rotate_y(-event.relative.x * SENS)
 		head.rotation.x = clampf(head.rotation.x - event.relative.y * SENS, -1.5, 1.4)
-	elif event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.pressed:
 		if not captured:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

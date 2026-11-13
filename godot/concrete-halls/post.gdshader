@@ -12,6 +12,10 @@ uniform float vignette = 0.45;
 uniform vec2 blur_dir = vec2(0.0);
 uniform float blur_amt = 0.0;
 uniform float zoom_amt = 0.0;
+// настройки изображения (меню «Настройки»)
+uniform float brightness = 1.0;
+uniform float gamma = 1.0;
+uniform float contrast = 1.0;
 
 vec3 sample_lens(vec2 uv) {
 	vec2 cc = uv - 0.5;
@@ -36,6 +40,9 @@ void fragment() {
 	} else {
 		c = sample_lens(SCREEN_UV);
 	}
+	c = c * brightness;
+	c = clamp((c - 0.5) * contrast + 0.5, 0.0, 1.0);
+	c = pow(c, vec3(1.0 / gamma));
 	float r = length(SCREEN_UV - 0.5) * 1.41;
 	c *= 1.0 - vignette * smoothstep(0.35, 1.0, r);
 	float n = fract(sin(dot(FRAGCOORD.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;

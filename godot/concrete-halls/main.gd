@@ -61,6 +61,8 @@ func _ready() -> void:
 	post_mat.shader = preload("res://post.gdshader")
 	post.material = post_mat
 	pl.add_child(post)
+	menu.post_mat = post_mat
+	menu.apply_settings()
 
 	var fl := CanvasLayer.new()
 	fl.layer = 10
@@ -108,6 +110,7 @@ func _start_game() -> void:
 
 func _enter_game() -> void:
 	menu.visible = false
+	menu.in_game = true
 	player = Player.new()
 	player.position = Vector3(-10.5, 0.05, 0.0)
 	player.rotation.y = -PI / 2.0
