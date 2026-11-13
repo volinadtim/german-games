@@ -54,29 +54,29 @@ void fragment() {
 	float hgt;
 
 	if (polished > 0.5) {
-		col = base_color * (0.94 + 0.12 * (big - 0.5) + 0.05 * (mid - 0.5) + 0.03 * (fine - 0.5));
-		float cr = cracks(wpos, wnrm, 0.45);
+		col = base_color * (0.95 + 0.07 * (big - 0.5) + 0.05 * (mid - 0.5) + 0.03 * (fine - 0.5));
+		float cr = 0.0;
 		col *= 1.0 - 0.5 * cr;
 		float dust = smoothstep(0.55, 0.85, tri(noise_big, wpos + vec3(31.0, 0.0, 7.0), wnrm, 0.08)) * up;
-		col = mix(col, dust_color, dust * 0.25);
+		col = mix(col, dust_color, dust * 0.1);
 		rough = 0.5 + 0.12 * big + 0.3 * dust + 0.3 * cr;
 		hgt = fine * 0.015 - cr * 0.3;
 	} else {
 		float cell = tri(noise_cell, wpos, wnrm, 0.9);
 		float grain = tri(noise_fine, wpos * 3.1, wnrm, 0.9);
-		col = base_color * (0.95 + 0.1 * (big - 0.5) + 0.05 * (mid - 0.5) + 0.08 * (cell - 0.5) + 0.06 * (grain - 0.5));
+		col = base_color * (0.95 + 0.1 * (big - 0.5) + 0.05 * (mid - 0.5) + 0.06 * (cell - 0.5) + 0.04 * (grain - 0.5));
 		float stain = smoothstep(0.35, 0.9, tri(noise_big, wpos * 0.5 + vec3(41.0), wnrm, 0.02));
-		col *= 1.0 - 0.1 * stain;
+		col *= 1.0 - 0.05 * stain;
 		float streak = texture(noise_big, vec2((wpos.x + wpos.z) * 0.25, wpos.y * 0.02)).r;
 		col *= 1.0 - 0.06 * smoothstep(0.5, 0.85, streak) * wall;
 		float near_floor = 1.0 - smoothstep(0.0, 1.3, h);
 		float near_ceil = smoothstep(ceiling_h - 0.8, ceiling_h, h);
 		float mold_n = tri(noise_big, wpos + vec3(5.0, 0.0, 9.0), wnrm, 0.06);
 		float mold = smoothstep(0.45, 0.95, mold_n + near_floor * 0.3 + near_ceil * 0.15);
-		col = mix(col, mold_color, mold * 0.45);
+		col = mix(col, mold_color, mold * 0.28);
 		float dust = smoothstep(0.35, 0.75, tri(noise_big, wpos + vec3(31.0, 0.0, 7.0), wnrm, 0.12)) * up;
-		col = mix(col, dust_color, dust * 0.4);
-		float cr = cracks(wpos, wnrm, 0.35);
+		col = mix(col, dust_color, dust * 0.2);
+		float cr = 0.0;
 		col *= 1.0 - 0.45 * cr;
 		ao = 1.0 - 0.4 * (1.0 - smoothstep(0.0, 0.5, h)) * wall - 0.3 * smoothstep(ceiling_h - 0.45, ceiling_h, h) * wall;
 		rough = 0.94 - mold * 0.12;

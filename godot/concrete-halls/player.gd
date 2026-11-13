@@ -1,38 +1,68 @@
 extends CharacterBody3D
-## Игрок от первого лица: тело видно, если посмотреть вниз; WASD, Shift — бег, инерция.
+## Игрок от первого лица: тело видно, если посмотреть вниз.
+## WASD, Shift — бег, пробел — прыжок, ПКМ — режим кулаков (руки в стойку), ЛКМ — удар.
+
+const Sfx := preload("res://sfx.gd")
 
 const WALK := 3.4
 const SPRINT := 6.4
-const GRAVITY := 9.8
+const GRAVITY := 22.0
+const FALL_MULT := 1.35      # вниз падаем быстрее, чем взлетаем — прыжок не «плывёт»
+const JUMP := 5.0            # ~0.55 м
 const SENS := 0.0022
 const CAM_Y := 1.62
 const FOV := 75.0
-const JUMP := 3.7
 const ACCEL_WALK := 5.0
 const ACCEL_SPRINT := 3.2
+
+# позы руки в градусах: x — подъём плеча вперёд, y — внутрь, z — в сторону, w — сгиб локтя
+const REST := Vector4(0, 0, 0, 10)
+const GUARD := Vector4(72, 16, 6, 68)
+const PUNCHES := {
+	"straight": [Vector4(66, 20, 4, 80), Vector4(88, 9, 0, 4)],
+	"hook": [Vector4(78, -30, 30, 85), Vector4(84, 38, 26, 80)],
+	"upper": [Vector4(30, 12, 6, 105), Vector4(98, 14, 0, 60)],
+}
 
 var active := false
 var cam: Camera3D
 var head: Node3D
 var legs: Array[Node3D] = []
-var arms: Array[Node3D] = []
+var shoulders: Array[Node3D] = []
+var elbows: Array[Node3D] = []
+var arm_pose: Array[Vector4] = [REST, REST]
+var fists := false
+var fist_blend := 0.0
+var punching := false
 var sprint_carry := 0.0   # 1 сразу после бега, плавно падает — от него зависит «занос»
 var phase := 0.0
 var bob := 0.0
-var steps: Array[AudioStreamWAV] = []
-var step_player: AudioStreamPlayer
-var step_idx := 0
 var last_step := -1
 var was_on_floor := true
 var land_speed := 0.0
 
+var steps: Array[AudioStreamWAV] = []
+var whooshes: Array[AudioStreamWAV] = []
+var exhales: Array[AudioStreamWAV] = []
+var impacts: Array[AudioStreamWAV] = []
+var inhale_snd: AudioStreamWAV
+var step_player: AudioStreamPlayer
+var voice_player: AudioStreamPlayer
+var hit_player: AudioStreamPlayer
+var step_idx := 0
+
 
 func _ready() -> void:
-	step_player = AudioStreamPlayer.new()
-	step_player.max_polyphony = 3
-	add_child(step_player)
+	step_player = _audio(3)
+	voice_player = _audio(2)
+	hit_player = _audio(3)
 	for i in 5:
-		steps.append(_make_step(i))
+		steps.append(Sfx.step(i))
+	for i in 4:
+		whooshes.append(Sfx.whoosh(i))
+		exhales.append(Sfx.exhale(i))
+		impacts.append(Sfx.impact(i))
+	inhale_snd = Sfx.inhale()
 
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -53,6 +83,13 @@ func _ready() -> void:
 	_build_body()
 
 
+func _audio(poly: int) -> AudioStreamPlayer:
+	var p := AudioStreamPlayer.new()
+	p.max_polyphony = poly
+	add_child(p)
+	return p
+
+
 func _build_body() -> void:
 	var jacket := _mat(Color(0.24, 0.27, 0.21))
 	var pants := _mat(Color(0.14, 0.14, 0.16))
@@ -67,13 +104,12 @@ func _build_body() -> void:
 	torso.height = 0.74
 	_part(body, torso, Vector3(0, 1.13, 0.14), jacket)
 
-	# голова только для тени — камера внутри неё не нужна
+	# голова и шея только для тени — камера внутри них не нужна
 	var hm := SphereMesh.new()
 	hm.radius = 0.12
 	hm.height = 0.25
 	var h := _part(body, hm, Vector3(0, 1.68, 0.08), skin)
 	h.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
-	# шея — соединяет голову с торсом (тоже только тень, чтобы не лезть в камеру)
 	var neck := CylinderMesh.new()
 	neck.top_radius = 0.06
 	neck.bottom_radius = 0.075
@@ -100,19 +136,28 @@ func _build_body() -> void:
 		_part(hip, boot, Vector3(0, -0.815, -0.05), boots)
 		legs.append(hip)
 
+		# рука: плечо -> плечевая кость -> локоть -> предплечье -> кулак
 		var sh := Node3D.new()
 		sh.position = Vector3(0.24 * side, 1.44, 0.13)
-		sh.rotation.z = 0.08 * side
 		body.add_child(sh)
-		var arm := CapsuleMesh.new()
-		arm.radius = 0.06
-		arm.height = 0.6
-		_part(sh, arm, Vector3(0, -0.3, 0), jacket)
-		var hand := SphereMesh.new()
-		hand.radius = 0.055
-		hand.height = 0.12
-		_part(sh, hand, Vector3(0, -0.63, 0), skin)
-		arms.append(sh)
+		var upper := CapsuleMesh.new()
+		upper.radius = 0.062
+		upper.height = 0.36
+		_part(sh, upper, Vector3(0, -0.15, 0), jacket)
+		var el := Node3D.new()
+		el.position = Vector3(0, -0.3, 0)
+		sh.add_child(el)
+		var fore := CapsuleMesh.new()
+		fore.radius = 0.055
+		fore.height = 0.34
+		_part(el, fore, Vector3(0, -0.14, 0), jacket)
+		var fist := SphereMesh.new()
+		fist.radius = 0.058
+		fist.height = 0.11
+		var f := _part(el, fist, Vector3(0, -0.32, 0), skin)
+		f.scale = Vector3(1.0, 1.15, 1.2)
+		shoulders.append(sh)
+		elbows.append(el)
 
 
 func _mat(c: Color) -> StandardMaterial3D:
@@ -134,19 +179,88 @@ func _part(parent: Node3D, mesh: Mesh, pos: Vector3, mat: Material) -> MeshInsta
 func _unhandled_input(event: InputEvent) -> void:
 	if not active:
 		return
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	if event is InputEventMouseMotion and captured:
 		rotate_y(-event.relative.x * SENS)
 		head.rotation.x = clampf(head.rotation.x - event.relative.y * SENS, -1.5, 1.4)
 	elif event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and event.pressed:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if not captured:
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			toggle_fists()
+		elif event.button_index == MOUSE_BUTTON_LEFT and fists:
+			punch()
+
+
+func toggle_fists() -> void:
+	if punching:
+		return
+	fists = not fists
+	var tw := create_tween().set_parallel()
+	tw.tween_property(self, "fist_blend", 1.0 if fists else 0.0, 0.3).set_trans(Tween.TRANS_SINE)
+	for i in 2:
+		tw.tween_method(_pose_setter(i), arm_pose[i], GUARD if fists else REST, 0.3).set_trans(Tween.TRANS_SINE)
+	if fists:
+		voice_player.stream = inhale_snd
+		voice_player.volume_db = -14.0
+		voice_player.pitch_scale = randf_range(0.95, 1.05)
+		voice_player.play()
+
+
+func punch() -> void:
+	if punching or fist_blend < 0.9:
+		return
+	punching = true
+	var i := randi() % 2
+	var r := randf()
+	var kind := "straight" if r < 0.45 else ("hook" if r < 0.75 else "upper")
+	var keys: Array = PUNCHES[kind]
+	var tw := create_tween()
+	tw.tween_method(_pose_setter(i), arm_pose[i], keys[0], 0.08).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(_punch_sound)
+	tw.tween_method(_pose_setter(i), keys[0], keys[1], 0.09).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(_check_hit.bind(i))
+	tw.tween_method(_pose_setter(i), keys[1], GUARD, 0.22).set_trans(Tween.TRANS_SINE)
+	tw.tween_callback(func(): punching = false)
+
+
+func _pose_setter(i: int) -> Callable:
+	return func(p: Vector4) -> void: arm_pose[i] = p
+
+
+func _punch_sound() -> void:
+	_play(hit_player, whooshes, -10.0)
+	_play(voice_player, exhales, -9.0)
+
+
+func _check_hit(arm: int) -> void:
+	var from := cam.global_position
+	var to := from - cam.global_transform.basis.z * 1.0
+	var q := PhysicsRayQueryParameters3D.create(from, to)
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit:
+		_play(hit_player, impacts, -4.0)
+		# лёгкая отдача в камеру
+		var tw := create_tween()
+		var side := -1.0 if arm == 0 else 1.0
+		tw.tween_property(cam, "rotation:z", 0.02 * side, 0.04)
+		tw.tween_property(cam, "rotation:z", 0.0, 0.15)
+
+
+func _play(p: AudioStreamPlayer, set_: Array, db: float) -> void:
+	p.stream = set_[randi() % set_.size()]
+	p.volume_db = db + randf_range(-1.5, 1.5)
+	p.pitch_scale = randf_range(0.92, 1.08)
+	p.play()
 
 
 func _physics_process(delta: float) -> void:
 	var on_floor := is_on_floor()
 	if not on_floor:
-		velocity.y -= GRAVITY * delta
+		velocity.y -= GRAVITY * (FALL_MULT if velocity.y < 0.0 else 1.0) * delta
 	elif active and Input.is_action_just_pressed("jump"):
 		velocity.y = JUMP
 		on_floor = false
@@ -169,7 +283,6 @@ func _physics_process(delta: float) -> void:
 	if moving and target.length() > hv.length() + 0.01:
 		# разгон: с места до шага ~0.7 с, с шага до бега ~1 с
 		var accel := ACCEL_SPRINT if hv.length() > WALK - 0.2 else ACCEL_WALK
-		# поворот на ходу не тормозим: сначала выравниваем направление, потом добавляем скорость
 		var spd := move_toward(hv.length(), target.length(), accel * air * delta)
 		var d := hv.normalized().slerp(target.normalized(), 1.0 - exp(-10.0 * air * delta)) if hv.length() > 0.1 else target.normalized()
 		hv = d * spd
@@ -195,8 +308,16 @@ func _animate(delta: float, spd: float, sprinting: bool) -> void:
 	var swing := sin(phase) * 0.5 * minf(amt, 1.3)
 	legs[0].rotation.x = swing
 	legs[1].rotation.x = -swing
-	arms[0].rotation.x = -swing * 0.8
-	arms[1].rotation.x = swing * 0.8
+	for i in 2:
+		var side := -1.0 if i == 0 else 1.0
+		var p: Vector4 = arm_pose[i]
+		var arm_swing := swing * 0.8 * (1.0 if i == 0 else -1.0) * -1.0 * (1.0 - fist_blend)
+		var guard_bob := deg_to_rad(sin(phase * 2.0 + float(i)) * 3.0 * amt * fist_blend)
+		shoulders[i].rotation = Vector3(
+			deg_to_rad(p.x) + arm_swing + guard_bob,
+			deg_to_rad(p.y) * side,
+			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend))
+		elbows[i].rotation.x = deg_to_rad(p.w)
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
 	head.position.y = CAM_Y + sin(phase * 2.0) * 0.03 * bob
 	head.position.x = sin(phase) * 0.015 * bob
@@ -214,69 +335,5 @@ func _play_step(db: float, pitch := 1.0) -> void:
 	step_idx = (step_idx + 1 + randi() % (steps.size() - 1)) % steps.size()
 	step_player.stream = steps[step_idx]
 	step_player.volume_db = db
-	step_player.pitch_scale = randf_range(0.9, 1.08) * pitch
+	step_player.pitch_scale = randf_range(0.92, 1.06) * pitch
 	step_player.play()
-
-
-## Шаг ботинка по камню: мягкий удар пятки + перекат на носок + короткий шорох подошвы
-## и лёгкое эхо помещения. Только отфильтрованный шум — без тональных «звонких» составляющих.
-func _make_step(variant: int) -> AudioStreamWAV:
-	var rate := 22050
-	var n := int(rate * 0.38)
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 200 + variant
-	var buf := PackedFloat32Array()
-	buf.resize(n)
-	var toe_t := rng.randf_range(0.055, 0.085)
-	var heel_amp := rng.randf_range(0.85, 1.0)
-	var toe_amp := rng.randf_range(0.4, 0.6)
-	var lo := 0.0
-	var lo2 := 0.0
-	var mid := 0.0
-	var sc := 0.0
-	for i in n:
-		var t := float(i) / rate
-		var w := rng.randf() * 2.0 - 1.0
-		lo += (w - lo) * 0.06        # ~200 Гц: глухое тело удара
-		lo2 += (lo - lo2) * 0.06
-		mid += (w - mid) * 0.25      # ~900 Гц: «щелчок» подошвы о камень
-		sc += (w - sc) * 0.12        # шорох
-		var env_heel := exp(-t * 55.0) * minf(t * 900.0, 1.0)
-		var env_click := exp(-t * 160.0) * minf(t * 2000.0, 1.0)
-		var env_toe := 0.0
-		var env_toe_click := 0.0
-		if t > toe_t:
-			var tt := t - toe_t
-			env_toe = exp(-tt * 70.0) * minf(tt * 900.0, 1.0)
-			env_toe_click = exp(-tt * 200.0)
-		var env_scuff := exp(-pow((t - 0.05) / 0.045, 2.0))
-		var v := lo2 * 9.0 * (env_heel * heel_amp + env_toe * toe_amp)
-		v += mid * 0.55 * (env_click * heel_amp + env_toe_click * toe_amp * 0.7)
-		v += sc * 0.08 * env_scuff
-		buf[i] = v
-	# эхо бетонной комнаты
-	var d1 := int(rate * 0.029)
-	var d2 := int(rate * 0.047)
-	var d3 := int(rate * 0.071)
-	var sm := 0.0
-	for i in n:
-		var e := 0.0
-		if i >= d1: e += buf[i - d1] * 0.22
-		if i >= d2: e += buf[i - d2] * 0.14
-		if i >= d3: e += buf[i - d3] * 0.09
-		sm += (e - sm) * 0.3       # эхо глуше прямого звука
-		buf[i] += sm
-	var peak := 0.001
-	for v in buf:
-		peak = maxf(peak, absf(v))
-	var data := PackedByteArray()
-	data.resize(n * 2)
-	for i in n:
-		var fade := minf(1.0, float(n - i) / (rate * 0.05))
-		data.encode_s16(i * 2, int(buf[i] / peak * 0.9 * fade * 32000.0))
-	var st := AudioStreamWAV.new()
-	st.format = AudioStreamWAV.FORMAT_16_BITS
-	st.mix_rate = rate
-	st.stereo = false
-	st.data = data
-	return st

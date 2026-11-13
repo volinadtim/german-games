@@ -37,9 +37,9 @@ func _ready() -> void:
 	var cell := _noise_tex(37, 0.05, 2, FastNoiseLite.TYPE_CELLULAR)
 	var crack := _noise_tex(41, 0.008, 4)
 	noise_extra = [cell, crack]
-	wall_mat = _concrete(big, fine, Color(0.27, 0.265, 0.25))
-	floor_mat = _concrete(big, fine, Color(0.25, 0.24, 0.225), true)
-	ceil_mat = _concrete(big, fine, Color(0.14, 0.135, 0.13), true)
+	wall_mat = _concrete(big, fine, Color(0.2, 0.195, 0.185))
+	floor_mat = _concrete(big, fine, Color(0.17, 0.163, 0.155), true)
+	ceil_mat = _concrete(big, fine, Color(0.1, 0.097, 0.093), true)
 	wire_mat = StandardMaterial3D.new()
 	wire_mat.albedo_color = Color(0.05, 0.05, 0.05)
 	wire_mat.roughness = 0.5
@@ -81,6 +81,9 @@ func _build() -> void:
 
 	_debris()
 	_lights()
+	_cracks()
+	_dust_motes()
+	_low_dust()
 
 
 func _debris() -> void:
@@ -321,13 +324,206 @@ func _concrete(big: Texture2D, fine: Texture2D, base: Color, polished := false) 
 	return m
 
 
+
+# ---------- трещины: тонкие, ломаные, растут от стен; часть переходит со стены на пол ----------
+
+func _cracks() -> void:
+	var texs: Array[ImageTexture] = []
+	for i in 8:
+		texs.append(_crack_tex(900 + i))
+	# грани стен: [точка A, точка B, нормаль внутрь помещения]
+	var faces := [
+		[Vector3(X0, 0, ZN + T / 2), Vector3(X1, 0, ZN + T / 2), Vector3(0, 0, 1)],
+		[Vector3(X0, 0, ZS - T / 2), Vector3(X1, 0, ZS - T / 2), Vector3(0, 0, -1)],
+		[Vector3(X0 + T / 2, 0, ZN), Vector3(X0 + T / 2, 0, ZS), Vector3(1, 0, 0)],
+		[Vector3(X1 - T / 2, 0, ZN), Vector3(X1 - T / 2, 0, ZS), Vector3(-1, 0, 0)],
+		[Vector3(X0, 0, -CW - T / 2), Vector3(X1, 0, -CW - T / 2), Vector3(0, 0, -1)],
+		[Vector3(X0, 0, -CW + T / 2), Vector3(X1, 0, -CW + T / 2), Vector3(0, 0, 1)],
+		[Vector3(X0, 0, CW - T / 2), Vector3(X1, 0, CW - T / 2), Vector3(0, 0, -1)],
+		[Vector3(X0, 0, CW + T / 2), Vector3(X1, 0, CW + T / 2), Vector3(0, 0, 1)],
+		[Vector3(-T / 2, 0, ZN), Vector3(-T / 2, 0, -CW), Vector3(-1, 0, 0)],
+		[Vector3(T / 2, 0, ZN), Vector3(T / 2, 0, -CW), Vector3(1, 0, 0)],
+		[Vector3(-T / 2, 0, CW), Vector3(-T / 2, 0, ZS), Vector3(-1, 0, 0)],
+		[Vector3(T / 2, 0, CW), Vector3(T / 2, 0, ZS), Vector3(1, 0, 0)],
+	]
+	var made := 0
+	var tries := 0
+	while made < 26 and tries < 200:
+		tries += 1
+		var f: Array = faces[rng.randi() % faces.size()]
+		var p: Vector3 = (f[0] as Vector3).lerp(f[1], rng.randf_range(0.05, 0.95))
+		var nrm: Vector3 = f[2]
+		if _in_doorway(p):
+			continue
+		made += 1
+		var tex: ImageTexture = texs[rng.randi() % texs.size()]
+		var ceiling := rng.randf() < 0.3
+		var l := rng.randf_range(0.5, 1.4)
+		var y := H if ceiling else 0.0
+		# по полу/потолку — от стены внутрь комнаты
+		var up := Vector3.DOWN if ceiling else Vector3.UP
+		_decal(tex, p + Vector3(0, y, 0) + nrm * (l / 2 - 0.02), up, -nrm, Vector3(l * 0.5, 0.2, l))
+		# продолжение по стене
+		if rng.randf() < 0.55:
+			var lw := rng.randf_range(0.3, 0.8)
+			var along := Vector3.UP if ceiling else Vector3.DOWN
+			var c := p + Vector3(0, y, 0) - along * (lw / 2 - 0.02)
+			_decal(texs[rng.randi() % texs.size()], c, nrm, along, Vector3(lw * 0.5, 0.2, lw))
+
+
+func _in_doorway(p: Vector3) -> bool:
+	for dx in [-6.0, 6.0]:
+		if absf(p.x - dx) < DOOR_W / 2 + 0.25 and absf(absf(p.z) - CW) < T:
+			return true
+	if absf(p.x) < T and absf(p.z - 5.5) < DOOR_W / 2 + 0.25:
+		return true
+	return false
+
+
+## Декаль: проецируется вдоль -proj_up; «основание» трещины (низ текстуры) — со стороны +base_dir.
+func _decal(tex: Texture2D, pos: Vector3, proj_up: Vector3, base_dir: Vector3, size: Vector3) -> void:
+	var d := Decal.new()
+	d.texture_albedo = tex
+	d.size = size
+	d.modulate = Color(1, 1, 1, 0.55)
+	d.normal_fade = 0.4
+	d.upper_fade = 0.1
+	d.lower_fade = 0.1
+	var y := proj_up.normalized()
+	var z := base_dir.normalized()
+	var x := y.cross(z).normalized()
+	d.transform = Transform3D(Basis(x, y, z), pos)
+	add_child(d)
+
+
+func _crack_tex(seed_: int) -> ImageTexture:
+	var img := Image.create(128, 256, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var r := RandomNumberGenerator.new()
+	r.seed = seed_
+	_crack_branch(img, r, Vector2(64 + r.randf_range(-10, 10), 255), -PI / 2 + r.randf_range(-0.4, 0.4), 2.2, r.randf_range(150, 240), 2)
+	return ImageTexture.create_from_image(img)
+
+
+func _crack_branch(img: Image, r: RandomNumberGenerator, p: Vector2, ang: float, width: float, length: float, depth: int) -> void:
+	var base := ang
+	var travelled := 0.0
+	while travelled < length:
+		# ломаная: короткие прямые отрезки с резкими изломами
+		ang = clampf(ang + r.randf_range(-0.9, 0.9), base - 0.9, base + 0.9)
+		var seg := r.randf_range(4.0, 11.0)
+		var q := p + Vector2(cos(ang), sin(ang)) * seg
+		var k := 1.0 - travelled / length
+		_line(img, p, q, maxf(width * k, 0.6))
+		if depth > 0 and r.randf() < 0.1:
+			_crack_branch(img, r, q, ang + r.randf_range(-1.0, 1.0), width * 0.6 * k, length * 0.35 * k, depth - 1)
+		travelled += seg
+		p = q
+		if p.y < 2.0 or p.x < 2.0 or p.x > 125.0:
+			break
+
+
+func _line(img: Image, a: Vector2, b: Vector2, w: float) -> void:
+	var n := int(a.distance_to(b)) + 1
+	for i in n + 1:
+		_dot(img, a.lerp(b, float(i) / n), w)
+
+
+func _dot(img: Image, c: Vector2, w: float) -> void:
+	var rad := w * 0.5
+	for y in range(int(c.y - rad - 1.0), int(c.y + rad + 2.0)):
+		for x in range(int(c.x - rad - 1.0), int(c.x + rad + 2.0)):
+			if x < 0 or y < 0 or x >= img.get_width() or y >= img.get_height():
+				continue
+			var a := clampf(rad + 0.5 - Vector2(x + 0.5, y + 0.5).distance_to(c), 0.0, 1.0)
+			if a > img.get_pixel(x, y).a:
+				img.set_pixel(x, y, Color(0.04, 0.04, 0.035, a))
+
+
+# ---------- пыль ----------
+
+## Плавающие в воздухе пылинки: крупные, полупрозрачные, видны в свете ламп.
+func _dust_motes() -> void:
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(X1 - 0.5, H / 2 - 0.2, ZS - 0.5)
+	pm.direction = Vector3(0, 1, 0)
+	pm.spread = 180.0
+	pm.initial_velocity_min = 0.005
+	pm.initial_velocity_max = 0.03
+	pm.gravity = Vector3(0, -0.004, 0)
+	pm.turbulence_enabled = true
+	pm.turbulence_noise_strength = 0.4
+	pm.turbulence_noise_scale = 3.0
+	pm.turbulence_noise_speed_random = 0.2
+	pm.turbulence_influence_min = 0.01
+	pm.turbulence_influence_max = 0.04
+	pm.scale_min = 0.5
+	pm.scale_max = 1.6
+	var ramp := Gradient.new()
+	ramp.set_color(0, Color(1, 1, 1, 0))
+	ramp.set_color(1, Color(1, 1, 1, 0))
+	ramp.add_point(0.2, Color(1, 1, 1, 1))
+	ramp.add_point(0.8, Color(1, 1, 1, 1))
+	var rt := GradientTexture1D.new()
+	rt.gradient = ramp
+	pm.color_ramp = rt
+
+	var dot := Gradient.new()
+	dot.set_color(0, Color(1, 1, 1, 1))
+	dot.set_color(1, Color(1, 1, 1, 0))
+	var dt := GradientTexture2D.new()
+	dt.gradient = dot
+	dt.fill = GradientTexture2D.FILL_RADIAL
+	dt.fill_from = Vector2(0.5, 0.5)
+	dt.fill_to = Vector2(1.0, 0.5)
+	dt.width = 32
+	dt.height = 32
+
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.vertex_color_use_as_albedo = true
+	m.albedo_texture = dt
+	m.albedo_color = Color(0.95, 0.88, 0.75, 0.4)
+	m.roughness = 1.0
+	m.disable_receive_shadows = true
+	var q := QuadMesh.new()
+	q.size = Vector2(0.018, 0.018)
+	q.material = m
+
+	var ps := GPUParticles3D.new()
+	ps.amount = 700
+	ps.lifetime = 24.0
+	ps.preprocess = 24.0
+	ps.process_material = pm
+	ps.draw_pass_1 = q
+	ps.position = Vector3(0, H / 2, 0)
+	ps.visibility_aabb = AABB(Vector3(X0 - 1, -H, ZN - 1), Vector3(X1 - X0 + 2, H * 2, ZS - ZN + 2))
+	ps.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ps)
+
+
+## Пылевая дымка, прижатая к полу (объёмный туман, гуще внизу).
+func _low_dust() -> void:
+	var fm := FogMaterial.new()
+	fm.density = 0.05
+	fm.albedo = Color(0.75, 0.7, 0.62)
+	fm.height_falloff = 2.5
+	fm.edge_fade = 0.3
+	var fv := FogVolume.new()
+	fv.size = Vector3(X1 - X0, 1.2, ZS - ZN)
+	fv.position = Vector3(0, 0.6, 0)
+	fv.material = fm
+	add_child(fv)
+
 func _make_env() -> Environment:
 	var e := Environment.new()
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color(0.01, 0.01, 0.012)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.62, 0.55, 0.46)
-	e.ambient_light_energy = 0.16
+	e.ambient_light_energy = 0.1
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.ssao_enabled = true
 	e.ssao_radius = 1.4
@@ -340,9 +536,11 @@ func _make_env() -> Environment:
 	e.glow_intensity = 0.6
 	e.fog_enabled = true
 	e.fog_light_color = Color(0.04, 0.04, 0.045)
-	e.fog_density = 0.03
+	e.fog_density = 0.02
+	e.fog_height = 0.6
+	e.fog_height_density = 0.5
 	e.volumetric_fog_enabled = true
-	e.volumetric_fog_density = 0.025
+	e.volumetric_fog_density = 0.008
 	e.volumetric_fog_albedo = Color(0.8, 0.8, 0.8)
 	return e
 
