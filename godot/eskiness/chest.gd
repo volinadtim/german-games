@@ -180,6 +180,25 @@ func force_open(game) -> void:
 	interact(game)
 
 
+## Состояние из сохранения: открыт / сломан — без звука и без выпадения лута.
+func restore(was_opened: bool, was_broken: bool) -> void:
+	if was_broken and kind != "safe":
+		broken = true
+		opened = true
+		for c in get_children():
+			if c is Node3D and not c is AudioStreamPlayer3D:
+				c.visible = false
+			if c is CollisionShape3D:
+				c.set_deferred("disabled", true)
+	elif was_opened:
+		opened = true
+		locked = false
+		if kind == "safe":
+			hinge.rotation.y = -1.9
+		else:
+			hinge.rotation.x = -1.95
+
+
 ## Закрыть ящик заново (магазин: «Обновить все ящики»). Лут выпадет новый — он выбирается при открытии.
 func reset() -> void:
 	if broken:

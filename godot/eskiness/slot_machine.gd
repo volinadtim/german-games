@@ -1007,6 +1007,8 @@ func interact(g) -> void:
 	screen.text = "КРУТИТСЯ..."
 	if g.has_method("cheat_check"):
 		g.cheat_check()
+	if g.has_method("save_now"):
+		g.save_now()      # монеты уже списаны — перезагрузка не вернёт их
 	_roll_stops()
 	hl_lines = []
 	hl_t = 0.0
@@ -1132,6 +1134,7 @@ func _payout() -> void:
 		game.hud.toast("Три шестёрки! Автомат забрал %d монет" % lost, Color(1.0, 0.35, 0.25))
 		game.play_at("buzz", global_position, -6.0, 0.7)
 		game.hud.hurt_flash(0.5)
+		game.call_deferred("save_now")
 		return
 	var win := 0
 	var sevens := false
@@ -1198,3 +1201,6 @@ func _payout() -> void:
 	if won_lines.size() > 0:
 		hl_t = 6.0
 	screen.text = msg if msg != "" else "ПУСТО"
+	if game.has_method("save_now"):
+		game.call_deferred("save_now")
+

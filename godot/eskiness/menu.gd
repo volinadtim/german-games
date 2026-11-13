@@ -26,6 +26,7 @@ var values := {}
 var icons: Array = []
 var main_box: VBoxContainer
 var pause_box: VBoxContainer
+var slots_box: VBoxContainer      # выбор слота сохранения (промпт 23:39)
 var settings_box: VBoxContainer
 var settings_from := "main"
 
@@ -68,7 +69,7 @@ func _ready() -> void:
 	main_box.add_child(_title("eskiNess", 104))
 	main_box.add_child(_subtitle("бункер. автомат. ничего хорошего."))
 	main_box.add_child(_gap(34))
-	main_box.add_child(_button("Играть", func(): play_pressed.emit()))
+	main_box.add_child(_button("Играть", _open_slots))
 	main_box.add_child(_button("Настройки", func(): _open_settings("main")))
 	main_box.add_child(_button("Выход", func(): get_tree().quit()))
 
@@ -77,8 +78,12 @@ func _ready() -> void:
 	pause_box.add_child(_title("ПАУЗА", 80))
 	pause_box.add_child(_gap(24))
 	pause_box.add_child(_button("Продолжить", resume))
+	pause_box.add_child(_button("Сохранить", _save_game))
 	pause_box.add_child(_button("Настройки", func(): _open_settings("pause")))
 	pause_box.add_child(_button("Выход в меню", _to_main_menu))
+
+	# --- слоты сохранений
+	slots_box = _vbox(right_col)
 
 	# --- настройки
 	settings_box = _vbox(center)
@@ -125,6 +130,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 	if settings_box.visible:
 		_close_settings()
+	elif slots_box.visible:
+		_show("main")
 	elif in_game and not visible:
 		pause()
 	elif in_game and pause_box.visible:
@@ -147,6 +154,9 @@ func resume() -> void:
 
 
 func _to_main_menu() -> void:
+	var g := _game()
+	if g:
+		g.save_now()
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().reload_current_scene()
@@ -165,7 +175,73 @@ func _close_settings() -> void:
 func _show(which: String) -> void:
 	main_box.visible = which == "main"
 	pause_box.visible = which == "pause"
+	slots_box.visible = which == "slots"
 	settings_box.visible = which == "settings"
+
+
+# ---------- сохранения ----------
+const Save := preload("res://save.gd")
+
+
+func _game() -> Node:
+	for c in get_parent().get_children():
+		if c.has_method("save_now"):
+			return c
+	return null
+
+
+func _save_game() -> void:
+	var g := _game()
+	if g:
+		g.save_now()
+		g.hud.toast("Сохранено: слот %d" % g.save_slot, Color(0.8, 0.85, 0.7))
+
+
+## «Играть» → три слота: занятый — загрузить, пустой — новая игра; ✕ — удалить слот.
+func _open_slots() -> void:
+	for c in slots_box.get_children():
+		c.queue_free()
+	slots_box.add_child(_title("СЛОТЫ", 72))
+	slots_box.add_child(_gap(18))
+	for i in range(1, Save.SLOTS + 1):
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		row.size_flags_horizontal = Control.SIZE_SHRINK_END
+		var used := Save.exists(i)
+		var b := _button("Слот %d" % i, _pick_slot.bind(i))
+		b.custom_minimum_size = Vector2(300, 64)
+		var info := Label.new()
+		info.text = Save.summary(i) if used else "пусто — новая игра"
+		info.add_theme_font_size_override("font_size", 16)
+		info.add_theme_color_override("font_color", Color(0.75, 0.7, 0.62) if used else Color(0.5, 0.47, 0.42))
+		info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		info.custom_minimum_size = Vector2(230, 0)
+		row.add_child(info)
+		row.add_child(b)
+		if used:
+			var del := _button("✕", _delete_slot.bind(i))
+			del.custom_minimum_size = Vector2(58, 64)
+			del.tooltip_text = "Удалить сохранение"
+			row.add_child(del)
+		else:
+			var gap := Control.new()
+			gap.custom_minimum_size = Vector2(58, 64)
+			row.add_child(gap)
+		slots_box.add_child(row)
+	slots_box.add_child(_gap(10))
+	slots_box.add_child(_button("Назад", func(): _show("main")))
+	_show("slots")
+
+
+func _pick_slot(i: int) -> void:
+	Engine.set_meta("eskiness_slot", i)
+	Engine.set_meta("eskiness_load", Save.exists(i))
+	play_pressed.emit()
+
+
+func _delete_slot(i: int) -> void:
+	Save.delete(i)
+	_open_slots()
 
 
 # ---------- настройки ----------

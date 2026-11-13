@@ -8,6 +8,7 @@ const Player := preload("res://player.gd")
 const Hud := preload("res://hud.gd")
 const Inventory := preload("res://inventory.gd")
 const Items := preload("res://items.gd")
+const Save := preload("res://save.gd")
 const Fx := preload("res://fx.gd")
 const Pickup := preload("res://pickup.gd")
 const Flashlight := preload("res://flashlight.gd")
@@ -135,6 +136,12 @@ func setup(p: Player) -> void:
 	shop = get_parent().get_node_or_null("Shop") as Shop
 	if shop:
 		shop.game = self
+	# сохранения: загрузить выбранный слот (menu.gd) или начать новую игру в нём
+	save_slot = Save.slot()
+	if Engine.get_meta("eskiness_load", false) and Save.exists(save_slot):
+		load_state(Save.read(save_slot))
+	else:
+		save_now()
 
 
 ## Три семёрки на автомате: открыть сейф. false — если сейф уже открыт (или его нет).
@@ -227,6 +234,10 @@ func _add_keys(action: String, keys: Array) -> void:
 
 func _physics_process(delta: float) -> void:
 	full_toast_t -= delta
+	autosave_t -= delta
+	if autosave_t <= 0.0:
+		autosave_t = AUTOSAVE
+		save_now()
 	if player == null:
 		return
 	focus = null
@@ -458,6 +469,7 @@ func _die() -> void:
 ## «Начать заново»: полный сброс — сцена перезагружается и сразу стартует игра (main.gd), минуя меню.
 func restart() -> void:
 	Engine.set_meta("eskiness_autostart", true)
+	Engine.set_meta("eskiness_load", false)    # новая игра в том же слоте
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
@@ -623,20 +635,24 @@ func _apply_equip(slot_: String) -> void:
 		"left", "right":
 			var arm := 0 if slot_ == "left" else 1
 			player.set_weapon(id, arm)
-			if id != "":
+			if id != "" and not loading:
 				hud.toast("%s — %s рука" % [Items.item_name(id), "левая" if arm == 0 else "правая"], Color(0.9, 0.85, 0.7))
 		"head":
 			if gasmask:
-				gasmask.set_worn(id == "gasmask")
-			if id != "" and id != "gasmask":
+				if loading:
+					gasmask.worn = id == "gasmask"
+					gasmask.overlay.visible = gasmask.worn
+				else:
+					gasmask.set_worn(id == "gasmask")
+			if id != "" and id != "gasmask" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 		"hands":
 			player.dmg_mult = float(Items.ITEMS[id].get("fist", 1.0)) if id != "" else 1.0
 			hud.knuckles = id == "knuckles"
-			if id != "":
+			if id != "" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 		"body", "legs", "feet":
-			if id != "":
+			if id != "" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 
 
@@ -756,8 +772,8 @@ func cheat_check() -> bool:
 	return true
 
 
-func _spawn_hunters() -> void:
-	for k in 5:
+func _spawn_hunters(count := 5) -> void:
+	for k in count:
 		var e := Enemy.new()
 		e.game = self
 		e.position = Vector3(20.0 - (k % 2) * 0.8, 4.1, -0.6 + (k % 3) * 0.6)
@@ -818,3 +834,144 @@ func collect(id: String, n: int, from: Node = null) -> int:
 		full_toast_t = 3.0
 		hud.toast("Инвентарь полон", Color(0.9, 0.5, 0.4))
 	return left
+
+
+# ---------- сохранения (промпт 23:39) ----------
+## 3 слота (save.gd). Автосейв: каждые 2 минуты, после каждой крутки KILLBOX (и сразу после оплаты —
+## перезагрузка не откатит проигрыш), при выходе в меню и при закрытии окна.
+const AUTOSAVE := 120.0
+var save_slot := 1
+var autosave_t := AUTOSAVE
+var loading := false
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_now()
+
+
+func save_now() -> void:
+	if player == null or not alive:
+		return
+	Save.write(save_slot, save_state())
+
+
+func _v3(v: Vector3) -> Array:
+	return [v.x, v.y, v.z]
+
+
+func _to_v3(a) -> Vector3:
+	return Vector3(float(a[0]), float(a[1]), float(a[2])) if a is Array and a.size() == 3 else Vector3.ZERO
+
+
+func save_state() -> Dictionary:
+	var bag: Array = []
+	for s in inv.slots:
+		bag.append(s.duplicate() if s != null else null)
+	var cs: Array = []
+	for c in chests:
+		cs.append([c.opened, c.broken] if is_instance_valid(c) else [false, false])
+	var floor_items: Array = []
+	for n in get_children():
+		if n is Pickup and is_instance_valid(n) and not n.is_queued_for_deletion():
+			floor_items.append({"id": n.id, "n": n.n, "pos": _v3(n.global_position),
+				"dur": float(n.get_meta("dur", -1.0)), "dropped": bool(n.get_meta("dropped", false))})
+	var alive_hunters := 0
+	for h in hunters:
+		if is_instance_valid(h):
+			alive_hunters += 1
+	return {
+		"version": 1,
+		"coins": inv.coins,
+		"bag": bag,
+		"equip": inv.equip.duplicate(),
+		"equip_dur": inv.equip_dur.duplicate(),
+		"hotbar": inv.hotbar.duplicate(),
+		"hp": hp,
+		"bleed": bleed_t,
+		"buffs": buffs.duplicate(true),
+		"pos": _v3(player.global_position),
+		"yaw": player.rotation.y,
+		"pitch": player.head.rotation.x,
+		"light_charge": flashlight.charge if flashlight else 0.0,
+		"light_on": flashlight.on if flashlight else false,
+		"filter": gasmask.filter_left if gasmask else 0.0,
+		"tox": gasmask.tox if gasmask else 0.0,
+		"chests": cs,
+		"safe_open": safe != null and is_instance_valid(safe) and safe.opened,
+		"floor": floor_items,
+		"dropped_coins": dropped_coins,
+		"hunters": alive_hunters,
+	}
+
+
+func load_state(d: Dictionary) -> void:
+	loading = true
+	inv.coins = int(d.get("coins", 0))
+	var bag: Array = d.get("bag", [])
+	for i in inv.slots.size():
+		var s = bag[i] if i < bag.size() else null
+		if s is Dictionary and Items.ITEMS.has(String(s.get("id", ""))):
+			var e := {"id": String(s["id"]), "n": int(s.get("n", 1))}
+			if s.has("dur"):
+				e["dur"] = float(s["dur"])
+			inv.slots[i] = e
+		else:
+			inv.slots[i] = null
+	var eq: Dictionary = d.get("equip", {})
+	var ed: Dictionary = d.get("equip_dur", {})
+	for k in inv.equip:
+		var id: String = String(eq.get(k, ""))
+		inv.equip[k] = id if Items.ITEMS.has(id) else ""
+		if ed.has(k):
+			inv.equip_dur[k] = float(ed[k])
+		_apply_equip(k)
+	var hb: Array = d.get("hotbar", [])
+	for k in 5:
+		inv.hotbar[k] = String(hb[k]) if k < hb.size() and hb[k] != null else ""
+	hp = clampf(float(d.get("hp", MAX_HP)), 1.0, MAX_HP)
+	hud.set_hp(hp, MAX_HP)
+	bleed_t = float(d.get("bleed", 0.0))
+	buffs = {}
+	var bf: Dictionary = d.get("buffs", {})
+	for k in bf:
+		buffs[k] = {"power": float(bf[k]["power"]), "time": float(bf[k]["time"]), "icon": String(bf[k]["icon"])}
+	player.global_position = _to_v3(d.get("pos", [START.x, START.y, START.z]))
+	player.rotation.y = float(d.get("yaw", -PI / 2.0))
+	player.head.rotation.x = float(d.get("pitch", 0.0))
+	player.velocity = Vector3.ZERO
+	if flashlight:
+		flashlight.charge = float(d.get("light_charge", 0.6))
+		if bool(d.get("light_on", false)) and inv.count("flashlight") > 0:
+			flashlight.on = true
+			flashlight.light.visible = true
+	if gasmask:
+		gasmask.filter_left = float(d.get("filter", 0.0))
+		gasmask.tox = float(d.get("tox", 0.0))
+	var cs: Array = d.get("chests", [])
+	for i in mini(cs.size(), chests.size()):
+		chests[i].restore(bool(cs[i][0]), bool(cs[i][1]))
+	if bool(d.get("safe_open", false)) and safe:
+		safe.restore(true, false)
+	# вещи на полу: убираем стартовые, раскладываем сохранённые
+	for n in get_children():
+		if n is Pickup:
+			n.queue_free()
+	for it in d.get("floor", []):
+		var id: String = String(it.get("id", ""))
+		if not Items.ITEMS.has(id):
+			continue
+		var p := _make_pickup(id, int(it.get("n", 1)), _to_v3(it.get("pos")) + Vector3(0, 0.05, 0), Vector3.ZERO)
+		p.angular_velocity = Vector3.ZERO
+		if float(it.get("dur", -1.0)) >= 0.0:
+			p.set_meta("dur", float(it["dur"]))
+		if bool(it.get("dropped", false)):
+			p.set_meta("dropped", true)
+	dropped_coins = int(d.get("dropped_coins", 0))
+	var h := int(d.get("hunters", 0))
+	if h > 0:
+		hud.cheat_warning(true)
+		_spawn_hunters(h)
+	inv.notify()
+	loading = false
+	hud.toast("Загружено: слот %d" % save_slot, Color(0.8, 0.85, 0.7))
