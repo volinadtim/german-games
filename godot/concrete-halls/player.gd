@@ -14,9 +14,9 @@ const JUMP := 5.0            # ~0.55 м
 const SENS := 0.0022
 const CAM_Y := 1.7
 const FOV := 75.0
-const HIP_Y := 0.86
-const LEG_L1 := 0.42              # бедро
-const LEG_L2 := 0.42              # голень
+const HIP_Y := 0.88
+const LEG_L1 := 0.40              # бедро
+const LEG_L2 := 0.40              # голень
 const GROUND_Y := 0.09 - HIP_Y    # высота голеностопа над полом относительно бедра
 const ACCEL_WALK := 5.0
 const ACCEL_SPRINT := 3.2
@@ -193,14 +193,14 @@ func _build_body() -> void:
 		body.add_child(hip)
 		var thigh := CapsuleMesh.new()
 		thigh.radius = 0.085
-		thigh.height = 0.46
+		thigh.height = 0.44
 		_part(hip, thigh, Vector3(0, -LEG_L1 / 2, 0), pants)
 		var knee := Node3D.new()
 		knee.position = Vector3(0, -LEG_L1, 0)
 		hip.add_child(knee)
 		var shin := CapsuleMesh.new()
 		shin.radius = 0.072
-		shin.height = 0.46
+		shin.height = 0.44
 		_part(knee, shin, Vector3(0, -LEG_L2 / 2, 0), pants)
 		var ankle := Node3D.new()
 		ankle.position = Vector3(0, -LEG_L2, 0)
@@ -483,8 +483,8 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 		var run := clampf((spd - WALK) / (SPRINT - WALK), 0.0, 1.0)
 		var beta := lerpf(0.62, 0.42, run)           # доля опоры в цикле (при беге есть фаза полёта)
 		var cycle := 2.0 + 0.1 * spd                 # метров за полный цикл (два шага)
-		var amp := clampf(0.06 + 0.06 * spd, 0.0, 0.42)
-		var lift := 0.06 + 0.035 * spd
+		var amp := clampf(0.06 + 0.045 * spd, 0.0, 0.32)
+		var lift := 0.04 + 0.025 * spd
 		gait = fmod(gait + spd / cycle * delta, 1.0)
 		for i in 2:
 			var ph := fmod(gait + 0.5 * i, 1.0)
