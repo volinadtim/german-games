@@ -42,19 +42,19 @@ const Weapons := preload("res://weapons.gd")
 # t — длительности [замах, удар, проводка, возврат], rc — выпад плеча [замах, удар].
 const SWINGS := {
 	"heavy": [   # бита, труба, монтировка: широко из-за плеча, всем корпусом, тяжело
-		{"wind": Vector4(150, -15, 45, 105), "hit": Vector4(60, 28, 4, 18), "thru": Vector4(28, 48, 0, 26),
+		{"wind": Vector4(150, -15, 45, 105), "hit": Vector4(72, 10, 4, 16), "thru": Vector4(28, 48, 0, 26),
 			"tw": [-0.45, 0.35, 0.6], "t": [0.24, 0.11, 0.16, 0.36], "rc": [-0.03, 0.06], "blur": "upper"},
-		{"wind": Vector4(92, -60, 35, 78), "hit": Vector4(88, 28, 0, 14), "thru": Vector4(80, 62, 0, 34),
+		{"wind": Vector4(92, -60, 35, 78), "hit": Vector4(88, 6, 0, 12), "thru": Vector4(80, 62, 0, 34),
 			"tw": [-0.6, 0.3, 0.7], "t": [0.22, 0.11, 0.16, 0.34], "rc": [-0.03, 0.05], "blur": "hook"},
 		{"wind": Vector4(172, 0, 14, 125), "hit": Vector4(62, 8, 0, 10), "thru": Vector4(25, 12, 0, 22),
 			"tw": [-0.18, 0.12, 0.2], "t": [0.26, 0.1, 0.14, 0.36], "rc": [-0.05, 0.1], "blur": "upper"},
 	],
 	"machete": [   # быстрые рубящие махи
-		{"wind": Vector4(140, -10, 35, 95), "hit": Vector4(62, 30, 0, 14), "thru": Vector4(40, 52, 0, 30),
+		{"wind": Vector4(140, -10, 35, 95), "hit": Vector4(72, 12, 0, 14), "thru": Vector4(40, 52, 0, 30),
 			"tw": [-0.3, 0.25, 0.4], "t": [0.1, 0.07, 0.07, 0.2], "rc": [-0.02, 0.06], "blur": "upper"},
-		{"wind": Vector4(86, -52, 30, 62), "hit": Vector4(86, 34, 0, 14), "thru": Vector4(80, 60, 0, 34),
+		{"wind": Vector4(86, -52, 30, 62), "hit": Vector4(86, 8, 0, 12), "thru": Vector4(80, 60, 0, 34),
 			"tw": [-0.4, 0.25, 0.45], "t": [0.1, 0.07, 0.07, 0.2], "rc": [-0.02, 0.05], "blur": "hook"},
-		{"wind": Vector4(92, 58, 0, 92), "hit": Vector4(88, -24, 25, 14), "thru": Vector4(80, -44, 35, 28),
+		{"wind": Vector4(92, 58, 0, 92), "hit": Vector4(88, -4, 12, 12), "thru": Vector4(80, -44, 35, 28),
 			"tw": [0.35, -0.2, -0.35], "t": [0.1, 0.07, 0.07, 0.2], "rc": [0.0, 0.04], "blur": "hook"},
 	],
 	"knife": [   # короткий тычок или чирк
@@ -70,6 +70,7 @@ const SWINGS := {
 			"tw": [-0.3, 0.25, 0.35], "t": [0.12, 0.08, 0.08, 0.26], "rc": [-0.03, 0.08], "blur": "upper"},
 	],
 }
+var WRIST_HIT := 1.1   # сгиб кисти в момент удара (рад)
 # конец оружия (по длинной оси +Y модели) — по нему тянется след
 const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28}
 const Fx := preload("res://fx.gd")
@@ -119,6 +120,7 @@ var trail_mat: StandardMaterial3D
 var post_mat: ShaderMaterial          # постобработка (задаёт main.gd)
 var foot_pitch: Array[float] = [0.0, 0.0]
 var reach: Array[float] = [0.0, 0.0]   # выпад плеча вперёд при ударе
+var wrist_flex: Array[float] = [0.0, 0.0]   # сгиб кисти в махе: оружие из «вверх» ложится вдоль руки
 var swing_twist := 0.0                  # поворот корпуса в махе оружием (+ — правое плечо вперёд)
 var last_swing := [-1, -1]
 var fists := false
@@ -586,6 +588,34 @@ func _apply_bones() -> void:
 		_set_global_rot(e[0], rr * basis * e[2])
 	for f in finger_bones:
 		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], fist_blend))
+	_flex_weapons()
+
+
+## Хлёст кистью в махе: оружие поворачивается от хвата к линии предплечья на wrist_flex
+## (0 — как в стойке, торчит вверх; ~1 — продолжает руку; минус — взведено назад).
+func _flex_weapons() -> void:
+	for i in 2:
+		var n = weapon_nodes[i]
+		if n == null or not is_instance_valid(n) or not n.is_inside_tree():
+			continue
+		var w: Node3D = n
+		if not w.has_meta("grip"):
+			w.set_meta("grip", w.transform)
+		var grip: Transform3D = w.get_meta("grip")
+		if absf(wrist_flex[i]) < 0.001:
+			w.transform = grip
+			continue
+		var s: String = ["_L", "_R"][i]
+		var sk := skel.global_transform
+		var fore := (sk * skel.get_bone_global_pose(skel.find_bone("hand" + s)).origin
+				- sk * skel.get_bone_global_pose(skel.find_bone("lowerarm" + s)).origin).normalized()
+		var par: Transform3D = w.get_parent().global_transform
+		var wy := (par.basis * grip.basis.y).normalized()
+		var axis := wy.cross(fore)
+		if axis.length() < 0.01:
+			continue
+		var ax_l := (par.basis.inverse() * axis.normalized()).normalized()
+		w.transform = Transform3D(Basis(ax_l, wrist_flex[i]) * grip.basis, grip.origin)
 
 
 ## Поворот кости в пространстве скелета -> локальный поворот относительно родителя.
@@ -726,11 +756,15 @@ func _weapon_swing(i: int, wid: String) -> void:
 	var heavy := group == "heavy" or group == "shield"
 	var ps := _pose_setter(i)
 	var rs := _reach_setter(i)
+	# хлёст кистью: в замахе оружие взведено вверх, к удару кисть «выстреливает» и оружие продолжает руку
+	var fl: Array = sw.get("wf", [-0.25, WRIST_HIT, WRIST_HIT * 1.1] if group != "shield" else [0.0, 0.0, 0.0])
+	var fs := func(v: float) -> void: wrist_flex[i] = v
 	var tw := create_tween()
 	# замах — с разгоном и торможением в верхней точке
 	tw.tween_method(ps, arm_pose[i], sw["wind"], t[0]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.parallel().tween_method(_twist_setter, swing_twist, tws[0] * side, t[0]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.parallel().tween_method(rs, reach[i], rc[0], t[0]).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_method(fs, wrist_flex[i], fl[0], t[0]).set_trans(Tween.TRANS_SINE)
 	tw.tween_callback(_swing_sound.bind(heavy))
 	tw.tween_callback(_punch_fx.bind(i, sw["blur"], true))
 	# удар: тяжёлое разгоняется (ease-in), лезвие срывается сразу (ease-out)
@@ -739,15 +773,18 @@ func _weapon_swing(i: int, wid: String) -> void:
 	tw.tween_method(ps, sw["wind"], sw["hit"], t[1]).set_trans(trans).set_ease(ez)
 	tw.parallel().tween_method(_twist_setter, tws[0] * side, tws[1] * side, t[1]).set_trans(trans).set_ease(ez)
 	tw.parallel().tween_method(rs, rc[0], rc[1], t[1]).set_trans(trans).set_ease(ez)
+	tw.parallel().tween_method(fs, fl[0], fl[1], t[1]).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 	tw.tween_callback(_check_hit.bind(i, "hook"))
 	# проводка по инерции и плавное торможение
 	tw.tween_method(ps, sw["hit"], sw["thru"], t[2]).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.parallel().tween_method(_twist_setter, tws[1] * side, tws[2] * side, t[2]).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_method(fs, fl[1], fl[2], t[2]).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_callback(_punch_fx.bind(i, sw["blur"], false))
 	# возврат в стойку
 	tw.tween_method(ps, sw["thru"], GUARDS[i], t[3]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.parallel().tween_method(_twist_setter, tws[2] * side, 0.0, t[3]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.parallel().tween_method(rs, rc[1], 0.0, t[3]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_method(fs, fl[2], 0.0, t[3]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tw.tween_callback(func(): punching = false)
 
 
