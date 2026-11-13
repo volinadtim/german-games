@@ -17,9 +17,9 @@ const ACCEL_SPRINT := 3.2
 
 # позы руки в градусах: x — подъём плеча вперёд, y — внутрь, z — в сторону, w — сгиб локтя
 const REST := Vector4(0, 0, 0, 10)
-const GUARD := Vector4(85, 10, 0, 30)
+const GUARD := Vector4(60, 10, 0, 60)
 const PUNCHES := {
-	"straight": [Vector4(75, 14, 2, 55), Vector4(100, 6, 0, 4)],
+	"straight": [Vector4(55, 14, 2, 80), Vector4(100, 6, 0, 4)],
 	"hook": [Vector4(82, -30, 8, 40), Vector4(96, 32, 0, 28)],
 	"upper": [Vector4(45, 12, 6, 100), Vector4(95, 12, 0, 58)],
 }
