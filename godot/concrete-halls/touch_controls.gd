@@ -52,7 +52,7 @@ func _buttons() -> Dictionary:
 		"attack": [Vector2(s.x - 150, s.y - 190), 72.0, "УДАР", true],
 		"fists": [Vector2(s.x - 300, s.y - 120), 46.0, "СТОЙКА", true],
 		"jump": [Vector2(s.x - 300, s.y - 255), 46.0, "ПРЫЖОК", true],
-		"interact": [Vector2(s.x - 115, s.y - 355), 44.0, "E", true],
+		"interact": [Vector2(s.x - 175, s.y - 365), 44.0, "E", true],
 		"flashlight": [Vector2(s.x - 60, 190), 34.0, "СВЕТ", true],
 		"gasmask": [Vector2(s.x - 60, 270), 34.0, "МАСКА", true],
 		"quick_heal": [Vector2(s.x - 60, 350), 34.0, "ЛЕЧИТЬ", true],
@@ -71,7 +71,7 @@ func _hot_rect(k: int) -> Rect2:
 
 
 func _stick_home() -> Vector2:
-	return Vector2(170, root.size.y - 170)
+	return Vector2(190, root.size.y - 240)
 
 
 # ---------- состояние ----------

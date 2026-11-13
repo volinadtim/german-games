@@ -774,6 +774,8 @@ func _dust_motes() -> void:
 
 ## Пылевая дымка, прижатая к полу (объёмный туман, гуще внизу).
 func _low_dust() -> void:
+	if RenderingServer.get_current_rendering_method() != "forward_plus":
+		return   # на телефонах объёмного тумана нет (а в Compatibility FogMaterial даже не компилируется)
 	var fm := FogMaterial.new()
 	fm.density = 0.05
 	fm.albedo = Color(0.75, 0.7, 0.62)
@@ -787,18 +789,21 @@ func _low_dust() -> void:
 
 func _make_env() -> Environment:
 	var e := Environment.new()
+	# телефоны (Mobile/Compatibility): SSAO, SSR и объёмного тумана там нет — не включаем их,
+	# обычный туман и glow остаются; на ПК (Forward+) всё как было
+	var full := RenderingServer.get_current_rendering_method() == "forward_plus"
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color(0.01, 0.01, 0.012)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.62, 0.55, 0.46)
 	e.ambient_light_energy = 0.18
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.ssao_enabled = true
+	e.ssao_enabled = full
 	e.ssao_radius = 1.4
 	e.ssao_intensity = 3.0
 	e.ssao_power = 2.0
 	e.ssao_light_affect = 0.3
-	e.ssr_enabled = true
+	e.ssr_enabled = full
 	e.ssr_max_steps = 64
 	e.glow_enabled = true
 	e.glow_intensity = 0.7
@@ -809,15 +814,9 @@ func _make_env() -> Environment:
 	e.fog_density = 0.02
 	e.fog_height = 0.6
 	e.fog_height_density = 0.5
-	e.volumetric_fog_enabled = true
+	e.volumetric_fog_enabled = full
 	e.volumetric_fog_density = 0.008
 	e.volumetric_fog_albedo = Color(0.8, 0.8, 0.8)
-	# телефоны (Mobile/Compatibility): SSAO, SSR и объёмного тумана там нет — выключаем явно,
-	# обычный туман и glow остаются; на ПК (Forward+) ничего не меняется
-	if RenderingServer.get_current_rendering_method() != "forward_plus":
-		e.ssao_enabled = false
-		e.ssr_enabled = false
-		e.volumetric_fog_enabled = false
 	return e
 
 
