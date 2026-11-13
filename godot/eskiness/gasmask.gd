@@ -22,7 +22,7 @@ var breaths: Array = []
 
 
 func _ready() -> void:
-	layer = 3
+	layer = -1   # ниже HUD (слой 0): интерфейс виден поверх маски
 	overlay = ColorRect.new()
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -52,18 +52,61 @@ func _ready() -> void:
 		InputMap.action_add_event("gasmask", ev)
 
 
-## Затемнение по краям и два «окуляра» — вид изнутри противогаза.
+## Вид изнутри противогаза: два крупных окуляра в чёрной резиновой маске с чёткой кромкой и перемычкой у носа.
+## Стекло: к краю чуть мутнеет и размывается, картинка у кромки слегка «стягивается» к центру,
+## блик дугой сверху-слева и несколько тонких царапин.
 func _mask_shader() -> Shader:
 	var s := Shader.new()
 	s.code = """shader_type canvas_item;
+uniform sampler2D scr : hint_screen_texture, filter_linear_mipmap;
+const float R = 0.46;      // радиус окуляра (доля высоты экрана)
+const float RIM = 0.03;    // ширина резиновой кромки
+const float CX = 0.29;     // центры окуляров по горизонтали
+
+float hash(float n) { return fract(sin(n) * 43758.5453); }
+
 void fragment() {
-	vec2 uv = SCREEN_UV - 0.5;
-	uv.x *= SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
-	float l = length((uv - vec2(-0.22, 0.0)) * vec2(1.0, 1.15));
-	float r = length((uv - vec2(0.22, 0.0)) * vec2(1.0, 1.15));
-	float lens = min(l, r);
-	float a = smoothstep(0.3, 0.42, lens);
-	COLOR = vec4(0.02, 0.025, 0.02, a * 0.92);
+	float asp = SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x;
+	vec2 p = SCREEN_UV - 0.5;
+	p.x *= asp;
+	vec2 cl = vec2(-CX, 0.02);
+	vec2 cr = vec2(CX, 0.02);
+	float dl = length((p - cl) * vec2(1.0, 1.1));
+	float dr = length((p - cr) * vec2(1.0, 1.1));
+	vec2 c = dl < dr ? cl : cr;
+	float d = min(dl, dr);
+	// перемычка у носа: снизу между окулярами
+	float bridge = step(abs(p.x), 0.05 + 0.25 * max(p.y - 0.16, 0.0)) * step(0.16, p.y);
+	if (d > R || bridge > 0.5) {
+		COLOR = vec4(0.012, 0.014, 0.012, 1.0);
+	} else if (d > R - RIM) {
+		// кромка: тёмная резина с едва заметным отсветом сверху
+		float k = (d - (R - RIM)) / RIM;
+		float top = clamp(-(p.y - c.y) / R, 0.0, 1.0);
+		COLOR = vec4(vec3(0.03 + 0.05 * top * (1.0 - k)), 1.0);
+	} else {
+		float e = smoothstep(R * 0.55, R - RIM, d);      // 0 в центре, 1 у кромки
+		vec2 cuv = vec2(c.x / asp, c.y) + 0.5;
+		vec2 uv = SCREEN_UV + (cuv - SCREEN_UV) * 0.035 * e * e;   // лёгкое стягивание к центру
+		vec3 col = textureLod(scr, uv, 2.2 * e).rgb;
+		// муть у краёв: чуть светлее и зеленовато-серая
+		col = mix(col, col * 0.75 + vec3(0.05, 0.06, 0.05), 0.35 * e);
+		// блик дугой сверху-слева
+		vec2 dir = normalize(p - c + vec2(0.0001));
+		float arc = smoothstep(0.018, 0.0, abs(d - (R - RIM - 0.045))) * pow(clamp(-(dir.x + dir.y) * 0.72, 0.0, 1.0), 4.0);
+		col += vec3(0.1, 0.11, 0.1) * arc;
+		// царапины: короткие тонкие штрихи
+		for (int i = 0; i < 7; i++) {
+			float fi = float(i);
+			vec2 a = c + (vec2(hash(fi * 3.1), hash(fi * 7.7)) - 0.5) * R * 1.3;
+			float ang = hash(fi * 13.3) * 3.1416;
+			vec2 u = vec2(cos(ang), sin(ang));
+			float t = clamp(dot(p - a, u), -0.05, 0.05);
+			float dist = length(p - a - u * t);
+			col += vec3(0.07) * smoothstep(0.0012, 0.0, dist) * (0.5 + 0.5 * hash(fi));
+		}
+		COLOR = vec4(col, 1.0);
+	}
 }"""
 	return s
 

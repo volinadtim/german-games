@@ -1,6 +1,9 @@
 extends CanvasLayer
 ## HUD (тестовые механики): здоровье, монеты, заряд фонарика, прицел-точка, подсказка «[E] …»,
-## всплывающие сообщения слева сверху, красная виньетка при уроне и экран смерти.
+## всплывающие сообщения, красная виньетка при уроне и экран смерти.
+## Сообщения: важные (деньги, урон, кровотечение, блок, поломки, KILLBOX) — крупно внизу по центру над хотбаром,
+## стопкой, с плавным появлением; остальные — мелко слева сверху. Важность — параметр toast(..., important)
+## или по тексту сообщения (IMPORTANT_WORDS), чтобы старые вызовы работали без правок.
 
 const Items := preload("res://items.gd")
 
@@ -24,6 +27,10 @@ var t := 0.0
 var paint: Control
 var prompt_l: Label
 var toasts: VBoxContainer
+var big_toasts: VBoxContainer   # важные — внизу по центру
+var dmg_acc := 0.0               # копим урон от ударов, чтобы показать одной строкой
+var dmg_t := 0.0
+const IMPORTANT_WORDS := ["монет", "+", "KILLBOX", "777", "шестёр", "Кровотеч", "Стекло", "Сломан", "БЛОК", "КРИТ", "урон", "сейф", "Сейф"]
 var vignette: TextureRect
 var death_bg: ColorRect
 var death_l: Label
@@ -78,6 +85,20 @@ func _ready() -> void:
 	toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(toasts)
 
+	big_toasts = VBoxContainer.new()
+	big_toasts.anchor_left = 0.5
+	big_toasts.anchor_right = 0.5
+	big_toasts.anchor_top = 1.0
+	big_toasts.anchor_bottom = 1.0
+	big_toasts.offset_left = -420
+	big_toasts.offset_right = 420
+	big_toasts.offset_top = -330
+	big_toasts.offset_bottom = -88
+	big_toasts.alignment = BoxContainer.ALIGNMENT_END
+	big_toasts.add_theme_constant_override("separation", 2)
+	big_toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(big_toasts)
+
 	cheat_l = Label.new()
 	cheat_l.anchor_left = 0.0
 	cheat_l.anchor_right = 1.0
@@ -127,6 +148,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	t += delta
+	if dmg_acc > 0.0:
+		dmg_t -= delta
+		if dmg_t <= 0.0:
+			toast("−%d здоровья" % int(round(dmg_acc)), Color(1.0, 0.32, 0.25), true)
+			dmg_acc = 0.0
 	hp_lag = move_toward(hp_lag, hp, delta * 25.0) if hp_lag > hp else hp
 	hurt = move_toward(hurt, 0.0, delta * 1.6)
 	var low := 0.0
@@ -139,6 +165,10 @@ func _process(delta: float) -> void:
 
 
 func set_hp(v: float, mx: float) -> void:
+	# заметный удар (а не тиканье яда или кровотечения) — копим и показываем внизу «−N»
+	if v < hp - 0.5:
+		dmg_acc += hp - v
+		dmg_t = 0.3
 	hp = v
 	hp_max = mx
 
@@ -161,7 +191,11 @@ func hurt_flash(amount := 0.75) -> void:
 	hurt = maxf(hurt, amount)
 
 
-func toast(text: String, col := Color(0.88, 0.86, 0.8)) -> void:
+func toast(text: String, col := Color(0.88, 0.86, 0.8), important = null) -> void:
+	var imp: bool = _is_important(text) if important == null else bool(important)
+	if imp:
+		_big_toast(text, col)
+		return
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", 20)
@@ -179,9 +213,46 @@ func toast(text: String, col := Color(0.88, 0.86, 0.8)) -> void:
 	tw.tween_callback(l.queue_free)
 
 
+func _is_important(text: String) -> bool:
+	for w in IMPORTANT_WORDS:
+		if text.contains(w):
+			return true
+	return false
+
+
+## Важное сообщение внизу по центру: выплывает снизу и проявляется, держится, тает. Новые — снизу стопки.
+func _big_toast(text: String, col: Color) -> void:
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(840, 38)
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var l := Label.new()
+	l.text = text
+	l.size = Vector2(840, 38)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 27)
+	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	l.add_theme_constant_override("outline_size", 8)
+	l.position.y = 14.0
+	l.modulate.a = 0.0
+	holder.add_child(l)
+	big_toasts.add_child(holder)
+	while big_toasts.get_child_count() > 4:
+		var old := big_toasts.get_child(0)
+		big_toasts.remove_child(old)
+		old.queue_free()
+	var tw := l.create_tween()
+	tw.set_parallel()
+	tw.tween_property(l, "modulate:a", 1.0, 0.18)
+	tw.tween_property(l, "position:y", 0.0, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_interval(2.6)
+	tw.chain().tween_property(l, "modulate:a", 0.0, 0.7)
+	tw.chain().tween_callback(holder.queue_free)
+
+
 ## Красная надпись внизу по центру, пока живы монстры-наказание.
 func block_flash() -> void:
-	toast("БЛОК!", Color(0.6, 0.85, 1.0))
+	toast("БЛОК!", Color(0.6, 0.85, 1.0), true)
 	hurt = 0.0
 
 
