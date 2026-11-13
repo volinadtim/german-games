@@ -56,6 +56,10 @@ var bulbs: Array[StandardMaterial3D] = []
 const USE_LEDS := false     # цветные RGB-огоньки по краям корпуса (убраны по просьбе, 19:27)
 var leds: Array[StandardMaterial3D] = []
 var rig: Node3D
+var hl_cells: Array = []        # подсветка ячеек 3×4 на стекле: [ряд][барабан]
+var hl_lines: Array = []        # выигравшие линии последней крутки
+var hl_t := 0.0
+const HL_COLORS := [Color(1.0, 0.75, 0.25), Color(0.4, 1.0, 0.5), Color(0.4, 0.8, 1.0), Color(1.0, 0.45, 0.8), Color(1.0, 0.35, 0.2)]
 var light: OmniLight3D
 var screen: Label3D
 var party := 0.0
@@ -262,6 +266,7 @@ func _build() -> void:
 	_box(rig, Vector3(0.06, 0.12, 0.12), Vector3(0.42, 0.9, 0.05), trim)
 
 	_build_grime()
+	_build_highlight()
 
 	light = OmniLight3D.new()
 	light.light_color = Color(1.0, 0.5, 0.28)
@@ -278,6 +283,55 @@ func _build() -> void:
 	cs.shape = shape
 	cs.position = Vector3(0, top / 2.0, RIG_Z)
 	add_child(cs)
+
+
+## Подсветка выигрышных линий: 12 светящихся рамок на стекле, мигают по линиям по очереди.
+func _build_highlight() -> void:
+	for r in 3:
+		var row: Array = []
+		for i in REELS:
+			var m := StandardMaterial3D.new()
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+			m.no_depth_test = false
+			m.albedo_color = Color(1, 0.8, 0.3, 0.0)
+			var q := QuadMesh.new()
+			q.size = Vector2(0.125, 0.088 if r != 1 else 0.096)
+			var mi := MeshInstance3D.new()
+			mi.mesh = q
+			mi.material_override = m
+			mi.position = Vector3((i - 1.5) * 0.145, REEL_Y + (1 - r) * 0.094, 0.291)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			mi.visible = false
+			rig.add_child(mi)
+			row.append(mi)
+		hl_cells.append(row)
+
+
+func _update_highlight(delta: float) -> void:
+	if hl_lines.is_empty():
+		return
+	hl_t -= delta
+	if hl_t <= 0.0:
+		hl_lines = []
+		for row in hl_cells:
+			for c in row:
+				c.visible = false
+		return
+	# линии по очереди, каждая своим цветом; мигание
+	var k := int(t * 1.4) % hl_lines.size()
+	var li: int = hl_lines[k]
+	var line: Array = LINES[li]
+	var col: Color = HL_COLORS[k % HL_COLORS.size()]
+	var a := 0.25 + 0.3 * (0.5 + 0.5 * sin(t * 14.0))
+	for r in 3:
+		for i in REELS:
+			var on: bool = int(line[i]) == r
+			var c: MeshInstance3D = hl_cells[r][i]
+			c.visible = on
+			if on:
+				(c.material_override as StandardMaterial3D).albedo_color = Color(col.r, col.g, col.b, a)
 
 
 ## Мутное стекло перед барабанами, рваные наклейки, следы скотча, вмятины.
@@ -619,6 +673,11 @@ func interact(g) -> void:
 	if g.has_method("cheat_check"):
 		g.cheat_check()
 	_roll_stops()
+	hl_lines = []
+	hl_t = 0.0
+	for row in hl_cells:
+		for c in row:
+			c.visible = false
 	g.play_at("coin", global_position + Vector3(0.0, 0.7, 0.0), -10.0)
 	var tw := create_tween()
 	tw.tween_property(lever, "rotation:x", 1.1, 0.18).set_trans(Tween.TRANS_QUAD)
@@ -678,6 +737,7 @@ func _process(delta: float) -> void:
 	t += delta
 	# лампочки: бегущий огонёк, при выигрыше — быстро мигают все
 	party = maxf(party - delta, 0.0)
+	_update_highlight(delta)
 	for k in bulbs.size():
 		var on: bool
 		if party > 0.0:
@@ -741,28 +801,33 @@ func _payout() -> void:
 		if first == "seven" and n >= 3:
 			sevens = true
 			won_lines.append(str(li + 1))
+			hl_lines.append(li)
 		elif first != "seven" and PAY.has(first) and PAY[first].has(n):
 			win += int(PAY[first][n])
 			won_lines.append(str(li + 1))
+			hl_lines.append(li)
 	var msg := ""
 	if sevens:
 		if game.open_safe():
-			msg = "777 — СЕЙФ ОТКРЫТ!"
-			game.hud.toast("Три семёрки! Где-то щёлкнул замок сейфа…", Color(1.0, 0.85, 0.4))
+			msg = "СЕЙФ ОТКРЫТ"
+			game.hud.toast("777 — сейф открыт", Color(1.0, 0.85, 0.4))
 		else:
 			win += int(PAY["seven"][3])
 	if win > 0:
-		msg = (msg + " ") if msg != "" else ""
-		msg += "ВЫИГРЫШ: %d" % win
+		msg = (msg + " · ") if msg != "" else ""
+		msg += "+%d" % win
 		var tray := rig.global_transform * Vector3(0, 0.45, 0.4)
 		var fwd := global_transform.basis.z
 		game.spawn_loot("coin", win, tray, fwd * 1.2 + Vector3(0, 1.2, 0), 0.5)
-		game.hud.toast("KILLBOX: выигрыш %d монет" % win, Color(1.0, 0.8, 0.4))
+		game.hud.toast("KILLBOX: +%d" % win, Color(1.0, 0.8, 0.4))
 	if sevens or win >= 30:
 		party = 2.5
 		snd2.stream = game.snd["jingle"][0]
 		snd2.volume_db = -10.0
 		snd2.play()
+	# какие линии сыграли — видно по подсветке на барабанах
+	if won_lines.size() > 1:
+		msg = "КОМБО ×%d · " % won_lines.size() + msg
 	if won_lines.size() > 0:
-		msg += "  (линии %s)" % ", ".join(won_lines)
+		hl_t = 6.0
 	screen.text = msg if msg != "" else "ПУСТО"

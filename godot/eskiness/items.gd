@@ -19,8 +19,19 @@ const ITEMS := {
 		"icon": "soda", "color": Color(0.75, 0.2, 0.15), "buff": "speed", "power": 0.30, "time": 60.0},
 	"battery": {"name": "Батарейка", "desc": "Полностью заряжает фонарик (F).", "stack": 10,
 		"icon": "battery", "color": Color(0.34, 0.44, 0.3)},
-	"knuckles": {"name": "Кастет", "desc": "Надеть: удары в полтора раза сильнее.", "stack": 1,
-		"icon": "knuckles", "color": Color(0.58, 0.58, 0.6)},
+	"knuckles": {"name": "Кастет", "desc": "Руки: удар кулаком ×1.5.", "stack": 1,
+		"icon": "knuckles", "color": Color(0.58, 0.58, 0.6), "equip": "hands", "fist": 1.5},
+	# одежда (магазин снаряжения): слот и небольшой эффект
+	"helmet": {"name": "Каска", "desc": "Голова: −10% урона.", "stack": 1,
+		"icon": "helmet", "color": Color(0.78, 0.6, 0.15), "equip": "head", "armor": 0.10},
+	"jacket": {"name": "Ватник", "desc": "Тело: −15% урона.", "stack": 1,
+		"icon": "jacket", "color": Color(0.24, 0.27, 0.21), "equip": "body", "armor": 0.15},
+	"gloves": {"name": "Рабочие перчатки", "desc": "Руки: удар кулаком ×1.2.", "stack": 1,
+		"icon": "gloves", "color": Color(0.55, 0.48, 0.32), "equip": "hands", "fist": 1.2},
+	"pants": {"name": "Рабочие штаны", "desc": "Ноги: +8% к скорости.", "stack": 1,
+		"icon": "pants", "color": Color(0.2, 0.24, 0.32), "equip": "legs", "speed": 0.08},
+	"boots": {"name": "Кирзовые сапоги", "desc": "Обувь: стекло не ранит.", "stack": 1,
+		"icon": "boots", "color": Color(0.17, 0.13, 0.1), "equip": "feet", "glassproof": true},
 	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 5,
 		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
 	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 6,
@@ -58,8 +69,8 @@ const ITEMS := {
 	"glass": {"name": "Кусочек стекла", "desc": "Острый осколок. Нужен для крафта.", "stack": 5,
 		"icon": "glass", "color": Color(0.6, 0.78, 0.76)},
 	# противогаз (G — надеть/снять) и фильтры к нему
-	"gasmask": {"name": "Противогаз", "desc": "G — надеть/снять. Наверху без него плохо.", "stack": 1,
-		"icon": "gasmask", "color": Color(0.22, 0.25, 0.2)},
+	"gasmask": {"name": "Противогаз", "desc": "Голова. G — надеть/снять. Наверху без него плохо.", "stack": 1,
+		"icon": "gasmask", "color": Color(0.22, 0.25, 0.2), "equip": "head"},
 	"filter": {"name": "Фильтр", "desc": "Сменный фильтр противогаза: 90 секунд наверху.", "stack": 10,
 		"icon": "filter", "color": Color(0.36, 0.38, 0.3)},
 }
@@ -77,11 +88,7 @@ static func equip_slot(id: String) -> String:
 		return ""
 	if ITEMS[id].has("weapon"):
 		return "hand"
-	if id == "gasmask":
-		return "head"
-	if id == "knuckles":
-		return "hands"
-	return ""
+	return String(ITEMS[id].get("equip", ""))
 
 
 ## Подходит ли предмет в слот экипировки (left/right/head/hands).
@@ -205,6 +212,38 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				c + Vector2(s * 0.24, -s * 0.1), c + Vector2(s * 0.1, s * 0.32)])
 			ci.draw_colored_polygon(pts, Color(col.r, col.g, col.b, 0.75))
 			ci.draw_line(c + Vector2(-s * 0.05, -s * 0.2), c + Vector2(s * 0.05, s * 0.1), Color(1, 1, 1, 0.8), maxf(1.0, s * 0.03))
+		"helmet":
+			ci.draw_arc(c + Vector2(0, s * 0.08), s * 0.3, PI, TAU, 16, col, s * 0.02)
+			var dome := PackedVector2Array()
+			for k in 17:
+				var a := PI + PI * k / 16.0
+				dome.append(c + Vector2(cos(a) * s * 0.3, s * 0.08 + sin(a) * s * 0.3))
+			ci.draw_colored_polygon(dome, col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.4, s * 0.06), Vector2(s * 0.8, s * 0.08)), col.darkened(0.25))
+		"jacket":
+			var body := PackedVector2Array([c + Vector2(-s * 0.2, -s * 0.32), c + Vector2(s * 0.2, -s * 0.32), c + Vector2(s * 0.4, -s * 0.1),
+				c + Vector2(s * 0.3, s * 0.0), c + Vector2(s * 0.22, -s * 0.06), c + Vector2(s * 0.22, s * 0.34), c + Vector2(-s * 0.22, s * 0.34),
+				c + Vector2(-s * 0.22, -s * 0.06), c + Vector2(-s * 0.3, s * 0.0), c + Vector2(-s * 0.4, -s * 0.1)])
+			ci.draw_colored_polygon(body, col)
+			ci.draw_line(c + Vector2(0, -s * 0.3), c + Vector2(0, s * 0.33), col.darkened(0.45), maxf(1.5, s * 0.03))
+			for k in 4:
+				ci.draw_line(c + Vector2(-s * 0.2, -s * 0.18 + k * s * 0.12), c + Vector2(s * 0.2, -s * 0.18 + k * s * 0.12), col.darkened(0.25), maxf(1.0, s * 0.02))
+		"gloves":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.18, -s * 0.05), Vector2(s * 0.36, s * 0.36)), col)
+			for k in 4:
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.18 + k * s * 0.09, -s * 0.32), Vector2(s * 0.075, s * 0.3)), col)
+			ci.draw_rect(Rect2(c + Vector2(s * 0.18, -s * 0.02), Vector2(s * 0.14, s * 0.08)), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.2, s * 0.22), Vector2(s * 0.4, s * 0.08)), col.darkened(0.3))
+		"pants":
+			var p := PackedVector2Array([c + Vector2(-s * 0.26, -s * 0.34), c + Vector2(s * 0.26, -s * 0.34), c + Vector2(s * 0.3, s * 0.36),
+				c + Vector2(s * 0.06, s * 0.36), c + Vector2(0, -s * 0.06), c + Vector2(-s * 0.06, s * 0.36), c + Vector2(-s * 0.3, s * 0.36)])
+			ci.draw_colored_polygon(p, col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.26, -s * 0.34), Vector2(s * 0.52, s * 0.06)), col.darkened(0.35))
+		"boots":
+			var p := PackedVector2Array([c + Vector2(-s * 0.2, -s * 0.34), c + Vector2(s * 0.06, -s * 0.34), c + Vector2(s * 0.06, s * 0.06),
+				c + Vector2(s * 0.36, s * 0.14), c + Vector2(s * 0.36, s * 0.32), c + Vector2(-s * 0.2, s * 0.32)])
+			ci.draw_colored_polygon(p, col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.22, s * 0.26), Vector2(s * 0.6, s * 0.08)), Color(0.05, 0.04, 0.03))
 		"nut":
 			var pts := PackedVector2Array()
 			for k in 6:
@@ -303,6 +342,24 @@ static func make_mesh(id: String) -> Node3D:
 			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			m.albedo_color = Color(col.r, col.g, col.b, 0.6)
 			m.roughness = 0.1
+		"helmet":
+			var sm := SphereMesh.new()
+			sm.radius = 0.13
+			sm.height = 0.14
+			sm.is_hemisphere = true
+			mi.mesh = sm
+		"jacket", "pants":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.4, 0.06, 0.32) if id == "jacket" else Vector3(0.3, 0.05, 0.42)
+			mi.mesh = bm
+		"boots":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.12, 0.22, 0.26)
+			mi.mesh = bm
+		"gloves":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.12, 0.03, 0.17)
+			mi.mesh = bm
 		"gear":
 			var cm := CylinderMesh.new()
 			cm.top_radius = 0.05

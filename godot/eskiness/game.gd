@@ -276,13 +276,16 @@ func _glass(delta: float) -> void:
 			var c: Vector3 = g[0]
 			if Vector2(pp.x - c.x, pp.z - c.z).length() < float(g[1]) + 0.1:
 				now = true
-	if now and not on_glass and glass_cd <= 0.0:
+	if now and not on_glass and glass_cd <= 0.0 and Items.ITEMS.get(inv.equip["feet"], {}).get("glassproof", false):
+		glass_cd = 1.5
+		play_ui("tick", -14.0, 0.6)      # хруст под сапогом — без урона
+	elif now and not on_glass and glass_cd <= 0.0:
 		glass_cd = 1.5
 		drain_hp(5.0)
 		if alive:
 			bleed_t = BLEED_TIME
 			hud.hurt_flash(0.5)
-			hud.toast("Наступил на стекло! Кровотечение — перевяжись бинтом", Color(1.0, 0.4, 0.3))
+			hud.toast("Стекло! Кровотечение", Color(1.0, 0.4, 0.3))
 			play_ui("hurt", -10.0, 0.9)
 	on_glass = now
 
@@ -316,10 +319,25 @@ func add_buff(id: String) -> void:
 
 
 func buff_mult(kind: String) -> float:
+	var gear := 1.0 + gear_sum("speed") if kind == "speed" else 1.0
 	if not buffs.has(kind):
-		return 1.0
+		return gear
 	var p: float = buffs[kind]["power"]
-	return 1.0 + p if kind == "speed" else 1.0 - p
+	return (1.0 + p) * gear if kind == "speed" else 1.0 - p
+
+
+## Сумма свойства по надетой одежде (armor — доля защиты, speed — прибавка скорости).
+func gear_sum(prop: String) -> float:
+	var t := 0.0
+	for k in inv.equip:
+		var id: String = inv.equip[k]
+		if id != "":
+			t += float(Items.ITEMS[id].get(prop, 0.0))
+	return t
+
+
+func gear_armor() -> float:
+	return minf(gear_sum("armor"), 0.6)
 
 
 func _tick_buffs(delta: float) -> void:
@@ -345,7 +363,7 @@ func damage_player(amount: float, from: Vector3) -> void:
 		player.velocity += bpush.normalized() * 2.0
 		Fx.popup_text(self, player.global_position + Vector3(0, 1.4, 0) - player.global_transform.basis.z * 0.8, "БЛОК", Color(0.6, 0.85, 1.0))
 		return
-	amount *= buff_mult("resist")
+	amount *= buff_mult("resist") * (1.0 - gear_armor())
 	hp = maxf(hp - amount, 0.0)
 	hud.set_hp(hp, MAX_HP)
 	hud.hurt_flash()
@@ -474,9 +492,9 @@ func use_item(idx: int) -> void:
 	elif Items.equip_slot(id) != "":
 		equip(idx, Items.equip_slot(id))
 	elif id == "filter":
-		hud.toast("Фильтр ставится сам, когда кончается старый")
+		hud.toast("Фильтр ставится сам")
 	elif id == "coin":
-		hud.toast("Монеты тратятся в игровом автомате")
+		pass
 	elif id == "wallet":
 		inv.take_at(idx, 1)
 		var c := randi_range(10, 40)
@@ -545,18 +563,20 @@ func _apply_equip(slot_: String) -> void:
 			var arm := 0 if slot_ == "left" else 1
 			player.set_weapon(id, arm)
 			if id != "":
-				var tip := "чаще криты" if arm == 0 else "сильнее удар"
-				if id == "shield":
-					tip = "блокирует 50% ударов" if arm == 0 else "бьёт краем щита"
-				hud.toast("%s в %s руке — %s" % [Items.item_name(id), "левой" if arm == 0 else "правой", tip], Color(0.9, 0.85, 0.7))
+				hud.toast("%s — %s рука" % [Items.item_name(id), "левая" if arm == 0 else "правая"], Color(0.9, 0.85, 0.7))
 		"head":
 			if gasmask:
 				gasmask.set_worn(id == "gasmask")
+			if id != "" and id != "gasmask":
+				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 		"hands":
-			player.dmg_mult = 1.5 if id == "knuckles" else 1.0
+			player.dmg_mult = float(Items.ITEMS[id].get("fist", 1.0)) if id != "" else 1.0
 			hud.knuckles = id == "knuckles"
 			if id != "":
-				hud.toast("Кастет надет: удары сильнее", Color(0.9, 0.85, 0.7))
+				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
+		"body", "legs", "feet":
+			if id != "":
+				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 
 
 ## G: надеть противогаз из сумки / снять его.
@@ -566,7 +586,7 @@ func toggle_gasmask() -> void:
 		return
 	var i := inv.bag_index("gasmask")
 	if i < 0:
-		hud.toast("Противогаза нет — он продаётся в магазине оружия")
+		hud.toast("Противогаза нет")
 		return
 	equip(i, "head")
 

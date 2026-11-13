@@ -1,11 +1,9 @@
 extends CanvasLayer
-## Инвентарь: 10 ячеек (монеты — отдельный кошелёк, места не занимают), слоты экипировки
-## (левая и правая рука — оружие или щит, голова — противогаз, кастет), привязка предметов к 1–5 и крафт.
-## Tab / I — открыть/закрыть. Игра НЕ ставится на паузу: мир идёт дальше.
-##   ЛКМ по ячейке — использовать/надеть; ПКМ — выбросить: щелчок — 1 шт., удержание — счётчик растёт,
-##   отпустил — выброшено столько (Shift+ПКМ — весь стак). Так же и с монетами в кошельке;
-##   перетаскивание мышью: между ячейками, в слоты экипировки и обратно, за пределы окна — выбросить;
-##   навести на предмет и нажать 1–5 — привязать к хотбару.
+## Инвентарь: 10 ячеек (монеты — отдельный кошелёк), снаряжение на силуэте человека
+## (голова, тело, руки, ноги, обувь, левая и правая рука — оружие/щит), хотбар 1–5 и крафт.
+## Tab / I — открыть/закрыть, игра не на паузе.
+##   ЛКМ — использовать / надеть / снять; ПКМ — выбросить 1 шт., ПКМ подержать — окно с ползунком «сколько»;
+##   перетаскивание мышью между ячейками и в слоты снаряжения, за окно — выбросить; навёл + 1–5 — хотбар.
 ## Сам инвентарь хранит данные и шлёт сигналы; что делает предмет — решает game.gd.
 
 signal changed
@@ -23,12 +21,17 @@ const Items := preload("res://items.gd")
 const BAG := 10
 const COLS := 5
 const SLOT := 76.0
-const EQUIP := ["left", "right", "head", "hands"]
-const EQUIP_NAMES := {"left": "Левая рука", "right": "Правая рука", "head": "Голова", "hands": "Кастет"}
+const EQUIP := ["head", "body", "hands", "legs", "feet", "left", "right"]
+const EQUIP_NAMES := {"head": "Голова", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
+	"left": "Левая", "right": "Правая"}
+## где слоты стоят на силуэте (вид со спины: левая рука слева)
+const DOLL_POS := {"head": Vector2(113, 4), "body": Vector2(113, 92), "left": Vector2(16, 92), "right": Vector2(210, 92),
+	"hands": Vector2(210, 180), "legs": Vector2(113, 180), "feet": Vector2(113, 266)}
+const HOLD_TIME := 0.35
 
 var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
-var equip := {"left": "", "right": "", "head": "", "hands": ""}
+var equip := {"head": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": ""}
 var hotbar: Array = ["", "", "", "", ""]
 var open := false
 var enabled := true
@@ -41,10 +44,12 @@ var craft_box: VBoxContainer
 var _press_key = null
 var hold_key = null              # что выбрасываем удержанием ПКМ: номер ячейки или "coin"
 var hold_t := 0.0
-var hold_n := 1
-var hold_max := 1
-var hold_l: Label
 var wallet_l: Label
+var dlg: PanelContainer           # окно «сколько выбросить»
+var dlg_title: Label
+var dlg_slider: HSlider
+var dlg_val: Label
+var dlg_key = null
 
 
 ## Ячейка: key — номер в сумке (int) или имя слота экипировки (String).
@@ -52,9 +57,11 @@ class Slot extends Control:
 	const Items := preload("res://items.gd")
 	var inv
 	var key
+	var px := 76.0
 
 	func _ready() -> void:
-		custom_minimum_size = Vector2(76, 76)
+		custom_minimum_size = Vector2(px, px)
+		size = Vector2(px, px)
 		mouse_entered.connect(func(): inv.set_hover(key))
 		mouse_exited.connect(func(): inv.set_hover(null))
 
@@ -74,7 +81,7 @@ class Slot extends Control:
 		var id := item_id()
 		if id == "":
 			if is_eq:
-				draw_string(f, Vector2(0, size.y / 2 + 5), inv.EQUIP_NAMES[key], HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, Color(0.6, 0.55, 0.45, 0.7))
+				draw_string(f, Vector2(0, size.y / 2 + 5), inv.EQUIP_NAMES[key], HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, Color(0.6, 0.55, 0.45, 0.75))
 			return
 		Items.draw_icon(self, id, r.grow(-12))
 		if not is_eq:
@@ -117,16 +124,16 @@ class Slot extends Control:
 		inv.move(data["inv_key"], key)
 
 
-## Кошелёк: монеты места в сумке не занимают. ПКМ (удержание) — выбросить сколько-то монет.
-class Wallet extends HBoxContainer:
-	var inv
-
-	func _gui_input(e: InputEvent) -> void:
-		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_RIGHT and inv.coins > 0:
-			if e.shift_pressed:
-				inv.drop_coins_requested.emit(inv.coins)
-			else:
-				inv.start_hold("coin", inv.coins)
+## Силуэт человека под слотами снаряжения.
+class Doll extends Control:
+	func _draw() -> void:
+		var c := Color(1, 1, 1, 0.07)
+		draw_circle(Vector2(145, 40), 30, c)
+		draw_rect(Rect2(108, 76, 74, 104), c)
+		for sx in [-1.0, 1.0]:
+			draw_line(Vector2(145 + 40 * sx, 84), Vector2(145 + 92 * sx, 150), c, 16.0)
+			draw_line(Vector2(145 + 92 * sx, 150), Vector2(145 + 98 * sx, 210), c, 13.0)
+			draw_line(Vector2(145 + 18 * sx, 180), Vector2(145 + 24 * sx, 330), c, 22.0)
 
 
 ## Картинка предмета (превью перетаскивания, крафт).
@@ -202,20 +209,27 @@ func _build_ui() -> void:
 	hb.add_theme_constant_override("separation", 28)
 	panel.add_child(hb)
 
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 10)
-	hb.add_child(vb)
-	vb.add_child(_label("ИНВЕНТАРЬ", 34, Color(0.86, 0.85, 0.8)))
-	vb.add_child(_label("ЭКИПИРОВКА", 15, Color(0.75, 0.6, 0.4)))
-	var eq := HBoxContainer.new()
-	eq.add_theme_constant_override("separation", 6)
-	vb.add_child(eq)
+	# снаряжение на силуэте
+	var dc := VBoxContainer.new()
+	dc.add_theme_constant_override("separation", 10)
+	hb.add_child(dc)
+	dc.add_child(_label("СНАРЯЖЕНИЕ", 34, Color(0.86, 0.85, 0.8)))
+	var doll := Doll.new()
+	doll.custom_minimum_size = Vector2(290, 340)
+	dc.add_child(doll)
 	for k in EQUIP:
 		var s := Slot.new()
 		s.inv = self
 		s.key = k
-		eq.add_child(s)
+		s.px = 64.0
+		s.position = DOLL_POS[k]
+		doll.add_child(s)
 		slot_nodes.append(s)
+
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	hb.add_child(vb)
+	vb.add_child(_label("ИНВЕНТАРЬ", 34, Color(0.86, 0.85, 0.8)))
 	vb.add_child(_label("СУМКА (%d)" % BAG, 15, Color(0.6, 0.6, 0.56)))
 	var grid := GridContainer.new()
 	grid.columns = COLS
@@ -228,18 +242,20 @@ func _build_ui() -> void:
 		s.key = i
 		grid.add_child(s)
 		slot_nodes.append(s)
-	var wallet := Wallet.new()
-	wallet.inv = self
-	wallet.mouse_filter = Control.MOUSE_FILTER_STOP
-	wallet.add_theme_constant_override("separation", 8)
+	var wallet := HBoxContainer.new()
+	wallet.add_theme_constant_override("separation", 10)
 	var wi := Icon.new()
 	wi.id = "coin"
 	wi.custom_minimum_size = Vector2(30, 30)
-	wi.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wallet.add_child(wi)
 	wallet_l = _label("", 20, Color(0.92, 0.8, 0.5))
-	wallet_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	wallet.add_child(wallet_l)
+	var wb := Button.new()
+	wb.text = "Выбросить монеты"
+	wb.focus_mode = Control.FOCUS_NONE
+	wb.add_theme_font_size_override("font_size", 16)
+	wb.pressed.connect(open_drop_dialog.bind("coin"))
+	wallet.add_child(wb)
 	vb.add_child(wallet)
 	info_name = _label(" ", 21, Color(0.9, 0.82, 0.62))
 	vb.add_child(info_name)
@@ -247,7 +263,7 @@ func _build_ui() -> void:
 	info_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_desc.custom_minimum_size = Vector2(COLS * (SLOT + 6), 42)
 	vb.add_child(info_desc)
-	var hint := _label("ЛКМ — использовать / надеть / снять    ПКМ — выбросить (держи — больше, Shift — всё)\nперетащи мышью в слот или за окно    навёл + 1–5 — на хотбар    Tab — закрыть", 13, Color(0.55, 0.55, 0.52))
+	var hint := _label("ЛКМ — использовать    ПКМ — выбросить    1–5 — хотбар    Tab — закрыть", 14, Color(0.55, 0.55, 0.52))
 	vb.add_child(hint)
 
 	var cb := VBoxContainer.new()
@@ -255,15 +271,85 @@ func _build_ui() -> void:
 	cb.custom_minimum_size = Vector2(250, 0)
 	hb.add_child(cb)
 	cb.add_child(_label("КРАФТ", 34, Color(0.86, 0.85, 0.8)))
-	hold_l = _label("", 18, Color(1.0, 0.85, 0.5))
-	hold_l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	hold_l.add_theme_constant_override("outline_size", 6)
-	hold_l.visible = false
-	hold_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(hold_l)
 	craft_box = VBoxContainer.new()
 	craft_box.add_theme_constant_override("separation", 14)
 	cb.add_child(craft_box)
+	_build_drop_dialog()
+
+
+## Окно «сколько выбросить»: ползунок и кнопка.
+func _build_drop_dialog() -> void:
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(cc)
+	dlg = PanelContainer.new()
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.1, 0.085, 0.07, 0.98)
+	st.border_color = Color(0.9, 0.7, 0.4, 0.6)
+	st.set_border_width_all(2)
+	st.set_corner_radius_all(4)
+	st.set_content_margin_all(18)
+	dlg.add_theme_stylebox_override("panel", st)
+	cc.add_child(dlg)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	dlg.add_child(v)
+	dlg_title = _label("", 22, Color(0.92, 0.88, 0.75))
+	v.add_child(dlg_title)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	v.add_child(row)
+	dlg_slider = HSlider.new()
+	dlg_slider.custom_minimum_size = Vector2(260, 30)
+	dlg_slider.min_value = 1
+	dlg_slider.step = 1
+	dlg_slider.focus_mode = Control.FOCUS_NONE
+	row.add_child(dlg_slider)
+	dlg_val = _label("1", 22, Color(1.0, 0.85, 0.5))
+	dlg_val.custom_minimum_size = Vector2(50, 0)
+	row.add_child(dlg_val)
+	dlg_slider.value_changed.connect(func(x: float): dlg_val.text = str(int(x)))
+	var bb := HBoxContainer.new()
+	bb.add_theme_constant_override("separation", 10)
+	v.add_child(bb)
+	var ok := Button.new()
+	ok.text = "Выбросить"
+	ok.focus_mode = Control.FOCUS_NONE
+	ok.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ok.add_theme_font_size_override("font_size", 18)
+	ok.pressed.connect(_confirm_drop)
+	bb.add_child(ok)
+	var no := Button.new()
+	no.text = "Отмена"
+	no.focus_mode = Control.FOCUS_NONE
+	no.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	no.add_theme_font_size_override("font_size", 18)
+	no.pressed.connect(func(): dlg.visible = false)
+	bb.add_child(no)
+	dlg.visible = false
+
+
+## key — номер ячейки или "coin".
+func open_drop_dialog(key) -> void:
+	var mx := coins if key is String else (int(slots[key]["n"]) if slots[key] != null else 0)
+	if mx <= 0:
+		return
+	dlg_key = key
+	dlg_title.text = "Сколько выбросить: %s" % ("монеты" if key is String else Items.item_name(slots[key]["id"]))
+	dlg_slider.max_value = mx
+	dlg_slider.value = mx
+	dlg_val.text = str(mx)
+	dlg.visible = true
+
+
+func _confirm_drop() -> void:
+	dlg.visible = false
+	var n := int(dlg_slider.value)
+	if dlg_key is String:
+		drop_coins_requested.emit(n)
+	elif slots[dlg_key] != null:
+		drop_count_requested.emit(dlg_key, n)
 
 
 func _label(text: String, size: int, col: Color) -> Label:
@@ -324,7 +410,10 @@ func _input(e: InputEvent) -> void:
 			return
 		get_viewport().set_input_as_handled()
 	elif open and e.is_action_pressed("ui_cancel"):
-		close()
+		if dlg.visible:
+			dlg.visible = false
+		else:
+			close()
 		get_viewport().set_input_as_handled()
 	elif open and hold_key != null and e is InputEventMouseButton and not e.pressed and e.button_index == MOUSE_BUTTON_RIGHT:
 		_finish_hold()
@@ -344,41 +433,34 @@ func _input(e: InputEvent) -> void:
 					unequip_requested.emit(hover, -1)
 
 
-## Удержание ПКМ: счётчик выброса растёт всё быстрее, отпустил — выбросили.
-func start_hold(key, mx: int) -> void:
+## ПКМ: отпустил быстро — выбросить 1 шт.; подержал HOLD_TIME — окно с ползунком.
+func start_hold(key, _mx: int) -> void:
 	hold_key = key
 	hold_t = 0.0
-	hold_n = 1
-	hold_max = maxi(mx, 1)
-	_update_hold_label()
 
 
 func _process(delta: float) -> void:
 	if hold_key == null:
 		return
 	hold_t += delta
-	if hold_t > 0.25:
-		hold_n = mini(hold_max, 1 + int(pow((hold_t - 0.25) * 4.0, 1.6)))
-	_update_hold_label()
-
-
-func _update_hold_label() -> void:
-	var nm := "монет"
-	if hold_key is int:
-		nm = Items.item_name(slots[hold_key]["id"]) if slots[hold_key] != null else ""
-	hold_l.text = "Выбросить: %d / %d  %s" % [hold_n, hold_max, nm]
-	hold_l.visible = true
-	hold_l.position = root.get_local_mouse_position() + Vector2(18, -8)
+	if hold_t >= HOLD_TIME:
+		var k = hold_key
+		hold_key = null
+		if k is int and slots[k] != null and int(slots[k]["n"]) > 1:
+			open_drop_dialog(k)
+		else:
+			_finish_hold_key(k)
 
 
 func _finish_hold() -> void:
 	var k = hold_key
 	hold_key = null
-	hold_l.visible = false
-	if k is String:
-		drop_coins_requested.emit(hold_n)
-	elif slots[k] != null:
-		drop_count_requested.emit(k, hold_n)
+	_finish_hold_key(k)
+
+
+func _finish_hold_key(k) -> void:
+	if k is int and slots[k] != null:
+		drop_count_requested.emit(k, 1)
 
 
 func _bind_hover(k: int) -> void:
@@ -418,7 +500,7 @@ func close() -> void:
 	root.visible = false
 	hover = null
 	hold_key = null
-	hold_l.visible = false
+	dlg.visible = false
 	if not get_tree().paused:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -573,7 +655,7 @@ func notify() -> void:
 
 func _after_change() -> void:
 	if wallet_l:
-		wallet_l.text = "Монеты: %d   (ПКМ — выбросить)" % coins
+		wallet_l.text = "Монеты: %d" % coins
 	if open:
 		set_hover(hover)
 		_rebuild_craft()

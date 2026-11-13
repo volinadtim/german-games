@@ -81,9 +81,9 @@ func _build() -> void:
 	sign_bg.emission_energy_multiplier = 0.4
 	_box(Vector3(1.5, 0.3, 0.04), Vector3(0, 2.45, -0.15), sign_bg)
 	var title := Label3D.new()
-	title.text = "ОРУЖИЕ"
-	title.font_size = 96
-	title.pixel_size = 0.0022
+	title.text = "СНАРЯЖЕНИЕ"
+	title.font_size = 80
+	title.pixel_size = 0.0019
 	title.modulate = Color(1.0, 0.55, 0.3)
 	title.outline_size = 0
 	title.position = Vector3(0, 2.45, -0.12)
@@ -98,7 +98,7 @@ func _build() -> void:
 
 
 func get_prompt(_game) -> String:
-	return "E — магазин оружия"
+	return "E — магазин снаряжения"
 
 
 func interact(g) -> void:
@@ -168,7 +168,7 @@ func _build_ui() -> void:
 	sell_col.custom_minimum_size = Vector2(300, 0)
 	cols.add_child(sell_col)
 	sell_col.add_child(_label("СКУПКА ХЛАМА", 28, Color(1.0, 0.6, 0.35)))
-	sell_col.add_child(_label("Цена — по оценке вещи, 1–3 монеты за штуку", 15, Color(0.65, 0.63, 0.58)))
+	sell_col.add_child(_label("1–3 монеты за штуку", 15, Color(0.65, 0.63, 0.58)))
 	sell_box = VBoxContainer.new()
 	sell_box.add_theme_constant_override("separation", 6)
 	sell_col.add_child(sell_box)
@@ -178,31 +178,39 @@ func _build_ui() -> void:
 	all_b.add_theme_font_size_override("font_size", 20)
 	all_b.pressed.connect(_sell_all_junk)
 	sell_col.add_child(all_b)
-	box.add_child(_label("ОРУЖИЕ И СНАРЯЖЕНИЕ", 28, Color(1.0, 0.6, 0.35)))
+	box.add_child(_label("МАГАЗИН СНАРЯЖЕНИЯ", 28, Color(1.0, 0.6, 0.35)))
 	coins_l = _label("", 22, Color(0.92, 0.8, 0.5))
 	box.add_child(coins_l)
+	var goods := GridContainer.new()
+	goods.columns = 2
+	goods.add_theme_constant_override("h_separation", 18)
+	goods.add_theme_constant_override("v_separation", 6)
+	box.add_child(goods)
 	for entry in Weapons.SHOP:
 		var id: String = entry[0]
 		var price: int = entry[1]
 		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 14)
+		row.add_theme_constant_override("separation", 10)
 		var icon := Control.new()
-		icon.custom_minimum_size = Vector2(40, 40)
+		icon.custom_minimum_size = Vector2(36, 36)
 		icon.draw.connect(func(): Items.draw_icon(icon, id, Rect2(Vector2.ZERO, icon.size)))
 		row.add_child(icon)
 		var text := VBoxContainer.new()
-		text.custom_minimum_size = Vector2(430, 0)
-		text.add_child(_label(Items.item_name(id), 20, Color(0.9, 0.88, 0.82)))
-		text.add_child(_label(Items.ITEMS[id]["desc"], 14, Color(0.65, 0.63, 0.58)))
+		text.custom_minimum_size = Vector2(230, 0)
+		text.add_theme_constant_override("separation", 0)
+		text.add_child(_label(Items.item_name(id), 18, Color(0.9, 0.88, 0.82)))
+		var d := _label(Items.ITEMS[id]["desc"], 13, Color(0.65, 0.63, 0.58))
+		d.custom_minimum_size = Vector2(230, 0)
+		text.add_child(d)
 		row.add_child(text)
 		var buy := Button.new()
-		buy.text = "%d мон." % price
-		buy.custom_minimum_size = Vector2(120, 36)
+		buy.text = "%d" % price
+		buy.custom_minimum_size = Vector2(64, 34)
 		buy.focus_mode = Control.FOCUS_NONE
-		buy.add_theme_font_size_override("font_size", 20)
+		buy.add_theme_font_size_override("font_size", 18)
 		buy.pressed.connect(func(): _buy(id, price))
 		row.add_child(buy)
-		box.add_child(row)
+		goods.add_child(row)
 	info_l = _label("", 18, Color(0.8, 0.78, 0.7))
 	box.add_child(info_l)
 	# внизу: обновить все ящики уровня (сейф не трогаем) и закрыть
@@ -321,8 +329,8 @@ func _buy(id: String, price: int) -> void:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
 		return
-	if id == "gasmask" and game.inv.count("gasmask") > 0:
-		info_l.text = "Противогаз уже есть"
+	if Items.ITEMS[id].has("equip") and game.inv.count(id) > 0:
+		info_l.text = "%s уже есть" % Items.item_name(id)
 		return
 	game.inv.remove("coin", price)
 	var left: int = game.inv.add(id, 1)
