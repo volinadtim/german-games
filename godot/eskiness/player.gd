@@ -88,6 +88,9 @@ var weapon_node: Node3D
 var GRIP_THRU := 0.22
 var GRIP_KNUCK := 0.5
 var GRIP_BACK := 0.82
+var ARMED_TWIST := 0.0
+var GRIP_TILT := deg_to_rad(10.0)
+var GRIP_OUT := 0.45                  # наклон оружия наружу (от ладони), чтобы не загораживало центр
 var WEAPON_GRIP := Transform3D(Basis.IDENTITY, Vector3(0, 0.03, 0))   # запасной хват (модель без скелета)
 # руки: левая — чаще крит, но урон чуть ниже; правая — полный урон, крит редкий
 const HAND_DMG := [0.85, 1.0]
@@ -194,6 +197,7 @@ var exhale_out_snd: AudioStreamWAV   # опускание рук — тот же
 var last_arm := -1
 var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали
 var head_bone := -1
+var THUMB_CURL := [0.0, 0.0, 35.0, 40.0]
 var last_kind := ""
 var step_player: AudioStreamPlayer
 var step_noise_player: AudioStreamPlayer
@@ -526,29 +530,7 @@ func _build_model() -> void:
 			bone_map.append([skel.find_bone(e[0] + s), e[1], ref, arm, e[0] == "hand", e[0] in ["thigh", "calf", "foot"]])
 		clav_bones[i] = skel.find_bone("clavicle" + s)
 		# пальцы: ось сгиба — поперёк пальца, к ладони (ладонь в A-позе смотрит вниз, -Z скелета)
-		for f in ["thumb", "index", "middle", "ring", "pinky"]:
-			for k in [1, 2, 3]:
-				var b := skel.find_bone("%s%02d%s" % [f, k, s])
-				if b == -1:
-					continue
-				var g := skel.get_bone_global_rest(b).basis.orthonormalized()
-				var v := g.y.normalized()
-				var palm := Vector3(0, 0, -1)
-				var axis := (g.inverse() * v.cross(palm)).normalized()
-				var rest_q := skel.get_bone_rest(b).basis.get_rotation_quaternion()
-				var fist_a: float = [0.0, 85.0, 100.0, 70.0][k] if f != "thumb" else [0.0, 0.0, 30.0, 40.0][k]
-				var relax_a: float = [0.0, 12.0, 18.0, 12.0][k] if f != "thumb" else [0.0, 0.0, 8.0, 8.0][k]
-				var fist_q := rest_q * Quaternion(axis, deg_to_rad(fist_a))
-				var relax_q := rest_q * Quaternion(axis, deg_to_rad(relax_a))
-				if f == "thumb" and k == 1:
-					# основание большого пальца нацеливаем на костяшки указательного и среднего
-					# со стороны ладони — палец ложится поперёк сжатых пальцев
-					var tgt := (skel.get_bone_global_rest(skel.find_bone("index02" + s)).origin
-							+ skel.get_bone_global_rest(skel.find_bone("middle01" + s)).origin) * 0.5 + palm * 0.0002
-					var aim := Basis(Quaternion(v, (tgt - skel.get_bone_global_rest(b).origin).normalized()))
-					fist_q = rest_q * (g.inverse() * aim * g).get_rotation_quaternion()
-					relax_q = rest_q.slerp(fist_q, 0.15)
-				finger_bones.append([b, relax_q, fist_q])
+		_build_fist_pose(s)
 		# точка кулака для следа и попаданий — на кости кисти
 		var att := BoneAttachment3D.new()
 		att.bone_name = "hand" + s
@@ -584,6 +566,69 @@ func _build_model() -> void:
 			skin.set_bind_pose(k, Transform3D(bind.basis.scaled(Vector3.ONE * 0.001), bind * inner))
 	body_mi.skin = skin
 	body_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## Кулак для кисти s ("_L"/"_R"). Нормаль ладони — из геометрии кисти (поперёк костяшек × вдоль кисти),
+## каждая фаланга сгибается вокруг оси «палец × нормаль». Большой палец нацеливается на уже сжатые
+## средние фаланги указательного и среднего и ложится поперёк них снаружи.
+func _build_fist_pose(s: String) -> void:
+	var gr := func(n: String) -> Transform3D: return skel.get_bone_global_rest(skel.find_bone(n + s))
+	var h: Vector3 = gr.call("hand").origin
+	var across: Vector3 = (gr.call("index01").origin - gr.call("pinky01").origin).normalized()
+	var along: Vector3 = (gr.call("middle01").origin - h).normalized()
+	var n := across.cross(along).normalized()
+	if n.dot(Vector3(0, 0, -1)) < 0.0:
+		n = -n
+	const FIST := [0.0, 88.0, 100.0, 72.0]
+	const RELAX := [0.0, 12.0, 18.0, 12.0]
+	var fist_of := {}
+	for f in ["index", "middle", "ring", "pinky"]:
+		for k in [1, 2, 3]:
+			var b := skel.find_bone("%s%02d%s" % [f, k, s])
+			if b == -1:
+				continue
+			var g := skel.get_bone_global_rest(b).basis.orthonormalized()
+			var axis := (g.inverse() * g.y.normalized().cross(n)).normalized()
+			var rest_q := skel.get_bone_rest(b).basis.get_rotation_quaternion()
+			var fist_q := rest_q * Quaternion(axis, deg_to_rad(FIST[k] + (4.0 if f == "pinky" else 0.0)))
+			finger_bones.append([b, rest_q * Quaternion(axis, deg_to_rad(RELAX[k])), fist_q])
+			fist_of[b] = fist_q
+	# где окажутся средние фаланги в кулаке: цепочка от покоя кисти с поворотами кулака
+	var gp := func(n2: String) -> Vector3:
+		var chain: Array[int] = []
+		var cb := skel.find_bone(n2 + s)
+		var hb := skel.find_bone("hand" + s)
+		while cb != -1 and cb != hb:
+			chain.push_front(cb)
+			cb = skel.get_bone_parent(cb)
+		var t := skel.get_bone_global_rest(hb)
+		for c in chain:
+			var r := skel.get_bone_rest(c)
+			var q: Quaternion = fist_of.get(c, r.basis.get_rotation_quaternion())
+			t = t * Transform3D(Basis(q).scaled(r.basis.get_scale()), r.origin)
+		return t.origin
+	var mid: Vector3 = (gp.call("index02") + gp.call("middle02")) * 0.5
+	var center: Vector3 = (h + gr.call("middle01").origin) * 0.5
+	var unit: float = h.distance_to(gr.call("middle01").origin) / 0.09    # ~9 см от запястья до костяшек
+	var tgt: Vector3 = mid + (mid - center).normalized() * 0.012 * unit
+	# большой палец
+	var t1 := skel.find_bone("thumb01" + s)
+	if t1 == -1:
+		return
+	var g1 := skel.get_bone_global_rest(t1).basis.orthonormalized()
+	var rest1 := skel.get_bone_rest(t1).basis.get_rotation_quaternion()
+	var aim := Basis(Quaternion(g1.y.normalized(), (tgt - skel.get_bone_global_rest(t1).origin).normalized()))
+	var fist1 := rest1 * (g1.inverse() * aim * g1).get_rotation_quaternion()
+	finger_bones.append([t1, rest1.slerp(fist1, 0.15), fist1])
+	for k in [2, 3]:
+		var b := skel.find_bone("thumb%02d%s" % [k, s])
+		if b == -1:
+			continue
+		var g := skel.get_bone_global_rest(b).basis.orthonormalized()
+		# подушечка большого пальца смотрит вбок — гнём его поперёк кулака, к мизинцу
+		var axis := (g.inverse() * g.y.normalized().cross(-across)).normalized()
+		var rest_q := skel.get_bone_rest(b).basis.get_rotation_quaternion()
+		finger_bones.append([b, rest_q * Quaternion(axis, deg_to_rad(8.0)), rest_q * Quaternion(axis, deg_to_rad(THUMB_CURL[k]))])
 
 
 ## Кости модели повторяют повороты узлов-драйверов + выпад плеча, поворот корпуса, кулак.
@@ -647,7 +692,9 @@ func _apply_bones() -> void:
 		if arm >= 0:
 			# кисть поворачивается тыльной стороной вверх в стойке (у предплечья — половина)
 			var side := -1.0 if arm == 0 else 1.0
-			var tw := deg_to_rad(90.0) * side * (0.1 + 0.6 * fist_blend) * (1.0 if e[4] else 0.5)
+			# с оружием (кроме щита) кисть остаётся большим пальцем вверх — молотковый хват, оружие стоит вертикально
+			var armed_k := ARMED_TWIST if weapon_ids[arm] != "" and weapon_ids[arm] != "shield" else 1.0
+			var tw := deg_to_rad(90.0) * side * (0.1 + 0.6 * fist_blend * armed_k) * (1.0 if e[4] else 0.5)
 			basis = basis * Basis(Vector3.UP, tw)
 		_set_global_rot(e[0], rr * basis * e[2])
 	var wig := fk * idle_amt * (1.0 - fist_blend) if fidget == "fingers" else 0.0
@@ -1098,12 +1145,26 @@ func _grip(arm: int, id: String) -> Transform3D:
 		var x_ax := y_ax.cross(n).normalized()
 		var o := h - y_ax * 0.17 * unit + n * 0.06 * unit
 		return Transform3D(Basis(x_ax * unit, y_ax * unit, n * unit), o)
-	var d := (up * GRIP_THRU + fwd * GRIP_KNUCK - palm * GRIP_BACK).normalized()
-	var x2 := (palm - d * palm.dot(d)).normalized()
-	var z2 := x2.cross(d).normalized()
-	var origin := (a + b2) * 0.5 + fwd * 0.03 * unit + palm * 0.02 * unit
-	# лезвие (ось X модели) — ребром вперёд, плашмя к камере не разворачивается
-	return Transform3D(Basis(z2 * unit, d * unit, -x2 * unit), origin)
+	# рукоять — в «тоннеле» сжатых пальцев: ось от мизинца к указательному, наклон к костяшкам на GRIP_TILT.
+	# Считаем в осях кости кисти (fist_fx лежит в них же, в метрах, на 8 см дальше по кисти).
+	var hr := skel.get_bone_global_rest(hb)
+	hr.basis = hr.basis.orthonormalized()
+	var hinv := hr.affine_inverse()
+	var to_m := 100.0                                 # единицы скелета -> метры (узел модели ×100)
+	var lp := func(bone: String) -> Vector3: return hinv * skel.get_bone_global_rest(skel.find_bone(bone + s)).origin * to_m
+	var idx: Vector3 = lp.call("index01")
+	var pnk: Vector3 = lp.call("pinky01")
+	var mid: Vector3 = lp.call("middle01")
+	var across := (idx - pnk).normalized()            # к указательному — туда выходит оружие
+	var knuck := (mid - across * mid.dot(across)).normalized()
+	var n := across.cross(knuck).normalized()
+	if n.z < 0.0:
+		n = -n                                         # сторона ладони (туда сгибаются пальцы)
+	var c := (idx + pnk) * 0.5 - knuck * 0.016 + n * 0.016 - Vector3(0, 0.08, 0)
+	var d2 := (across * cos(GRIP_TILT) + knuck * sin(GRIP_TILT) - n * GRIP_OUT).normalized()
+	var xw := (knuck - d2 * knuck.dot(d2)).normalized()   # лезвие ребром к костяшкам — по направлению удара
+	var zw := xw.cross(d2).normalized()
+	return Transform3D(Basis(xw * unit, d2 * unit, zw * unit), c * unit)
 
 
 func _play(p: AudioStreamPlayer, set_: Array, db: float) -> void:
