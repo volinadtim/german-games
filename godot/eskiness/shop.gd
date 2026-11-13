@@ -299,7 +299,7 @@ func _close() -> void:
 
 
 func _input(e: InputEvent) -> void:
-	if opened and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact")):
+	if opened and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory")):
 		get_viewport().set_input_as_handled()
 		if e.is_echo() or Time.get_ticks_msec() - _last_toggle < 350:
 			return

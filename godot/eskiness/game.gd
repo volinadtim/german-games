@@ -61,6 +61,7 @@ func setup(p: Player) -> void:
 	hud = Hud.new()
 	add_child(hud)
 	inv = Inventory.new()
+	inv.game = self
 	add_child(inv)
 	inv.changed.connect(func(): hud.set_coins(inv.count("coin")))
 	inv.use_requested.connect(use_item)
@@ -244,8 +245,13 @@ func _physics_process(delta: float) -> void:
 	hud.prompt(text)
 
 
+## Одно окно за раз: пока открыт инвентарь или магазин, другие окна не открываются.
+func window_open() -> bool:
+	return (inv != null and inv.open) or (shop != null and shop.opened)
+
+
 func _unhandled_input(e: InputEvent) -> void:
-	if not alive or player == null:
+	if not alive or player == null or window_open():
 		return
 	if e.is_action_pressed("interact") and not e.is_echo():
 		if focus != null and is_instance_valid(focus):

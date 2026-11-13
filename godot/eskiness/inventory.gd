@@ -44,6 +44,7 @@ var info_desc: Label
 var slot_nodes: Array = []
 var craft_box: VBoxContainer
 var _press_key = null
+var game  # game.gd — чтобы не открываться поверх магазина
 var hold_key = null              # что выбрасываем удержанием ПКМ: номер ячейки или "coin"
 var hold_t := 0.0
 var touch_key = null             # палец держит эту ячейку (долгое нажатие = выбросить)
@@ -429,6 +430,8 @@ func _input(e: InputEvent) -> void:
 	if e.is_action_pressed("inventory"):
 		if open:
 			close()
+		elif game and game.shop and game.shop.opened:
+			return   # Tab в магазине закрывает магазин (shop.gd), инвентарь поверх не открываем
 		elif not get_tree().paused:
 			show_inventory()
 		else:
