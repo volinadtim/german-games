@@ -6,6 +6,7 @@ extends Node3D
 
 const FlickerLight := preload("res://flicker_light.gd")
 const Surface := preload("res://surface.gd")
+const Atmosphere := preload("res://atmosphere.gd")
 const ConcreteShader := preload("res://concrete.gdshader")
 
 const H := 3.2        # высота потолка
@@ -25,6 +26,9 @@ var ceil_mat: ShaderMaterial
 var wire_mat: StandardMaterial3D
 var rng := RandomNumberGenerator.new()
 var noise_extra: Array = []
+## поломанная лампа — её подрагивание делает atmosphere.gd
+var broken_mesh: MeshInstance3D
+var broken_light: OmniLight3D
 
 ## Кнопка в инспекторе (выдели узел Level): сохраняет сгенерированную локацию в обычную сцену
 ## res://level_baked.tscn — с настоящими узлами, мешами и материалами, которые можно двигать и править руками.
@@ -53,6 +57,10 @@ func _ready() -> void:
 	sf.level = self
 	sf.env = we.environment
 	add_child(sf)
+	# мелкие детали атмосферы: мошки у ламп, капли, пар, далёкие звуки (каждая — своя функция в atmosphere.gd)
+	var at := Atmosphere.new()
+	at.level = self
+	add_child(at)
 
 
 func _build() -> void:
@@ -147,6 +155,7 @@ func _broken_lamp(pos: Vector3, energy: float) -> void:
 	mi.rotation.z = -tilt
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
+	broken_mesh = mi
 	# провода от оторванного края в потолок, с провисом
 	for side in [-0.05, 0.05]:
 		var a := tip + Vector3(0, 0.03, side)
@@ -165,6 +174,7 @@ func _broken_lamp(pos: Vector3, energy: float) -> void:
 	l.shadow_enabled = true
 	l.position = center - Vector3(0, 0.15, 0)
 	add_child(l)
+	broken_light = l
 
 
 func _wire(a: Vector3, b: Vector3) -> void:
@@ -753,7 +763,7 @@ func _dust_motes() -> void:
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	m.vertex_color_use_as_albedo = true
 	m.albedo_texture = dt
-	m.albedo_color = Color(0.95, 0.88, 0.75, 0.4)
+	m.albedo_color = Color(0.74, 0.73, 0.71, 0.35)   # серо-бежевая пыль: тёплые лампы и так её подкрашивают
 	m.roughness = 1.0
 	m.disable_receive_shadows = true
 	var q := QuadMesh.new()
