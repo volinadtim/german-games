@@ -14,10 +14,15 @@ const JUMP := 5.0            # ~0.55 м
 const SENS := 0.0022
 const CAM_Y := 1.7
 const FOV := 75.0
-const HIP_Y := 0.88
-const LEG_L1 := 0.40              # бедро
-const LEG_L2 := 0.40              # голень
-const GROUND_Y := 0.09 - HIP_Y    # высота голеностопа над полом относительно бедра
+## true — тело игрока: модель models/BaseHuman.fbx, анимированная через кости;
+## false — старое тело из капсул (код оставлен, чтобы легко вернуть).
+const USE_MODEL := true
+const MODEL := preload("res://models/BaseHuman.fbx")
+const MODEL_Z := 0.1               # модель чуть позади камеры, чтобы лицо не лезло в кадр
+var HIP_Y := 0.88
+var LEG_L1 := 0.40              # бедро
+var LEG_L2 := 0.40              # голень
+var GROUND_Y := 0.09 - 0.88     # высота голеностопа над полом относительно бедра
 const ACCEL_WALK := 5.0
 const ACCEL_SPRINT := 3.2
 
@@ -38,7 +43,7 @@ var head: Node3D
 var legs: Array[Node3D] = []      # тазобедренные шарниры
 var knees: Array[Node3D] = []
 var ankles: Array[Node3D] = []
-var foot: Array[Vector3] = [Vector3(0, GROUND_Y, 0), Vector3(0, GROUND_Y, 0)]  # цель стопы от бедра
+var foot: Array[Vector3] = [Vector3(0, -0.79, 0), Vector3(0, -0.79, 0)]  # цель стопы от бедра
 var gait := 0.0                   # фаза цикла шага 0..1 (левая нога; правая сдвинута на 0.5)
 var gait_prev: Array[float] = [0.0, 0.5]
 var move_dir := Vector3(0, 0, -1) # направление движения в локальных осях
@@ -61,6 +66,14 @@ var post_mat: ShaderMaterial          # постобработка (задаёт
 var foot_pitch: Array[float] = [0.0, 0.0]
 var reach: Array[float] = [0.0, 0.0]   # выпад плеча вперёд при ударе
 var fists := false
+# --- модель с ригом ---
+var skel: Skeleton3D
+var rig_rel: Basis                 # поворот скелета относительно игрока (без масштаба)
+var bone_map: Array = []          # [кость, узел-драйвер, опорный базис, рука (-1 — нет), кисть?]
+var finger_bones: Array = []      # [кость, поворот расслабленной кисти, поворот в кулаке]
+var spine_bone := -1
+var clav_bones: Array[int] = [-1, -1]
+var hands: Array[Node3D] = []     # драйверы кистей
 var fist_blend := 0.0
 var punching := false
 var sprint_carry := 0.0   # 1 сразу после бега, плавно падает — от него зависит «занос»
@@ -118,6 +131,8 @@ func _ready() -> void:
 	head.add_child(cam)
 
 	_build_body()
+	if USE_MODEL:
+		_build_model()
 
 
 ## Шина «Steps»: компрессор приглушает самый громкий момент (удар), затем случайный эквалайзер.
@@ -342,6 +357,147 @@ func _build_fist(el: Node3D, skin: Material, side: float) -> void:
 	fx.mesh = q
 	hand.add_child(fx)
 	fist_fx.append(fx)
+
+
+## Тело — модель BaseHuman. Невидимый риг из узлов (legs/knees/ankles/shoulders/elbows/hands)
+## считает позы как раньше, а кости модели каждый кадр поворачиваются так же (_apply_bones).
+func _build_model() -> void:
+	# от старого тела оставляем только узлы-драйверы, меши убираем
+	for mi in find_children("*", "MeshInstance3D", true, false):
+		mi.free()
+	var model: Node3D = MODEL.instantiate()
+	for n in model.find_children("*", "", true, false):
+		if n is Light3D or n is Camera3D:
+			n.free()
+	model.rotation.y = PI                 # в файле модель смотрит на +Z, игрок — на -Z
+	model.position.z = MODEL_Z
+	add_child(model)
+	skel = model.find_children("*", "Skeleton3D", true, false)[0]
+	var rel := global_transform.affine_inverse() * skel.global_transform
+	rig_rel = rel.basis.orthonormalized()
+	var rest := func(bone: String) -> Transform3D:
+		var t := rel * skel.get_bone_global_rest(skel.find_bone(bone))
+		return Transform3D(t.basis.orthonormalized(), t.origin)
+	var bp := func(bone: String) -> Vector3: return rest.call(bone).origin
+
+	# размеры ног берём из модели, чтобы IK ставил стопы точно на пол
+	HIP_Y = bp.call("thigh_L").y
+	LEG_L1 = bp.call("thigh_L").distance_to(bp.call("calf_L"))
+	LEG_L2 = bp.call("calf_L").distance_to(bp.call("foot_L"))
+	GROUND_Y = bp.call("foot_L").y - HIP_Y
+	for i in 2:
+		foot[i] = Vector3(0, GROUND_Y, 0)
+
+	# в модели левые кости (_L) после разворота оказываются на -X — это рука/нога i = 0
+	var suf := ["_L", "_R"]
+	for i in 2:
+		var s: String = suf[i]
+		legs[i].position = bp.call("thigh" + s)
+		knees[i].position = Vector3(0, -LEG_L1, 0)
+		ankles[i].position = Vector3(0, -LEG_L2, 0)
+		shoulders[i].position = bp.call("upperarm" + s)
+		var lu: float = bp.call("upperarm" + s).distance_to(bp.call("lowerarm" + s))
+		var lf: float = bp.call("lowerarm" + s).distance_to(bp.call("hand" + s))
+		elbows[i].position = Vector3(0, -lu, 0)
+		var hand := Node3D.new()
+		hand.position = Vector3(0, -lf, 0)
+		elbows[i].add_child(hand)
+		hands.append(hand)
+		# драйвер в покое — конечность висит вниз; кость в покое (A-поза) выпрямляем так же
+		for e in [["thigh", legs[i], true], ["calf", knees[i], true], ["foot", ankles[i], false],
+				["upperarm", shoulders[i], true], ["lowerarm", elbows[i], true], ["hand", hand, true]]:
+			var t: Transform3D = rest.call(e[0] + s)
+			var ref := t.basis
+			if e[2]:
+				ref = Basis(Quaternion(t.basis.y.normalized(), Vector3.DOWN)) * ref
+			var arm := i if e[0] in ["lowerarm", "hand"] else -1
+			bone_map.append([skel.find_bone(e[0] + s), e[1], ref, arm, e[0] == "hand"])
+		clav_bones[i] = skel.find_bone("clavicle" + s)
+		# пальцы: ось сгиба — поперёк пальца, к ладони (ладонь в A-позе смотрит вниз, -Z скелета)
+		for f in ["thumb", "index", "middle", "ring", "pinky"]:
+			for k in [1, 2, 3]:
+				var b := skel.find_bone("%s%02d%s" % [f, k, s])
+				if b == -1:
+					continue
+				var g := skel.get_bone_global_rest(b).basis.orthonormalized()
+				var v := g.y.normalized()
+				var palm := Vector3(0, 0, -1)
+				var axis := (g.inverse() * v.cross(palm)).normalized()
+				var rest_q := skel.get_bone_rest(b).basis.get_rotation_quaternion()
+				var fist_a: float = [0.0, 85.0, 100.0, 70.0][k] if f != "thumb" else [0.0, 0.0, 30.0, 40.0][k]
+				var relax_a: float = [0.0, 12.0, 18.0, 12.0][k] if f != "thumb" else [0.0, 0.0, 8.0, 8.0][k]
+				var fist_q := rest_q * Quaternion(axis, deg_to_rad(fist_a))
+				var relax_q := rest_q * Quaternion(axis, deg_to_rad(relax_a))
+				if f == "thumb" and k == 1:
+					# основание большого пальца нацеливаем на костяшки указательного и среднего
+					# со стороны ладони — палец ложится поперёк сжатых пальцев
+					var tgt := (skel.get_bone_global_rest(skel.find_bone("index02" + s)).origin
+							+ skel.get_bone_global_rest(skel.find_bone("middle01" + s)).origin) * 0.5 + palm * 0.0002
+					var aim := Basis(Quaternion(v, (tgt - skel.get_bone_global_rest(b).origin).normalized()))
+					fist_q = rest_q * (g.inverse() * aim * g).get_rotation_quaternion()
+					relax_q = rest_q.slerp(fist_q, 0.15)
+				finger_bones.append([b, relax_q, fist_q])
+		# точка кулака для следа и попаданий — на кости кисти
+		var att := BoneAttachment3D.new()
+		att.bone_name = "hand" + s
+		skel.add_child(att)
+		var fx := fist_fx[i]
+		fx.get_parent().remove_child(fx)
+		att.add_child(fx)
+		fx.transform = Transform3D(Basis.from_scale(Vector3.ONE * 0.01), Vector3(0, 0.0008, 0))
+	spine_bone = skel.find_bone("spine03")
+
+	# голова и шея: видимый меш со «схлопнутыми» головой и шеей (камера внутри головы),
+	# а копия с исходным скином рисует только тень — тень от головы остаётся
+	var body_mi: MeshInstance3D = skel.find_children("*", "MeshInstance3D", false, false)[0]
+	var shadow := body_mi.duplicate() as MeshInstance3D
+	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	skel.add_child(shadow)
+	shadow.skin = body_mi.skin
+	var skin: Skin = body_mi.skin.duplicate()
+	for k in skin.get_bind_count():
+		var b := skin.get_bind_bone(k)
+		if b == -1:
+			b = skel.find_bone(skin.get_bind_name(k))
+		if b != -1 and skel.get_bone_name(b) in ["head", "neck", "head_end"]:
+			var bind := skin.get_bind_pose(k)
+			skin.set_bind_pose(k, Transform3D(bind.basis.scaled(Vector3.ONE * 0.001), bind.origin * 0.001))
+	body_mi.skin = skin
+	body_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+## Кости модели повторяют повороты узлов-драйверов + выпад плеча, поворот корпуса, кулак.
+func _apply_bones() -> void:
+	if skel == null:
+		return
+	var inv := global_basis.orthonormalized().inverse()
+	var rr := rig_rel.inverse()
+	# корпус доворачивается за бьющей рукой, ключица выносит плечо вперёд
+	var twist := (reach[1] - reach[0]) * 1.6
+	_set_global_rot(spine_bone, rr * Basis(Vector3.UP, twist) * rig_rel * skel.get_bone_global_rest(spine_bone).basis.orthonormalized())
+	for i in 2:
+		var side := -1.0 if i == 0 else 1.0
+		var c := clav_bones[i]
+		_set_global_rot(c, rr * Basis(Vector3.UP, side * reach[i] * 2.5 + twist) * rig_rel * skel.get_bone_global_rest(c).basis.orthonormalized())
+	for e in bone_map:
+		var d: Node3D = e[1]
+		var basis := inv * d.global_basis.orthonormalized()
+		var arm: int = e[3]
+		if arm >= 0:
+			# кисть поворачивается тыльной стороной вверх в стойке (у предплечья — половина)
+			var side := -1.0 if arm == 0 else 1.0
+			var tw := deg_to_rad(90.0) * side * (0.1 + 0.6 * fist_blend) * (1.0 if e[4] else 0.5)
+			basis = basis * Basis(Vector3.UP, tw)
+		_set_global_rot(e[0], rr * basis * e[2])
+	for f in finger_bones:
+		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], fist_blend))
+
+
+## Поворот кости в пространстве скелета -> локальный поворот относительно родителя.
+func _set_global_rot(b: int, g: Basis) -> void:
+	var pb := skel.get_bone_parent(b)
+	var parent := skel.get_bone_global_pose(pb).basis.orthonormalized() if pb != -1 else Basis.IDENTITY
+	skel.set_bone_pose_rotation(b, (parent.inverse() * g.orthonormalized()).get_rotation_quaternion())
 
 
 func _mat(c: Color) -> StandardMaterial3D:
@@ -613,7 +769,8 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 			deg_to_rad(p.y) * side,
 			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend))
 		elbows[i].rotation.x = deg_to_rad(p.w)
-		shoulders[i].position.z = 0.13 - reach[i]
+		if not USE_MODEL:
+			shoulders[i].position.z = 0.13 - reach[i]
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
 	land_dip = move_toward(land_dip, 0.0, delta * 0.35)
 	# голова ниже всего в момент постановки стопы (дважды за цикл)
@@ -623,6 +780,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	head.position.z = lerpf(-0.22, 0.06, fist_blend)
 	var want_fov := FOV + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
+	_apply_bones()
 
 
 ## Процедурная походка: для каждой стопы считаем точку (опора — стопа едет назад по полу,
