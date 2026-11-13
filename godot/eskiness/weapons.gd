@@ -7,11 +7,12 @@ const WEAPONS := {
 	"pipe": {"mult": 2.5, "reach": 1.55, "price": 60},
 	"crowbar": {"mult": 3.0, "reach": 1.45, "price": 90},
 	"machete": {"mult": 3.6, "reach": 1.5, "price": 140},
+	"shield": {"mult": 1.8, "reach": 1.2, "price": 70},   # в левой — блок 50%, в правой — бьют краем
 	"knife": {"mult": 2.4, "reach": 1.25, "price": 0},     # крафт: деревяшка + стекло + изолента
 }
 
 # что продаёт магазин, по порядку
-const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["gasmask", 50], ["filter", 25]]
+const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["shield", 70], ["gasmask", 50], ["filter", 25]]
 
 
 static func _m(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
@@ -72,6 +73,21 @@ static func make(id: String) -> Node3D:
 			_box(root, Vector3(0.06, 0.012, 0.012), Vector3(0, 0.05, 0), _m(Color(0.3, 0.3, 0.3), 0.7, 0.5))
 			var blade := _box(root, Vector3(0.045, 0.45, 0.004), Vector3(0.008, 0.29, 0), _m(Color(0.62, 0.63, 0.62), 0.9, 0.3))
 			blade.rotation.z = -0.03
+		"shield":
+			# щит из листа железа на деревянной основе; лицо — +Z, верх — +Y, начало — у ремня на предплечье
+			var plate := _m(Color(0.32, 0.33, 0.34), 0.7, 0.45)
+			var wood := _m(Color(0.35, 0.24, 0.14))
+			var rust := _m(Color(0.4, 0.2, 0.1), 0.4, 0.7)
+			_box(root, Vector3(0.34, 0.46, 0.012), Vector3(0, 0.05, 0.045), wood)
+			_box(root, Vector3(0.32, 0.44, 0.008), Vector3(0, 0.05, 0.056), plate)
+			for sy in [-1.0, 1.0]:
+				_box(root, Vector3(0.35, 0.025, 0.02), Vector3(0, 0.05 + 0.225 * sy, 0.055), rust)
+			for sx in [-1.0, 1.0]:
+				_box(root, Vector3(0.025, 0.47, 0.02), Vector3(0.17 * sx, 0.05, 0.055), rust)
+			var boss := _cyl(root, 0.05, 0.05, 0.02, 0.0, plate)
+			boss.rotation.x = PI / 2
+			boss.position = Vector3(0, 0.05, 0.068)
+			_box(root, Vector3(0.06, 0.14, 0.02), Vector3(0, 0.0, 0.025), _m(Color(0.12, 0.1, 0.08)))
 		"knife":
 			# рукоять — деревяшка, примотанная изолентой к осколку стекла
 			_box(root, Vector3(0.03, 0.14, 0.022), Vector3(0, 0.02, 0), _m(Color(0.5, 0.35, 0.2)))
@@ -130,6 +146,11 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2, col: Color) -> void:
 		"machete":
 			ci.draw_line(a, a.lerp(b, 0.28), Color(0.1, 0.09, 0.08), w * 1.1)
 			ci.draw_line(a.lerp(b, 0.3), b, Color(0.7, 0.71, 0.7), w * 2.0)
+		"shield":
+			var rr := Rect2(c - Vector2(s * 0.26, s * 0.34), Vector2(s * 0.52, s * 0.68))
+			ci.draw_rect(rr, col)
+			ci.draw_rect(rr, col.darkened(0.5), false, maxf(2.0, s * 0.05))
+			ci.draw_circle(c, s * 0.08, col.lightened(0.3))
 		"knife":
 			ci.draw_line(a, a.lerp(b, 0.42), Color(0.5, 0.35, 0.2), w * 1.3)
 			ci.draw_line(a.lerp(b, 0.25), a.lerp(b, 0.36), Color(0.15, 0.22, 0.5), w * 1.6)

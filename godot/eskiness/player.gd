@@ -37,14 +37,26 @@ const PUNCHES := {
 # кулаки сильно ослаблены (было 18/24/30): без оружия враг падает с ~9 ударов
 const PUNCH_DMG := {"straight": 6.0, "hook": 8.0, "upper": 10.0}
 const Weapons := preload("res://weapons.gd")
+const Fx := preload("res://fx.gd")
 
 var active := false
 var dmg_mult := 1.0           # множитель урона (кастет из сейфа — 1.5)
 var speed_mult := 1.0         # замедление (отравление наверху, gasmask.gd)
-var weapon_id := ""           # оружие в правой руке (магазин, weapons.gd)
+var weapon_id := ""           # оружие в правой руке (для совместимости; см. weapon_ids)
+var weapon_ids: Array[String] = ["", ""]      # оружие в руках: 0 — левая, 1 — правая (weapons.gd)
+var weapon_nodes: Array = [null, null]
 var weapon_node: Node3D
-# как оружие лежит в кулаке относительно точки кисти (подобрано по скриншотам)
-var WEAPON_GRIP := Transform3D(Basis.IDENTITY, Vector3(0, 0.03, 0))   # оружие поднято вверх из кулака
+# хват (подобрано по замерам в стойке): ось оружия = смесь осей кисти —
+# сквозь кулак (мизинец→указательный), к костяшкам и к тыльной стороне. В стойке так выходит
+# вверх с наклоном назад к плечу и наружу, рукоять уходит вниз из кулака.
+var GRIP_THRU := 0.22
+var GRIP_KNUCK := 0.5
+var GRIP_BACK := 0.82
+var WEAPON_GRIP := Transform3D(Basis.IDENTITY, Vector3(0, 0.03, 0))   # запасной хват (модель без скелета)
+# руки: левая — чаще крит, но урон чуть ниже; правая — полный урон, крит редкий
+const HAND_DMG := [0.85, 1.0]
+const HAND_CRIT := [0.25, 0.05]
+const CRIT_MULT := 2.0
 var cam: Camera3D
 var head: Node3D
 var legs: Array[Node3D] = []      # тазобедренные шарниры
@@ -675,8 +687,9 @@ func _punch_sound() -> void:
 
 func _check_hit(arm: int, kind := "straight") -> void:
 	var from := cam.global_position
-	var armed := arm == 1 and weapon_id != ""
-	var reach_len: float = Weapons.WEAPONS[weapon_id]["reach"] if armed else 1.0
+	var wid: String = weapon_ids[arm]
+	var armed := wid != ""
+	var reach_len: float = Weapons.WEAPONS[wid]["reach"] if armed else 1.0
 	var to := from - cam.global_transform.basis.z * reach_len
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	q.exclude = [get_rid()]
@@ -686,8 +699,12 @@ func _check_hit(arm: int, kind := "straight") -> void:
 		_play(hit_player, impacts, -11.0)
 		# урон врагам/манекену (тестовые механики, см. game.gd): у цели должен быть take_hit(урон, направление)
 		if hit.collider.has_method("take_hit"):
-			var mult: float = Weapons.WEAPONS[weapon_id]["mult"] if armed else dmg_mult
-			hit.collider.take_hit(PUNCH_DMG.get(kind, 8.0) * mult, -cam.global_transform.basis.z)
+			var mult: float = Weapons.WEAPONS[wid]["mult"] if armed else dmg_mult
+			var dmg: float = PUNCH_DMG.get(kind, 8.0) * mult * HAND_DMG[arm]
+			if randf() < HAND_CRIT[arm]:
+				dmg *= CRIT_MULT
+				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.35, 0), "КРИТ!", Color(1.0, 0.25, 0.15))
+			hit.collider.take_hit(dmg, -cam.global_transform.basis.z)
 		# лёгкая отдача в камеру
 		var tw := create_tween()
 		var side := -1.0 if arm == 0 else 1.0
@@ -695,17 +712,65 @@ func _check_hit(arm: int, kind := "straight") -> void:
 		tw.tween_property(cam, "rotation:z", 0.0, 0.15)
 
 
-## Взять оружие в правую руку ("" — убрать). Модель крепится к кости кисти.
-func set_weapon(id: String) -> void:
-	if weapon_node and is_instance_valid(weapon_node):
-		weapon_node.queue_free()
-	weapon_node = null
-	weapon_id = id
+## Взять оружие в руку arm (0 — левая, 1 — правая; "" — убрать). Модель крепится к кости кисти.
+func set_weapon(id: String, arm := 1) -> void:
+	var old = weapon_nodes[arm]
+	if old and is_instance_valid(old):
+		old.queue_free()
+	weapon_nodes[arm] = null
+	weapon_ids[arm] = id
+	if arm == 1:
+		weapon_id = id
+		weapon_node = null
 	if id == "":
 		return
-	weapon_node = Weapons.make(id)
-	fist_fx[1].add_child(weapon_node)
-	weapon_node.transform = WEAPON_GRIP
+	var n := Weapons.make(id)
+	fist_fx[arm].add_child(n)
+	n.transform = _grip(arm, id)
+	weapon_nodes[arm] = n
+	if arm == 1:
+		weapon_node = n
+
+
+## Хват из костей кисти: ось оружия идёт сквозь кулак (от мизинца к указательному), рукоять в пальцах,
+## оружие наклонено вперёд и наружу. Щит — на предплечье, лицевой стороной от тыльной стороны кисти.
+func _grip(arm: int, id: String) -> Transform3D:
+	var fx := fist_fx[arm]
+	if skel == null or not fx.is_inside_tree():
+		return WEAPON_GRIP
+	var s: String = ["_L", "_R"][arm]
+	var inv := fx.global_transform.affine_inverse()
+	var pt := func(bone: String) -> Vector3:
+		var b := skel.find_bone(bone + s)
+		return inv * (skel.global_transform * skel.get_bone_global_pose(b).origin)
+	var a: Vector3 = pt.call("index01")
+	var b2: Vector3 = pt.call("pinky01")
+	var m: Vector3 = pt.call("middle01")
+	var h: Vector3 = pt.call("hand")
+	var up := (a - b2).normalized()
+	var fwd := m - h
+	fwd = (fwd - up * fwd.dot(up)).normalized()
+	# ладонь в A-позе смотрит вниз (-Z скелета) — переводим это направление в текущую позу кисти
+	var hb := skel.find_bone("hand" + s)
+	var pose_b := skel.get_bone_global_pose(hb).basis
+	var rest_b := skel.get_bone_global_rest(hb).basis
+	var palm_w := skel.global_transform.basis * (pose_b * (rest_b.inverse() * Vector3(0, 0, -1)))
+	var palm := (inv.basis * palm_w)
+	palm = (palm - up * palm.dot(up) - fwd * palm.dot(fwd)).normalized()
+	var unit := 1.0 / maxf(fx.global_transform.basis.get_scale().x, 0.0001)   # локальных единиц в метре
+	if id == "shield":
+		# лицо щита — вперёд (в стойке), верх — вдоль предплечья; висит на предплечье ниже кисти
+		var n := (palm * 0.6 + fwd * 0.5 - up * 0.4).normalized()
+		var y_ax := (fwd - n * fwd.dot(n)).normalized()
+		var x_ax := y_ax.cross(n).normalized()
+		var o := h - y_ax * 0.17 * unit + n * 0.06 * unit
+		return Transform3D(Basis(x_ax * unit, y_ax * unit, n * unit), o)
+	var d := (up * GRIP_THRU + fwd * GRIP_KNUCK - palm * GRIP_BACK).normalized()
+	var x2 := (palm - d * palm.dot(d)).normalized()
+	var z2 := x2.cross(d).normalized()
+	var origin := (a + b2) * 0.5 + fwd * 0.03 * unit + palm * 0.02 * unit
+	# лезвие (ось X модели) — ребром вперёд, плашмя к камере не разворачивается
+	return Transform3D(Basis(z2 * unit, d * unit, -x2 * unit), origin)
 
 
 func _play(p: AudioStreamPlayer, set_: Array, db: float) -> void:

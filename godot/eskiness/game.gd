@@ -8,6 +8,7 @@ const Player := preload("res://player.gd")
 const Hud := preload("res://hud.gd")
 const Inventory := preload("res://inventory.gd")
 const Items := preload("res://items.gd")
+const Fx := preload("res://fx.gd")
 const Pickup := preload("res://pickup.gd")
 const Flashlight := preload("res://flashlight.gd")
 const Enemy := preload("res://enemy.gd")
@@ -252,6 +253,15 @@ func _unhandled_input(e: InputEvent) -> void:
 func damage_player(amount: float, from: Vector3) -> void:
 	if not alive:
 		return
+	# щит в левой руке: половина ударов блокируется полностью
+	if inv.equip["left"] == "shield" and randf() < 0.5:
+		hud.block_flash()
+		play_ui("clunk", -6.0, 0.8)
+		var bpush := player.global_position - from
+		bpush.y = 0.0
+		player.velocity += bpush.normalized() * 2.0
+		Fx.popup_text(self, player.global_position + Vector3(0, 1.4, 0) - player.global_transform.basis.z * 0.8, "БЛОК", Color(0.6, 0.85, 1.0))
+		return
 	hp = maxf(hp - amount, 0.0)
 	hud.set_hp(hp, MAX_HP)
 	hud.hurt_flash()
@@ -358,6 +368,10 @@ func use_item(idx: int) -> void:
 		flashlight.recharge()
 		hud.toast("Фонарик заряжен", Color(0.9, 0.85, 0.55))
 		play_ui("click", -12.0)
+	elif Items.equip_slot(id) == "hand":
+		# оружие: в свободную руку (сначала правая), обе заняты — меняем правую
+		var hand := "right" if inv.equip["right"] == "" or inv.equip["left"] != "" else "left"
+		equip(idx, hand)
 	elif Items.equip_slot(id) != "":
 		equip(idx, Items.equip_slot(id))
 	elif id == "filter":
@@ -379,7 +393,7 @@ func use_item(idx: int) -> void:
 ## Надеть предмет из ячейки idx в слот (что было в слоте — встаёт на его место в сумке).
 func equip(idx: int, slot_: String) -> void:
 	var s = inv.slots[idx]
-	if s == null or Items.equip_slot(s["id"]) != slot_:
+	if s == null or not Items.fits(s["id"], slot_):
 		return
 	var id: String = s["id"]
 	var prev: String = inv.equip[slot_]
@@ -396,7 +410,7 @@ func unequip(slot_: String, to := -1) -> bool:
 	if id == "":
 		return false
 	if to >= 0 and inv.slots[to] != null:
-		if Items.equip_slot(inv.slots[to]["id"]) == slot_:
+		if Items.fits(inv.slots[to]["id"], slot_):
 			equip(to, slot_)       # обмен
 			return true
 		to = -1
@@ -428,10 +442,14 @@ func drop_equipped(slot_: String) -> void:
 func _apply_equip(slot_: String) -> void:
 	var id: String = inv.equip[slot_]
 	match slot_:
-		"weapon":
-			player.set_weapon(id)
+		"left", "right":
+			var arm := 0 if slot_ == "left" else 1
+			player.set_weapon(id, arm)
 			if id != "":
-				hud.toast("%s в правой руке — бей правой (ЛКМ в стойке)" % Items.item_name(id), Color(0.9, 0.85, 0.7))
+				var tip := "чаще криты" if arm == 0 else "сильнее удар"
+				if id == "shield":
+					tip = "блокирует 50% ударов" if arm == 0 else "бьёт краем щита"
+				hud.toast("%s в %s руке — %s" % [Items.item_name(id), "левой" if arm == 0 else "правой", tip], Color(0.9, 0.85, 0.7))
 		"head":
 			if gasmask:
 				gasmask.set_worn(id == "gasmask")
@@ -459,10 +477,10 @@ func hotbar_use(k: int) -> void:
 	var id: String = inv.hotbar[k]
 	if id == "":
 		return
-	var sl := Items.equip_slot(id)
-	if sl != "" and inv.equip[sl] == id:
-		unequip(sl)
-		return
+	for sl in inv.equip:
+		if inv.equip[sl] == id:
+			unequip(sl)
+			return
 	var i := inv.bag_index(id)
 	if i < 0:
 		hud.toast("Нет: %s" % Items.item_name(id))

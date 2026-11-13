@@ -43,6 +43,8 @@ const ITEMS := {
 		"icon": "crowbar", "color": Color(0.6, 0.14, 0.1), "weapon": true},
 	"machete": {"name": "Мачете", "desc": "Широкий клинок. Урон ×3.6.", "stack": 1,
 		"icon": "machete", "color": Color(0.62, 0.63, 0.62), "weapon": true},
+	"shield": {"name": "Щит", "desc": "В левой руке — 50% блокирует удар. В правой — бьёт краем (чуть слабее биты).", "stack": 1,
+		"icon": "shield", "color": Color(0.38, 0.39, 0.4), "weapon": true},
 	"knife": {"name": "Ножик", "desc": "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.4.", "stack": 1,
 		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true},
 	# материалы для крафта
@@ -64,17 +66,25 @@ const RECIPES := [
 ]
 
 
-## В какой слот экипировки идёт предмет: weapon (правая рука), head (голова), hands (руки) или "".
+## Куда надевается предмет: hand (левая или правая рука), head (голова), hands (кастет) или "".
 static func equip_slot(id: String) -> String:
 	if not ITEMS.has(id):
 		return ""
 	if ITEMS[id].has("weapon"):
-		return "weapon"
+		return "hand"
 	if id == "gasmask":
 		return "head"
 	if id == "knuckles":
 		return "hands"
 	return ""
+
+
+## Подходит ли предмет в слот экипировки (left/right/head/hands).
+static func fits(id: String, slot: String) -> bool:
+	var k := equip_slot(id)
+	if k == "hand":
+		return slot == "left" or slot == "right"
+	return k != "" and k == slot
 
 
 static func item_name(id: String) -> String:
@@ -89,7 +99,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var s := minf(r.size.x, r.size.y)
 	var col: Color = ITEMS[id]["color"]
 	var dark := col.darkened(0.45)
-	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter"]:
+	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter"]:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
@@ -189,7 +199,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
 static func make_mesh(id: String) -> Node3D:
-	if id in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter"]:
+	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter"]:
 		var w := Weapons.make(id)
 		if id in ["bat", "pipe", "crowbar", "machete", "knife"]:
 			w.rotation.z = PI / 2   # на полу оружие лежит

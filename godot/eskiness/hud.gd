@@ -160,6 +160,11 @@ func toast(text: String, col := Color(0.88, 0.86, 0.8)) -> void:
 
 
 ## Красная надпись внизу по центру, пока живы монстры-наказание.
+func block_flash() -> void:
+	toast("БЛОК!", Color(0.6, 0.85, 1.0))
+	hurt = 0.0
+
+
 func cheat_warning(on: bool) -> void:
 	cheat_l.visible = on
 
@@ -205,7 +210,7 @@ func _paint() -> void:
 			var r := Rect2(x0 + k * (cell + gap), y0, cell, cell)
 			var id: String = inv.hotbar[k]
 			var cnt: int = inv.count(id) if id != "" else 0
-			var worn: bool = id != "" and Items.equip_slot(id) != "" and inv.equip[Items.equip_slot(id)] == id
+			var worn: bool = id != "" and inv.equip.values().has(id)
 			paint.draw_rect(r, Color(0, 0, 0, 0.5))
 			paint.draw_rect(r, Color(0.95, 0.75, 0.4, 0.9) if worn else Color(1, 1, 1, 0.18), false, 2.0 if worn else 1.0)
 			if id != "":

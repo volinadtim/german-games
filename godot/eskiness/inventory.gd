@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## Инвентарь: 10 ячеек (монеты — отдельный кошелёк, места не занимают), слоты экипировки
-## (правая рука — оружие, голова — противогаз, руки — кастет), привязка предметов к 1–5 и крафт.
+## (левая и правая рука — оружие или щит, голова — противогаз, кастет), привязка предметов к 1–5 и крафт.
 ## Tab / I — открыть/закрыть. Игра НЕ ставится на паузу: мир идёт дальше.
 ##   ЛКМ по ячейке — использовать/надеть; ПКМ — выбросить: щелчок — 1 шт., удержание — счётчик растёт,
 ##   отпустил — выброшено столько (Shift+ПКМ — весь стак). Так же и с монетами в кошельке;
@@ -23,12 +23,12 @@ const Items := preload("res://items.gd")
 const BAG := 10
 const COLS := 5
 const SLOT := 76.0
-const EQUIP := ["weapon", "head", "hands"]
-const EQUIP_NAMES := {"weapon": "Правая рука", "head": "Голова", "hands": "Руки"}
+const EQUIP := ["left", "right", "head", "hands"]
+const EQUIP_NAMES := {"left": "Левая рука", "right": "Правая рука", "head": "Голова", "hands": "Кастет"}
 
 var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
-var equip := {"weapon": "", "head": "", "hands": ""}
+var equip := {"left": "", "right": "", "head": "", "hands": ""}
 var hotbar: Array = ["", "", "", "", ""]
 var open := false
 var enabled := true
@@ -469,7 +469,7 @@ func move(from, to) -> void:
 		var s = slots[from]
 		if s == null:
 			return
-		if Items.equip_slot(s["id"]) != to:
+		if not Items.fits(s["id"], to):
 			message.emit("%s сюда не надеть" % Items.item_name(s["id"]))
 			return
 		equip_requested.emit(from, to)
