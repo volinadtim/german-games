@@ -3,7 +3,8 @@
 **Промпт:** «у Германа Godot из Steam» (из чата Claude)
 
 ## Что сделано
-- `scripts/auto-pull.ps1` теперь ищет настройки Godot не только в `%APPDATA%\Godot`, но и в `editor_data` рядом с godot.exe (портативная / scoop-версия), у запущенного Godot, в ярлыках на рабочем столе и в «Пуске».
+- Godot из Steam хранит настройки в `steamapps\common\Godot Engine\editor_data\`, а не в `%APPDATA%` — поэтому скрипт молчал.
+- `scripts/auto-pull.ps1` теперь ищет их во всех библиотеках Steam (любой диск), плюс в `%APPDATA%\Godot`, рядом с godot.exe и по ярлыкам.
 - Скрипт всегда пишет строку про Godot: «turned on», «already on» или жёлтое «not found / Godot is open».
 
 ## Что сделать на том компьютере
