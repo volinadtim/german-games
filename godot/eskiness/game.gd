@@ -100,11 +100,7 @@ func setup(p: Player) -> void:
 		for s in ENEMY_SPOTS:
 			_spawn_enemy(s)
 	if USE_CHESTS:
-		_chest(Vector3(-3.0, 0.0, -8.5), 0.0, [])
-		_chest(Vector3(9.0, 0.0, -8.5), 0.0, [])
-		_chest(Vector3(-11.5, 0.0, 3.2), PI / 2.0, [])
-		_chest(Vector3(2.2, 0.0, -2.15), PI, [])
-		_chest(Vector3(2.2, 0.0, 2.15), 0.0, [])
+		# ящики расставляются случайно каждую новую игру — ниже, после стекла (_random_chests)
 		# сейф открывается только тремя семёрками на автомате KILLBOX (open_safe)
 		safe = Chest.new()
 		safe.kind = "safe"
@@ -141,6 +137,8 @@ func setup(p: Player) -> void:
 	glass_floor.generate()
 	for sp in glass_floor.spots:
 		_make_pickup("glass", 1, (sp[0] as Vector3) + Vector3(0.2, 0.1, 0.2), Vector3.ZERO)
+	if USE_CHESTS:
+		_random_chests()
 	shop = get_parent().get_node_or_null("Shop") as Shop
 	if shop:
 		shop.game = self
@@ -167,6 +165,96 @@ func _chest(pos: Vector3, rot: float, extra: Array) -> void:
 	c.position = pos
 	c.rotation.y = rot
 	add_child(c)
+
+
+# ---------- случайная расстановка ящиков (промпт 14.11 00:06) ----------
+## Каждая новая игра: 4–7 ящиков у стен комнат бункера (лицом в комнату) и 2–3 у руин на поляне.
+## Не ставим у проёмов, автомата, магазина, сейфа, манекена, завалов и стекла; пересечения проверяет физика.
+## Позиции пишутся в сейв (chest_pos) — при загрузке расстановка та же.
+const CHEST_AVOID := [[Vector3(-6.0, 0, 8.5), 1.9], [Vector3(-4.05, 0, 8.5), 1.7], [Vector3(11.5, 0, 7.0), 1.4],
+	[Vector3(-8.0, 0, -3.6), 1.3], [Vector3(-6.95, 0, 8.66), 1.0], [Vector3(-10.5, 0, 0), 1.5],
+	[Vector3(-6, 0, -1.6), 1.6], [Vector3(-6, 0, 1.6), 1.6], [Vector3(6, 0, -1.6), 1.6], [Vector3(6, 0, 1.6), 1.6],
+	[Vector3(0, 0, 5.5), 1.6], [Vector3(-8.5, 0, 5.5), 1.0], [Vector3(8.5, 0, 5.5), 1.0],
+	# завалы из level.gd
+	[Vector3(-10, 0, -7.5), 1.4], [Vector3(-3, 0, -4), 1.4], [Vector3(2.5, 0, -7.8), 1.4], [Vector3(10, 0, -3.5), 1.4],
+	[Vector3(-10.5, 0, 8), 1.4], [Vector3(-2.5, 0, 3.5), 1.4], [Vector3(3, 0, 8), 1.4], [Vector3(10.8, 0, 3.5), 1.4],
+	[Vector3(11.0, 0, -6.8), 1.4], [Vector3(-5.5, 0, -8.3), 1.6], [Vector3(7.5, 0, 8.2), 1.5]]
+const RUINS := [Vector3(26, 0, -9), Vector3(38, 0, 7), Vector3(35, 0, -12), Vector3(24, 0, 9), Vector3(42, 0, -3)]
+
+
+func _random_chests() -> void:
+	var placed: Array = []      # [[pos, rot], ...]
+	var want := randi_range(4, 7)
+	var tries := 0
+	while placed.size() < want and tries < 400:
+		tries += 1
+		var c := _bunker_chest_spot()
+		if _chest_spot_ok(c[0], c[1], placed, 0.08):
+			placed.append(c)
+	var surf: Node = get_parent().get_node_or_null("Level/Surface")
+	if surf:
+		want = placed.size() + randi_range(2, 3)
+		tries = 0
+		while placed.size() < want and tries < 300:
+			tries += 1
+			var ruin: Vector3 = RUINS[randi() % RUINS.size()]
+			var dir := Vector2.from_angle(randf() * TAU)
+			var p := ruin + Vector3(dir.x, 0, dir.y) * randf_range(1.9, 2.8)
+			p.y = surf.height(p.x, p.z) - 0.03
+			var c := [p, atan2(dir.x, dir.y)]      # лицом от руин
+			if _chest_spot_ok(p, c[1], placed, 0.18):
+				placed.append(c)
+	for c in placed:
+		_chest(c[0], c[1], [])
+
+
+## Точка у случайной стены случайной комнаты бункера; поворот — передом (+Z ящика) в комнату.
+func _bunker_chest_spot() -> Array:
+	var sx := -1.0 if randf() < 0.5 else 1.0
+	var sz := -1.0 if randf() < 0.5 else 1.0
+	var x0 := 0.15 if sx > 0 else -11.85
+	var x1 := 11.85 if sx > 0 else -0.15
+	var z0 := 1.75 if sz > 0 else -8.85
+	var z1 := 8.85 if sz > 0 else -1.75
+	var off := 0.33          # половина глубины ящика + зазор
+	var pos: Vector3
+	var rot: float
+	match randi() % 4:
+		0:   # дальняя стена комнаты
+			pos = Vector3(randf_range(x0 + 0.8, x1 - 0.8), 0, sz * (8.85 - off))
+			rot = 0.0 if sz < 0 else PI
+		1:   # стена коридора
+			pos = Vector3(randf_range(x0 + 0.8, x1 - 0.8), 0, sz * (1.75 + off))
+			rot = PI if sz < 0 else 0.0
+		2:   # торцевая стена бункера
+			pos = Vector3(sx * (11.85 - off), 0, randf_range(z0 + 0.8, z1 - 0.8))
+			rot = -sx * PI / 2.0
+		_:   # перегородка между комнатами
+			pos = Vector3(sx * (0.15 + off), 0, randf_range(z0 + 0.8, z1 - 0.8))
+			rot = sx * PI / 2.0
+	return [pos, rot + randf_range(-0.06, 0.06)]
+
+
+func _chest_spot_ok(p: Vector3, rot: float, placed: Array, lift: float) -> bool:
+	for c in placed:
+		if (c[0] as Vector3).distance_to(p) < 2.0:
+			return false
+	if p.y < 1.0:
+		for a in CHEST_AVOID:
+			if Vector2(p.x - a[0].x, p.z - a[0].z).length() < float(a[1]):
+				return false
+		if glass_floor:
+			for g in glass_floor.spots:
+				if Vector2(p.x - g[0].x, p.z - g[0].z).length() < float(g[1]) + 0.9:
+					return false
+	# ничего не должно пересекать ящик (стены, колонны, завалы, руины, автоматы)
+	var q := PhysicsShapeQueryParameters3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.96, 0.5, 0.6)
+	q.shape = box
+	q.transform = Transform3D(Basis(Vector3.UP, rot), p + Vector3(0, lift + 0.25, 0))
+	q.collision_mask = 1
+	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 
 func _spawn_enemy(pos: Vector3) -> void:
@@ -896,7 +984,9 @@ func save_state() -> Dictionary:
 	for s in inv.slots:
 		bag.append(s.duplicate() if s != null else null)
 	var cs: Array = []
+	var chest_pos: Array = []
 	for c in chests:
+		chest_pos.append([c.position.x, c.position.y, c.position.z, c.rotation.y] if is_instance_valid(c) else [0.0, -100.0, 0.0, 0.0])
 		cs.append([c.opened, c.broken, c.contents.duplicate(true)] if is_instance_valid(c) else [false, false, []])
 	var floor_items: Array = []
 	for n in get_children():
@@ -925,6 +1015,7 @@ func save_state() -> Dictionary:
 		"filter": gasmask.filter_left if gasmask else 0.0,
 		"tox": gasmask.tox if gasmask else 0.0,
 		"chests": cs,
+		"chest_pos": chest_pos,
 		"safe_open": safe != null and is_instance_valid(safe) and safe.opened,
 		"safe_contents": safe.contents.duplicate(true) if safe != null and is_instance_valid(safe) else [],
 		"floor": floor_items,
@@ -979,6 +1070,14 @@ func load_state(d: Dictionary) -> void:
 	if gasmask:
 		gasmask.filter_left = float(d.get("filter", 0.0))
 		gasmask.tox = float(d.get("tox", 0.0))
+	# расстановка ящиков из сейва (старые сейвы без chest_pos — остаётся новая случайная)
+	if d.has("chest_pos"):
+		for c in chests:
+			if is_instance_valid(c):
+				c.queue_free()
+		chests = []
+		for a in d["chest_pos"]:
+			_chest(Vector3(float(a[0]), float(a[1]), float(a[2])), float(a[3]), [])
 	var cs: Array = d.get("chests", [])
 	for i in mini(cs.size(), chests.size()):
 		chests[i].restore(bool(cs[i][0]), bool(cs[i][1]), cs[i][2] if cs[i].size() > 2 else [])
