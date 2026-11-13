@@ -25,6 +25,9 @@ var floor_mat: ShaderMaterial
 var ceil_mat: ShaderMaterial
 var wire_mat: StandardMaterial3D
 var rng := RandomNumberGenerator.new()
+## Телефон: облегчённая сборка (меньше сколов CSG, пылинок, без теней от потолочных ламп).
+## На ПК и в редакторе — false, всё как было.
+var lite := OS.has_feature("mobile") or "--lite" in OS.get_cmdline_user_args()
 var noise_extra: Array = []
 ## поломанная лампа — её подрагивание делает atmosphere.gd
 var broken_mesh: MeshInstance3D
@@ -171,7 +174,7 @@ func _broken_lamp(pos: Vector3, energy: float) -> void:
 	l.lamp_mat = mat
 	l.omni_range = 8.5
 	l.omni_attenuation = 1.0
-	l.shadow_enabled = true
+	l.shadow_enabled = not lite
 	l.position = center - Vector3(0, 0.15, 0)
 	add_child(l)
 	broken_light = l
@@ -220,7 +223,7 @@ func _lamp(pos: Vector3, energy: float, flicker: bool) -> void:
 	l.lamp_mat = mat
 	l.omni_range = 8.5
 	l.omni_attenuation = 1.0
-	l.shadow_enabled = true
+	l.shadow_enabled = not lite
 	l.position = pos - Vector3(0, 0.3, 0)
 	add_child(l)
 
@@ -254,6 +257,8 @@ func _csg_wall(pos: Vector3, size: Vector3) -> CSGCombiner3D:
 
 ## Выбоина: случайный размер (чаще мелкие, иногда крупные), форма — кубик или шар, случайный поворот.
 func _chip(csg: CSGCombiner3D, pos: Vector3, scale_k := 1.0) -> void:
+	if lite and rng.randf() < 0.65:
+		return   # телефон: примерно треть сколов — CSG считается на старте и тяжёлый для слабого процессора
 	var s := lerpf(0.06, 0.3, pow(rng.randf(), 1.6)) * scale_k
 	var c: CSGShape3D
 	if rng.randf() < 0.3:
@@ -771,7 +776,7 @@ func _dust_motes() -> void:
 	q.material = m
 
 	var ps := GPUParticles3D.new()
-	ps.amount = 700
+	ps.amount = 250 if lite else 700
 	ps.lifetime = 24.0
 	ps.preprocess = 24.0
 	ps.process_material = pm

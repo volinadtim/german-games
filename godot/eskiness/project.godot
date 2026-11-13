@@ -22,7 +22,6 @@ pointing/emulate_mouse_from_touch=true
 
 [rendering]
 
-renderer/rendering_method.mobile="mobile"
-rendering_device/fallback_to_opengl3=true
+renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/msaa_3d=2
