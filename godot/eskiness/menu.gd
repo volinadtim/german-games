@@ -16,6 +16,7 @@ const SETTINGS := {
 	"contrast": ["Контраст", 0.6, 1.6, 0.01, 1.0],
 	"posterize": ["Постеризация", 0.0, 100.0, 1.0, 70.0],
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
+	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
 }
 
 var in_game := false          # выставляет main.gd, когда игра началась
@@ -30,6 +31,7 @@ var settings_from := "main"
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().root.size_changed.connect(_apply_ui_scale)
 	_load()
 
 	var root := Control.new()
@@ -201,7 +203,7 @@ func _slider_row(key: String) -> Control:
 
 
 func _fmt(key: String, v: float) -> String:
-	if key == "volume" or key == "posterize":
+	if key == "volume" or key == "posterize" or key == "ui_scale":
 		return "%d%%" % int(v)
 	return "%.2f" % v
 
@@ -215,7 +217,19 @@ func _reset() -> void:
 	apply_settings()
 
 
+## Размер интерфейса: 100% = прежний размер ×1.25, ползунок 80–120%.
+## Масштаб не даём сделать таким, чтобы большие окна (инвентарь ~1240×600) вылезли за экран.
+func _apply_ui_scale() -> void:
+	var win := get_tree().root
+	var want := 1.25 * float(values.get("ui_scale", 100.0)) / 100.0
+	var sz := Vector2(win.size)
+	if sz.x > 0 and sz.y > 0:
+		want = minf(want, maxf(minf(sz.x / 1240.0, sz.y / 600.0), 0.8))
+	win.content_scale_factor = want
+
+
 func apply_settings() -> void:
+	_apply_ui_scale()
 	preload("res://player.gd").look_sens = values["sensitivity"]
 	var vol: float = values["volume"] / 100.0
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(vol, 0.0001)))

@@ -28,8 +28,7 @@ func _ready() -> void:
 	_setup_input()
 	# телефон: интерфейс крупнее, но так, чтобы окна влезали при любом соотношении сторон
 	if TouchControls.wanted():
-		TouchControls.fit_ui(get_window())
-		get_window().size_changed.connect(func(): TouchControls.fit_ui(get_window()))
+		pass   # масштаб интерфейса теперь ставит menu.gd (_apply_ui_scale, ползунок «Размер интерфейса»)
 
 	# уровень (и освещение/окружение) — узел Level в main.tscn, он виден и в редакторе
 	add_child(Ambience.new())
