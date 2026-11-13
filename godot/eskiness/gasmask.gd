@@ -76,7 +76,7 @@ void fragment() {
 	vec2 c = dl < dr ? cl : cr;
 	float d = min(dl, dr);
 	// перемычка у носа: снизу между окулярами
-	float bridge = step(abs(p.x), 0.05 + 0.25 * max(p.y - 0.16, 0.0)) * step(0.16, p.y);
+	float bridge = step(length((p - vec2(0.0, 0.56)) / vec2(0.12, 0.34)), 1.0);
 	if (d > R || bridge > 0.5) {
 		COLOR = vec4(0.012, 0.014, 0.012, 1.0);
 	} else if (d > R - RIM) {
