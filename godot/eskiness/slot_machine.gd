@@ -800,7 +800,7 @@ func _animate_style(delta: float) -> void:
 			v = 4.0 if (int(t * 8.0) + i) % 2 == 0 else 0.3
 		cage_mats[i].emission_energy_multiplier = v
 	if maw_mat:
-		maw_mat.emission_energy_multiplier = 0.7 + 0.3 * sin(t * 1.3) + (1.2 if party > 0.0 else 0.0)
+		maw_mat.emission_energy_multiplier = 0.5 + 0.2 * sin(t * 1.3) + (1.2 if party > 0.0 else 0.0)
 
 ## Цилиндр барабана вдоль оси X с развёрткой: v = 0..1 по окружности (сверху вниз по ленте).
 func _reel_mesh() -> ArrayMesh:
