@@ -81,6 +81,23 @@ var finger_bones: Array = []      # [кость, поворот расслабл
 var spine_bone := -1
 var clav_bones: Array[int] = [-1, -1]
 var hands: Array[Node3D] = []     # драйверы кистей
+var model_root: Node3D
+var spine_bones: Array[int] = []  # spine01..03
+var neck_bone := -1
+# --- поворот тела за камерой: камера (сам игрок) поворачивается сразу, торс догоняет,
+# ноги стоят и переступают, если угол стал большим ---
+var yaw_init := false
+var feet_yaw := 0.0               # куда смотрят ноги/таз (мировой угол)
+var torso_yaw := 0.0              # куда смотрит грудь (мировой угол)
+var foot_yaw: Array[float] = [0.0, 0.0]   # разворот стопы относительно таза
+var turn_foot := -1               # какая нога сейчас переступает (-1 — никакая)
+var turn_t := 0.0
+var turn_steps := 0
+var turn_hold := 0.0              # сколько времени ноги развёрнуты от взгляда
+var turn_from_yaw := 0.0
+var turn_to_yaw := 0.0
+var turn_from_pos := Vector3.ZERO
+var turn_from_fy := 0.0
 var fist_blend := 0.0
 var punching := false
 var sprint_carry := 0.0   # 1 сразу после бега, плавно падает — от него зависит «занос»
@@ -382,6 +399,7 @@ func _build_model() -> void:
 	model.rotation.y = PI                 # в файле модель смотрит на +Z, игрок — на -Z
 	model.position.z = MODEL_Z
 	add_child(model)
+	model_root = model
 	skel = model.find_children("*", "Skeleton3D", true, false)[0]
 	var rel := global_transform.affine_inverse() * skel.global_transform
 	rig_rel = rel.basis.orthonormalized()
@@ -421,7 +439,7 @@ func _build_model() -> void:
 			if e[2]:
 				ref = Basis(Quaternion(t.basis.y.normalized(), Vector3.DOWN)) * ref
 			var arm := i if e[0] in ["lowerarm", "hand"] else -1
-			bone_map.append([skel.find_bone(e[0] + s), e[1], ref, arm, e[0] == "hand"])
+			bone_map.append([skel.find_bone(e[0] + s), e[1], ref, arm, e[0] == "hand", e[0] in ["thigh", "calf", "foot"]])
 		clav_bones[i] = skel.find_bone("clavicle" + s)
 		# пальцы: ось сгиба — поперёк пальца, к ладони (ладонь в A-позе смотрит вниз, -Z скелета)
 		for f in ["thumb", "index", "middle", "ring", "pinky"]:
@@ -456,6 +474,9 @@ func _build_model() -> void:
 		att.add_child(fx)
 		fx.transform = Transform3D(Basis.from_scale(Vector3.ONE * 0.01), Vector3(0, 0.0008, 0))
 	spine_bone = skel.find_bone("spine03")
+	for n in ["spine01", "spine02", "spine03"]:
+		spine_bones.append(skel.find_bone(n))
+	neck_bone = skel.find_bone("neck")
 
 	# голова и шея: видимый меш со «схлопнутыми» головой и шеей (камера внутри головы),
 	# а копия с исходным скином рисует только тень — тень от головы остаётся
@@ -481,17 +502,30 @@ func _apply_bones() -> void:
 	if skel == null:
 		return
 	var inv := global_basis.orthonormalized().inverse()
-	var rr := rig_rel.inverse()
+	# ноги и таз развёрнуты на leg_off от взгляда, грудь — на torso_off, шея смотрит туда же, куда камера
+	var leg_off := angle_difference(rotation.y, feet_yaw)
+	var torso_off := angle_difference(rotation.y, torso_yaw)
+	var leg_rot := Basis(Vector3.UP, leg_off)
+	model_root.rotation.y = PI + leg_off
+	model_root.position = leg_rot * Vector3(0, 0, MODEL_Z)
+	var rr := (leg_rot * rig_rel).inverse()
+	var rest_p := func(b: int) -> Basis: return rig_rel * skel.get_bone_global_rest(b).basis.orthonormalized()
 	# корпус доворачивается за бьющей рукой, ключица выносит плечо вперёд
 	var twist := (reach[1] - reach[0]) * 1.6
-	_set_global_rot(spine_bone, rr * Basis(Vector3.UP, twist) * rig_rel * skel.get_bone_global_rest(spine_bone).basis.orthonormalized())
+	var dt := torso_off - leg_off
+	var spine_a := [leg_off + dt * 0.3, leg_off + dt * 0.65, torso_off + twist]
+	for k in spine_bones.size():
+		_set_global_rot(spine_bones[k], rr * Basis(Vector3.UP, spine_a[k]) * rest_p.call(spine_bones[k]))
+	if neck_bone != -1:
+		_set_global_rot(neck_bone, rr * rest_p.call(neck_bone))
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
 		var c := clav_bones[i]
-		_set_global_rot(c, rr * Basis(Vector3.UP, side * reach[i] * 2.5 + twist) * rig_rel * skel.get_bone_global_rest(c).basis.orthonormalized())
+		_set_global_rot(c, rr * Basis(Vector3.UP, torso_off + side * reach[i] * 2.5 + twist) * rest_p.call(c))
+	var torso_rot := Basis(Vector3.UP, torso_off)
 	for e in bone_map:
 		var d: Node3D = e[1]
-		var basis := inv * d.global_basis.orthonormalized()
+		var basis := (leg_rot if e[5] else torso_rot) * inv * d.global_basis.orthonormalized()
 		var arm: int = e[3]
 		if arm >= 0:
 			# кисть поворачивается тыльной стороной вверх в стойке (у предплечья — половина)
@@ -815,6 +849,7 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 	var spd := v_local.length()
 	if spd > 0.1:
 		move_dir = Vector3(v_local.x, 0, v_local.z).normalized()
+	_turn_body(delta, spd > 0.4 or not grounded or not stopping or settle_t[0] < 1.0 or settle_t[1] < 1.0)
 	if not grounded:
 		# в воздухе ноги подогнуты, одна чуть впереди
 		stopping = false
@@ -888,11 +923,86 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 			else:
 				foot[i] -= slide
 				foot[i].y = move_toward(foot[i].y, GROUND_Y, delta * 0.5)
+	if turn_foot >= 0:
+		_turn_step(delta)
 	for i in 2:
 		_leg_ik(i, foot[i])
 
 
+## Торс догоняет взгляд с задержкой. На ходу и в прыжке ноги сразу смотрят по взгляду (как раньше);
+## стоя — стоят, пока угол не станет большим (или поворот длится), тогда переступают.
+func _turn_body(delta: float, busy: bool) -> void:
+	var cam_yaw := rotation.y
+	if not yaw_init or absf(angle_difference(cam_yaw, feet_yaw)) > 2.6:
+		yaw_init = true
+		feet_yaw = cam_yaw
+		torso_yaw = cam_yaw
+	torso_yaw = lerp_angle(torso_yaw, cam_yaw, 1.0 - exp(-7.0 * delta))
+	var lag := angle_difference(cam_yaw, torso_yaw)
+	if absf(lag) > 0.6:
+		torso_yaw = cam_yaw + signf(lag) * 0.6
+	if not USE_MODEL:
+		feet_yaw = cam_yaw
+		torso_yaw = cam_yaw
+		return
+	if busy:
+		turn_foot = -1
+		turn_steps = 0
+		turn_hold = 0.0
+		feet_yaw = lerp_angle(feet_yaw, cam_yaw, 1.0 - exp(-12.0 * delta))
+		for i in 2:
+			foot_yaw[i] = lerpf(foot_yaw[i], 0.0, 1.0 - exp(-12.0 * delta))
+		return
+	var off := angle_difference(feet_yaw, cam_yaw)
+	turn_hold = turn_hold + delta if absf(off) > deg_to_rad(20.0) else 0.0
+	if turn_foot < 0 and (absf(off) > deg_to_rad(55.0) or turn_hold > 0.6):
+		turn_steps = 2 if absf(off) > deg_to_rad(45.0) else 1
+		# поворот налево (угол растёт) — первой шагает левая нога, направо — правая
+		_start_turn_step(0 if off > 0.0 else 1)
+
+
+func _start_turn_step(i: int) -> void:
+	turn_foot = i
+	turn_t = 0.0
+	turn_from_yaw = feet_yaw
+	turn_to_yaw = feet_yaw + angle_difference(feet_yaw, rotation.y) / float(maxi(turn_steps, 1))
+	turn_from_pos = foot[i]
+	turn_from_fy = foot_yaw[i]
+
+
+## Шаг на месте с поворотом: таз поворачивается, опорная стопа остаётся на месте на полу,
+## шагающая стопа дугой встаёт под бедро и разворачивается носком по тазу.
+func _turn_step(delta: float) -> void:
+	var i := turn_foot
+	var j := 1 - i
+	turn_t = minf(turn_t + delta / 0.26, 1.0)
+	var k := smoothstep(0.0, 1.0, turn_t)
+	var new_yaw := lerp_angle(turn_from_yaw, turn_to_yaw, k)
+	var dyaw := angle_difference(feet_yaw, new_yaw)
+	feet_yaw = new_yaw
+	var hip := Vector3(legs[j].position.x, 0, legs[j].position.z)
+	foot[j] = Basis(Vector3.UP, -dyaw) * (hip + foot[j]) - hip
+	foot_yaw[j] -= dyaw
+	foot[i] = turn_from_pos.lerp(Vector3(0, GROUND_Y, 0), k) + Vector3(0, 0.07 * sin(PI * turn_t), 0)
+	foot_yaw[i] = lerpf(turn_from_fy, 0.0, k)
+	foot_pitch[i] = -0.25 * sin(PI * turn_t)
+	if turn_t >= 1.0:
+		_play_step(-14.0)
+		turn_steps -= 1
+		var rest_off := absf(angle_difference(feet_yaw, rotation.y))
+		# опорная нога осталась развёрнутой или в стороне — подставляем и её
+		var j_off := absf(foot_yaw[j]) > deg_to_rad(12.0) or Vector2(foot[j].x, foot[j].z).length() > 0.06
+		if turn_steps > 0 or rest_off > deg_to_rad(10.0) or j_off:
+			turn_steps = maxi(turn_steps, 1)
+			_start_turn_step(j)
+		else:
+			turn_foot = -1
+			turn_hold = 0.0
+
+
 func _leg_ik(i: int, t: Vector3) -> void:
+	# разворот стопы — поворот всей ноги вокруг вертикали в бедре; цель считаем в повёрнутых осях
+	t = Basis(Vector3.UP, -foot_yaw[i]) * t
 	var roll := atan2(t.x, -t.y)                     # отвод ноги в сторону
 	var yy := -sqrt(t.y * t.y + t.x * t.x)
 	var zz := t.z
@@ -900,7 +1010,7 @@ func _leg_ik(i: int, t: Vector3) -> void:
 	var aim := atan2(-zz, -yy)                       # угол на стопу (вперёд — плюс)
 	var a_hip := acos(clampf((LEG_L1 * LEG_L1 + d * d - LEG_L2 * LEG_L2) / (2.0 * LEG_L1 * d), -1.0, 1.0))
 	var a_knee := PI - acos(clampf((LEG_L1 * LEG_L1 + LEG_L2 * LEG_L2 - d * d) / (2.0 * LEG_L1 * LEG_L2), -1.0, 1.0))
-	legs[i].rotation = Vector3(aim + a_hip, 0.0, roll)
+	legs[i].rotation = Vector3(aim + a_hip, foot_yaw[i], roll)
 	knees[i].rotation.x = -a_knee
 	# ботинок параллельно полу + перекат стопы
 	ankles[i].rotation.x = -(aim + a_hip - a_knee) + foot_pitch[i]
