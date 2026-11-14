@@ -1,6 +1,8 @@
 extends StaticBody3D
 ## Магазин снаряжения «Trinkets Market» — зелёный торговый автомат слева от KILLBOX.
-## E — открыть окно: покупка за монеты (оружие, одежда, противогаз, фильтры, фонарик), скупка хлама, обновление ящиков.
+## E — открыть окно: покупка за монеты по вкладкам (промпт 14.11 17:21): «Оружие», «Одежда» (снаряжение),
+## «Улучшения автомата» (окно KILLBOX и гарантированные символы), «Расходники» (еда, хилки, батарейки);
+## справа — скупка хлама.
 ## Интерфейс взаимодействия (его дёргает game.gd): get_prompt(game) -> String, interact(game).
 
 const Weapons := preload("res://weapons.gd")
@@ -12,6 +14,15 @@ var sell_box: VBoxContainer
 var coins_l: Label
 var info_l: Label
 var opened := false
+var tab := 0                  # открытая вкладка (TABS)
+var tab_btns: Array[Button] = []
+var content: VBoxContainer    # содержимое вкладки — пересобирается при переключении и покупке
+
+const TABS := ["Оружие", "Одежда", "Улучшения автомата", "Расходники"]
+## расходники (промпт 14.11 17:21): [id, цена]. Батарейки и сухари — дёшево, хилки дороже.
+## Экономика: старт 50 монет, кувшин даёт 1–4, хлам продаётся за 2–5.
+const CONSUMABLES := [["battery", 3], ["rusk", 2], ["water", 3], ["soda", 5], ["choco", 5], ["canned", 6],
+	["pills", 5], ["bandage", 6], ["medkit", 20]]
 
 
 const CHEST_REFRESH := 80   # «Обновить все ящики»
@@ -340,7 +351,7 @@ func _build_ui() -> void:
 	sell_col.custom_minimum_size = Vector2(300, 0)
 	cols.add_child(sell_col)
 	sell_col.add_child(_label("СКУПКА ХЛАМА", 28, Color(1.0, 0.6, 0.35)))
-	sell_col.add_child(_label("1–3 монеты за штуку", 15, Color(0.65, 0.63, 0.58)))
+	sell_col.add_child(_label("2–5 монет за штуку", 15, Color(0.65, 0.63, 0.58)))
 	sell_box = VBoxContainer.new()
 	sell_box.add_theme_constant_override("separation", 6)
 	sell_col.add_child(sell_box)
@@ -350,66 +361,31 @@ func _build_ui() -> void:
 	all_b.add_theme_font_size_override("font_size", 20)
 	all_b.pressed.connect(_sell_all_junk)
 	sell_col.add_child(all_b)
-	# удача для KILLBOX (промпт 23:57): +50% к шансу символа на несколько круток
-	sell_col.add_child(_label(" ", 8, Color.WHITE))
-	sell_col.add_child(_label("ГАРАНТ KILLBOX", 28, Color(1.0, 0.45, 0.3)))
-	sell_col.add_child(_label("после каждой крутки +1 символ в окне", 14, Color(0.65, 0.63, 0.58)))
-	var SM := preload("res://slot_machine.gd")
-	var SymS := preload("res://slot_symbols.gd")
-	for sym in SM.LUCK:
-		var d: Array = SM.LUCK[sym]
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		var ic := Control.new()
-		ic.custom_minimum_size = Vector2(32, 32)
-		ic.draw.connect(func(): SymS.draw(ic, sym, Rect2(Vector2.ZERO, ic.size)))
-		row.add_child(ic)
-		var l := _label("%s — %d круток" % [SymS.NAMES[sym], int(d[0])], 16, Color(0.88, 0.86, 0.8))
-		l.custom_minimum_size = Vector2(170, 0)
-		row.add_child(l)
-		var b := Button.new()
-		b.text = "%d" % int(d[1])
-		b.custom_minimum_size = Vector2(56, 30)
-		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", 16)
-		b.pressed.connect(_buy_luck.bind(sym, int(d[1])))
-		row.add_child(b)
-		sell_col.add_child(row)
 	var head := _label("TRINKETS MARKET", 30, Color(0.55, 1.0, 0.6))
 	head.add_theme_font_override("font", sign_font())
 	box.add_child(head)
 	coins_l = _label("", 22, Color(0.92, 0.8, 0.5))
 	box.add_child(coins_l)
-	var goods := GridContainer.new()
-	goods.columns = 2
-	goods.add_theme_constant_override("h_separation", 18)
-	goods.add_theme_constant_override("v_separation", 6)
-	box.add_child(goods)
-	for entry in Weapons.SHOP:
-		var id: String = entry[0]
-		var price: int = entry[1]
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 10)
-		var icon := Control.new()
-		icon.custom_minimum_size = Vector2(36, 36)
-		icon.draw.connect(func(): Items.draw_icon(icon, id, Rect2(Vector2.ZERO, icon.size)))
-		row.add_child(icon)
-		var text := VBoxContainer.new()
-		text.custom_minimum_size = Vector2(230, 0)
-		text.add_theme_constant_override("separation", 0)
-		text.add_child(_label(Items.item_name(id), 18, Color(0.9, 0.88, 0.82)))
-		var d := _label(Items.ITEMS[id]["desc"], 13, Color(0.65, 0.63, 0.58))
-		d.custom_minimum_size = Vector2(230, 0)
-		text.add_child(d)
-		row.add_child(text)
-		var buy := Button.new()
-		buy.text = "%d" % price
-		buy.custom_minimum_size = Vector2(64, 34)
-		buy.focus_mode = Control.FOCUS_NONE
-		buy.add_theme_font_size_override("font_size", 18)
-		buy.pressed.connect(func(): _buy(id, price))
-		row.add_child(buy)
-		goods.add_child(row)
+	# вкладки-категории
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 6)
+	box.add_child(tabs)
+	var group := ButtonGroup.new()
+	for i in TABS.size():
+		var tb := Button.new()
+		tb.text = TABS[i]
+		tb.toggle_mode = true
+		tb.button_group = group
+		tb.button_pressed = i == tab
+		tb.focus_mode = Control.FOCUS_NONE
+		tb.add_theme_font_size_override("font_size", 18)
+		tb.pressed.connect(_show_tab.bind(i))
+		tabs.add_child(tb)
+		tab_btns.append(tb)
+	content = VBoxContainer.new()
+	content.custom_minimum_size = Vector2(640, 380)
+	content.add_theme_constant_override("separation", 6)
+	box.add_child(content)
 	info_l = _label("", 18, Color(0.8, 0.78, 0.7))
 	box.add_child(info_l)
 	# внизу: обновить все ящики уровня (сейф не трогаем) и закрыть
@@ -449,6 +425,128 @@ func _label(t: String, size: int, col: Color) -> Label:
 func _refresh() -> void:
 	coins_l.text = "Монет: %d" % game.inv.count("coin")
 	_rebuild_sell()
+	_rebuild_tab.call_deferred()   # кнопка, по которой кликнули, ещё в сигнале
+
+
+func _show_tab(i: int) -> void:
+	tab = i
+	if i < tab_btns.size():
+		tab_btns[i].set_pressed_no_signal(true)
+	_rebuild_tab()
+
+
+## Товары открытой вкладки: сетка в 2 колонки «иконка — название/описание — цена».
+func _rebuild_tab() -> void:
+	if content == null:
+		return
+	for c in content.get_children():
+		content.remove_child(c)
+		c.queue_free()
+	match tab:
+		0, 1:
+			var grid := _grid()
+			for e in Weapons.SHOP:
+				var id: String = e[0]
+				if Items.ITEMS[id].get("weapon", false) == (tab == 0):
+					grid.add_child(_goods_row(id, int(e[1])))
+		2:
+			_build_slot_tab()
+		3:
+			var grid := _grid()
+			for e in CONSUMABLES:
+				grid.add_child(_goods_row(String(e[0]), int(e[1])))
+
+
+func _grid() -> GridContainer:
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 18)
+	g.add_theme_constant_override("v_separation", 6)
+	content.add_child(g)
+	return g
+
+
+func _goods_row(id: String, price: int) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var icon := Control.new()
+	icon.custom_minimum_size = Vector2(36, 36)
+	icon.draw.connect(func(): Items.draw_icon(icon, id, Rect2(Vector2.ZERO, icon.size)))
+	row.add_child(icon)
+	var text := VBoxContainer.new()
+	text.custom_minimum_size = Vector2(230, 0)
+	text.add_theme_constant_override("separation", 0)
+	text.add_child(_label(Items.item_name(id), 18, Color(0.9, 0.88, 0.82)))
+	var d := _label(Items.ITEMS[id]["desc"], 13, Color(0.65, 0.63, 0.58))
+	d.custom_minimum_size = Vector2(230, 0)
+	text.add_child(d)
+	row.add_child(text)
+	var buy := Button.new()
+	buy.text = "%d" % price
+	buy.custom_minimum_size = Vector2(64, 34)
+	buy.focus_mode = Control.FOCUS_NONE
+	buy.add_theme_font_size_override("font_size", 18)
+	buy.pressed.connect(func(): _buy(id, price))
+	row.add_child(buy)
+	return row
+
+
+## Вкладка «Улучшения автомата»: прокачка окна KILLBOX (1×3 → 3×5) и гарантированные символы.
+func _build_slot_tab() -> void:
+	var SM := preload("res://slot_machine.gd")
+	var SymS := preload("res://slot_symbols.gd")
+	var slot = game.slot if game else null
+	content.add_child(_label("ОКНО KILLBOX", 24, Color(1.0, 0.45, 0.3)))
+	var lv: int = slot.level if slot else 1
+	var steps := PackedStringArray()
+	for i in SM.MAX_LEVEL:
+		var nm: String = SM.level_name(i + 1)
+		steps.append("[%s]" % nm if i + 1 == lv else nm)
+	content.add_child(_label("  →  ".join(steps) + "   ·   больше клеток — больше линий", 15, Color(0.65, 0.63, 0.58)))
+	var up := Button.new()
+	up.text = slot.upgrade_text() if slot else "Автомата нет"
+	up.disabled = slot == null or lv >= SM.MAX_LEVEL
+	up.custom_minimum_size = Vector2(0, 40)
+	up.focus_mode = Control.FOCUS_NONE
+	up.add_theme_font_size_override("font_size", 19)
+	up.pressed.connect(_buy_upgrade)
+	content.add_child(up)
+	content.add_child(_label(" ", 6, Color.WHITE))
+	content.add_child(_label("ГАРАНТИРОВАННЫЙ СИМВОЛ", 24, Color(1.0, 0.45, 0.3)))
+	content.add_child(_label("На N круток: после каждого прокрута этот символ встаёт в случайную открытую клетку, где его нет.", 14, Color(0.65, 0.63, 0.58)))
+	var grid := _grid()
+	for sym in SM.LUCK:
+		var d: Array = SM.LUCK[sym]
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		var ic := Control.new()
+		ic.custom_minimum_size = Vector2(32, 32)
+		ic.draw.connect(func(): SymS.draw(ic, sym, Rect2(Vector2.ZERO, ic.size)))
+		row.add_child(ic)
+		var left := 0
+		if slot and slot.luck.has(sym):
+			left = int(slot.luck[sym])
+		var l := _label("%s — %d круток%s" % [SymS.NAMES[sym], int(d[0]), " (ещё %d)" % left if left > 0 else ""], 16, Color(0.88, 0.86, 0.8))
+		l.custom_minimum_size = Vector2(230, 0)
+		row.add_child(l)
+		var b := Button.new()
+		b.text = "%d" % int(d[1])
+		b.custom_minimum_size = Vector2(64, 32)
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 17)
+		b.pressed.connect(_buy_luck.bind(sym, int(d[1])))
+		row.add_child(b)
+		grid.add_child(row)
+
+
+func _buy_upgrade() -> void:
+	if game.slot == null:
+		return
+	if game.slot.buy_upgrade():
+		info_l.text = "Окно KILLBOX: %s" % game.slot.level_name(game.slot.level)
+	else:
+		info_l.text = "Не хватает монет"
+	_refresh()
 
 
 ## Список вещей из сумки, которые магазин покупает (поле price в items.gd).
