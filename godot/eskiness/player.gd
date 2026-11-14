@@ -1,6 +1,7 @@
 extends CharacterBody3D
 ## Игрок от первого лица: тело видно, если посмотреть вниз.
-## WASD, Shift — бег, пробел — прыжок, ПКМ — режим кулаков (руки в стойку), ЛКМ — удар.
+## WASD, Shift — бег, пробел — прыжок, V — боевая стойка (руки в стойку), ЛКМ — удар левой, ПКМ — удар правой
+## (промпт 14.11 18:57; без стойки удар сам поднимает кулаки и бьёт).
 
 const Sfx := preload("res://sfx.gd")
 ## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы; по траве — step_grass.
@@ -788,8 +789,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif captured and event.is_action_pressed("fists") and not event.is_echo():
 		toggle_fists()
-	elif captured and event.is_action_pressed("attack") and fists:
-		punch()
+	elif captured and event.is_action_pressed("attack_left"):
+		attack(0)
+	elif captured and event.is_action_pressed("attack_right"):
+		attack(1)
 
 
 ## Чувствительность обзора (множитель из настроек меню) и скорость поворота стрелками, рад/с.
@@ -890,18 +893,40 @@ func toggle_fists() -> void:
 	voice_player.play()
 
 
-func punch() -> void:
+## Удар рукой arm (0 — левая, ЛКМ; 1 — правая, ПКМ). Кулаки опущены — сначала поднимает их,
+## удар следует сам, как только стойка встанет. В руке оружие (или щит) — бьёт им.
+func attack(arm: int) -> void:
+	if punching:
+		return
+	if not fists:
+		toggle_fists()
+		_queued_arm = arm
+		get_tree().create_timer(0.32).timeout.connect(func():
+			if fists and _queued_arm == arm:
+				_queued_arm = -1
+				punch(arm))
+		return
+	punch(arm)
+
+
+var _queued_arm := -1
+
+
+## arm = -1 — рука выбирается сама (чередование; экранные кнопки и старый код).
+func punch(arm := -1) -> void:
 	if punching or fist_blend < 0.9:
 		return
 	punching = true
-	# рука: с шансом 75% другая, чем в прошлый раз
-	var i := randi() % 2
-	if last_arm != -1:
-		i = (1 - last_arm) if randf() < 0.75 else last_arm
-	# оружие только в одной руке — чаще бьём им
-	var armed0 := weapon_ids[0] != ""
-	if armed0 != (weapon_ids[1] != "") and randf() < 0.75:
-		i = 0 if armed0 else 1
+	var i := arm
+	if i < 0:
+		# рука: с шансом 75% другая, чем в прошлый раз
+		i = randi() % 2
+		if last_arm != -1:
+			i = (1 - last_arm) if randf() < 0.75 else last_arm
+		# оружие только в одной руке — чаще бьём им
+		var armed0 := weapon_ids[0] != ""
+		if armed0 != (weapon_ids[1] != "") and randf() < 0.75:
+			i = 0 if armed0 else 1
 	last_arm = i
 	if weapon_ids[i] != "":
 		_weapon_swing(i, weapon_ids[i])

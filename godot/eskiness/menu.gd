@@ -64,8 +64,9 @@ const CONTROLS := [
 	["jump", "Прыжок", ["k:32"]],                  # Пробел
 	["crouch", "Присесть (держать)", ["k:4194326"]],     # Ctrl
 	["crouch_toggle", "Присесть (переключить)", ["k:67"]],   # C
-	["attack", "Удар", ["m:1"]],                   # ЛКМ
-	["fists", "Кулаки / стойка", ["m:2"]],         # ПКМ
+	["attack_left", "Удар левой", ["m:1"]],        # ЛКМ
+	["attack_right", "Удар правой", ["m:2"]],      # ПКМ
+	["fists", "Боевая стойка", ["k:86"]],          # V
 	["interact", "Взаимодействие", ["k:69"]],      # E
 	["inventory", "Инвентарь", ["k:4194306", "k:73"]],   # Tab, I
 	["loot_all", "Забрать всё", ["k:82"]],         # R
@@ -577,6 +578,19 @@ func _load() -> void:
 			var v = cf.get_value("controls", a)
 			if v is Array and not v.is_empty():
 				binds[a] = v
+	# миграция (промпт 18:57): «Удар» → «Удар левой»; стойка была на кнопке мыши — теперь по умолчанию V
+	if binds.has("attack"):
+		if not binds.has("attack_left"):
+			binds["attack_left"] = binds["attack"]
+		binds.erase("attack")
+	if binds.has("fists"):
+		for spec in binds["fists"]:
+			if String(spec).begins_with("m:"):
+				binds.erase("fists")
+				break
+	for a in binds.keys():
+		if _default_binds(a).is_empty():
+			binds.erase(a)   # действия, которых больше нет
 
 
 func _save() -> void:

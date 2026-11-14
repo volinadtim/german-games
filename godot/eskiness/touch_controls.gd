@@ -66,7 +66,8 @@ func _ready() -> void:
 func _buttons() -> Dictionary:
 	var s := root.size
 	return {
-		"attack": [Vector2(s.x - 160, s.y - 150), 74.0, "УДАР", "game"],
+		"attack_right": [Vector2(s.x - 160, s.y - 150), 74.0, "ПРАВОЙ", "game"],
+		"attack_left": [Vector2(s.x - 430, s.y - 330), 50.0, "ЛЕВОЙ", "game"],
 		"fists": [Vector2(s.x - 320, s.y - 90), 48.0, "СТОЙКА", "game"],
 		"jump": [Vector2(s.x - 320, s.y - 235), 48.0, "ПРЫЖОК", "game"],
 		"crouch_toggle": [Vector2(s.x - 450, s.y - 140), 44.0, "ПРИСЕД", "game"],
@@ -184,13 +185,11 @@ func _begin(role: String, p: Vector2) -> void:
 			stick_pos = p
 		"look":
 			pass
-		"attack":
+		"attack_left", "attack_right":
+			# удар этой рукой; кулаки опущены — player.attack сам поднимет их и ударит
 			held[role] = true
 			if player:
-				if not player.fists:
-					player.toggle_fists()
-				else:
-					player.punch()
+				player.attack(0 if role == "attack_left" else 1)
 		"fists":
 			held[role] = true
 			if player:
@@ -207,7 +206,7 @@ func _end(role: String) -> void:
 			stick_on = false
 			for a in ["move_left", "move_right", "move_forward", "move_back", "sprint"]:
 				Input.action_release(a)
-		"look", "attack", "fists":
+		"look", "attack_left", "attack_right", "fists":
 			pass
 		_:
 			_send(role, false)
