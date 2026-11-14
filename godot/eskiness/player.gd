@@ -140,6 +140,7 @@ var rig_rel: Basis                 # поворот скелета относи�
 var bone_map: Array = []          # [кость, узел-драйвер, опорный базис, рука (-1 — нет), кисть?]
 var finger_bones: Array = []      # [кость, поворот расслабленной кисти, поворот в кулаке]
 var finger_arm: Array[int] = []   # чья это кость пальца: 0 — левая рука, 1 — правая
+var finger_thumb: Array[bool] = [] # это кость большого пальца
 var spine_bone := -1
 var clav_bones: Array[int] = [-1, -1]
 var hands: Array[Node3D] = []     # драйверы кистей
@@ -206,7 +207,7 @@ var exhale_out_snd: AudioStreamWAV   # опускание рук — тот же
 var last_arm := -1
 var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали
 var head_bone := -1
-var THUMB_CURL := [0.0, 0.0, 35.0, 40.0]
+var THUMB_CURL := [0.0, 0.0, 40.0, 45.0]   # обхватывает кулак поперёк, поверх пальцев (цель — снаружи средних фаланг)
 var last_kind := ""
 var step_player: AudioStreamPlayer
 var step_noise_player: AudioStreamPlayer
@@ -607,6 +608,7 @@ func _build_fist_pose(s: String) -> void:
 			var rest_q := skel.get_bone_rest(b).basis.get_rotation_quaternion()
 			var fist_q := rest_q * Quaternion(axis, deg_to_rad(FIST[k] + (4.0 if f == "pinky" else 0.0)))
 			finger_bones.append([b, rest_q * Quaternion(axis, deg_to_rad(RELAX[k])), fist_q])
+			finger_thumb.append(false)
 			fist_of[b] = fist_q
 	# где окажутся средние фаланги в кулаке: цепочка от покоя кисти с поворотами кулака
 	var gp := func(n2: String) -> Vector3:
@@ -625,7 +627,8 @@ func _build_fist_pose(s: String) -> void:
 	var mid: Vector3 = (gp.call("index02") + gp.call("middle02")) * 0.5
 	var center: Vector3 = (h + gr.call("middle01").origin) * 0.5
 	var unit: float = h.distance_to(gr.call("middle01").origin) / 0.09    # ~9 см от запястья до костяшек
-	var tgt: Vector3 = mid + (mid - center).normalized() * 0.012 * unit
+	# большой палец лежит поверх средних фаланг снаружи кулака (раньше цель была почти в фалангах — палец прорезал их)
+	var tgt: Vector3 = mid + (mid - center).normalized() * 0.03 * unit
 	# большой палец
 	var t1 := skel.find_bone("thumb01" + s)
 	if t1 == -1:
@@ -635,6 +638,7 @@ func _build_fist_pose(s: String) -> void:
 	var aim := Basis(Quaternion(g1.y.normalized(), (tgt - skel.get_bone_global_rest(t1).origin).normalized()))
 	var fist1 := rest1 * (g1.inverse() * aim * g1).get_rotation_quaternion()
 	finger_bones.append([t1, rest1.slerp(fist1, 0.15), fist1])
+	finger_thumb.append(true)
 	for k in [2, 3]:
 		var b := skel.find_bone("thumb%02d%s" % [k, s])
 		if b == -1:
@@ -644,6 +648,7 @@ func _build_fist_pose(s: String) -> void:
 		var axis := (g.inverse() * g.y.normalized().cross(-across)).normalized()
 		var rest_q := skel.get_bone_rest(b).basis.get_rotation_quaternion()
 		finger_bones.append([b, rest_q * Quaternion(axis, deg_to_rad(8.0)), rest_q * Quaternion(axis, deg_to_rad(THUMB_CURL[k]))])
+		finger_thumb.append(true)
 
 
 ## Кости модели повторяют повороты узлов-драйверов + выпад плеча, поворот корпуса, кулак.
@@ -729,7 +734,10 @@ func _apply_bones() -> void:
 		var b := clampf(fist_blend + wig * (0.22 + 0.22 * sin(idle_time * 13.0 + float(n) * 1.7)), 0.0, 1.0)
 		# заряд удара: на второй руке кулак слегка раскрывается (пальцы полусогнуты) — в ожидании удара
 		if n < finger_arm.size() and finger_arm[n] != charge_arm and charge_vis > 0.0:
-			b *= 1.0 - 0.8 * smoothstep(0.0, 1.0, charge_vis)
+			# лёгкое расслабление (промпт 19:47): пальцы чуть разжимаются (до 35%), большой палец остаётся
+			# в позе кулака поверх пальцев — при полном раскрытии он проходил сквозь них (его поза покоя — вдоль пальцев)
+			if not finger_thumb[n]:
+				b *= 1.0 - 0.35 * smoothstep(0.0, 1.0, charge_vis)
 		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], b))
 	_flex_weapons()
 
