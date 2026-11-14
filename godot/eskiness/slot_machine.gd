@@ -1840,7 +1840,7 @@ func _build_tray() -> void:
 	for k in TRAY_MAX:
 		# та же модель, что у монеты-лута на полу (pickup_mesh.gd), в мировом размере (rig увеличен в K раз)
 		var c: Node3D = PickupMesh.make("coin")[0]
-		c.scale = Vector3.ONE * PickupMesh.COIN_SCALE / K
+		c.scale = Vector3.ONE * float(PickupMesh.SCALES["coin"]) / K
 		# горка: первые монеты по дну лотка, следующие — выше и ближе к середине
 		var layer := k / 12
 		var spread := 0.17 - layer * 0.05
