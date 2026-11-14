@@ -1923,12 +1923,11 @@ func _build_tray() -> void:
 		# та же модель, что у монеты-лута на полу (pickup_mesh.gd), в мировом размере (rig увеличен в K раз)
 		var c: Node3D = PickupMesh.make("coin")[0]
 		c.scale = Vector3.ONE * float(PickupMesh.SCALES["coin"]) / K
-		# горка: первые монеты по дну лотка, следующие — выше и ближе к середине
-		var layer := k / 12
-		var spread := 0.17 - layer * 0.05
-		c.position = Vector3(rng.randf_range(-spread, spread), 0.437 + layer * 0.008 + rng.randf_range(0.0, 0.004),
-			rng.randf_range(0.34, 0.42))
-		c.rotation = Vector3(rng.randf_range(-0.35, 0.35), rng.randf() * TAU, rng.randf_range(-0.35, 0.35))
+		# по всему дну лотка (промпт 14.11 19:50): каждый слой из 12 монет — сетка 4×3 со смещением,
+		# следующие слои ложатся поверх
+		var p := _tray_spot(k, rng)
+		c.position = p
+		c.rotation = Vector3(rng.randf_range(-0.25, 0.25), rng.randf() * TAU, rng.randf_range(-0.25, 0.25))
 		c.visible = false
 		for mi in c.get_children():
 			(mi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1945,6 +1944,25 @@ func _build_tray() -> void:
 	cs.shape = bs
 	cs.position = Vector3(0, PED + 0.42 * K, RIG_Z + 0.4 * K)
 	tray_target.add_child(cs)
+
+
+## Место монеты k на дне лотка: слой k/12, в слое — ячейка 4×3 (по ширине и глубине) со случайным сдвигом.
+## Отступ от стенок — чтобы монета не торчала из лотка.
+const TRAY_X := 0.17
+const TRAY_Z0 := 0.335
+const TRAY_Z1 := 0.425
+
+
+func _tray_spot(k: int, rng: RandomNumberGenerator) -> Vector3:
+	var layer := k / 12
+	var cell := (k * 5 + layer * 7) % 12   # перемешанный порядок ячеек
+	var cx := cell % 4
+	var cz := cell / 4
+	var w := TRAY_X * 2.0 / 4.0
+	var d := (TRAY_Z1 - TRAY_Z0) / 3.0
+	var x := -TRAY_X + w * (cx + rng.randf_range(0.15, 0.85))
+	var z := TRAY_Z0 + d * (cz + rng.randf_range(0.15, 0.85))
+	return Vector3(x, 0.437 + layer * 0.008 + rng.randf_range(0.0, 0.003), z)
 
 
 func _tray_target_count(n: int) -> int:
@@ -1971,20 +1989,33 @@ func _pour(win: int) -> void:
 	var delay := 0.0
 	for k in range(k0, want):
 		var c := tray_meshes[k]
-		var end := tray_pos[k]
-		var start := Vector3(end.x * 0.4, 0.465, 0.318)   # из глубины пасти, за верхними зубами
-		var rot0 := c.rotation
+		# каждая монета выбирает новое место по всему дну лотка (19:50)
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		var end := _tray_spot(k, rng)
+		tray_pos[k] = end
+		var start := Vector3(randf_range(-0.12, 0.12), 0.465, 0.318)   # из глубины пасти, за верхними зубами
+		# лежит плашмя под своим углом; в полёте сильно кувыркается по трём осям и «докручивается» до него
+		var rest := Vector3(randf_range(-0.22, 0.22), randf() * TAU, randf_range(-0.22, 0.22))
+		var spin := Vector3(randf_range(2.5, 4.0) * TAU * (1 if randf() < 0.5 else -1), randf_range(-1.5, 1.5) * TAU,
+			randf_range(1.0, 2.5) * TAU * (1 if randf() < 0.5 else -1))
+		var roll := Vector3(randf_range(-0.012, 0.012), 0, randf_range(-0.01, 0.01))   # прокатится после удара
 		var tw := create_tween()
 		tw.tween_interval(delay)
 		tw.tween_callback(func():
 			c.position = start
+			c.rotation = rest + spin
 			c.visible = true)
 		tw.tween_method(func(t: float):
 			var e := t * t * (3.0 - 2.0 * t)   # плавный разгон и торможение
-			c.position = start.lerp(end, e) + Vector3(0, sin(PI * t) * 0.025, 0)
-			c.rotation = rot0 + Vector3((1.0 - t) * 5.0, 0, (1.0 - t) * 2.0), 0.0, 1.0, randf_range(0.55, 0.68))
-		tw.tween_property(c, "position", end + Vector3(0, 0.012, 0), 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_property(c, "position", end, 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			c.position = start.lerp(end - roll, e) + Vector3(0, sin(PI * t) * 0.03, 0)
+			var sp := 1.0 - t
+			c.rotation = rest + spin * sp * sp, 0.0, 1.0, randf_range(0.55, 0.68))
+		# удар о дно: подскок с кувырком, прокатывание и укладка плашмя
+		var wob := Vector3(randf_range(-0.9, 0.9), randf_range(-0.6, 0.6), randf_range(-0.9, 0.9))
+		tw.tween_method(func(t: float):
+			c.position = (end - roll).lerp(end, t) + Vector3(0, sin(PI * t) * 0.012, 0)
+			c.rotation = rest + wob * (1.0 - t) * cos(t * 9.0), 0.0, 1.0, 0.26)
 		delay += randf_range(0.02, 0.05)
 	# звон россыпью: несколько наложенных «coin» к моменту приземления
 	if game:
