@@ -134,6 +134,7 @@ func _ready() -> void:
 	cols.add_child(bag_col)
 	bag_col.add_child(_label("СУМКА", 28, Color(0.86, 0.85, 0.8)))
 	bag_grid = _pane(bag_col, "bag")
+	cols.move_child(bag_col, 0)  # сумка слева, сундук справа (промпт 14.11 16:43)
 	info = _label("", 15, Color(0.7, 0.68, 0.62))
 	v.add_child(info)
 	var hb := HBoxContainer.new()

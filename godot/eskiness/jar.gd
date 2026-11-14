@@ -6,7 +6,7 @@ extends StaticBody3D
 ##   flask   — круглая колба с длинным горлом, внутри мутная светящаяся жидкость;
 ##   cone    — коническая колба (как в лаборатории), тоже с жидкостью.
 ## Удар кулаком или оружием (take_hit) — разбивается: звон стекла или хруст керамики, осколки разлетаются
-## и остаются лежать; открывается окно лута (что не взял — остаётся на полу). Иногда пусто. Большие кувшины выдерживают один удар.
+## и остаются лежать; лут (всегда монеты + несколько вещей) вылетает на пол. Большие кувшины выдерживают один удар.
 
 const Fx := preload("res://fx.gd")
 const Chest := preload("res://chest.gd")
@@ -225,17 +225,11 @@ func _shatter(dir: Vector3) -> void:
 		var v := (Vector3(r.randf_range(-1, 1), r.randf_range(0.6, 1.6), r.randf_range(-1, 1)) * 1.6 + flat * 1.5)
 		var w := Vector3(r.randf_range(-12, 12), r.randf_range(-12, 12), r.randf_range(-12, 12))
 		shards.append([sh, global_transform.basis.inverse() * v, w])
-	# лут — в окне лута (game.open_loot_items, «Забрать всё» на R); что не взяли — остаётся на полу у осколков
+	# лут сразу вылетает на пол (без окна — промпт 14.11 16:43), подбирается, когда подойдёшь
 	if game:
 		var pos := global_position + Vector3(0, 0.15, 0)
-		var items := _roll(r)
-		if items.is_empty():
-			game.hud.toast("Пусто", Color(0.7, 0.68, 0.62), false)
-		elif game.has_method("open_loot_items"):
-			game.open_loot_items(items, pos, "КОЛБА" if glass else "КУВШИН")
-		else:
-			for it in items:
-				game.spawn_loot(it[0], it[1], pos, Vector3(0, 2.0, 0) + flat * 0.8, 1.0)
+		for it in _roll(r):
+			game.spawn_loot(it[0], it[1], pos, Vector3(0, 2.2, 0) + flat * 0.8, 1.0)
 
 
 func _hide_body() -> void:
@@ -246,11 +240,10 @@ func _hide_body() -> void:
 			c.set_deferred("disabled", true)
 
 
-## Лут кувшина: чаще всего 1 вещь, иногда 2, иногда пусто; монеты — частый гость.
+## Лут кувшина/колбы: всегда монеты + 2–3 вещи (большой — ещё одна). Пусто не бывает.
 func _roll(r: RandomNumberGenerator) -> Array:
-	var out: Array = []
-	var roll := r.randf()
-	var n := 0 if roll < 0.22 else (1 if roll < 0.8 else 2)
+	var out: Array = [["coin", r.randi_range(4, 10) + int(6 * maxf(size - 1.0, 0.0))]]
+	var n := r.randi_range(2, 3)
 	if size > 1.25:
 		n += 1
 	var total := 0
@@ -261,10 +254,7 @@ func _roll(r: RandomNumberGenerator) -> Array:
 		for row in Chest.LOOT:
 			pick -= int(row[1])
 			if pick < 0:
-				var cnt := r.randi_range(int(row[2]), int(row[3]))
-				if row[0] == "coin":
-					cnt = maxi(cnt / 2, 2)
-				out.append([row[0], cnt])
+				out.append([row[0], r.randi_range(int(row[2]), int(row[3]))])
 				break
 	return out
 
