@@ -244,17 +244,21 @@ func _hide_body() -> void:
 			c.set_deferred("disabled", true)
 
 
-## Лут кувшина (промпт 14.11 17:35): монеты — в 60% случаев, 5–8 штук;
-## плюс 0–3 разных предмета (без повторов), каждый по 1–2 штуки. Может быть совсем пусто.
+## Лут кувшина (промпты 14.11 17:35 и 17:49): монеты — в 50% случаев, 3–6 штук;
+## плюс до 3 разных предметов (без повторов) по 1–2 штуки. Каждый из 3 «слотов» выпадает с шансом
+## от 35% у самого маленького кувшина до 80% у самого большого — в больших лута заметно больше.
 func _roll(r: RandomNumberGenerator) -> Array:
 	var out: Array = []
-	if r.randf() < 0.6:
-		out.append(["coin", r.randi_range(5, 8)])
+	if r.randf() < 0.5:
+		out.append(["coin", r.randi_range(3, 6)])
 	var pool: Array = []
 	for row in Chest.LOOT:
 		if row[0] != "coin":
 			pool.append(row)
-	for k in r.randi_range(0, 3):
+	var p_item := lerpf(0.35, 0.8, clampf(inverse_lerp(0.65, 1.6, size), 0.0, 1.0))
+	for k in 3:
+		if r.randf() >= p_item:
+			continue
 		var total := 0
 		for row in pool:
 			total += int(row[1])
