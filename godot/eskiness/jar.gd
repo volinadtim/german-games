@@ -10,7 +10,7 @@ extends StaticBody3D
 
 const Fx := preload("res://fx.gd")
 const Chest := preload("res://chest.gd")
-const KINDS := ["jar", "jar", "amphora", "flask", "cone"]
+const KINDS := ["jar", "jar", "amphora"]  # только керамика, без колб (промпт 14.11 16:46)
 const RATE := 22050
 
 var kind := "jar"
@@ -39,6 +39,9 @@ func setup(params: Dictionary) -> void:
 	kind = params["kind"]
 	size = float(params["size"])
 	seed_ = int(params["seed"])
+	if kind == "flask" or kind == "cone":  # старые сейвы с колбами — теперь керамика
+		kind = "jar" if kind == "flask" else "amphora"
+		size = clampf(size * 1.2, 0.65, 1.6)
 
 
 func to_save() -> Array:

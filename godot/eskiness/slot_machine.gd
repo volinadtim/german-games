@@ -41,6 +41,8 @@ const LINES := [
 ]
 const LINE_KIND := ["row", "row", "row", "diag", "diag", "diag", "diag", "bridge", "bridge"]
 ## доля раскладов с тремя шестёрками, которые всё-таки остаются (остальные перебрасываются)
+## шанс, что клетка повторит символ соседа слева по ряду (чаще собираются комбинации)
+const STICK := 0.22
 const SIX_KEEP := 0.35
 ## выплаты за линию: символ -> {сколько подряд слева: монет}
 const PAY := {
@@ -1070,6 +1072,13 @@ func _roll_stops() -> void:
 		var sixes := 0
 		for i in REELS:
 			var col: Array = [_weighted_symbol(), _weighted_symbol(), _weighted_symbol()]
+			# «липкость»: клетка иногда повторяет соседа слева по ряду — комбинации собираются чаще
+			# (промпт 14.11 16:46). Шестёрки не липнут, чтобы «три шестёрки» не участились.
+			if i > 0:
+				for r in 3:
+					var left: String = cols[i - 1][r]
+					if left != "six" and randf() < STICK:
+						col[r] = left
 			sevens += col.count("seven")
 			sixes += col.count("six")
 			cols.append(col)
