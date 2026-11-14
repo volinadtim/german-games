@@ -22,14 +22,15 @@ static func damage_number(parent: Node, pos: Vector3, value: float, col := Color
 
 
 ## Всплывающая надпись (КРИТ!, БЛОК) над точкой.
-static func popup_text(parent: Node, pos: Vector3, text: String, col: Color) -> void:
+## k — размер (1 — обычный; надпись заряженного удара — 0.5).
+static func popup_text(parent: Node, pos: Vector3, text: String, col: Color, k := 1.0) -> void:
 	var l := Label3D.new()
 	l.text = text
 	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	l.no_depth_test = true
-	l.font_size = 64
+	l.font_size = int(64 * k)
 	l.pixel_size = 0.004
-	l.outline_size = 14
+	l.outline_size = int(14 * k)
 	l.modulate = col
 	l.outline_modulate = Color(0, 0, 0, 0.9)
 	l.position = pos

@@ -16,8 +16,8 @@ const SPEED := 2.1
 const SIGHT := 9.0
 const ATTACK_RANGE := 1.35
 const HIT_RANGE := 1.8
-const DAMAGE := 12.0
-const MAX_HP := 70.0
+const DAMAGE := 16.0       # было 12 (промпт 19:15: сильнее и крепче, +35%)
+const MAX_HP := 95.0       # было 70
 const LEASH := 14.0
 const WANDER_SPEED := 0.85
 ## проёмы между комнатами и коридором — через них враг обходит стены
@@ -45,7 +45,22 @@ var windup_t := 0.55
 var cool_t := 1.1
 var height := 2.0
 var dash_ph := 0.0    # быстрый: фаза рывка (рывок — пауза)
+# --- ум и абилки (промпт 19:15) ---
+const ABILITY_CD := 12.0
+const LEAP_DMG := 11.0     # Шныга: прыжок на игрока
+const ROCK_DMG := 13.0     # бетонник: брошенный камень
+var ability_cd := 0.0
+var leap_vel := Vector3.ZERO
+var leap_hit := false
+var thrown := false
+var avoid_angle := 0.0     # обход препятствия: текущий угол отворота
+var avoid_on := false      # сейчас обходим (сторона выбрана)
+var avoid_clear := 0.0     # сколько путь уже свободен
+var avoid_side := 1.0
+var stuck_t := 0.0
+var stuck_pos := Vector3.ZERO
 static var _screech_cache: Array = []
+static var _front_id := 0   # кто из врагов сейчас атакует игрока спереди (окружение)
 var home := Vector3.ZERO
 var hunter := false   # наказание за мухлёж (game.gd: cheat_check): всегда гонится, спускается в бункер
 var hp := MAX_HP   # выставляет _apply_kind
@@ -85,8 +100,8 @@ func _apply_kind() -> void:
 		speed = 4.3          # в среднем: быстрее шага игрока (3.4), медленнее бега (5.4)
 		attack_range = 0.95
 		hit_range = 1.3
-		damage = 6.0
-		max_hp = 32.0
+		damage = 8.0         # было 6
+		max_hp = 43.0        # было 32
 		windup_t = 0.3
 		cool_t = 0.8
 		height = 1.45
@@ -95,6 +110,9 @@ func _apply_kind() -> void:
 
 func _ready() -> void:
 	_apply_kind()
+	add_to_group("enemies")
+	ability_cd = randf_range(3.0, 6.0)
+	avoid_side = -1.0 if randf() < 0.5 else 1.0
 	home = global_position
 	target = home
 	surface = home.y > Surface.G - 1.0
@@ -375,6 +393,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= 20.0 * delta
 	st += delta
 	cool -= delta
+	ability_cd -= delta
 	knock = knock.lerp(Vector3.ZERO, 1.0 - exp(-6.0 * delta))
 	bar_t -= delta
 	bar.visible = state != "dead" and bar_t > 0.0
@@ -417,12 +436,19 @@ func _physics_process(delta: float) -> void:
 				lost_t = 0.0
 				blind_t = 0.0
 				_set_state("return" if surface and _zone(global_position) != 0 else "idle")
-			elif d < attack_range and cool <= 0.0:
-				_set_state("windup")
-			elif d > attack_range * 0.8:
-				want = _steer(ppos, delta) * speed * _dash(delta)
+			elif _try_ability(d, ppos):
+				pass
 			else:
-				_face(to, delta)
+				var goal := _chase_goal(ppos, d)
+				var flanking := goal.distance_to(ppos) > 0.1
+				# заходит сбоку — не бьёт, пока не встанет на свою точку
+				var in_place := not flanking or Vector2(goal.x - global_position.x, goal.z - global_position.z).length() < 0.45
+				if d < attack_range and cool <= 0.0 and in_place:
+					_set_state("windup")
+				elif d > attack_range * 0.8 or not in_place:
+					want = _steer(goal, delta) * speed * _dash(delta)
+				else:
+					_face(to, delta)
 		"windup":
 			_face(to, delta)
 			if st > windup_t:
@@ -430,6 +456,36 @@ func _physics_process(delta: float) -> void:
 				_set_state("recover")
 		"recover":
 			if st > (0.7 if kind == "heavy" else 0.45):
+				_set_state("chase")
+		"leap_prep":
+			# Шныга присела перед прыжком (телеграф)
+			_face(to, delta)
+			if st > 0.3:
+				var lead: Vector3 = ppos + game.player.velocity * 0.35
+				var fl := lead - global_position
+				fl.y = 0.0
+				leap_vel = (fl / 0.5).limit_length(13.0)
+				velocity.y = 5.0
+				leap_hit = false
+				_set_state("leap")
+		"leap":
+			want = leap_vel
+			if not leap_hit and d < 1.15 and absf(ppos.y - global_position.y) < 1.5:
+				leap_hit = true
+				game.damage_player(LEAP_DMG, global_position)
+			if st > 0.15 and is_on_floor():
+				_set_state("leap_rec")
+		"leap_rec":
+			# приземлилась — короткая уязвимость: стоит, не бьёт
+			if st > 0.8:
+				_set_state("chase")
+		"throw":
+			# бетонник: замах и бросок камня
+			_face(to, delta)
+			if st > 0.6 and not thrown:
+				thrown = true
+				_throw_rock(ppos)
+			if st > 1.0:
 				_set_state("chase")
 		"stagger":
 			if st > (0.4 if kind == "heavy" else 0.3):
@@ -444,6 +500,7 @@ func _physics_process(delta: float) -> void:
 				_set_state("idle")
 			else:
 				want = _steer(Vector3(25.0, Surface.G, 0.0), delta) * speed * 0.7
+	_check_stuck(delta, want)
 	if surface and state == "idle" and want != Vector3.ZERO and Surface.in_hut(global_position + want.normalized() * 0.7, 0.3):
 		want = Vector3.ZERO
 	velocity.x = want.x + knock.x
@@ -512,11 +569,225 @@ func _steer(goal: Vector3, delta: float) -> Vector3:
 			target = _doorway_to(goal)
 	var dir := target - global_position
 	dir.y = 0.0
-	if dir.length() < 0.05:
+	var dist := dir.length()
+	if dist < 0.05:
 		return Vector3.ZERO
-	dir = dir.normalized()
+	dir = _avoid(dir.normalized(), minf(dist, 1.3), delta)
 	_face(dir, delta)
 	return dir
+
+
+# ---------- ум (промпт 19:15): обход препятствий, окружение, абилки ----------
+
+## «Усы»: луч вперёд на уровне пояса. Впереди стена/кувшин/ящик/другой враг — выбираем сторону, где больше места,
+## и держим её (обходим вдоль препятствия по наименьшему свободному углу), пока путь не будет чист 0.3 с.
+## Сторона вся перекрыта — пробуем другую. Так враг не мечется туда-сюда перед препятствием.
+func _avoid(dir: Vector3, look: float, delta: float) -> Vector3:
+	var from := global_position + Vector3(0, 0.55, 0)
+	if _free(from, dir, look):
+		avoid_clear += delta
+		if avoid_clear > 0.3:
+			avoid_on = false
+		if not avoid_on:
+			avoid_angle = 0.0
+			return dir
+	else:
+		avoid_clear = 0.0
+	if not avoid_on:
+		var l := _free_dist(from, dir.rotated(Vector3.UP, 1.2), 3.0)
+		var r := _free_dist(from, dir.rotated(Vector3.UP, -1.2), 3.0)
+		avoid_side = 1.0 if l >= r else -1.0
+		avoid_on = true
+	for a in [0.0, 0.45, 0.8, 1.15, 1.5, 1.8]:
+		var d2 := dir.rotated(Vector3.UP, a * avoid_side)
+		# вбок смотрим ближе (в узком коридоре боковой луч иначе упирается в стену)
+		if _free(from, d2, look * maxf(0.45, cos(a))):
+			avoid_angle = a * avoid_side
+			return d2
+	avoid_side = -avoid_side
+	avoid_angle = 1.6 * avoid_side
+	return dir.rotated(Vector3.UP, avoid_angle)
+
+
+func _free_dist(from: Vector3, dir: Vector3, look: float) -> float:
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * look)
+	q.collision_mask = 1
+	q.exclude = [get_rid(), game.player.get_rid()]
+	var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(q)
+	return look if hit.is_empty() else from.distance_to(hit["position"])
+
+
+func _free(from: Vector3, dir: Vector3, look: float) -> bool:
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * look)
+	q.collision_mask = 1
+	q.exclude = [get_rid(), game.player.get_rid()]
+	return game.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+
+## Застрял (хочет идти, а почти не сдвинулся за секунду) — меняет сторону обхода и отходит вбок.
+func _check_stuck(delta: float, want: Vector3) -> void:
+	if want.length() < 0.5 or state in ["leap", "leap_prep", "throw", "dead"]:
+		stuck_t = 0.0
+		stuck_pos = global_position
+		return
+	stuck_t += delta
+	if stuck_t > 1.0:
+		if global_position.distance_to(stuck_pos) < 0.25:
+			avoid_side = -avoid_side   # упёрся — обходим с другой стороны
+			avoid_on = true
+			avoid_clear = 0.0
+		stuck_t = 0.0
+		stuck_pos = global_position
+
+
+## Окружение: если другой враг уже бьёт игрока спереди, этот заходит сбоку/сзади (±110°/±150°/±90° от взгляда
+## игрока, по очереди между врагами), чтобы не толпиться в одну точку.
+func _chase_goal(ppos: Vector3, d: float) -> Vector3:
+	if d > 5.0:
+		return ppos
+	var front := _front_enemy(ppos)
+	if front == null or front == self:
+		return ppos
+	var pf: Vector3 = -game.player.global_transform.basis.z
+	pf.y = 0.0
+	if pf.length() < 0.01:
+		return ppos
+	var slot := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e == self or e == front or e.state == "dead":
+			continue
+		if e.global_position.distance_to(ppos) < 6.0 and e.get_instance_id() < get_instance_id():
+			slot += 1
+	var ang: float = [1.92, -1.92, 2.6, -2.6, 1.57, -1.57][slot % 6]
+	var p: Vector3 = ppos + pf.normalized().rotated(Vector3.UP, ang) * attack_range * 0.8
+	if not _clear(ppos, p):
+		return ppos
+	return p
+
+
+## Кто сейчас «спереди»: ближайший к игроку враг в конусе его взгляда (≈ ±55°) не дальше 2.4 м.
+func _front_enemy(ppos: Vector3) -> Node:
+	var pf: Vector3 = -game.player.global_transform.basis.z
+	pf.y = 0.0
+	pf = pf.normalized()
+	# кто уже «спереди», тот и остаётся, пока рядом и перед игроком (иначе роли скачут: заходящий сбоку
+	# проходит через конус взгляда, становится ближайшим и «отбирает» фронт)
+	var cur = instance_from_id(_front_id) if _front_id != 0 else null
+	if cur != null and is_instance_valid(cur) and cur.is_inside_tree() and not cur.state in ["dead", "idle", "return"]:
+		var cv: Vector3 = cur.global_position - ppos
+		cv.y = 0.0
+		if cv.length() < 3.0 and cv.length() > 0.01 and pf.dot(cv.normalized()) > 0.3:
+			return cur
+	var best: Node = null
+	var bd := 2.4
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.state in ["dead", "idle", "return"]:
+			continue
+		var v: Vector3 = e.global_position - ppos
+		v.y = 0.0
+		var dd := v.length()
+		if dd < bd and dd > 0.01 and pf.dot(v / dd) > 0.57:
+			bd = dd
+			best = e
+	_front_id = best.get_instance_id() if best != null else 0
+	return best
+
+
+## Абилки (кд 12 с у каждого): Шныга прыгает на игрока с 3–6 м, бетонник кидает камень с 5–12 м.
+func _try_ability(d: float, ppos: Vector3) -> bool:
+	if ability_cd > 0.0 or not game.alive or not is_on_floor():
+		return false
+	if not _clear(global_position, ppos):
+		return false
+	if kind == "fast" and d > 3.0 and d < 6.0 and _free(global_position + Vector3(0, 0.5, 0), (ppos - global_position) * Vector3(1, 0, 1) / d, d):
+		ability_cd = ABILITY_CD
+		_set_state("leap_prep")
+		if _screech_cache.is_empty():
+			for v in 3:
+				_screech_cache.append(_screech(v))
+		_play(voice, _screech_cache, -4.0, 1.25)
+		return true
+	if kind == "heavy" and d > 5.0 and d < 12.0:
+		ability_cd = ABILITY_CD
+		thrown = false
+		_set_state("throw")
+		_play(voice, game.snd["growl"], -9.0, 1.15)
+		return true
+	return false
+
+
+## Бросок камня по дуге с упреждением: летит ~0.75 с к тому месту, где игрок будет.
+func _throw_rock(ppos: Vector3) -> void:
+	var from := global_position + Vector3(0, height * 0.95, 0) - global_transform.basis.z * 0.3
+	var dist := Vector2(ppos.x - from.x, ppos.z - from.z).length()
+	var t := clampf(dist / 11.0, 0.35, 1.1)
+	var aim: Vector3 = ppos + Vector3(0, 1.1, 0) + game.player.velocity * Vector3(1, 0, 1) * t
+	var r := Rock.new()
+	r.game = game
+	r.dmg = ROCK_DMG
+	r.vel = Vector3((aim.x - from.x) / t, (aim.y - from.y + 0.5 * Rock.G * t * t) / t, (aim.z - from.z) / t)
+	r.owner_rid = get_rid()
+	get_parent().add_child(r)
+	r.global_position = from
+	_play(body_snd, game.snd["whoosh"], -4.0, 0.6)
+
+
+## Камень бетонника: видимый серый булыжник, летит по дуге; попал в игрока — урон, в стену/землю — пыль и стук.
+class Rock extends Node3D:
+	const G := 14.0
+	var game
+	var vel := Vector3.ZERO
+	var dmg := 13.0
+	var life := 3.0
+	var owner_rid: RID
+	var spin := Vector3.ZERO
+
+	func _ready() -> void:
+		var mi := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.14
+		sm.height = 0.24
+		sm.radial_segments = 7
+		sm.rings = 4
+		mi.mesh = sm
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.42, 0.41, 0.39)
+		m.roughness = 1.0
+		mi.material_override = m
+		mi.scale = Vector3(1.0, 0.85, 1.15)
+		add_child(mi)
+		spin = Vector3(randf_range(-9, 9), randf_range(-9, 9), randf_range(-9, 9))
+
+	func _physics_process(delta: float) -> void:
+		life -= delta
+		if life <= 0.0:
+			queue_free()
+			return
+		vel.y -= G * delta
+		var from := global_position
+		var to := from + vel * delta
+		rotation += spin * delta
+		# попал в игрока (капсула ~ от ног до головы)
+		if game != null and game.alive:
+			var pp: Vector3 = game.player.global_position
+			var seg := Geometry3D.get_closest_point_to_segment(pp + Vector3(0, 0.9, 0), from, to)
+			if Vector2(seg.x - pp.x, seg.z - pp.z).length() < 0.45 and seg.y > pp.y - 0.1 and seg.y < pp.y + 1.9:
+				game.damage_player(dmg, from - vel.normalized() * 2.0)
+				_burst(seg)
+				return
+		var q := PhysicsRayQueryParameters3D.create(from, to)
+		q.collision_mask = 1
+		q.exclude = [owner_rid, game.player.get_rid()]
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if hit:
+			_burst(hit.position)
+			return
+		global_position = to
+
+	func _burst(p: Vector3) -> void:
+		Fx.dust_burst(get_parent(), p, Color(0.45, 0.43, 0.4), 18)
+		game.play_at("thud", p, -8.0, 1.7)
+		queue_free()
 
 
 ## Где точка: 0 — поляна (поверху, не в будке), 1 — будка и лестница, 2 — бункер.
@@ -633,7 +904,12 @@ func _from_center(p: Vector3) -> float:
 func _clear(a: Vector3, b: Vector3) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(a + Vector3(0, 1.2, 0), b + Vector3(0, 1.2, 0))
 	q.collision_mask = 1
-	q.exclude = [get_rid(), game.player.get_rid()]
+	# другие враги обзор не загораживают (иначе второй «не видит» игрока за спиной первого)
+	var ex: Array[RID] = [get_rid(), game.player.get_rid()]
+	if is_inside_tree():
+		for e in get_tree().get_nodes_in_group("enemies"):
+			ex.append(e.get_rid())
+	q.exclude = ex
 	return game.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 
@@ -716,12 +992,23 @@ func _animate(delta: float, spd: float) -> void:
 			lean = lerpf(base - 0.37, base, smoothstep(0.0, 0.6, st))
 		"stagger":
 			lean = base + 0.35 * sin(minf(st / 0.4, 1.0) * PI)
+		"throw":
+			# правая рука заносит камень за голову и выбрасывает вперёд
+			arm_x = lerpf(0.25, 3.0, smoothstep(0.0, 0.55, st)) if st < 0.6 else lerpf(3.0, 0.9, smoothstep(0.6, 0.75, st))
+			lean = lerpf(base, 0.15, smoothstep(0.0, 0.55, st)) if st < 0.6 else base - 0.3
+		"leap_prep":
+			lean = base - 0.25
+		"leap":
+			arm_x = 1.7
+			lean = base - 0.35
 	for i in 2:
 		var s := 1.0 if i == 0 else -1.0
 		var swing := -sin(walk_ph) * 0.35 * walk_amt * s if state == "chase" or state == "idle" else 0.0
 		arms[i].rotation.x = lerpf(arms[i].rotation.x, arm_x + swing, 1.0 - exp(-14.0 * delta))
 	torso.rotation.x = lerpf(torso.rotation.x, lean, 1.0 - exp(-12.0 * delta))
 	vis.position.y = absf(sin(walk_ph)) * 0.04 * walk_amt
+	if state == "leap_prep":
+		vis.position.y = -0.14 * smoothstep(0.0, 0.25, st)   # присела перед прыжком
 	if kind == "fast" and state == "chase" and spd > 0.5:
 		# рывок — прыжок: тело подлетает и наклоняется вперёд, в передышке приседает
 		var hop := sin(clampf(dash_ph / 0.636, 0.0, 1.0) * PI) if dash_ph < 0.636 else 0.0
@@ -745,7 +1032,7 @@ func take_hit(dmg: float, dir: Vector3) -> void:
 	create_tween().tween_property(mat, "emission_energy_multiplier", 0.0, 0.25)
 	if hp <= 0.0:
 		_die(flat)
-	elif state != "windup":
+	elif not state in ["windup", "leap", "throw"]:
 		_set_state("stagger")
 
 

@@ -1,6 +1,6 @@
 extends CharacterBody3D
 ## Игрок от первого лица: тело видно, если посмотреть вниз.
-## WASD, Shift — бег, пробел — прыжок, V — боевая стойка (руки в стойку), СКМ — убрать стойку,
+## WASD, Shift — бег, пробел — прыжок, V или СКМ — боевая стойка (поднять/опустить кулаки),
 ## ЛКМ — удар левой, ПКМ — удар правой; зажать — заряд до 1.5 с (промпты 18:57, 19:06, 19:09).
 ## Без стойки ЛКМ/ПКМ только поднимают кулаки, удара нет (промпт 19:08).
 
@@ -798,9 +798,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif captured and event.is_action_pressed("fists") and not event.is_echo():
 		toggle_fists()
 	elif captured and event.is_action_pressed("fists_down") and not event.is_echo():
-		if fists:
-			charging = -1
-			toggle_fists()   # СКМ — только убрать стойку (промпт 19:09)
+		charging = -1
+		toggle_fists()   # СКМ — второй переключатель стойки, как V (промпт 19:17)
 	elif captured and event.is_action_pressed("attack_left") and not event.is_echo():
 		charge_begin(0)
 	elif captured and event.is_action_pressed("attack_right") and not event.is_echo():
@@ -920,7 +919,8 @@ var _queued_arm := -1
 
 # ---------- заряженный удар (промпт 14.11 19:06) ----------
 ## Зажал ЛКМ/ПКМ — рука отводится назад и копит заряд до CHARGE_MAX с; отпустил — удар.
-## Урон без случайности: база × (1 + CHARGE_GAIN × заряд) — короткий клик ×1, полный заряд ×2.5.
+## Урон без случайности: база × (0.6 + 0.6·з + 0.4·з²) — клик ×0.6, половина заряда ×1.0 (прежний урон оружия,
+## промпт 19:15), полный ×1.6.
 ## Отдача врага считается от урона (enemy.gd) — тоже растёт. Полоска заряда — над хотбаром (_charge_draw).
 const CHARGE_MAX := 1.5
 const CHARGE_GAIN := 1.5
@@ -932,6 +932,26 @@ var strike_charge := 0.0       # заряд удара, который сейч�
 var charge_ui: Control
 var charge_ui_a := 0.0         # прозрачность полоски (плавно появляется и гаснет)
 var charge_ui_k := 0.0         # что показывает полоска (0..1)
+
+
+## Цель удара получает урон или ломается: враги, манекен, целый кувшин, ящик. Автомат, сейф, сундук и т.п. — нет.
+func _breakable(c: Object) -> bool:
+	var sc: Script = c.get_script()
+	match sc.resource_path.get_file() if sc else "":
+		"enemy.gd":
+			return c.get("state") != "dead"
+		"dummy.gd":
+			return true
+		"jar.gd":
+			return not bool(c.get("broken"))
+		"chest.gd":
+			return str(c.get("kind")) == "crate" and not bool(c.get("broken"))
+	return false
+
+
+## Множитель урона от заряда: 0 → 0.6, 0.5 → 1.0 (прежний урон), 1 → 1.6.
+static func charge_mult(c: float) -> float:
+	return 0.6 + 0.6 * c + 0.4 * c * c
 
 
 func charge_frac() -> float:
@@ -1190,12 +1210,13 @@ func _check_hit(arm: int, kind := "straight") -> void:
 		if hit.collider.has_method("take_hit"):
 			var mult: float = Weapons.WEAPONS[wid]["mult"] if armed else dmg_mult
 			# без случайности (промпт 19:06): вид удара и криты на урон не влияют, растёт только от заряда
-			var dmg: float = PUNCH_BASE * mult * HAND_DMG[arm] * (1.0 + CHARGE_GAIN * strike_charge)
+			var dmg: float = PUNCH_BASE * mult * HAND_DMG[arm] * charge_mult(strike_charge)
 			# ящик кулаками ломается медленно (~10 ударов)
 			if not armed and hit.collider is StaticBody3D and str(hit.collider.get("kind")) == "crate":
 				dmg *= 0.45
-			if strike_charge >= 0.999:
-				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.35, 0), "МОЩНО!", Color(1.0, 0.9, 0.7))
+			# надпись полного заряда — вдвое мельче и только по тому, что получает урон / ломается (промпт 19:20)
+			if strike_charge >= 0.999 and _breakable(hit.collider):
+				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.25, 0), "МОЩНО!", Color(1.0, 0.9, 0.7), 0.5)
 			hit.collider.take_hit(dmg, -cam.global_transform.basis.z)
 		# лёгкая отдача в камеру
 		# короткий «дёрг» камеры: крен в сторону руки и кивок, оружием — сильнее
