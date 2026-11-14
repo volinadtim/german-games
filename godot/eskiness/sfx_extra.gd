@@ -189,3 +189,42 @@ static func pickup() -> AudioStreamWAV:
 		var env := sin(clampf(t / 0.12, 0.0, 1.0) * PI)
 		buf[i] = bp.bp(w) * env * 0.5 + bp2.bp(1.0 if i == int(RATE * 0.1) else 0.0)
 	return Sfx._wav(buf, 0.5)
+
+
+## Страшный звук «тебя поймали на мухлеже» (промпт 14.11 17:26), ~3.5 с:
+## глухой удар с гулом, под ним биения низкого дрона, сверху ползёт вверх визгливый расстроенный «струнный» кластер,
+## в конце — хриплый выдох-шёпот. Всё в миноре и мимо нот.
+static func dread() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6666
+	var dur := 3.6
+	var buf := _buf(dur)
+	var lp := 0.0
+	var bp := Sfx.Svf.new(1400.0, 3.0)
+	var hiss := Sfx.Svf.new(2600.0, 1.4)
+	var ph: Array[float] = [0.0, 0.0, 0.0, 0.0]
+	var detune := [1.0, 1.059, 1.414, 1.5]   # кластер: прима, малая секунда, тритон, квинта
+	for i in buf.size():
+		var t := float(i) / RATE
+		var w := rng.randf() * 2.0 - 1.0
+		var v := 0.0
+		# удар: низкий «бум» с падающей частотой + шумовая вспышка
+		var bf := 70.0 * exp(-t * 3.0) + 32.0
+		v += sin(TAU * bf * t) * exp(-t * 2.2) * 0.9
+		lp += (w - lp) * 0.05
+		v += lp * 3.0 * exp(-t * 6.0)
+		# дрон с биениями
+		v += (sin(TAU * 41.0 * t) + sin(TAU * 43.3 * t)) * 0.18 * smoothstep(0.0, 0.6, t) * (1.0 - smoothstep(dur - 0.8, dur, t))
+		# визгливый кластер, ползёт вверх и дрожит
+		var rise := 380.0 * pow(2.0, t * 0.55) * (1.0 + 0.012 * sin(TAU * 6.5 * t))
+		var cl := 0.0
+		for k in 4:
+			ph[k] = fmod(ph[k] + rise * float(detune[k]) / RATE, 1.0)
+			cl += (ph[k] * 2.0 - 1.0)
+		var ce := smoothstep(0.25, 1.6, t) * (1.0 - smoothstep(dur - 0.7, dur, t))
+		v += bp.bp(cl * 0.5) * ce * 0.55
+		# хриплый выдох-шёпот в конце
+		var we := smoothstep(2.2, 2.7, t) * (1.0 - smoothstep(3.1, dur, t))
+		v += hiss.bp(w) * we * (0.6 + 0.4 * sin(TAU * 9.0 * t)) * 0.7
+		buf[i] = v
+	return Sfx._wav(buf, 0.9)

@@ -304,6 +304,23 @@ func _physics_process(delta: float) -> void:
 	velocity.z = want.z + knock.z
 	move_and_slide()
 	_animate(delta, want.length())
+	_footsteps(delta)
+
+
+## Шаги врага (промпт 14.11 17:26): тяжёлые, ниже по тону, чем у игрока; шаг — каждые ~0.7 м пройденного пути.
+var _step_dist := 0.0
+func _footsteps(_delta: float) -> void:
+	if not is_on_floor() or game == null or not game.snd.has("estep"):
+		return
+	var hv := Vector2(velocity.x, velocity.z).length()
+	if hv < 0.3:
+		_step_dist = 0.35
+		return
+	_step_dist += hv * get_physics_process_delta_time()
+	var stride := 0.7 if hv < 3.0 else 0.95
+	if _step_dist >= stride:
+		_step_dist = 0.0
+		game.play_at("estep", global_position + Vector3(0, 0.05, 0), -9.0 + minf(hv, 4.0), randf_range(0.62, 0.78))
 
 
 ## Сделать охотником (наказание за мухлёж): гонится всегда, без привязи к дому и поляне.

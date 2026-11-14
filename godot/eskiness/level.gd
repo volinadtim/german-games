@@ -47,7 +47,7 @@ func _ready() -> void:
 	noise_extra = [cell, crack]
 	wall_mat = _concrete(big, fine, Color(0.2, 0.195, 0.185))
 	floor_mat = _concrete(big, fine, Color(0.17, 0.163, 0.155), true)
-	ceil_mat = _concrete(big, fine, Color(0.1, 0.097, 0.093), true)
+	ceil_mat = _concrete(big, fine, Color(0.118, 0.114, 0.109), true)  # чуть светлее (промпт 14.11 17:26)
 	wire_mat = StandardMaterial3D.new()
 	wire_mat.albedo_color = Color(0.05, 0.05, 0.05)
 	wire_mat.roughness = 0.5
@@ -371,7 +371,7 @@ func _cobwebs() -> void:
 	var tex := _web_tex()
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = tex
-	m.albedo_color = Color(0.85, 0.83, 0.8, 0.75)
+	m.albedo_color = Color(0.85, 0.83, 0.8, 0.38)  # тоньше и прозрачнее (промпт 14.11 17:26)
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.roughness = 1.0
@@ -429,7 +429,7 @@ func _web_tex() -> ImageTexture:
 			p = Vector2(128, 255).lerp(Vector2(0, 0), (t - 0.67) / 0.33)
 		edge.append(p + Vector2(r.randf_range(-6, 6), r.randf_range(-6, 6)))
 	for p in edge:
-		_line(img, hub, p, 0.9, col)
+		_line(img, hub, p, 0.5, col)
 	# спираль из провисающих перемычек
 	var f := 0.12
 	while f < 0.95:
@@ -438,8 +438,8 @@ func _web_tex() -> ImageTexture:
 			var p1: Vector2 = hub.lerp(edge[(i + 1) % edge.size()], f + 0.015)
 			if r.randf() < 0.85:
 				var mid := (p0 + p1) / 2.0 + (hub - (p0 + p1) / 2.0).normalized() * 3.0
-				_line(img, p0, mid, 0.7, col)
-				_line(img, mid, p1, 0.7, col)
+				_line(img, p0, mid, 0.4, col)
+				_line(img, mid, p1, 0.4, col)
 		f += r.randf_range(0.06, 0.1)
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)

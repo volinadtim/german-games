@@ -139,6 +139,7 @@ func _lathe(prof: Array, r: RandomNumberGenerator) -> void:
 	mi.mesh = mesh
 	mi.material_override = m
 	mi.scale = Vector3.ONE * size
+	mi.position.y = 0.006  # дно чуть над полом — без мерцания пересечения (промпт 14.11 17:26)
 	add_child(mi)
 	if glass:
 		# мутная жидкость внутри (чуть светится — заметно в темноте)

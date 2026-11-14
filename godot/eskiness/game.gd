@@ -331,6 +331,8 @@ func _make_sounds() -> void:
 	snd["growl"] = [Sfx2.growl(0), Sfx2.growl(1), Sfx2.growl(2)]
 	snd["thud"] = [Sfx2.thud()]
 	snd["pickup"] = [Sfx2.pickup()]
+	snd["dread"] = [Sfx2.dread()]
+	snd["estep"] = [Sfx.step(10), Sfx.step(11), Sfx.step(12), Sfx.step(13)]   # шаги врагов
 	snd["whoosh"] = [Sfx.whoosh(1), Sfx.whoosh(2)]
 	snd["hurt"] = [Sfx.exhale(1), Sfx.exhale(3)]
 
@@ -944,7 +946,7 @@ func cheat_check() -> bool:
 		return false
 	dropped_coins = 0
 	hud.cheat_warning(true)
-	play_ui("buzz", -4.0, 0.55)
+	play_ui("dread", -1.0, 1.0)  # страшный звук за мухлёж (промпт 14.11 17:26)
 	_spawn_hunters()
 	return true
 

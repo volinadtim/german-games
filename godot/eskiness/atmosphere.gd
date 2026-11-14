@@ -82,19 +82,20 @@ func _moth_swarm(at: Vector3, tex: Texture2D) -> void:
 	pm.emission_sphere_radius = 0.35
 	pm.direction = Vector3(0, 1, 0)
 	pm.spread = 180.0
-	pm.initial_velocity_min = 0.3
-	pm.initial_velocity_max = 0.8
+	# мелкие и мечутся хаотично (промпт 14.11 17:26): сильная мелкая турбулентность, быстрый шум
+	pm.initial_velocity_min = 0.5
+	pm.initial_velocity_max = 1.3
 	pm.gravity = Vector3.ZERO
-	pm.damping_min = 0.3
-	pm.damping_max = 0.8
+	pm.damping_min = 0.1
+	pm.damping_max = 0.4
 	pm.turbulence_enabled = true
-	pm.turbulence_noise_strength = 4.0
-	pm.turbulence_noise_scale = 0.5
-	pm.turbulence_noise_speed = Vector3(0.4, 0.4, 0.4)
-	pm.turbulence_influence_min = 0.2
-	pm.turbulence_influence_max = 0.45
-	pm.scale_min = 0.7
-	pm.scale_max = 1.3
+	pm.turbulence_noise_strength = 9.0
+	pm.turbulence_noise_scale = 0.22
+	pm.turbulence_noise_speed = Vector3(1.6, 1.4, 1.6)
+	pm.turbulence_influence_min = 0.5
+	pm.turbulence_influence_max = 0.9
+	pm.scale_min = 0.5
+	pm.scale_max = 1.0
 	var ramp := Gradient.new()
 	ramp.set_color(0, Color(1, 1, 1, 0))
 	ramp.set_color(1, Color(1, 1, 1, 0))
@@ -108,7 +109,7 @@ func _moth_swarm(at: Vector3, tex: Texture2D) -> void:
 	m.shader = MothShader
 	m.set_shader_parameter("tex", tex)
 	var q := QuadMesh.new()
-	q.size = Vector2(0.03, 0.03)
+	q.size = Vector2(0.018, 0.018)
 	q.material = m
 
 	var ps := GPUParticles3D.new()
@@ -557,7 +558,7 @@ func _far_rumble() -> AudioStreamWAV:
 func _more_webs() -> void:
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = level._web_tex()
-	m.albedo_color = Color(0.85, 0.83, 0.8, 0.75)
+	m.albedo_color = Color(0.85, 0.83, 0.8, 0.38)  # тоньше и прозрачнее (промпт 14.11 17:26)
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.roughness = 1.0
