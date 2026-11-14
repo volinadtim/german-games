@@ -219,17 +219,17 @@ func _random_jars() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var placed: Array = []      # [[pos, радиус], ...]
-	var groups := 0
-	var want := rng.randi_range(5, 8)
+	# в бункере — ровно 8–10 кувшинов (промпт 14.11 18:47), группами по 1–3 у стен
+	var made := 0
+	var want := rng.randi_range(8, 10)
 	var tries := 0
-	while groups < want and tries < 300:
+	while made < want and tries < 400:
 		tries += 1
 		var a := _bunker_chest_spot()
 		var b := Basis(Vector3.UP, float(a[1]))
 		var along := b * Vector3.RIGHT
 		var front := b * Vector3.BACK
-		if _jar_group(rng, a[0], along, front, placed, true) > 0:
-			groups += 1
+		made += _jar_group(rng, a[0], along, front, placed, true, null, want - made)
 	# снаружи — сразу до OUT_JARS_MAX, дальше их пополняет таймер (_outside_jar_tick)
 	for k in OUT_JARS_MAX:
 		_spawn_outside_jar(false)
@@ -297,9 +297,9 @@ func _spawn_outside_jar(check_player: bool) -> bool:
 
 
 ## Группа из 1–3 сосудов вдоль стены (или у руин): каждый прижат к опоре на свой радиус.
-func _jar_group(rng: RandomNumberGenerator, anchor: Vector3, along: Vector3, front: Vector3, placed: Array, inside: bool, surf: Node = null) -> int:
+func _jar_group(rng: RandomNumberGenerator, anchor: Vector3, along: Vector3, front: Vector3, placed: Array, inside: bool, surf: Node = null, max_n := 3) -> int:
 	var made := 0
-	var n := rng.randi_range(1, 3)
+	var n := mini(rng.randi_range(1, 3), max_n)
 	var off := 0.0
 	for k in n:
 		var prm := Jar.random_params(rng)
