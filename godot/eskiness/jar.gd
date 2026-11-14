@@ -244,26 +244,28 @@ func _hide_body() -> void:
 			c.set_deferred("disabled", true)
 
 
-## Лут кувшина: всегда монеты + 2–4 вещи (большой — ещё одна). Пусто не бывает.
+## Лут кувшина (промпт 14.11 17:35): монеты — в 60% случаев, 5–8 штук;
+## плюс 0–3 разных предмета (без повторов), каждый по 1–2 штуки. Может быть совсем пусто.
 func _roll(r: RandomNumberGenerator) -> Array:
-	var out: Array = [["coin", r.randi_range(1, 4) + int(3 * maxf(size - 1.0, 0.0))]]  # меньше денег (промпт 14.11 17:18)
-	# сколько вещей — по правке Германа: 2 / 3 / 4
-	var roll := r.randf()
-	var n := 2 if roll < 0.22 else (3 if roll < 0.8 else 4)
-	if size > 1.25:
-		n += 1
-	var total := 0
+	var out: Array = []
+	if r.randf() < 0.6:
+		out.append(["coin", r.randi_range(5, 8)])
+	var pool: Array = []
 	for row in Chest.LOOT:
-		total += int(row[1])
-	for k in n:
+		if row[0] != "coin":
+			pool.append(row)
+	for k in r.randi_range(0, 3):
+		var total := 0
+		for row in pool:
+			total += int(row[1])
+		if total <= 0:
+			break
 		var pick := r.randi_range(0, total - 1)
-		for row in Chest.LOOT:
-			pick -= int(row[1])
+		for i in pool.size():
+			pick -= int(pool[i][1])
 			if pick < 0:
-				var cnt := r.randi_range(int(row[2]), int(row[3]))
-				if row[0] == "coin":
-					cnt = maxi(cnt / 4, 1)  # монеты из таблицы — горстка, не пачка
-				out.append([row[0], cnt])
+				out.append([pool[i][0], r.randi_range(1, 2)])
+				pool.remove_at(i)
 				break
 	return out
 

@@ -19,6 +19,7 @@ const Enemy := preload("res://enemy.gd")
 const Dummy := preload("res://dummy.gd")
 const Chest := preload("res://chest.gd")
 const Jar := preload("res://jar.gd")
+const Surface := preload("res://surface.gd")
 const SlotMachine := preload("res://slot_machine.gd")
 const Shop := preload("res://shop.gd")
 const GasMask := preload("res://gasmask.gd")
@@ -210,20 +211,70 @@ func _random_jars() -> void:
 		var front := b * Vector3.BACK
 		if _jar_group(rng, a[0], along, front, placed, true) > 0:
 			groups += 1
+	# снаружи — сразу до OUT_JARS_MAX, дальше их пополняет таймер (_outside_jar_tick)
+	for k in OUT_JARS_MAX:
+		_spawn_outside_jar(false)
+
+
+# ---------- кувшины снаружи (промпт 14.11 17:35) ----------
+## На поляне одновременно не больше OUT_JARS_MAX целых кувшинов. Раз в OUT_JAR_EVERY с, если целых меньше,
+## появляется ещё один — в случайном месте поляны: не в будке, не впритык к другим кувшинам и препятствиям,
+## не ближе 6 м к игроку (чтобы не возникал на глазах). Старые разбитые снаружи убираем (осколки), держим ≤ 6.
+const OUT_JARS_MAX := 5
+const OUT_JAR_EVERY := 25.0
+var _out_jar_t := OUT_JAR_EVERY
+
+
+func _is_outside_jar(j) -> bool:
+	return is_instance_valid(j) and j.position.y > 2.0
+
+
+func _outside_jar_tick(delta: float) -> void:
+	_out_jar_t -= delta
+	if _out_jar_t > 0.0:
+		return
+	_out_jar_t = OUT_JAR_EVERY
+	var whole := 0
+	var broken_out: Array = []
+	for j in jars:
+		if _is_outside_jar(j):
+			if j.broken:
+				broken_out.append(j)
+			else:
+				whole += 1
+	while broken_out.size() > 6:
+		var old = broken_out.pop_front()
+		jars.erase(old)
+		old.queue_free()
+	if whole < OUT_JARS_MAX:
+		_spawn_outside_jar(true)
+
+
+func _spawn_outside_jar(check_player: bool) -> bool:
 	var surf: Node = get_parent().get_node_or_null("Level/Surface")
-	if surf:
-		want = rng.randi_range(3, 5)
-		groups = 0
-		tries = 0
-		while groups < want and tries < 200:
-			tries += 1
-			var ruin: Vector3 = RUINS[rng.randi() % RUINS.size()]
-			var dir := Vector2.from_angle(rng.randf() * TAU)
-			var p := ruin + Vector3(dir.x, 0, dir.y) * rng.randf_range(1.6, 2.4)
-			var front := Vector3(dir.x, 0, dir.y)
-			var along := front.cross(Vector3.UP)
-			if _jar_group(rng, p, along, -front, placed, false, surf) > 0:
-				groups += 1
+	if surf == null:
+		return false
+	var placed: Array = []
+	for j in jars:
+		if is_instance_valid(j) and not j.broken:
+			placed.append([j.position, 0.17 * float(j.size)])
+	for t in 40:
+		var ang := randf() * TAU
+		var rad := randf_range(2.0, Surface.MEADOW_R + 3.0)
+		var p := Surface.CENTER + Vector3(cos(ang), 0, sin(ang)) * rad
+		if Surface.in_hut(p, 1.0):
+			continue
+		if check_player and player and Vector2(p.x - player.global_position.x, p.z - player.global_position.z).length() < 6.0:
+			continue
+		p.y = surf.height(p.x, p.z) - 0.02
+		var rng := RandomNumberGenerator.new()
+		rng.randomize()
+		var prm := Jar.random_params(rng)
+		var r := 0.17 * float(prm["size"])
+		if _jar_spot_ok(p, r + 0.35, placed):
+			_make_jar(p, randf() * TAU, prm, false)
+			return true
+	return false
 
 
 ## Группа из 1–3 сосудов вдоль стены (или у руин): каждый прижат к опоре на свой радиус.
@@ -383,6 +434,7 @@ func _add_keys(action: String, keys: Array) -> void:
 
 func _physics_process(delta: float) -> void:
 	full_toast_t -= delta
+	_outside_jar_tick(delta)
 	autosave_t -= delta
 	if autosave_t <= 0.0:
 		autosave_t = AUTOSAVE
