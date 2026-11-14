@@ -27,6 +27,16 @@ const TABS := ["Оружие", "Одежда", "Расходники", "Слот
 ## Экономика: старт 50 монет, кувшин даёт 1–4, хлам продаётся за 2–5.
 const CONSUMABLES := [["battery", 3], ["rusk", 2], ["water", 3], ["soda", 5], ["choco", 5], ["canned", 6],
 	["pills", 5], ["bandage", 6], ["medkit", 20], ["repair_weapon", 30], ["repair_gear", 25]]
+## подвкладки «Одежды» (промпт 14.11 21:14): [название, товары]. Цены — Weapons.SHOP / CONSUMABLES (_price).
+## Обувь — в «Низ». Ремкомплект одежды — в «Снаряжении» (в «Расходниках» его нет).
+const CLOTHES := [
+	["Голова", ["ushanka", "helmet", "moto_helmet"]],
+	["Верх", ["kurtka", "jacket", "vest"]],
+	["Низ", ["jeans", "pants", "wpants", "sneakers", "boots"]],
+	["Перчатки", ["gloves", "tac_gloves"]],
+	["Снаряжение", ["gasmask", "filter", "flashlight", "backpack", "broom", "repair_gear"]],
+]
+var sub := 0                  # открытая подвкладка «Одежды» (CLOTHES)
 
 
 const CHEST_REFRESH := 80   # «Обновить все ящики»
@@ -505,18 +515,56 @@ func _rebuild_tab() -> void:
 		c.queue_free()
 	_set_tip("")
 	match tab:
-		0, 1:
+		0:
 			var grid := _grid()
 			for e in Weapons.SHOP:
 				var id: String = e[0]
-				if Items.ITEMS[id].get("weapon", false) == (tab == 0):
+				if Items.ITEMS[id].get("weapon", false):
 					_item_cell(grid, id, int(e[1]))
+		1:
+			_sub_tabs()
+			var grid := _grid()
+			for id in CLOTHES[sub][1]:
+				_item_cell(grid, String(id), _price(String(id)))
 		2:
 			var grid := _grid()
 			for e in CONSUMABLES:
-				_item_cell(grid, String(e[0]), int(e[1]))
+				if not String(e[0]) in CLOTHES[4][1]:
+					_item_cell(grid, String(e[0]), int(e[1]))
 		3:
 			_build_slot_tab()
+
+
+## Ряд подвкладок «Одежды» (внутри прокрутки, ширина ≤ 400 — окно не растёт).
+func _sub_tabs() -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	content.add_child(row)
+	var group := ButtonGroup.new()
+	for i in CLOTHES.size():
+		var b := Button.new()
+		b.text = CLOTHES[i][0]
+		b.toggle_mode = true
+		b.button_group = group
+		b.button_pressed = i == sub
+		b.focus_mode = Control.FOCUS_NONE
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 13)
+		b.pressed.connect(func():
+			sub = i
+			_rebuild_tab.call_deferred())
+		row.add_child(b)
+
+
+## Цена товара: из Weapons.SHOP, иначе из CONSUMABLES.
+static func _price(id: String) -> int:
+	for e in Weapons.SHOP:
+		if e[0] == id:
+			return int(e[1])
+	for e in CONSUMABLES:
+		if e[0] == id:
+			return int(e[1])
+	return 0
 
 
 func _grid() -> GridContainer:

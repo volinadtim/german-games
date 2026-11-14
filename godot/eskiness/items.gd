@@ -37,10 +37,27 @@ const ITEMS := {
 		"icon": "pants", "color": Color(0.2, 0.24, 0.32), "equip": "legs", "armor": 0.10, "dur": 80},
 	"boots": {"name": "Кирзовые сапоги", "desc": "Обувь: +15% к скорости, стекло не ранит. Изнашиваются от ходьбы и стекла.", "stack": 1,
 		"icon": "boots", "color": Color(0.17, 0.13, 0.1), "equip": "feet", "glassproof": true, "dur": 100, "speed": 0.15},
+	# одежда на выбор (промпт 14.11 21:14): дешёвая/слабая и дорогая/крепкая в каждом слоте
+	"ushanka": {"name": "Шапка-ушанка", "desc": "Голова: −4% урона. Дёшево и тепло. Изнашивается от ударов.", "stack": 1,
+		"icon": "ushanka", "color": Color(0.4, 0.3, 0.2), "equip": "head", "armor": 0.04, "dur": 40},
+	"moto_helmet": {"name": "Мотошлем", "desc": "Голова: −16% урона. Закрытый, с визором. Изнашивается от ударов.", "stack": 1,
+		"icon": "moto_helmet", "color": Color(0.62, 0.12, 0.1), "equip": "head", "armor": 0.16, "dur": 90},
+	"kurtka": {"name": "Куртка", "desc": "Тело: −8% урона. Лёгкая, на молнии. Изнашивается от ударов.", "stack": 1,
+		"icon": "kurtka", "color": Color(0.22, 0.2, 0.18), "equip": "body", "armor": 0.08, "dur": 60},
+	"vest": {"name": "Бронежилет-самоделка", "desc": "Тело: −24% урона, но −5% к скорости. Стальные пластины на ремнях. Изнашивается от ударов.", "stack": 1,
+		"icon": "vest", "color": Color(0.3, 0.32, 0.26), "equip": "body", "armor": 0.24, "dur": 120, "speed": -0.05},
+	"jeans": {"name": "Джинсы", "desc": "Ноги: −6% урона. Изнашиваются от ударов.", "stack": 1,
+		"icon": "jeans", "color": Color(0.22, 0.32, 0.55), "equip": "legs", "armor": 0.06, "dur": 60},
+	"wpants": {"name": "Ватные штаны", "desc": "Ноги: −14% урона. Толстые, стёганые. Изнашиваются от ударов.", "stack": 1,
+		"icon": "wpants", "color": Color(0.26, 0.28, 0.22), "equip": "legs", "armor": 0.14, "dur": 100},
+	"sneakers": {"name": "Кеды", "desc": "Обувь: +25% к скорости, но стекло ранит. Изнашиваются от ударов.", "stack": 1,
+		"icon": "sneakers", "color": Color(0.2, 0.3, 0.5), "equip": "feet", "dur": 50, "speed": 0.25},
+	"tac_gloves": {"name": "Тактические перчатки", "desc": "Руки: удар кулаком ×1.4 — кастетные накладки на костяшках.", "stack": 1,
+		"icon": "tac_gloves", "color": Color(0.14, 0.14, 0.13), "equip": "hands", "fist": 1.4},
 	# ремкомплекты: dur — заряды (3), один заряд чинит 50% прочности вещи (game.gd: repair)
 	"repair_weapon": {"name": "Ремкомплект оружия", "desc": "3 заряда, каждый чинит оружие на 50%. Нажать — самое побитое оружие; или перетащить на нужное.", "stack": 1,
 		"icon": "repair_weapon", "color": Color(0.6, 0.2, 0.15), "repair": "weapon", "dur": 3},
-	"repair_gear": {"name": "Ремкомплект одежды", "desc": "3 заряда, каждый чинит одежду (каска, ватник, штаны, сапоги) на 50%. Нажать — самую потрёпанную; или перетащить на нужную.", "stack": 1,
+	"repair_gear": {"name": "Ремкомплект одежды", "desc": "3 заряда, каждый чинит одежду (голова, тело, ноги, обувь) на 50%. Нажать — самую потрёпанную; или перетащить на нужную.", "stack": 1,
 		"icon": "repair_gear", "color": Color(0.3, 0.42, 0.5), "repair": "gear", "dur": 3},
 	"backpack": {"name": "Рюкзак", "desc": "Спина: +5 ячеек сумки. Снимешь — вещи из него переложатся в свободные ячейки.", "stack": 1,
 		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": 5},
@@ -387,6 +404,86 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				c + Vector2(s * 0.36, s * 0.14), c + Vector2(s * 0.36, s * 0.32), c + Vector2(-s * 0.2, s * 0.32)])
 			ci.draw_colored_polygon(p, col)
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.22, s * 0.26), Vector2(s * 0.6, s * 0.08)), Color(0.05, 0.04, 0.03))
+		"ushanka":
+			# меховой купол, отворот спереди, уши по бокам, красная звёздочка
+			var fur := col.lightened(0.15)
+			for sx in [-1.0, 1.0]:
+				ci.draw_rect(Rect2(c + Vector2(sx * s * 0.36 - s * 0.08, -s * 0.02), Vector2(s * 0.16, s * 0.34)), fur)
+			var dome := PackedVector2Array()
+			for k in 17:
+				var a := PI + PI * k / 16.0
+				dome.append(c + Vector2(cos(a) * s * 0.32, s * 0.04 + sin(a) * s * 0.3))
+			ci.draw_colored_polygon(dome, col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.36, -s * 0.06), Vector2(s * 0.72, s * 0.16)), fur)
+			for k in 6:
+				ci.draw_line(c + Vector2(-s * 0.32 + k * s * 0.13, -s * 0.05), c + Vector2(-s * 0.3 + k * s * 0.13, s * 0.09), fur.darkened(0.2), maxf(1.0, s * 0.02))
+			ci.draw_circle(c + Vector2(0, s * 0.02), s * 0.04, Color(0.8, 0.15, 0.1))
+		"moto_helmet":
+			# закрытый шлем сбоку: круглый корпус, тёмный визор, вырез снизу
+			ci.draw_circle(c + Vector2(0, -s * 0.02), s * 0.34, col)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.04, -s * 0.12), c + Vector2(s * 0.34, -s * 0.12),
+				c + Vector2(s * 0.32, s * 0.1), c + Vector2(s * 0.02, s * 0.08)]), Color(0.1, 0.12, 0.16))
+			ci.draw_line(c + Vector2(s * 0.04, -s * 0.08), c + Vector2(s * 0.26, -s * 0.08), Color(0.5, 0.6, 0.7, 0.8), maxf(1.0, s * 0.03))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.3, s * 0.22), Vector2(s * 0.56, s * 0.08)), col.darkened(0.45))
+			ci.draw_arc(c + Vector2(0, -s * 0.02), s * 0.25, PI * 1.1, PI * 1.45, 8, col.lightened(0.3), maxf(1.0, s * 0.03))
+		"kurtka", "vest":
+			var body := PackedVector2Array([c + Vector2(-s * 0.2, -s * 0.32), c + Vector2(s * 0.2, -s * 0.32), c + Vector2(s * 0.4, -s * 0.1),
+				c + Vector2(s * 0.3, s * 0.0), c + Vector2(s * 0.22, -s * 0.06), c + Vector2(s * 0.22, s * 0.34), c + Vector2(-s * 0.22, s * 0.34),
+				c + Vector2(-s * 0.22, -s * 0.06), c + Vector2(-s * 0.3, s * 0.0), c + Vector2(-s * 0.4, -s * 0.1)])
+			if id == "vest":
+				# без рукавов: корпус, стальные пластины, ремни
+				body = PackedVector2Array([c + Vector2(-s * 0.14, -s * 0.34), c + Vector2(s * 0.14, -s * 0.34), c + Vector2(s * 0.26, -s * 0.2),
+					c + Vector2(s * 0.26, s * 0.34), c + Vector2(-s * 0.26, s * 0.34), c + Vector2(-s * 0.26, -s * 0.2)])
+			ci.draw_colored_polygon(body, col)
+			if id == "vest":
+				var plate := Color(0.55, 0.56, 0.55)
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.2, -s * 0.16), Vector2(s * 0.4, s * 0.22)), plate)
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.2, s * 0.09), Vector2(s * 0.4, s * 0.18)), plate.darkened(0.12))
+				for k in 4:
+					ci.draw_circle(c + Vector2(-s * 0.16 + (k % 2) * s * 0.32, -s * 0.12 + (1.0 if k >= 2 else 0.0) * s * 0.36), s * 0.02, Color(0.25, 0.24, 0.22))
+				ci.draw_line(c + Vector2(-s * 0.26, s * 0.0), c + Vector2(s * 0.26, s * 0.0), Color(0.15, 0.12, 0.08), maxf(2.0, s * 0.05))
+			else:
+				ci.draw_line(c + Vector2(0, -s * 0.28), c + Vector2(0, s * 0.33), Color(0.75, 0.72, 0.65), maxf(1.5, s * 0.03))   # молния
+				ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.2, -s * 0.32), c + Vector2(0, -s * 0.2),
+					c + Vector2(s * 0.2, -s * 0.32), c + Vector2(s * 0.12, -s * 0.38), c + Vector2(-s * 0.12, -s * 0.38)]), col.darkened(0.3))   # воротник
+				for sx in [-1.0, 1.0]:
+					ci.draw_line(c + Vector2(sx * s * 0.08, s * 0.14), c + Vector2(sx * s * 0.18, s * 0.14), col.lightened(0.25), maxf(1.0, s * 0.025))   # карманы
+		"jeans", "wpants":
+			var p := PackedVector2Array([c + Vector2(-s * 0.26, -s * 0.34), c + Vector2(s * 0.26, -s * 0.34), c + Vector2(s * 0.3, s * 0.36),
+				c + Vector2(s * 0.06, s * 0.36), c + Vector2(0, -s * 0.06), c + Vector2(-s * 0.06, s * 0.36), c + Vector2(-s * 0.3, s * 0.36)])
+			ci.draw_colored_polygon(p, col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.26, -s * 0.34), Vector2(s * 0.52, s * 0.06)), col.darkened(0.35))
+			if id == "jeans":
+				var st := Color(0.85, 0.6, 0.25)   # рыжая строчка, заклёпки
+				for sx in [-1.0, 1.0]:
+					ci.draw_line(c + Vector2(sx * s * 0.22, -s * 0.26), c + Vector2(sx * s * 0.25, s * 0.34), st, maxf(1.0, s * 0.015))
+				ci.draw_arc(c + Vector2(-s * 0.18, -s * 0.28), s * 0.08, 0.0, PI / 2, 6, st, maxf(1.0, s * 0.015))
+				ci.draw_arc(c + Vector2(s * 0.18, -s * 0.28), s * 0.08, PI / 2, PI, 6, st, maxf(1.0, s * 0.015))
+			else:
+				for k in 5:
+					var yy := -s * 0.2 + k * s * 0.12
+					ci.draw_line(c + Vector2(-s * 0.27, yy), c + Vector2(-s * 0.04, yy), col.darkened(0.3), maxf(1.0, s * 0.02))
+					ci.draw_line(c + Vector2(s * 0.04, yy), c + Vector2(s * 0.27, yy), col.darkened(0.3), maxf(1.0, s * 0.02))
+		"sneakers":
+			# низкий кед: тканевый верх, белая подошва и носок, шнурки
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.36, -s * 0.06), c + Vector2(-s * 0.1, -s * 0.12),
+				c + Vector2(s * 0.12, s * 0.02), c + Vector2(s * 0.38, s * 0.1), c + Vector2(s * 0.38, s * 0.2), c + Vector2(-s * 0.36, s * 0.2)]), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.38, s * 0.18), Vector2(s * 0.78, s * 0.1)), Color(0.9, 0.88, 0.84))
+			ci.draw_circle(c + Vector2(s * 0.32, s * 0.15), s * 0.07, Color(0.9, 0.88, 0.84))
+			for k in 3:
+				var x := -s * 0.08 + k * s * 0.08
+				ci.draw_line(c + Vector2(x, -s * 0.06 + k * s * 0.04), c + Vector2(x + s * 0.06, -s * 0.02 + k * s * 0.04), Color(0.95, 0.95, 0.95), maxf(1.0, s * 0.025))
+		"tac_gloves":
+			# как рабочие, но чёрные, с вырезами и стальными накладками на костяшках
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.18, -s * 0.05), Vector2(s * 0.36, s * 0.36)), col)
+			for k in 4:
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.18 + k * s * 0.09, -s * 0.32), Vector2(s * 0.075, s * 0.3)), col)
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.18 + k * s * 0.09, -s * 0.32), Vector2(s * 0.075, s * 0.08)), Color(0.75, 0.6, 0.48))
+			ci.draw_rect(Rect2(c + Vector2(s * 0.18, -s * 0.02), Vector2(s * 0.14, s * 0.08)), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.2, -s * 0.08), Vector2(s * 0.4, s * 0.08)), Color(0.55, 0.56, 0.58))
+			for k in 4:
+				ci.draw_circle(c + Vector2(-s * 0.14 + k * s * 0.09, -s * 0.04), s * 0.03, Color(0.78, 0.78, 0.8))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.2, s * 0.22), Vector2(s * 0.4, s * 0.08)), Color(0.3, 0.32, 0.28))
 		"nut":
 			var pts := PackedVector2Array()
 			for k in 6:
@@ -518,19 +615,30 @@ static func make_mesh(id: String) -> Node3D:
 			cm.height = 0.16
 			mi.mesh = cm
 			mi.rotation.z = PI / 2
-		"helmet":
+		"helmet", "ushanka":
 			var sm := SphereMesh.new()
 			sm.radius = 0.13
 			sm.height = 0.14
 			sm.is_hemisphere = true
 			mi.mesh = sm
-		"jacket", "pants":
+			if id == "ushanka":
+				m.roughness = 1.0
+		"moto_helmet":
+			var sm := SphereMesh.new()
+			sm.radius = 0.14
+			sm.height = 0.26
+			mi.mesh = sm
+			m.roughness = 0.3
+		"jacket", "pants", "kurtka", "vest", "jeans", "wpants":
 			var bm := BoxMesh.new()
-			bm.size = Vector3(0.4, 0.06, 0.32) if id == "jacket" else Vector3(0.3, 0.05, 0.42)
+			bm.size = Vector3(0.4, 0.06, 0.32) if id in ["jacket", "kurtka", "vest"] else Vector3(0.3, 0.05, 0.42)
+			if id == "vest":
+				bm.size = Vector3(0.34, 0.08, 0.36)
+				m.metallic = 0.4
 			mi.mesh = bm
-		"boots":
+		"boots", "sneakers":
 			var bm := BoxMesh.new()
-			bm.size = Vector3(0.12, 0.22, 0.26)
+			bm.size = Vector3(0.12, 0.22, 0.26) if id == "boots" else Vector3(0.11, 0.09, 0.26)
 			mi.mesh = bm
 		"backpack":
 			var bm := BoxMesh.new()
@@ -540,7 +648,7 @@ static func make_mesh(id: String) -> Node3D:
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.2, 0.08, 0.14)
 			mi.mesh = bm
-		"gloves":
+		"gloves", "tac_gloves":
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.12, 0.03, 0.17)
 			mi.mesh = bm
