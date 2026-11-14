@@ -13,6 +13,7 @@ var ui: CanvasLayer
 var sell_win                  # sell_window.gd
 var coins_l: Label
 var info_l: Label
+var tip_l: RichTextLabel       # подсказка товара (промпт 14.11 19:10)
 var markup_l: Label           # красная плашка «Наценка за мухлёж» (game.gd: markup_pct)
 var opened := false
 var tab := 0                  # открытая вкладка (TABS)
@@ -381,13 +382,24 @@ func _build_ui() -> void:
 		tab_btns.append(tb)
 	# вкладка прокручивается, если не влезает (на «Слот-Машине» много строк)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(680, 420)
+	scroll.custom_minimum_size = Vector2(680, 350)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
 	content = VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 6)
 	scroll.add_child(content)
+	# подсказка: название и описание товара под курсором (или по долгому тапу)
+	tip_l = RichTextLabel.new()
+	tip_l.bbcode_enabled = true
+	tip_l.fit_content = true
+	tip_l.scroll_active = false
+	tip_l.custom_minimum_size = Vector2(680, 48)
+	tip_l.add_theme_font_size_override("normal_font_size", 15)
+	tip_l.add_theme_font_size_override("bold_font_size", 17)
+	tip_l.add_theme_color_override("default_color", Color(0.85, 0.83, 0.76))
+	box.add_child(tip_l)
+	_set_tip("")
 	info_l = _label("", 18, Color(0.8, 0.78, 0.7))
 	box.add_child(info_l)
 	# внизу: обновить все ящики уровня (сейф не трогаем) и закрыть
@@ -403,7 +415,7 @@ func _build_ui() -> void:
 	bottom.add_child(close)
 	# продажа (промпты 14.11 18:06, 18:35): кнопка в правом нижнем углу, пояснения — в самом окне продажи
 	var sell_b := Button.new()
-	sell_b.text = "Продать вещи…"
+	sell_b.text = "Продажа"   # промпт 14.11 19:11
 	sell_b.custom_minimum_size = Vector2(220, 0)
 	sell_b.focus_mode = Control.FOCUS_NONE
 	sell_b.add_theme_font_size_override("font_size", 20)
@@ -448,153 +460,225 @@ func _show_tab(i: int) -> void:
 	_rebuild_tab()
 
 
-## Товары открытой вкладки: сетка в 2 колонки «иконка — название/описание — цена».
+## Товары открытой вкладки: сетка в 3 колонки (промпт 14.11 19:10) — крупная иконка, под ней цена.
+## Наведение (или долгий тап) — название и описание в панели подсказки под сеткой; клик — купить.
+## Недоступное затемнено, причина — в подсказке.
 func _rebuild_tab() -> void:
 	if content == null:
 		return
 	for c in content.get_children():
 		content.remove_child(c)
 		c.queue_free()
+	_set_tip("")
 	match tab:
 		0, 1:
 			var grid := _grid()
 			for e in Weapons.SHOP:
 				var id: String = e[0]
 				if Items.ITEMS[id].get("weapon", false) == (tab == 0):
-					grid.add_child(_goods_row(id, int(e[1])))
+					_item_cell(grid, id, int(e[1]))
 		2:
 			var grid := _grid()
 			for e in CONSUMABLES:
-				grid.add_child(_goods_row(String(e[0]), int(e[1])))
+				_item_cell(grid, String(e[0]), int(e[1]))
 		3:
 			_build_slot_tab()
 
 
 func _grid() -> GridContainer:
 	var g := GridContainer.new()
-	g.columns = 2
-	g.add_theme_constant_override("h_separation", 18)
-	g.add_theme_constant_override("v_separation", 6)
+	g.columns = 3
+	g.add_theme_constant_override("h_separation", 8)
+	g.add_theme_constant_override("v_separation", 8)
 	content.add_child(g)
 	return g
 
 
-func _goods_row(id: String, price: int) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+func _section(t: String) -> void:
+	content.add_child(_label(t, 20, Color(1.0, 0.45, 0.3)))
+
+
+func _can_pay(price: int) -> bool:
+	return game.inv.count("coin") >= game.marked_price(price)
+
+
+func _item_cell(grid: GridContainer, id: String, price: int) -> void:
+	var reason := ""
+	if Items.ITEMS[id].has("equip") and game.inv.count(id) > 0:
+		reason = "Уже есть."
+	elif not _can_pay(price):
+		reason = "Не хватает монет."
+	_cell(grid, func(ci: Control, r: Rect2): Items.draw_icon(ci, id, r), price,
+		Items.item_name(id), Items.ITEMS[id]["desc"], reason, func(): _buy(id, price))
+
+
+## Ячейка товара. draw_fn(ci, rect) рисует иконку; price < 0 — без цены (подпись в desc).
+func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, desc: String,
+		reason: String, on_buy: Callable, price_text := "") -> void:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(210, 104)
+	b.focus_mode = Control.FOCUS_NONE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.13, 0.1, 0.08, 0.95)
+	sb.border_color = Color(0.4, 0.28, 0.16, 0.8)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(4)
+	var sh := sb.duplicate() as StyleBoxFlat
+	sh.bg_color = Color(0.22, 0.16, 0.1, 0.95)
+	sh.border_color = Color(0.95, 0.6, 0.3, 0.95)
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("hover", sh)
+	b.add_theme_stylebox_override("pressed", sh)
 	var icon := Control.new()
-	icon.custom_minimum_size = Vector2(36, 36)
-	icon.draw.connect(func(): Items.draw_icon(icon, id, Rect2(Vector2.ZERO, icon.size)))
-	row.add_child(icon)
-	var text := VBoxContainer.new()
-	text.custom_minimum_size = Vector2(230, 0)
-	text.add_theme_constant_override("separation", 0)
-	text.add_child(_label(Items.item_name(id), 18, Color(0.9, 0.88, 0.82)))
-	var d := _label(Items.ITEMS[id]["desc"], 13, Color(0.65, 0.63, 0.58))
-	d.custom_minimum_size = Vector2(230, 0)
-	text.add_child(d)
-	row.add_child(text)
-	var buy := Button.new()
-	buy.text = "%d" % game.marked_price(price)
-	if game.markup_pct() > 0:
-		buy.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
-	buy.custom_minimum_size = Vector2(64, 34)
-	buy.focus_mode = Control.FOCUS_NONE
-	buy.add_theme_font_size_override("font_size", 18)
-	buy.pressed.connect(func(): _buy(id, price))
-	row.add_child(buy)
-	return row
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.position = Vector2(73, 6)
+	icon.size = Vector2(64, 64)
+	icon.draw.connect(func(): draw_fn.call(icon, Rect2(Vector2.ZERO, icon.size)))
+	b.add_child(icon)
+	var pl := Label.new()
+	pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pl.position = Vector2(0, 72)
+	pl.size = Vector2(210, 28)
+	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	pl.add_theme_font_size_override("font_size", 19)
+	var red: bool = price >= 0 and game.markup_pct() > 0
+	pl.text = price_text if price_text != "" else (_coins(game.marked_price(price)) if price >= 0 else "")
+	pl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4) if red else Color(0.95, 0.82, 0.5))
+	b.add_child(pl)
+	if reason != "":
+		b.modulate = Color(0.5, 0.5, 0.5)
+	var tip := "[b]%s[/b]  %s" % [title, desc]
+	if reason != "":
+		tip += "  [color=#ff8a70]%s[/color]" % reason
+	b.mouse_entered.connect(func(): _set_tip(tip))
+	b.mouse_exited.connect(func(): _set_tip(""))
+	# долгий тап (телефон): показать подсказку и не покупать
+	var held := [0]
+	b.button_down.connect(func():
+		held[0] = Time.get_ticks_msec()
+		_set_tip(tip))
+	b.pressed.connect(func():
+		if Time.get_ticks_msec() - int(held[0]) > 450:
+			return
+		if reason != "":
+			info_l.text = reason
+			game.play_ui("buzz", -14.0)
+			return
+		on_buy.call())
+	grid.add_child(b)
 
 
-## Вкладка «Слот-Машина»: прокачка окна KILLBOX (1×3 → 3×5) и гарантированные символы.
+## «1 монета», «3 монеты», «5 монет».
+static func _coins(n: int) -> String:
+	var m10 := n % 10
+	var m100 := n % 100
+	if m10 == 1 and m100 != 11:
+		return "%d монета" % n
+	if m10 >= 2 and m10 <= 4 and (m100 < 12 or m100 > 14):
+		return "%d монеты" % n
+	return "%d монет" % n
+
+
+func _set_tip(t: String) -> void:
+	if tip_l == null:
+		return
+	tip_l.text = t if t != "" else "[color=#8a857a]Наведи на товар — название и описание. Клик — купить (на телефоне долгий тап — подсказка).[/color]"
+
+
+## Вкладка «Слот-Машина»: прокачка окна KILLBOX, гарантированные символы ×1/×2/×3, шанс комбинации.
 func _build_slot_tab() -> void:
 	var SM := preload("res://slot_machine.gd")
 	var SymS := preload("res://slot_symbols.gd")
 	var slot = game.slot if game else null
-	content.add_child(_label("ОКНО KILLBOX", 24, Color(1.0, 0.45, 0.3)))
-	var lv: int = slot.level if slot else 1
-	var steps := PackedStringArray()
-	for i in SM.MAX_LEVEL:
-		var nm: String = SM.level_name(i + 1)
-		steps.append("[%s]" % nm if i + 1 == lv else nm)
-	content.add_child(_label("  →  ".join(steps) + "   ·   больше клеток — больше линий", 15, Color(0.65, 0.63, 0.58)))
-	content.add_child(_label("С каждым уровнем в барабанах новый символ: арбуз на 2×3, алмаз на 3×3; семёрки (сейф) и шестёрки — только на 3×5.", 14, Color(0.65, 0.63, 0.58)))
-	var up := Button.new()
-	up.text = slot.upgrade_text() if slot else "Автомата нет"
-	if slot and lv < SM.MAX_LEVEL and game.markup_pct() > 0:
-		up.text += "  (+%d наценка)" % (game.marked_price(slot.upgrade_price()) - slot.upgrade_price())
-	up.disabled = slot == null or lv >= SM.MAX_LEVEL
-	up.custom_minimum_size = Vector2(0, 40)
-	up.focus_mode = Control.FOCUS_NONE
-	up.add_theme_font_size_override("font_size", 19)
-	up.pressed.connect(_buy_upgrade)
-	content.add_child(up)
-	content.add_child(_label(" ", 6, Color.WHITE))
+	if slot == null:
+		content.add_child(_label("Автомата нет", 18, Color(0.7, 0.7, 0.7)))
+		return
+	var lv: int = slot.level
+	_section("ОКНО KILLBOX")
+	var g1 := _grid()
+	var nxt := mini(lv + 1, SM.MAX_LEVEL)
+	var up_reason := ""
+	var up_price: int = slot.upgrade_price()
+	if lv >= SM.MAX_LEVEL:
+		up_reason = "Уже максимум."
+	elif not _can_pay(up_price):
+		up_reason = "Не хватает монет."
+	_cell(g1, func(ci: Control, r: Rect2): _draw_window(ci, r, nxt, lv), up_price if lv < SM.MAX_LEVEL else -1,
+		"Окно %s → %s" % [SM.level_name(lv), SM.level_name(nxt)] if lv < SM.MAX_LEVEL else "Окно %s" % SM.level_name(lv),
+		"Больше клеток — больше линий. С каждым окном в барабанах новый символ: арбуз на 2×3, алмаз на 3×3; семёрки (сейф) и шестёрки — только на 3×5.",
+		up_reason, _buy_upgrade, "максимум" if lv >= SM.MAX_LEVEL else "")
 	var gmax: int = SM.GUAR_MAX[lv - 1]
-	content.add_child(_label("ГАРАНТИРОВАННЫЙ СИМВОЛ", 22, Color(1.0, 0.45, 0.3)))
-	content.add_child(_label("На N круток: после каждого прокрута ×1/×2/×3 таких символа встают в открытые клетки, где их нет (выигрыш не ломают). Сейчас можно до ×%d; ×2 — с окна 3×3, ×3 — на 3×5." % gmax, 13, Color(0.65, 0.63, 0.58)))
+	_section("ГАРАНТИРОВАННЫЙ СИМВОЛ ×1 / ×2 / ×3")
+	var g2 := _grid()
 	for sym in SM.LUCK:
 		var d: Array = SM.LUCK[sym]
-		var row := _buff_row(sym, "%s — %d круток" % [SymS.NAMES[sym], int(d[0])], _luck_left(slot, sym))
 		var need: int = SM.sym_level(sym)
+		var left := _luck_left(slot, sym)
 		for k in range(1, 4):
-			var b := _buff_btn("×%d · %d" % [k, game.marked_price(int(d[k]))])
-			b.pressed.connect(_buy_luck.bind(sym, int(d[k]), k))
-			if lv < need:   # символа ещё нет в барабанах — не продаём
-				b.disabled = true
-				b.text = "с " + SM.level_name(need)
+			var price := int(d[k])
+			var reason := ""
+			if lv < need:
+				reason = "Символа ещё нет — откроется на окне %s." % SM.level_name(need)
 			elif k > gmax:
-				b.disabled = true
-				b.text = "×%d с %s" % [k, SM.level_name(SM.GUAR_MAX.find(k) + 1)]
-			row.add_child(b)
-		content.add_child(row)
-	content.add_child(_label("ШАНС КОМБИНАЦИИ", 22, Color(1.0, 0.45, 0.3)))
-	content.add_child(_label("На N круток символ чаще «липнет» к такому же слева — 3 в ряд выпадают заметно чаще.", 13, Color(0.65, 0.63, 0.58)))
-	var grid := _grid()
-	grid.columns = 2
+				reason = "×%d — с окна %s." % [k, SM.level_name(SM.GUAR_MAX.find(k) + 1)]
+			elif not _can_pay(price):
+				reason = "Не хватает монет."
+			var desc := "На %d круток: после каждого прокрута %d таких символа встают в открытые клетки, где их нет (выигрыш не ломают)." % [int(d[0]), k]
+			if left > 0:
+				desc += " Сейчас действует ещё %d круток." % left
+			_cell(g2, func(ci: Control, r: Rect2): _draw_sym(ci, r, sym, "×%d" % k), price,
+				"Гарант: %s ×%d" % [SymS.NAMES[sym], k], desc, reason, _buy_luck.bind(sym, price, k))
+	_section("ШАНС КОМБИНАЦИИ")
+	var g3 := _grid()
 	for sym in SM.BOOST:
 		var d: Array = SM.BOOST[sym]
-		var left := 0
-		if slot and slot.boost.has(sym):
-			left = int(slot.boost[sym])
-		var row := _buff_row(sym, "%s — %d кр." % [SymS.NAMES[sym], int(d[0])], left)
-		var b := _buff_btn("%d" % game.marked_price(int(d[1])))
-		b.pressed.connect(_buy_boost.bind(sym, int(d[1])))
 		var need: int = SM.sym_level(sym)
+		var price := int(d[1])
+		var reason := ""
 		if lv < need:
-			b.disabled = true
-			b.text = "с " + SM.level_name(need)
-		row.add_child(b)
-		grid.add_child(row)
+			reason = "Символа ещё нет — откроется на окне %s." % SM.level_name(need)
+		elif not _can_pay(price):
+			reason = "Не хватает монет."
+		var left := 0
+		if slot.boost.has(sym):
+			left = int(slot.boost[sym])
+		var desc := "На %d круток %s чаще «липнет» к такому же слева — 3 в ряд выпадают заметно чаще." % [int(d[0]), SymS.NAMES[sym].to_lower()]
+		if left > 0:
+			desc += " Сейчас действует ещё %d круток." % left
+		_cell(g3, func(ci: Control, r: Rect2): _draw_sym(ci, r, sym, "↑"), price,
+			"Чаще: %s" % SymS.NAMES[sym], desc, reason, _buy_boost.bind(sym, price))
+
+
+## Иконка символа автомата с подписью в углу (×2, ↑).
+func _draw_sym(ci: Control, r: Rect2, sym: String, badge: String) -> void:
+	preload("res://slot_symbols.gd").draw(ci, sym, r.grow(-4))
+	var f := ThemeDB.fallback_font
+	var p := Vector2(r.end.x - 26, r.end.y - 4)
+	ci.draw_rect(Rect2(p + Vector2(-4, -18), Vector2(30, 22)), Color(0.1, 0.05, 0.03, 0.85))
+	ci.draw_string(f, p, badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(1.0, 0.85, 0.4))
+
+
+## Мини-сетка окна 3×5: открытые на уровне lv клетки — светлые, новые (уровень cur → lv) — оранжевые.
+func _draw_window(ci: Control, r: Rect2, lv: int, cur: int) -> void:
+	var SM := preload("res://slot_machine.gd")
+	var cw := r.size.x / 5.0
+	var chh := r.size.y / 3.0 * 0.8
+	var y0 := r.position.y + r.size.y * 0.1
+	ci.draw_rect(Rect2(r.position + Vector2(-2, y0 - r.position.y - 2), Vector2(r.size.x + 4, chh * 3 + 4)), Color(0.55, 0.42, 0.2))
+	for row in 3:
+		for c in 5:
+			var col := Color(0.18, 0.18, 0.19)
+			if SM.is_open(cur, row, c):
+				col = Color(0.85, 0.8, 0.7)
+			elif SM.is_open(lv, row, c):
+				col = Color(1.0, 0.55, 0.2)
+			ci.draw_rect(Rect2(r.position.x + c * cw + 1, y0 + row * chh + 1, cw - 2, chh - 2), col)
 
 
 func _luck_left(slot, sym: String) -> int:
 	if slot and slot.luck.has(sym):
 		return int(slot.luck[sym]["left"])
 	return 0
-
-
-func _buff_row(sym: String, text: String, left: int) -> HBoxContainer:
-	var SymS := preload("res://slot_symbols.gd")
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	var ic := Control.new()
-	ic.custom_minimum_size = Vector2(28, 28)
-	ic.draw.connect(func(): SymS.draw(ic, sym, Rect2(Vector2.ZERO, ic.size)))
-	row.add_child(ic)
-	var l := _label(text + (" (ещё %d)" % left if left > 0 else ""), 15, Color(0.88, 0.86, 0.8))
-	l.custom_minimum_size = Vector2(200, 0)
-	row.add_child(l)
-	return row
-
-
-func _buff_btn(text: String) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(92, 28)
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 15)
-	return b
 
 
 func _buy_upgrade() -> void:
