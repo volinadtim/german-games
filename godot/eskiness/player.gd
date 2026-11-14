@@ -213,6 +213,7 @@ var impacts: Array[AudioStreamWAV] = []
 var inhale_snd: AudioStreamWAV
 var exhale_out_snd: AudioStreamWAV   # опускание рук — тот же вдох задом наперёд
 var last_arm := -1
+var gun   # gun.gd (ставит game.gd)
 var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали
 var head_bone := -1
 var THUMB_CURL := [0.0, 0.0, 40.0, 45.0]   # обхватывает кулак поперёк, поверх пальцев (цель — снаружи средних фаланг)
@@ -997,6 +998,9 @@ func charge_frac() -> float:
 ## Нажал кнопку удара. Кулаки опущены — только поднимаем их, без удара и заряда (промпт 19:08);
 ## следующее нажатие, уже в стойке, копит заряд.
 func charge_begin(arm: int) -> void:
+	if arm == 1 and gun and weapon_ids[1] == "pistol" and active:
+		gun.fire()   # пистолет в правой: ПКМ — выстрел сразу (gun.gd)
+		return
 	if charging >= 0 or not active:
 		return
 	if not fists:

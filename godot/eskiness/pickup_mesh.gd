@@ -27,6 +27,8 @@ const SCALES := {
 	"scrap": 1.8,     # железки 23 см
 	"stone": 1.4,     # булыжник ~14 см
 	"twine": 1.3,     # моток ⌀10 см
+	"mag": 1.3,       # магазин 11 см
+	"ammo": 1.6,      # горстка патронов ~6 см
 }
 const WEAPON_SCALE := 1.15  # оружие и снаряжение — почти реальный размер (бита ~0.8 м)
 ## Коробка столкновений больше модели на PAD с каждой стороны: физика Godot разрешает телам
@@ -39,9 +41,9 @@ const FLAT := ["coin", "photo", "choco", "glass", "wallet", "nut", "gear", "tape
 
 ## Есть ли у предмета своя модель здесь.
 const MODELS := ["coin", "bandage", "pills", "canned", "water", "soda", "rusk", "choco", "battery",
-	"nut", "gear", "wallet", "tape", "wood", "glass", "medkit", "photo", "scrap", "stone", "twine"]
+	"nut", "gear", "wallet", "tape", "wood", "glass", "medkit", "photo", "scrap", "stone", "twine", "mag", "ammo"]
 ## Предметы с моделью weapons.gd (через Items.make_mesh).
-const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club"]
+const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club", "pistol"]
 
 static var _icon_cache := {}
 static var _gauze: ImageTexture
@@ -303,6 +305,19 @@ static func _build(root: Node3D, id: String) -> Vector3:
 			_add(root, sm, _mat(col, 0.0, 0.95, 0.12), Vector3(0, 0.035, 0)).scale = Vector3(1.2, 1.0, 0.9)
 			_add(root, _box(Vector3(0.03, 0.02, 0.03)), _mat(col.lightened(0.12), 0.0, 0.9, 0.12), Vector3(0.04, 0.025, 0.0), Vector3(0.3, 0.5, 0.2))
 			size = Vector3(0.12, 0.07, 0.09)
+		"mag":
+			# магазин лежит на боку, сверху торчит патрон
+			_add(root, _box(Vector3(0.085, 0.016, 0.03)), _mat(col, 0.7, 0.5, 0.12), Vector3(0, 0.008, 0), Vector3(0, 0, 0.0))
+			_add(root, _box(Vector3(0.012, 0.018, 0.032)), _mat(col.darkened(0.3), 0.6, 0.6, 0.1), Vector3(-0.046, 0.009, 0))
+			_add(root, _cyl(0.0045, 0.016, 8), _mat(Color(0.8, 0.62, 0.25), 0.9, 0.3, 0.25), Vector3(0.05, 0.008, 0), Vector3(0, 0, PI / 2))
+			size = Vector3(0.11, 0.02, 0.035)
+		"ammo":
+			# несколько латунных патронов россыпью
+			var brass := _mat(col, 0.9, 0.3, 0.25)
+			for k in 4:
+				var a := k * 1.7
+				_add(root, _cyl(0.0045, 0.02, 8), brass, Vector3(cos(a) * 0.015, 0.0045, sin(a) * 0.015), Vector3(0, a, PI / 2))
+			size = Vector3(0.05, 0.012, 0.05)
 		"twine":
 			# моток бечёвки и свисающий конец
 			var tm := TorusMesh.new()

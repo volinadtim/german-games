@@ -78,6 +78,13 @@ const ITEMS := {
 		"icon": "shield", "color": Color(0.38, 0.39, 0.4), "weapon": true, "dur": 40},
 	"knife": {"name": "Ножик", "desc": "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.2.", "stack": 1,
 		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true, "dur": 15},
+	# пистолет из сейфа (промпт 14.11 19:49, gun.gd): dur — патроны в нём / в магазине (rounds)
+	"pistol": {"name": "Пистолет", "desc": "Старый обшарпанный пистолет. В правой руке: ПКМ — выстрел, R — перезарядка. Полоска — патроны в магазине.", "stack": 1,
+		"icon": "pistol", "color": Color(0.24, 0.24, 0.23), "weapon": true, "gun": true, "rounds": true, "dur": 8},
+	"mag": {"name": "Магазин", "desc": "Пистолетный магазин на 8 патронов. R с пистолетом — вставить; ПКМ → «Снарядить» — набить патронами из сумки.", "stack": 1,
+		"icon": "mag", "color": Color(0.2, 0.2, 0.2), "rounds": true, "dur": 8},
+	"ammo": {"name": "Патроны", "desc": "Пистолетные патроны. Заряжаются в магазин (R или «Снарядить»).", "stack": 40,
+		"icon": "ammo", "color": Color(0.78, 0.6, 0.25)},
 	# материалы для крафта
 	# камень — с каменных кучек (stone_pile.gd, E), бечёвка — из кувшинов и врагов (промпт 14.11 19:22)
 	"stone": {"name": "Камень", "desc": "Увесистый булыжник. Нужен для молотка.", "stack": 10,
@@ -136,7 +143,7 @@ static func fits(id: String, slot: String) -> bool:
 
 ## Каким ремкомплектом чинится: "weapon", "gear" (одежда с прочностью) или "".
 static func repairable(id: String) -> String:
-	if not ITEMS.has(id) or max_dur(id) <= 0.0 or ITEMS[id].has("repair"):
+	if not ITEMS.has(id) or max_dur(id) <= 0.0 or ITEMS[id].has("repair") or ITEMS[id].has("rounds"):
 		return ""
 	if ITEMS[id].has("weapon"):
 		return "weapon"
@@ -160,7 +167,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var s := minf(r.size.x, r.size.y)
 	var col: Color = ITEMS[id]["color"]
 	var dark := col.darkened(0.45)
-	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club"]:
+	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club", "pistol"]:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
@@ -326,6 +333,19 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				ci.draw_rect(Rect2(c + Vector2(-s * 0.15, -s * 0.1), Vector2(s * 0.22, s * 0.04)), dark)
 				ci.draw_rect(Rect2(c + Vector2(-s * 0.15, s * 0.16), Vector2(s * 0.22, s * 0.04)), dark)
 				ci.draw_line(c + Vector2(s * 0.12, -s * 0.1), c + Vector2(s * 0.22, s * 0.2), mark, maxf(1.0, s * 0.025))
+		"mag":
+			# магазин: чуть наклонный корпус, сверху виден патрон
+			var body := PackedVector2Array([c + Vector2(-s * 0.12, -s * 0.3), c + Vector2(s * 0.08, -s * 0.3),
+				c + Vector2(s * 0.16, s * 0.32), c + Vector2(-s * 0.04, s * 0.32)])
+			ci.draw_colored_polygon(body, col.lightened(0.15))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.06, s * 0.32), Vector2(s * 0.26, s * 0.05)), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.08, -s * 0.38), Vector2(s * 0.12, s * 0.08)), Color(0.8, 0.62, 0.25))
+		"ammo":
+			for k in 3:
+				var x := c.x + (k - 1) * s * 0.2
+				ci.draw_rect(Rect2(Vector2(x - s * 0.06, c.y - s * 0.05), Vector2(s * 0.12, s * 0.3)), col)
+				ci.draw_circle(Vector2(x, c.y - s * 0.07), s * 0.06, Color(0.65, 0.42, 0.25))
+				ci.draw_rect(Rect2(Vector2(x - s * 0.065, c.y + s * 0.22), Vector2(s * 0.13, s * 0.04)), col.darkened(0.3))
 		"stone":
 			var pts := PackedVector2Array()
 			for k in 9:
@@ -400,7 +420,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
 static func make_mesh(id: String) -> Node3D:
-	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club"]:
+	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club", "pistol"]:
 		var w := Weapons.make(id)
 		if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "shiv", "spiked_club"]:
 			w.rotation.z = PI / 2   # на полу оружие лежит

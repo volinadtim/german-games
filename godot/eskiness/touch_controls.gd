@@ -70,6 +70,7 @@ func _buttons() -> Dictionary:
 		"attack_left": [Vector2(s.x - 430, s.y - 330), 50.0, "ЛЕВОЙ", "game"],
 		"fists": [Vector2(s.x - 320, s.y - 90), 48.0, "СТОЙКА", "game"],
 		"jump": [Vector2(s.x - 320, s.y - 235), 48.0, "ПРЫЖОК", "game"],
+		"reload": [Vector2(s.x - 560, s.y - 250), 40.0, "ПЕРЕЗ.", "game"],
 		"crouch_toggle": [Vector2(s.x - 450, s.y - 140), 44.0, "ПРИСЕД", "game"],
 		"interact": [Vector2(s.x - 200, s.y - 330), 46.0, "E", "game"],
 		"flashlight": [Vector2(s.x - 58, 150), 40.0, "СВЕТ", "game"],

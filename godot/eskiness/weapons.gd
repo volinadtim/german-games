@@ -13,6 +13,7 @@ const WEAPONS := {
 	"hammer": {"mult": 2.2, "reach": 1.3, "price": 0},     # камень + деревяшка + бечёвка; 6 ударов
 	"shiv": {"mult": 2.7, "reach": 1.25, "price": 0},      # молоток + металлолом ×2
 	"spiked_club": {"mult": 3.2, "reach": 1.5, "price": 0}, # молоток + деревяшка ×2 + гайки ×3
+	"pistol": {"mult": 1.6, "reach": 1.15, "price": 0},     # стреляет gun.gd; это — удар рукоятью (левой)
 }
 
 # что продаёт магазин, по порядку
@@ -93,6 +94,21 @@ static func make(id: String) -> Node3D:
 			boss.rotation.x = PI / 2
 			boss.position = Vector3(0, 0.05, 0.068)
 			_box(root, Vector3(0.06, 0.14, 0.02), Vector3(0, 0.0, 0.025), _m(Color(0.12, 0.1, 0.08)))
+		"pistol":
+			# рукоять — в кулаке (вдоль +Y), затвор и ствол — сверху, вперёд по +X; потёртая воронёная сталь
+			var blk := _m(Color(0.3, 0.3, 0.29), 0.75, 0.5)
+			var worn := _m(Color(0.5, 0.49, 0.46), 0.85, 0.35)
+			var grip := _box(root, Vector3(0.03, 0.11, 0.026), Vector3(-0.005, 0.045, 0), _m(Color(0.14, 0.1, 0.07), 0.0, 0.8))
+			grip.rotation.z = -0.25
+			_box(root, Vector3(0.17, 0.032, 0.026), Vector3(0.055, 0.112, 0), blk)
+			_box(root, Vector3(0.12, 0.004, 0.027), Vector3(0.07, 0.128, 0), worn)     # стёртая кромка затвора
+			_box(root, Vector3(0.16, 0.02, 0.022), Vector3(0.05, 0.088, 0), worn)
+			var mz := _cyl(root, 0.007, 0.007, 0.012, 0.0, _m(Color(0.05, 0.05, 0.05)))
+			mz.rotation.z = PI / 2
+			mz.position = Vector3(0.14, 0.11, 0)
+			var tg := _box(root, Vector3(0.04, 0.006, 0.01), Vector3(0.035, 0.062, 0), blk)
+			tg.rotation.z = 0.2
+			_box(root, Vector3(0.006, 0.02, 0.01), Vector3(0.03, 0.072, 0), worn)        # спуск
 		"hammer":
 			# палка, на конце камень, примотанный бечёвкой
 			_cyl(root, 0.016, 0.014, 0.42, 0.13, _m(Color(0.5, 0.36, 0.2)))
@@ -227,6 +243,16 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2, col: Color) -> void:
 			ci.draw_rect(rr, col)
 			ci.draw_rect(rr, col.darkened(0.5), false, maxf(2.0, s * 0.05))
 			ci.draw_circle(c, s * 0.08, col.lightened(0.3))
+		"pistol":
+			# вид сбоку: затвор, рукоять наклонно, спусковая скоба
+			var sl := Rect2(c + Vector2(-s * 0.36, -s * 0.24), Vector2(s * 0.7, s * 0.17))
+			ci.draw_rect(sl, col.lightened(0.15))
+			ci.draw_line(sl.position + Vector2(s * 0.05, s * 0.04), sl.position + Vector2(s * 0.55, s * 0.04), col.lightened(0.45), maxf(1.0, s * 0.02))
+			var gp := PackedVector2Array([c + Vector2(-s * 0.32, -s * 0.07), c + Vector2(-s * 0.1, -s * 0.07),
+				c + Vector2(-s * 0.04, s * 0.36), c + Vector2(-s * 0.26, s * 0.36)])
+			ci.draw_colored_polygon(gp, Color(0.3, 0.22, 0.15))
+			ci.draw_arc(c + Vector2(s * 0.03, -s * 0.03), s * 0.08, 0.0, PI, 10, col.lightened(0.15), maxf(1.5, s * 0.03))
+			ci.draw_circle(c + Vector2(s * 0.34, -s * 0.16), s * 0.025, Color(0.05, 0.05, 0.05))
 		"hammer":
 			ci.draw_line(a, a.lerp(b, 0.78), Color(0.5, 0.36, 0.2), w)
 			var hd := a.lerp(b, 0.8)

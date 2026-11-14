@@ -111,7 +111,12 @@ class Slot extends Control:
 			var fr := clampf(float(inv.get_dur(key)) / mx, 0.0, 1.0)
 			draw_rect(Rect2(6, size.y - 9, size.x - 12, 4), Color(0, 0, 0, 0.6))
 			draw_rect(Rect2(6, size.y - 9, (size.x - 12) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
-		if Items.ITEMS[id].has("repair"):
+		if Items.ITEMS[id].has("rounds"):
+			# пистолет / магазин: патронов внутри
+			var rt := "%d/%d" % [int(round(inv.get_dur(key))), int(mx)]
+			draw_string_outline(f, Vector2(4, size.y - 12), rt, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 15, 4, Color(0, 0, 0, 0.8))
+			draw_string(f, Vector2(4, size.y - 12), rt, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 15, Color(0.95, 0.85, 0.55))
+		elif Items.ITEMS[id].has("repair"):
 			# ремкомплект: сколько зарядов осталось
 			var ch := "×%d" % int(ceil(inv.get_dur(key)))
 			draw_string_outline(f, Vector2(4, size.y - 12), ch, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 16, 4, Color(0, 0, 0, 0.8))
@@ -720,6 +725,8 @@ func _use_label(id: String) -> String:
 		return "Съесть" if d["buff"] == "resist" else "Выпить"
 	if d.has("heal"):
 		return "Выпить" if id == "pills" else "Лечиться"
+	if id == "mag":
+		return "Снарядить"
 	return {"wallet": "Открыть", "flashlight": "Включить / выключить", "battery": "Зарядить фонарик",
 		"broom": "Подмести стекло"}.get(id, "")
 

@@ -25,6 +25,8 @@ const Surface := preload("res://surface.gd")
 const SlotMachine := preload("res://slot_machine.gd")
 const Shop := preload("res://shop.gd")
 const GasMask := preload("res://gasmask.gd")
+const Gun := preload("res://gun.gd")
+var gun   # gun.gd — пистолет
 const Sfx := preload("res://sfx.gd")
 const Sfx2 := preload("res://sfx_extra.gd")
 const Car := preload("res://car.gd")
@@ -118,11 +120,16 @@ func setup(p: Player) -> void:
 		safe.kind = "safe"
 		safe.locked = true
 		safe.random_loot = false
-		safe.extra = [["car_key", 1], ["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
+		# пистолет без патронов, полный магазин и россыпь патронов (промпт 14.11 19:49)
+		safe.extra = [["pistol", 1, 0.0], ["mag", 1, 8.0], ["ammo", randi_range(12, 16)], ["car_key", 1], ["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
 		safe.position = Vector3(11.54, 0.0, 7.0)   # задняя стенка вплотную к стене
 		safe.rotation.y = -PI / 2.0
 		add_child(safe)
 	# противогаз и отравленный воздух наверху (G)
+	gun = Gun.new()
+	gun.game = self
+	add_child(gun)
+	player.gun = gun
 	gasmask = GasMask.new()
 	gasmask.game = self
 	add_child(gasmask)
@@ -912,6 +919,10 @@ func use_item(idx: int) -> void:
 		flashlight.recharge()
 		hud.toast("Фонарик заряжен", Color(0.9, 0.85, 0.55))
 		play_ui("click", -12.0)
+	elif id == "pistol":
+		equip(idx, "right")   # стреляет только правая рука (ПКМ)
+	elif id == "mag":
+		gun.fill_mag(idx)
 	elif Items.equip_slot(id) == "hand":
 		# оружие: в свободную руку (сначала правая), обе заняты — меняем правую
 		var hand := "right" if inv.equip["right"] == "" or inv.equip["left"] != "" else "left"

@@ -12,7 +12,7 @@ const Items := preload("res://items.gd")
 const Weapons := preload("res://weapons.gd")
 ## рыночные цены вещей, которых нет в магазине и которые не хлам
 const EXTRA_MARKET := {"wood": 2, "glass": 2, "wallet": 10, "knuckles": 30, "stone": 2, "twine": 4,
-	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20}
+	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20, "pistol": 120, "mag": 20, "ammo": 3}
 const NO_SELL := ["coin", "car_key"]
 
 var game
@@ -47,7 +47,7 @@ static func unit_price(id: String, dur := -1.0) -> int:
 	if m <= 0:
 		return 0
 	var mx := Items.max_dur(id)
-	var fr := 1.0 if mx <= 0.0 or dur < 0.0 else clampf(dur / mx, 0.0, 1.0)
+	var fr := 1.0 if mx <= 0.0 or dur < 0.0 or Items.ITEMS[id].has("rounds") else clampf(dur / mx, 0.0, 1.0)
 	return maxi(1, ceili(m * fr / 2.0))
 
 

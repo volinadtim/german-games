@@ -203,7 +203,8 @@ var silent_open := false
 func _fill() -> void:
 	contents = []
 	for it in extra:
-		contents.append([String(it[0]), int(it[1])])
+		# третий элемент — прочность / патроны (пистолет, магазин из сейфа)
+		contents.append([String(it[0]), int(it[1])] + ([float(it[2])] if it.size() > 2 else []))
 	if random_loot:
 		for it in _roll():
 			contents.append([String(it[0]), int(it[1])])
