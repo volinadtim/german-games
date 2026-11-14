@@ -37,7 +37,7 @@ const MAX_LEVEL := 5
 const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
 ## Шанс символа в каждой клетке окна, %: чем ценнее, тем реже.
 ## Окно разыгрывается по этим весам, затем на ленты барабанов «впечатываются» выпавшие символы.
-const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "diamond": 13.0, "seven": 10.5, "six": 3.5}
+const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "diamond": 13.0, "seven": 10.5, "six": 2.0}
 ## символы по уровням окна (промпт 14.11 17:40): на ур.1 только вишня, лимон, слива; дальше по символу,
 ## семёрки и шестёрки — только на последнем уровне (3×5). SYM_ORDER — порядок появления,
 ## LEVEL_SYMS[ур-1] — сколько первых символов в игре. Шансы — WEIGHTS среди доступных.
@@ -54,10 +54,18 @@ const PAY := {
 	"diamond": {3: 15, 4: 50, 5: 120},
 	"seven": {3: 30},
 }
-## множитель выплат по уровню окна: чем больше линий, тем меньше платит каждая —
-## иначе на 3×5 автомат отдавал бы больше, чем стоит крутка (подобрано симуляцией).
+## пара одинаковых подряд в ряду — только на окнах в 3 столбца (промпт 14.11 18:01), без множителя PAY_K
+const PAY2 := {"cherry": 1, "lemon": 1, "plum": 1, "grape": 1, "diamond": 2}
+## множитель выплат по уровню окна: чем больше линий, тем меньше платит каждая. Подобрано симуляцией
+## сессий (промпт 14.11 17:56): отдача ~91–99% цены крутки с учётом пар и множителя серии.
 ## Семёрки (сейф / 30 монет) не уменьшаются.
-const PAY_K := [0.8, 0.5, 0.52, 0.29, 0.22]
+const PAY_K := [1.58, 0.64, 0.55, 0.295, 0.165]
+## множитель за серию (промпт 14.11 17:56): CHAIN[побед подряд перед этой круткой] — множитель выплаты.
+## Проигрыш (и 666) сбрасывает серию; она живёт, пока крутишь: уход от автомата дальше CHAIN_DIST м
+## или CHAIN_IDLE с без крутки — сброс.
+const CHAIN := [1.0, 1.25, 1.5, 2.0]
+const CHAIN_DIST := 4.0
+const CHAIN_IDLE := 30.0
 const R := 0.19            # радиус барабана
 const RW := 0.125          # ширина барабана
 const REEL_Y := 0.98
@@ -81,6 +89,8 @@ var luck := {}                   # гарантированный символ -
 var level := MAX_LEVEL           # прокачка окна (1..MAX_LEVEL), хранится в сейве; в меню — всё открыто
 var shutters: Array = []         # заслонки закрытых клеток: [ряд][барабан]
 var pack_up: Button              # кнопка прокачки в окне покупки круток
+var streak := 0                  # побед подряд (множитель серии CHAIN)
+var last_spin_t := 0.0
 var tray_coins := 0              # выигрыш, лежащий в лотке (в сейве); забирается на E
 var tray_shown := 0              # сколько монеток горки сейчас видно
 var tray_meshes: Array[MeshInstance3D] = []
@@ -501,19 +511,29 @@ static func roll_window(lv: int, guar: Array) -> Array:
 	return g
 
 
+## для симуляции баланса: если не пусто — вместо PAY_K
+static var pay_k_test: Array = []
+
+
+## Множитель серии после streak побед подряд.
+static func chain_mult(streak_: int) -> float:
+	return float(CHAIN[clampi(streak_, 0, CHAIN.size() - 1)])
+
+
 ## Выплата за n символов sym на линии при уровне окна lv (0 — не платит).
 static func pay_for(sym: String, n: int, lv: int) -> int:
 	if not PAY.has(sym) or not PAY[sym].has(n):
 		return 0
 	if sym == "seven":
 		return int(PAY[sym][n])
-	return maxi(1, roundi(float(PAY[sym][n]) * float(PAY_K[clampi(lv, 1, MAX_LEVEL) - 1])))
+	var ks: Array = pay_k_test if not pay_k_test.is_empty() else PAY_K
+	return maxi(1, roundi(float(PAY[sym][n]) * float(ks[clampi(lv, 1, MAX_LEVEL) - 1])))
 
 
 ## Итог крутки: {"six": забирает ли автомат, "win": монет, "sevens": 3 семёрки на линии,
 ## "lines": [клетки выигравших линий], "ids": номера линий}.
 static func evaluate(g: Array, lv: int, lines: Array) -> Dictionary:
-	var res := {"six": false, "win": 0, "sevens": false, "lines": [], "ids": PackedStringArray()}
+	var res := {"six": false, "win": 0, "sevens": false, "big": false, "lines": [], "ids": PackedStringArray()}
 	if count_open(g, lv, "six") >= 3:
 		res["six"] = true
 		return res
@@ -537,6 +557,14 @@ static func evaluate(g: Array, lv: int, lines: Array) -> Dictionary:
 					cells = line.slice(i, j + 1)
 					break
 				i = j + 1
+			# окна шириной 3 столбца (1×3, 2×3, 3×3): пара одинаковых подряд в центральном ряду —
+			# маленькая награда PAY2 (серию не продлевает)
+			if sym == "" and int(line[0][0]) == 1 and int(LEVELS[clampi(lv, 1, MAX_LEVEL) - 1][1]) == 3:
+				for k in syms.size() - 1:
+					if syms[k] == syms[k + 1] and PAY2.has(syms[k]):
+						sym = syms[k]
+						cells = line.slice(k, k + 2)
+						break
 		else:
 			var same := true
 			for s in syms:
@@ -548,10 +576,14 @@ static func evaluate(g: Array, lv: int, lines: Array) -> Dictionary:
 		if sym == "" or sym == "six":
 			continue
 		var n := cells.size()
-		if sym == "seven":
+		if n == 2:
+			res["win"] = int(res["win"]) + int(PAY2[sym])
+		elif sym == "seven":
 			res["sevens"] = true
+			res["big"] = true
 		elif PAY.has(sym) and PAY[sym].has(n):
 			res["win"] = int(res["win"]) + pay_for(sym, n, lv)
+			res["big"] = true
 		else:
 			continue
 		res["ids"].append(str(li + 1))
@@ -1174,6 +1206,8 @@ func _draw_board(ci: Control) -> void:
 		for n in [5, 4, 3]:
 			if pays.has(n) and n <= int(LEVELS[level - 1][1]):
 				parts.append("×%d — %d" % [n, pay_for(id, n, level)])
+		if int(LEVELS[level - 1][1]) == 3 and PAY2.has(id):
+			parts.append("×2 — %d" % int(PAY2[id]))
 		_fit(ci, Vector2(pad + 100, y + 54), "    ".join(parts), inner - 160, 30, text_col)
 		_fit(ci, Vector2(w - pad - 70, y + 54), "%.0f%%" % float(WEIGHTS[id]), 66, 18, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_RIGHT)
 		y += 100.0
@@ -1194,7 +1228,7 @@ func _draw_board(ci: Control) -> void:
 		var top := y - 92.0 - 96.0 - 4.0
 		ci.draw_rect(Rect2(pad - 8, top, inner + 16, 188), Color(0.12, 0.05, 0.05, 0.72))
 		_fit(ci, Vector2(pad, top + 104), "семёрки и шестёрки — только на окне %s" % level_name(MAX_LEVEL), inner, 28, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
-	_fit(ci, Vector2(pad, y + 20), "чем больше окно, тем больше линий и меньше выплата каждой · 4 семёрки и 4 шестёрки не выпадают", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
+	_fit(ci, Vector2(pad, y + 20), "СЕРИЯ ПОБЕД: ×1 → ×1.25 → ×1.5 → ×2 · проигрыш, уход или 30 с без крутки — сброс", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
 	# правая колонка: линии открытого окна схемами 5×3 (закрытые клетки — тёмные)
 	var x0 := w
 	var cw := ci.size.x - w - pad
@@ -1221,7 +1255,7 @@ func _draw_board(ci: Control) -> void:
 			ci.draw_line(pa, pb, Color(1.0, 0.85, 0.4), 2.0)
 		_fit(ci, Vector2(gx, gy + 3 * cell + 20), "%d %s" % [li + 1, names[lines[li][1]]], 5 * cell + 6, 14, Color(0.85, 0.8, 0.7))
 	var ry := 146.0 + 5 * 100.0 + 14
-	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Линии платят отдельно,", "выигрыши складываются."]:
+	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара (×2) — только центр.", "ряд на окнах в 3 столбца."]:
 		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 20, Color(0.9, 0.84, 0.72))
 		ry += 28.0
 
@@ -1342,6 +1376,13 @@ func _process(delta: float) -> void:
 		else:
 			leds[i].emission_energy_multiplier = 0.4 + 1.4 * maxf(w, 0.0)
 	_animate_style(delta)
+	# серия живёт, пока крутишь: ушёл от автомата или долго не крутил — сброс
+	if streak > 0 and not busy and game and game.get("player"):
+		var far: bool = game.player.global_position.distance_to(global_position) > CHAIN_DIST
+		if far or t - last_spin_t > CHAIN_IDLE:
+			streak = 0
+			screen.text = "СЕРИЯ СГОРЕЛА"
+			_update_screen_hint()
 	# свечение мерцает и переливается от янтарного к красному
 	var flick := 0.06 * sin(t * 2.3) + 0.04 * sin(t * 7.1) + (0.12 if randf() < 0.02 else 0.0)
 	light.light_energy = 0.8 + flick + (0.35 * sin(t * 30.0) if party > 0.0 else 0.0)
@@ -1377,6 +1418,7 @@ func _payout() -> void:
 		game.play_at("buzz", global_position, -6.0, 0.7)
 		game.hud.hurt_flash(0.5)
 		game.call_deferred("save_now")
+		streak = 0
 		return
 	var win: int = res["win"]
 	var sevens: bool = res["sevens"]
@@ -1389,9 +1431,17 @@ func _payout() -> void:
 			game.hud.toast("777 — сейф открыт", Color(1.0, 0.85, 0.4))
 		else:
 			win += int(PAY["seven"][3])
+	# множитель серии: применяется к выигрышу этой крутки; выигрыш продлевает серию, проигрыш — сброс
+	var mult := chain_mult(streak)
+	win = roundi(win * mult)
+	# серию продлевают только настоящие комбинации (3+ или 777); пара — мелочь, серия сгорает
+	streak = streak + 1 if res["big"] else 0
+	last_spin_t = t
 	if win > 0:
 		msg = (msg + " · ") if msg != "" else ""
 		msg += "+%d" % win
+		if mult > 1.0:
+			msg += " (СЕРИЯ ×%s)" % _mult_str(mult)
 		# выигрыш со звоном высыпается в лоток-«пасть», забирать на E (промпт 14.11 17:53)
 		_pour(win)
 		game.hud.toast("KILLBOX: +%d — монеты в лотке" % win, Color(1.0, 0.8, 0.4))
@@ -1411,11 +1461,17 @@ func _payout() -> void:
 	_update_screen_hint()
 
 
-## Экран автомата между крутками: сколько круток осталось и гарантированные символы.
+func _mult_str(m: float) -> String:
+	return ("%.2f" % m).trim_suffix("0").trim_suffix("0").trim_suffix(".")
+
+
+## Экран автомата между крутками: сколько круток осталось, множитель серии и гарантированные символы.
 func _update_screen_hint() -> void:
-	if credits <= 0 and luck.is_empty():
+	if credits <= 0 and luck.is_empty() and streak <= 0:
 		return
 	var parts := PackedStringArray()
+	if streak > 0:
+		parts.append("СЕРИЯ %d → ×%s" % [streak, _mult_str(chain_mult(streak))])
 	if credits > 0:
 		parts.append("КРУТОК: %d" % credits)
 	for k in luck:
