@@ -171,11 +171,15 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.04, -s * 0.07), Vector2(s * 0.05, s * 0.14)), Color(0.75, 0.14, 0.1))
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.085, -s * 0.025), Vector2(s * 0.14, s * 0.05)), Color(0.75, 0.14, 0.1))
 		"choco":
-			var box := Rect2(c - Vector2(s * 0.34, s * 0.2), Vector2(s * 0.68, s * 0.4))
-			ci.draw_rect(box, col)
-			ci.draw_rect(Rect2(box.position + Vector2(s * 0.34, 0), Vector2(s * 0.34, s * 0.4)), Color(0.8, 0.75, 0.6))
-			for k in 2:
-				ci.draw_line(box.position + Vector2(s * 0.11 * (k + 1), 0), box.position + Vector2(s * 0.11 * (k + 1), s * 0.4), col.darkened(0.4), maxf(1.0, s * 0.03))
+			# как моделька: тёмно-красная обёртка с жёлтой полосой, фольга, надорванный конец с дольками (промпт 19:12)
+			var box := Rect2(c - Vector2(s * 0.38, s * 0.2), Vector2(s * 0.44, s * 0.4))
+			ci.draw_rect(box, Color(0.5, 0.1, 0.08))
+			ci.draw_rect(Rect2(box.position + Vector2(0, s * 0.16), Vector2(box.size.x, s * 0.08)), Color(0.9, 0.8, 0.4))
+			ci.draw_rect(Rect2(c + Vector2(s * 0.06, -s * 0.2), Vector2(s * 0.05, s * 0.4)), Color(0.8, 0.8, 0.82))   # фольга
+			ci.draw_rect(Rect2(c + Vector2(s * 0.11, -s * 0.18), Vector2(s * 0.27, s * 0.36)), col)
+			for i in 2:
+				for j in 3:
+					ci.draw_rect(Rect2(c + Vector2(s * (0.13 + i * 0.125), s * (-0.16 + j * 0.115)), Vector2(s * 0.1, s * 0.095)), col.lightened(0.12))
 		"soda":
 			var body := Rect2(c - Vector2(s * 0.17, s * 0.3), Vector2(s * 0.34, s * 0.6))
 			ci.draw_rect(body, col)
@@ -192,7 +196,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			var body := Rect2(c - Vector2(s * 0.16, s * 0.3), Vector2(s * 0.32, s * 0.64))
 			ci.draw_rect(Rect2(c - Vector2(s * 0.07, s * 0.38), Vector2(s * 0.14, s * 0.1)), Color(0.6, 0.6, 0.58))
 			ci.draw_rect(body, col)
-			ci.draw_rect(Rect2(body.position + Vector2(0, s * 0.42), Vector2(body.size.x, s * 0.22)), Color(0.15, 0.15, 0.15))
+			ci.draw_rect(Rect2(body.position, Vector2(body.size.x, s * 0.16)), Color(0.75, 0.5, 0.25))   # медный торец, как у модельки
 			ci.draw_line(c + Vector2(-s * 0.08, -s * 0.06), c + Vector2(s * 0.08, -s * 0.06), Color(0.9, 0.85, 0.6), maxf(1.5, s * 0.04))
 			ci.draw_line(c + Vector2(0, -s * 0.14), c + Vector2(0, s * 0.02), Color(0.9, 0.85, 0.6), maxf(1.5, s * 0.04))
 		"knuckles":
@@ -210,10 +214,17 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_rect(Rect2(c - Vector2(s * 0.16, s * 0.27), Vector2(s * 0.32, s * 0.62)), col)
 			ci.draw_rect(Rect2(c - Vector2(s * 0.16, s * 0.0), Vector2(s * 0.32, s * 0.35)), col.darkened(0.25))
 		"pills":
-			var box := Rect2(c - Vector2(s * 0.34, s * 0.22), Vector2(s * 0.68, s * 0.44))
-			ci.draw_rect(box, Color(0.7, 0.72, 0.75))
-			for k in 6:
-				ci.draw_circle(c + Vector2((k % 3 - 1) * s * 0.2, (k / 3 - 0.5) * s * 0.2), s * 0.07, col)
+			# баночка, как моделька (pickup_mesh.gd): оранжевая банка, белая крышка, белая этикетка с красным крестом (промпт 19:12)
+			var jar := Rect2(c - Vector2(s * 0.2, s * 0.2), Vector2(s * 0.4, s * 0.56))
+			ci.draw_rect(jar, Color(0.75, 0.42, 0.12))
+			ci.draw_rect(Rect2(jar.position + Vector2(s * 0.04, s * 0.02), Vector2(s * 0.06, jar.size.y - s * 0.04)), Color(0.9, 0.62, 0.3))   # блик
+			ci.draw_rect(Rect2(jar.position + Vector2(0, s * 0.18), Vector2(jar.size.x, s * 0.24)), Color(0.92, 0.9, 0.85))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.025, s * 0.2), Vector2(s * 0.05, s * 0.16)), Color(0.8, 0.15, 0.1))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.08, s * 0.255), Vector2(s * 0.16, s * 0.05)), Color(0.8, 0.15, 0.1))
+			ci.draw_rect(Rect2(c - Vector2(s * 0.23, s * 0.38), Vector2(s * 0.46, s * 0.18)), Color(0.95, 0.95, 0.93))   # крышка
+			for k in 5:
+				var x := -s * 0.19 + k * s * 0.095
+				ci.draw_line(c + Vector2(x, -s * 0.37), c + Vector2(x, -s * 0.21), Color(0.75, 0.75, 0.72), maxf(1.0, s * 0.015))
 		"wallet":
 			var box := Rect2(c - Vector2(s * 0.34, s * 0.24), Vector2(s * 0.68, s * 0.48))
 			ci.draw_rect(box, col)
