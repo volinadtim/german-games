@@ -2,7 +2,7 @@ extends StaticBody3D
 ## Магазин снаряжения «Trinkets Market» — зелёный торговый автомат слева от KILLBOX.
 ## E — открыть окно: покупка за монеты по вкладкам (промпт 14.11 17:21): «Оружие», «Одежда» (снаряжение),
 ## «Улучшения автомата» (окно KILLBOX и гарантированные символы), «Расходники» (еда, хилки, батарейки);
-## справа — скупка хлама.
+## справа — кнопка окна продажи (sell_window.gd, промпт 14.11 18:06: почти всё за полцены).
 ## Интерфейс взаимодействия (его дёргает game.gd): get_prompt(game) -> String, interact(game).
 
 const Weapons := preload("res://weapons.gd")
@@ -10,7 +10,7 @@ const Items := preload("res://items.gd")
 
 var game
 var ui: CanvasLayer
-var sell_box: VBoxContainer
+var sell_win                  # sell_window.gd
 var coins_l: Label
 var info_l: Label
 var opened := false
@@ -302,6 +302,8 @@ func _open() -> void:
 
 
 func _close() -> void:
+	if sell_win and sell_win.open:
+		sell_win.close()
 	opened = false
 	if ui:
 		ui.visible = false
@@ -311,6 +313,8 @@ func _close() -> void:
 
 
 func _input(e: InputEvent) -> void:
+	if sell_win and sell_win.open:
+		return   # Esc / E закрывает сначала окно продажи (sell_window.gd)
 	if opened and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory")):
 		get_viewport().set_input_as_handled()
 		if e.is_echo() or Time.get_ticks_msec() - _last_toggle < 350:
@@ -345,22 +349,19 @@ func _build_ui() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	cols.add_child(box)
-	# скупка хлама (промпт 20:06): правая колонка
+	# продажа (промпт 14.11 18:06): правая колонка — кнопка отдельного окна «сумка | на продажу»
 	var sell_col := VBoxContainer.new()
 	sell_col.add_theme_constant_override("separation", 8)
-	sell_col.custom_minimum_size = Vector2(300, 0)
+	sell_col.custom_minimum_size = Vector2(240, 0)
 	cols.add_child(sell_col)
-	sell_col.add_child(_label("СКУПКА ХЛАМА", 28, Color(1.0, 0.6, 0.35)))
-	sell_col.add_child(_label("2–5 монет за штуку", 15, Color(0.65, 0.63, 0.58)))
-	sell_box = VBoxContainer.new()
-	sell_box.add_theme_constant_override("separation", 6)
-	sell_col.add_child(sell_box)
-	var all_b := Button.new()
-	all_b.text = "Продать весь хлам"
-	all_b.focus_mode = Control.FOCUS_NONE
-	all_b.add_theme_font_size_override("font_size", 20)
-	all_b.pressed.connect(_sell_all_junk)
-	sell_col.add_child(all_b)
+	sell_col.add_child(_label("ПРОДАЖА", 28, Color(1.0, 0.6, 0.35)))
+	sell_col.add_child(_label("Магазин берёт почти любые вещи за полцены от своей цены (округляем в твою пользу). Побитое оружие и одежда — дешевле.", 15, Color(0.65, 0.63, 0.58)))
+	var sell_b := Button.new()
+	sell_b.text = "Продать вещи…"
+	sell_b.focus_mode = Control.FOCUS_NONE
+	sell_b.add_theme_font_size_override("font_size", 20)
+	sell_b.pressed.connect(_open_sell)
+	sell_col.add_child(sell_b)
 	var head := _label("TRINKETS MARKET", 30, Color(0.55, 1.0, 0.6))
 	head.add_theme_font_override("font", sign_font())
 	box.add_child(head)
@@ -424,7 +425,6 @@ func _label(t: String, size: int, col: Color) -> Label:
 
 func _refresh() -> void:
 	coins_l.text = "Монет: %d" % game.inv.count("coin")
-	_rebuild_sell()
 	_rebuild_tab.call_deferred()   # кнопка, по которой кликнули, ещё в сигнале
 
 
@@ -555,60 +555,14 @@ func _buy_upgrade() -> void:
 	_refresh()
 
 
-## Список вещей из сумки, которые магазин покупает (поле price в items.gd).
-func _rebuild_sell() -> void:
-	if sell_box == null:
-		return
-	for c in sell_box.get_children():
-		c.queue_free()
-	var shown := {}
-	for s in game.inv.slots:
-		if s == null or shown.has(s["id"]) or not Items.ITEMS[s["id"]].has("price"):
-			continue
-		var id: String = s["id"]
-		shown[id] = true
-		var n: int = game.inv.count(id)
-		var price: int = Items.ITEMS[id]["price"]
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		var icon := Control.new()
-		icon.custom_minimum_size = Vector2(34, 34)
-		icon.draw.connect(func(): Items.draw_icon(icon, id, Rect2(Vector2.ZERO, icon.size)))
-		row.add_child(icon)
-		var l := _label("%s ×%d — по %d" % [Items.item_name(id), n, price], 17, Color(0.88, 0.86, 0.8))
-		l.custom_minimum_size = Vector2(170, 0)
-		row.add_child(l)
-		var b := Button.new()
-		b.text = "Продать"
-		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", 16)
-		b.pressed.connect(func(): _sell(id, game.inv.count(id)))
-		row.add_child(b)
-		sell_box.add_child(row)
-	if shown.is_empty():
-		sell_box.add_child(_label("В сумке нет ничего на продажу", 16, Color(0.6, 0.58, 0.54)))
-
-
-func _sell(id: String, n: int) -> int:
-	var price: int = Items.ITEMS[id]["price"]
-	n = mini(n, game.inv.count(id))
-	if n <= 0 or not game.inv.remove(id, n):
-		return 0
-	game.inv.add("coin", n * price)
-	info_l.text = "Продано: %s ×%d — +%d монет" % [Items.item_name(id), n, n * price]
-	game.play_ui("coin", -10.0, 1.1)
-	_refresh()
-	return n * price
-
-
-## «Продать весь хлам» — только то, что помечено как хлам (изоленту не трогаем: она нужна для ножика).
-func _sell_all_junk() -> void:
-	var total := 0
-	for id in Items.ITEMS:
-		if Items.ITEMS[id].get("junk", false) and game.inv.count(id) > 0:
-			total += _sell(id, game.inv.count(id))
-	info_l.text = "Весь хлам продан: +%d монет" % total if total > 0 else "Хлама в сумке нет"
-
+## Окно продажи поверх магазина.
+func _open_sell() -> void:
+	if sell_win == null:
+		sell_win = load("res://sell_window.gd").new()
+		sell_win.game = game
+		sell_win.shop = self
+		add_child(sell_win)
+	sell_win.show_window()
 
 
 func _refresh_chests() -> void:
