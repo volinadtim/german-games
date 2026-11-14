@@ -245,7 +245,7 @@ func _hide_body() -> void:
 
 ## Лут кувшина: всегда монеты + 2–4 вещи (большой — ещё одна). Пусто не бывает.
 func _roll(r: RandomNumberGenerator) -> Array:
-	var out: Array = [["coin", r.randi_range(4, 10) + int(6 * maxf(size - 1.0, 0.0))]]
+	var out: Array = [["coin", r.randi_range(1, 4) + int(3 * maxf(size - 1.0, 0.0))]]  # меньше денег (промпт 14.11 17:18)
 	# сколько вещей — по правке Германа: 2 / 3 / 4
 	var roll := r.randf()
 	var n := 2 if roll < 0.22 else (3 if roll < 0.8 else 4)
@@ -259,7 +259,10 @@ func _roll(r: RandomNumberGenerator) -> Array:
 		for row in Chest.LOOT:
 			pick -= int(row[1])
 			if pick < 0:
-				out.append([row[0], r.randi_range(int(row[2]), int(row[3]))])
+				var cnt := r.randi_range(int(row[2]), int(row[3]))
+				if row[0] == "coin":
+					cnt = maxi(cnt / 4, 1)  # монеты из таблицы — горстка, не пачка
+				out.append([row[0], cnt])
 				break
 	return out
 
