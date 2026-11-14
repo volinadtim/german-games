@@ -94,6 +94,7 @@ func _ready() -> void:
 
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.theme = _menu_theme()   # общий шрифт и чёрная обводка у всего текста меню (промпт 19:00)
 	add_child(root)
 
 	var blur := ColorRect.new()
@@ -123,7 +124,7 @@ func _ready() -> void:
 	# --- главное меню
 	main_box = _vbox(right_col)
 	main_box.add_child(_title("eskiNess", 104))
-	main_box.add_child(_subtitle("щербетики."))
+	main_box.add_child(_subtitle("no luck. no fun."))
 	main_box.add_child(_gap(34))
 	main_box.add_child(_button("Играть", _open_slots))
 	main_box.add_child(_button("Настройки", func(): _open_settings("main")))
@@ -340,7 +341,7 @@ func _save_game() -> void:
 func _open_slots() -> void:
 	for c in slots_box.get_children():
 		c.queue_free()
-	slots_box.add_child(_title("СОХРАНЕНИЯ", 72))
+	slots_box.add_child(_title("СОХРАНЕНИЯ", 60))
 	slots_box.add_child(_gap(18))
 	for i in range(1, Save.SLOTS + 1):
 		var row := HBoxContainer.new()
@@ -354,7 +355,8 @@ func _open_slots() -> void:
 		info.add_theme_font_size_override("font_size", 16)
 		info.add_theme_color_override("font_color", Color(0.75, 0.7, 0.62) if used else Color(0.5, 0.47, 0.42))
 		info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		info.custom_minimum_size = Vector2(230, 0)
+		info.custom_minimum_size = Vector2(170, 0)
+		info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(info)
 		row.add_child(b)
 		if used:
@@ -755,37 +757,67 @@ func _vbox(parent: Control) -> VBoxContainer:
 	return b
 
 
-## Мрачный шрифт меню: если в fonts/ лежит файл шрифта — берём его, иначе системный «тяжёлый».
-static var _font_cache: Font
+## Шрифты меню (промпт 14.11 19:00) — системные, без файлов, с цепочкой запасных:
+## основной — спокойный технический узкий гротеск (Windows: Bahnschrift SemiCondensed; Android: sans-serif-condensed),
+## заголовки — чистый жирный узкий (Windows: Impact; Android: sans-serif-condensed bold). RubikDirt — только на вывеске автомата.
+const OUTLINE := Color(0, 0, 0, 0.95)
+static var _body_cache: Font
+static var _head_cache: Font
+
+
 func _menu_font() -> Font:
-	if _font_cache:
-		return _font_cache
-	for path in ["res://fonts/menu.ttf", "res://fonts/menu.otf", "res://fonts/RubikDirt-Regular.ttf"]:
-		if ResourceLoader.exists(path):
-			_font_cache = load(path)
-			return _font_cache
+	if _body_cache:
+		return _body_cache
 	var sf := SystemFont.new()
-	sf.font_names = PackedStringArray(["Bahnschrift SemiBold SemiConden", "Impact", "Franklin Gothic Demi Cond", "Arial Narrow", "sans-serif"])
+	sf.font_names = PackedStringArray(["Bahnschrift SemiBold SemiConden", "Bahnschrift", "Segoe UI Semibold", "Arial Narrow",
+		"sans-serif-condensed", "Roboto Condensed", "sans-serif-medium", "sans-serif"])
+	sf.font_weight = 600
+	sf.font_stretch = 87
+	var fv := FontVariation.new()
+	fv.base_font = sf
+	fv.spacing_glyph = 1
+	_body_cache = fv
+	return _body_cache
+
+
+func _head_font() -> Font:
+	if _head_cache:
+		return _head_cache
+	var sf := SystemFont.new()
+	sf.font_names = PackedStringArray(["Impact", "Bahnschrift Bold Condensed", "Bahnschrift", "Arial Narrow",
+		"sans-serif-condensed", "Roboto Condensed", "sans-serif"])
 	sf.font_weight = 700
+	sf.font_stretch = 75
 	var fv := FontVariation.new()
 	fv.base_font = sf
 	fv.spacing_glyph = 2
-	_font_cache = fv
-	return _font_cache
+	_head_cache = fv
+	return _head_cache
+
+
+## Тема на корне меню: всем подписям, кнопкам и галочкам — основной шрифт и чёрная обводка.
+func _menu_theme() -> Theme:
+	var th := Theme.new()
+	th.default_font = _menu_font()
+	for type in ["Label", "Button", "CheckBox"]:
+		th.set_color("font_outline_color", type, OUTLINE)
+		th.set_constant("outline_size", type, 5)
+	return th
 
 
 func _title(text: String, size: int) -> Label:
 	var t := Label.new()
 	t.text = text
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	t.add_theme_font_override("font", _menu_font())
+	t.add_theme_font_override("font", _head_font())
 	t.add_theme_font_size_override("font_size", size)
-	t.add_theme_color_override("font_color", Color(0.86, 0.82, 0.74))
-	t.add_theme_color_override("font_outline_color", Color(0.18, 0.03, 0.02, 0.9))
-	t.add_theme_constant_override("outline_size", 6)
-	t.add_theme_color_override("font_shadow_color", Color(0.5, 0.05, 0.03, 0.55))
+	t.add_theme_color_override("font_color", Color(0.88, 0.84, 0.76))
+	t.add_theme_color_override("font_outline_color", OUTLINE)
+	t.add_theme_constant_override("outline_size", clampi(size / 9, 6, 12))
+	# лёгкая тёмно-красная тень — характер без шума
+	t.add_theme_color_override("font_shadow_color", Color(0.45, 0.04, 0.02, 0.6))
 	t.add_theme_constant_override("shadow_offset_x", 3)
-	t.add_theme_constant_override("shadow_offset_y", 5)
+	t.add_theme_constant_override("shadow_offset_y", 4)
 	return t
 
 
@@ -794,8 +826,10 @@ func _subtitle(text: String) -> Label:
 	t.text = text
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	t.add_theme_font_override("font", _menu_font())
-	t.add_theme_font_size_override("font_size", 20)
-	t.add_theme_color_override("font_color", Color(0.62, 0.5, 0.42, 0.85))
+	t.add_theme_font_size_override("font_size", 22)
+	t.add_theme_color_override("font_color", Color(0.72, 0.6, 0.5))
+	t.add_theme_color_override("font_outline_color", OUTLINE)
+	t.add_theme_constant_override("outline_size", 5)
 	return t
 
 
@@ -817,6 +851,8 @@ func _button(text: String, cb: Callable) -> Button:
 	b.add_theme_color_override("font_color", Color(0.8, 0.77, 0.7))
 	b.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.82))
 	b.add_theme_color_override("font_pressed_color", Color(0.85, 0.35, 0.25))
+	b.add_theme_color_override("font_outline_color", OUTLINE)
+	b.add_theme_constant_override("outline_size", 6)
 	b.add_theme_stylebox_override("normal", _btn_style(Color(0.04, 0.02, 0.02, 0.55), Color(0.45, 0.08, 0.05, 0.85), 4, 22))
 	b.add_theme_stylebox_override("hover", _btn_style(Color(0.22, 0.05, 0.03, 0.6), Color(0.85, 0.18, 0.1), 8, 34))
 	b.add_theme_stylebox_override("pressed", _btn_style(Color(0.3, 0.05, 0.03, 0.7), Color(1.0, 0.3, 0.2), 8, 36))
