@@ -87,8 +87,9 @@ func build(list: Array) -> void:
 			mi.mesh = pm
 			mi.material_override = glass_mat
 			var off: Vector2 = Vector2.from_angle(rng.randf() * TAU) * r * sqrt(rng.randf())
-			mi.position = c + Vector3(off.x, 0.003, off.y)
-			mi.rotation = Vector3(-PI / 2 + rng.randf_range(-0.08, 0.08), rng.randf() * TAU, 0)
+			# целиком над полом: толщина 4 мм, наклон ≤0.03 рад — нижний край ≥ ~2 мм над бетоном (без мерцания)
+			mi.position = c + Vector3(off.x, 0.007 + a * 0.03, off.y)
+			mi.rotation = Vector3(-PI / 2 + rng.randf_range(-0.03, 0.03), rng.randf() * TAU, 0)
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			pile.add_child(mi)
 			if j % 7 == 0:

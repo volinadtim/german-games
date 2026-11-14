@@ -9,6 +9,7 @@ const WEAPON_SCALE := 1.875  # оружие и снаряжение — ×1.5 к
 ## Визуал приподнят над низом коллизии, чтобы нижние грани не совпадали с полом (иначе мерцают, как было с кувшинами).
 const LIFT := 0.008
 const LIFT_FLAT := 0.014     # тонкие плоские вещи (монеты, фото, плитка…)
+const COIN_SCALE := 1.0      # монеты — маленькие, как до 18:02 (промпт 14.11 18:16)
 const FLAT := ["coin", "photo", "choco", "glass", "wallet", "nut", "gear", "tape", "rusk"]
 
 ## Есть ли у предмета своя модель здесь.
@@ -239,8 +240,9 @@ static func _build(root: Node3D, id: String) -> Vector3:
 			_add(root, _box(Vector3(0.06, 0.006, 0.035)), _mat(col.lightened(0.15), 0.7, 0.6, 0.15), Vector3(0.035, 0.008, 0.01), Vector3(0.2, -0.5, -0.2))
 			_add(root, _cyl(0.004, 0.11, 8), _mat(col.darkened(0.3), 0.7, 0.6, 0.12), Vector3(0, 0.012, -0.005), Vector3(0, 0.9, PI / 2))
 			size = Vector3(0.13, 0.03, 0.07)
-	root.scale = Vector3.ONE * SCALE
-	return size * SCALE
+	var k := COIN_SCALE if id == "coin" else SCALE
+	root.scale = Vector3.ONE * k
+	return size * k
 
 
 ## Иконка предмета (items.gd: draw_icon) на билборде — для предметов без своей модели.

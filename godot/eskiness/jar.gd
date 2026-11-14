@@ -303,9 +303,9 @@ func _scatter_static(r: RandomNumberGenerator) -> void:
 	for k in int(6 + 5 * size):
 		var sh := _shard_mesh(r, glass)
 		var off := Vector2.from_angle(r.randf() * TAU) * r.randf_range(0.05, 0.7)
-		sh.position = Vector3(off.x, 0.006, off.y)
-		sh.rotation = Vector3(-PI / 2.0 + r.randf_range(-0.2, 0.2), r.randf() * TAU, 0)
+		sh.position = Vector3(off.x, 0.0, off.y)
 		add_child(sh)
+		_lay_flat(sh, r.randf_range(-0.04, 0.04))
 
 
 func _process(delta: float) -> void:
@@ -318,13 +318,35 @@ func _process(delta: float) -> void:
 		v.y -= 9.8 * delta
 		n.position += v * delta
 		n.rotation += (s[2] as Vector3) * delta
-		if n.position.y <= 0.006:
+		if n.position.y <= _ground_y(n.position) + 0.02:
 			# упал: лежит плашмя
-			n.position.y = 0.006
-			n.rotation = Vector3(-PI / 2.0 + randf_range(-0.2, 0.2), n.rotation.y, 0)
+			_lay_flat(n, randf_range(-0.04, 0.04))
 			shards.remove_at(i)
 		else:
 			s[1] = v
+
+
+## Осколок лежит плашмя на полу (в бункере) или земле (на поляне): почти без наклона и целиком над поверхностью —
+## иначе его грани пересекаются с полом и мерцают (промпт 14.11 18:16).
+func _lay_flat(n: MeshInstance3D, tilt: float) -> void:
+	var pm := n.mesh as PrismMesh
+	var half := maxf(pm.size.x, pm.size.y) * 0.5
+	n.rotation = Vector3(-PI / 2.0 + tilt, n.rotation.y, 0)
+	n.position.y = _ground_y(n.position) + pm.size.z * 0.5 + absf(tilt) * half + 0.005
+
+
+## Высота пола под точкой (в координатах кувшина): луч вниз по коллизиям уровня.
+func _ground_y(p: Vector3) -> float:
+	if not is_inside_tree():
+		return 0.0
+	var g := to_global(p)
+	var q := PhysicsRayQueryParameters3D.create(g + Vector3(0, 0.5, 0), g - Vector3(0, 1.5, 0))
+	q.collision_mask = 1
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return 0.0
+	return to_local(hit.position).y
 
 
 func _play(stream: AudioStreamWAV, db: float) -> void:

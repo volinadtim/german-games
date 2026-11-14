@@ -15,6 +15,8 @@ var age := 0.0
 var need_leave := false
 var taken := false   # уже летит к игроку (в сохранение не попадает)
 var model: Node3D
+var model_base := Vector3.ZERO   # положение визуала без подъёма
+var lift := 0.0                  # подъём визуала над полом — по мировой вертикали, как бы предмет ни лёг
 
 
 func _ready() -> void:
@@ -30,6 +32,9 @@ func _ready() -> void:
 	var made: Array = PickupMesh.make(id)
 	model = made[0]
 	add_child(model)
+	# PickupMesh уже поднял визуал по своей оси; запоминаем подъём и дальше держим его по мировой вертикали
+	lift = PickupMesh.LIFT_FLAT if id in PickupMesh.FLAT else PickupMesh.LIFT
+	model_base = model.position - Vector3(0, lift, 0)
 	var s: Vector3 = made[1]
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
@@ -42,6 +47,9 @@ func _ready() -> void:
 
 func _physics_process(delta: float) -> void:
 	age += delta
+	if not taken:
+		# лёг на бок — визуал всё равно приподнят вверх по миру (тело без масштаба: inverse = transposed)
+		model.position = model_base + global_transform.basis.transposed() * Vector3(0, lift, 0)
 	if taken or game == null or not game.alive or age < 0.6 or id != "coin":
 		return
 	var pp: Vector3 = game.player.global_position
