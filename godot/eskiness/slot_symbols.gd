@@ -59,6 +59,15 @@ static func draw(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_line(o + Vector2(-rad * 0.78, w * 0.5), o + Vector2(rad * 0.78, w * 0.5), Color(1.0, 0.45, 0.38), w * 0.7)
 			for p in [Vector2(-0.2, 0.07), Vector2(0.0, 0.13), Vector2(0.2, 0.07), Vector2(-0.09, 0.22), Vector2(0.1, 0.22)]:
 				ci.draw_rect(Rect2(o + p * s - Vector2(s * 0.022, s * 0.03), Vector2(s * 0.045, s * 0.065)), INK)
+		"rot_apple":   # гнилое яблоко: бурое, с червоточиной, плесенью и кривым черенком
+			var p := c + Vector2(0, s * 0.06)
+			_stroke(ci, [p + Vector2(0, -s * 0.24), p + Vector2(-s * 0.04, -s * 0.4)], s * 0.045, w, Color(0.25, 0.18, 0.1))
+			_leaf(ci, p + Vector2(-s * 0.02, -s * 0.33), p + Vector2(s * 0.22, -s * 0.42), s * 0.07, w, Color(0.28, 0.3, 0.12))
+			_ball(ci, p, s * 0.3, w, Color(0.58, 0.18, 0.1), Color(0.34, 0.1, 0.06))
+			ci.draw_circle(p + Vector2(-s * 0.1, s * 0.03), s * 0.13, Color(0.36, 0.24, 0.1))   # гниль
+			ci.draw_circle(p + Vector2(-s * 0.13, s * 0.06), s * 0.05, Color(0.62, 0.66, 0.5))  # плесень
+			ci.draw_circle(p + Vector2(-s * 0.05, -s * 0.02), s * 0.035, Color(0.6, 0.64, 0.48))
+			ci.draw_circle(p + Vector2(s * 0.12, s * 0.12), s * 0.04, INK)                        # червоточина
 		"diamond":
 			var pts := PackedVector2Array([c + Vector2(-s * 0.36, -s * 0.1), c + Vector2(-s * 0.2, -s * 0.3),
 				c + Vector2(s * 0.2, -s * 0.3), c + Vector2(s * 0.36, -s * 0.1), c + Vector2(0, s * 0.38)])

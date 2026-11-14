@@ -48,6 +48,9 @@ const ITEMS := {
 		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
 	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 6,
 		"icon": "water", "color": Color(0.45, 0.6, 0.7), "buff": "speed", "power": 0.15, "time": 30.0},
+	# гнилое яблоко (промпт 14.11 19:23): скормить KILLBOX — при следующих «666» он не заберёт монеты
+	"rot_apple": {"name": "Гнилое яблоко", "desc": "Скорми KILLBOX (E, глядя в пасть): при следующих «666» автомат не заберёт монеты — ни из кармана, ни из лотка. Не больше 2 сразу.", "stack": 5,
+		"icon": "rot_apple", "color": Color(0.55, 0.16, 0.1)},
 	"pills": {"name": "Обезболивающее", "desc": "Блистер таблеток. +15 здоровья.", "stack": 8,
 		"icon": "pills", "color": Color(0.85, 0.85, 0.82), "heal": 15.0},
 	"wallet": {"name": "Старый кошелёк", "desc": "Открыть: внутри 10–40 монет.", "stack": 5,
@@ -161,6 +164,8 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
+		"rot_apple":
+			preload("res://slot_symbols.gd").draw(ci, "rot_apple", r)
 		"coin":
 			ci.draw_circle(c, s * 0.34, dark)
 			ci.draw_circle(c, s * 0.29, col)

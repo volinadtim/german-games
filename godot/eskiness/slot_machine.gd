@@ -106,6 +106,11 @@ var shutters: Array = []         # заслонки закрытых клето�
 var pack_up: Button              # кнопка прокачки в окне покупки круток
 var streak := 0                  # побед подряд (множитель серии CHAIN)
 var last_spin_t := 0.0
+## защита от 666 (промпт 14.11 19:23): скормленные гнилые яблоки; при «666» одно сгорает, монеты целы
+const SHIELD_MAX := 2
+const APPLE_PRICE := 30   # цена — по просьбе Германа (19:23)
+var shield := 0
+var apple_props: Array[Node3D] = []   # яблоки на табло у экрана — сколько защит
 var tray_coins := 0              # выигрыш, лежащий в лотке (в сейве); забирается на E
 var tray_shown := 0              # сколько монеток горки сейчас видно
 var tray_meshes: Array[Node3D] = []
@@ -813,6 +818,7 @@ func _build_extras(body: Material, trim: Material, black: Material) -> void:
 	_cage_lamps(trim)
 	_maw(trim, black)
 	_build_tray()
+	_build_apples()
 	_grilles(trim, black)
 	_braces(body, trim)
 	_rivets(trim)
@@ -1282,7 +1288,7 @@ func _draw_board(ci: Control) -> void:
 			ci.draw_line(pa, pb, Color(1.0, 0.85, 0.4), 2.0)
 		_fit(ci, Vector2(gx, gy + 3 * cell + 20), "%d %s" % [li + 1, names[lines[li][1]]], 5 * cell + 6, 14, Color(0.85, 0.8, 0.7))
 	var ry := 146.0 + 5 * 100.0 + 14
-	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара (×2) — в любом ряду,", "только на 1×3 и 2×3.", "Гаранты и шансы — в магазине."]:
+	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара (×2) — в любом ряду,", "только на 1×3 и 2×3.", "Гаранты и шансы — в магазине.", "Гнилое яблоко спасёт от 666."]:
 		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 20, Color(0.9, 0.84, 0.72))
 		ry += 28.0
 
@@ -1437,6 +1443,17 @@ func _payout() -> void:
 	busy = false
 	var g := grid()
 	var res := evaluate(g, level, lines_for(level))
+	if res["six"] and shield > 0:
+		# яблоко спасло: монеты не трогаем, защита сгорает
+		shield -= 1
+		_update_apples()
+		screen.text = "666 — ЯБЛОКО СПАСЛО МОНЕТЫ"
+		game.hud.toast("Три шестёрки! Гнилое яблоко спасло твои монеты", Color(0.7, 1.0, 0.5))
+		game.play_at("buzz", global_position, -10.0, 0.9)
+		game.call_deferred("save_now")
+		streak = 0
+		_update_screen_hint()
+		return
 	if res["six"]:
 		var have: int = game.inv.count("coin")
 		var lost := maxi(have - 10, 0)
@@ -1499,7 +1516,7 @@ func _mult_str(m: float) -> String:
 
 ## Экран автомата между крутками: сколько круток осталось, множитель серии и гарантированные символы.
 func _update_screen_hint() -> void:
-	if credits <= 0 and luck.is_empty() and boost.is_empty() and streak <= 0:
+	if credits <= 0 and luck.is_empty() and boost.is_empty() and streak <= 0 and shield <= 0:
 		return
 	var parts := PackedStringArray()
 	if streak > 0:
@@ -1510,6 +1527,8 @@ func _update_screen_hint() -> void:
 		parts.append("%s ГАРАНТ ×%d (%d)" % [Sym.NAMES[k].to_upper(), int(luck[k]["k"]), int(luck[k]["left"])])
 	for k in boost:
 		parts.append("%s ЧАЩЕ (%d)" % [Sym.NAMES[k].to_upper(), int(boost[k])])
+	if shield > 0:
+		parts.append("ЗАЩИТА 666 ×%d" % shield)
 	screen.text = (screen.text + "\n" if screen.text != "" else "") + " · ".join(parts)
 
 
@@ -1822,12 +1841,17 @@ class TrayTarget extends StaticBody3D:
 	func get_prompt(g) -> String:
 		if slot.tray_coins > 0 and not slot.eating:
 			return "[E] Забрать %d монет" % slot.tray_coins
+		if slot.can_feed(g):
+			return "[E] Скормить гнилое яблоко (защита от 666: %d/%d)" % [slot.shield, slot.SHIELD_MAX]
 		return slot.get_prompt(g)
 
 	func interact(g) -> void:
 		if slot.tray_coins > 0 and not slot.eating:
 			slot.game = g
 			slot.take_tray()
+		elif slot.can_feed(g):
+			slot.game = g
+			slot.feed_apple()
 		else:
 			slot.interact(g)
 
@@ -2002,3 +2026,76 @@ static func _crunch() -> AudioStreamWAV:
 	st.data = data
 	_crunch_wav = st
 	return st
+
+
+# ---------- гнилое яблоко: защита от 666 ----------
+
+## Можно ли сейчас скормить яблоко: оно есть в сумке и защит меньше SHIELD_MAX.
+func can_feed(g) -> bool:
+	return g != null and not busy and not eating and shield < SHIELD_MAX and g.inv.count("rot_apple") > 0
+
+
+## Скормить яблоко: оно летит из руки в пасть и пропадает, жар вспыхивает, чавканье; +1 защита.
+func feed_apple() -> void:
+	if not can_feed(game) or not game.inv.remove("rot_apple", 1):
+		return
+	shield += 1
+	var a := _apple_mesh()
+	a.scale = Vector3.ONE * 1.6
+	rig.add_child(a)
+	var from := Vector3(0, 0.75, 0.9)
+	var to := Vector3(0, 0.45, 0.31)
+	a.position = from
+	var tw := create_tween()
+	tw.tween_method(func(t: float):
+		a.position = from.lerp(to, t) + Vector3(0, sin(PI * t) * 0.12, 0)
+		a.rotation = Vector3(t * 6.0, t * 3.0, 0), 0.0, 1.0, 0.45).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(a, "scale", Vector3.ONE * 0.2, 0.15)
+	tw.tween_callback(func():
+		a.queue_free()
+		snd2.stream = _crunch()
+		snd2.volume_db = -8.0
+		snd2.pitch_scale = 1.15
+		snd2.play()
+		if maw_mat:
+			var mt := create_tween()
+			mt.tween_property(maw_mat, "emission_energy_multiplier", 3.0, 0.12)
+			mt.tween_property(maw_mat, "emission_energy_multiplier", 0.6, 0.6)
+		_update_apples()
+		screen.text = "НЯМ. ЗАЩИТА ОТ 666 ×%d" % shield
+		_update_screen_hint())
+	if game:
+		game.hud.toast("KILLBOX съел гнилое яблоко: при следующих «666» монеты останутся (%d/%d)" % [shield, SHIELD_MAX], Color(0.7, 1.0, 0.5))
+		if game.has_method("save_now"):
+			game.call_deferred("save_now")
+
+
+## Маленькое 3D-яблоко: бурый шар, гнилой бок, черенок.
+func _apple_mesh() -> Node3D:
+	var n := Node3D.new()
+	var body := _mat(Color(0.5, 0.15, 0.08), 0.0, 0.7)
+	_sphere(n, 0.03, Vector3.ZERO, body, 10)
+	_sphere(n, 0.018, Vector3(-0.016, -0.004, 0.016), _mat(Color(0.3, 0.2, 0.08), 0.0, 0.9), 8)
+	_sphere(n, 0.006, Vector3(-0.02, 0.0, 0.024), _mat(Color(0.6, 0.65, 0.5), 0.0, 0.9), 6)
+	_cyl(n, 0.003, 0.025, Vector3(0, 0.032, 0), Vector3(0, 0, 0.3), _mat(Color(0.25, 0.18, 0.1)), 5)
+	return n
+
+
+## Яблоки-«трофеи» слева от экрана: видно, сколько защит от 666 сейчас.
+func _build_apples() -> void:
+	for k in SHIELD_MAX:
+		var a := _apple_mesh()
+		a.position = Vector3(-0.41, 0.74 - k * 0.07, 0.33)
+		a.visible = false
+		rig.add_child(a)
+		apple_props.append(a)
+
+
+func _update_apples() -> void:
+	for k in apple_props.size():
+		apple_props[k].visible = k < shield
+
+
+func set_shield(n: int) -> void:
+	shield = clampi(n, 0, SHIELD_MAX)
+	_update_apples()

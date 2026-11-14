@@ -140,6 +140,7 @@ func setup(p: Player) -> void:
 		slot.boost = {}
 		slot.set_level(1)
 		slot.set_tray(0)
+		slot.set_shield(0)
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
 	_spawn_stone_piles()
 	tape = TapeSpot.new()
@@ -1438,6 +1439,7 @@ func save_state() -> Dictionary:
 		"cheat_count": cheat_count,
 		"markup_pending": markup_pending,
 		"slot_tray": slot.tray_coins if slot else 0,
+		"slot_shield": slot.shield if slot else 0,
 		"play_time": play_time,
 	}
 
@@ -1564,6 +1566,7 @@ func load_state(d: Dictionary) -> void:
 		slot.load_buffs(d.get("slot_luck", {}), d.get("slot_boost", {}))
 		slot.set_level(int(d.get("slot_level", 1)))
 		slot.set_tray(int(d.get("slot_tray", 0)))
+		slot.set_shield(int(d.get("slot_shield", 0)))
 		slot.screen.text = ""
 		slot._update_screen_hint()
 	cheat_count = int(d.get("cheat_count", 0))

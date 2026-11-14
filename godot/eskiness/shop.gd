@@ -13,7 +13,9 @@ var ui: CanvasLayer
 var sell_win                  # sell_window.gd
 var coins_l: Label
 var info_l: Label
-var tip_l: RichTextLabel       # подсказка товара (промпт 14.11 19:10)
+var tip_l: RichTextLabel       # подсказка товара у курсора (промпты 14.11 19:10, 19:26)
+var tip_panel: PanelContainer
+var tip_hide_t := 0.0          # долгий тап: подсказка сама прячется через пару секунд
 var markup_l: Label           # красная плашка «Наценка за мухлёж» (game.gd: markup_pct)
 var opened := false
 var tab := 0                  # открытая вкладка (TABS)
@@ -342,31 +344,32 @@ func _build_ui() -> void:
 	sb.border_color = Color(0.6, 0.3, 0.15, 0.8)
 	sb.set_border_width_all(2)
 	sb.set_corner_radius_all(4)
-	sb.set_content_margin_all(20)
+	sb.set_content_margin_all(12)
 	panel.add_theme_stylebox_override("panel", sb)
 	center.add_child(panel)
 	var cols := HBoxContainer.new()
-	cols.add_theme_constant_override("separation", 26)
+	cols.add_theme_constant_override("separation", 12)
 	panel.add_child(cols)
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 6)
+	box.add_theme_constant_override("separation", 4)
 	cols.add_child(box)
-	var head := _label("TRINKETS MARKET", 30, Color(0.55, 1.0, 0.6))
+	var head := _label("TRINKETS MARKET", 24, Color(0.55, 1.0, 0.6))
 	head.add_theme_font_override("font", sign_font())
 	box.add_child(head)
-	coins_l = _label("", 22, Color(0.92, 0.8, 0.5))
+	coins_l = _label("", 17, Color(0.92, 0.8, 0.5))
 	box.add_child(coins_l)
-	markup_l = _label("", 19, Color(1.0, 0.88, 0.85))
+	markup_l = _label("", 14, Color(1.0, 0.88, 0.85))
 	var msb := StyleBoxFlat.new()
 	msb.bg_color = Color(0.55, 0.06, 0.04, 0.9)
 	msb.set_content_margin_all(6)
 	msb.set_corner_radius_all(3)
 	markup_l.add_theme_stylebox_override("normal", msb)
 	markup_l.visible = false
+	markup_l.custom_minimum_size = Vector2(408, 0)
 	box.add_child(markup_l)
 	# вкладки-категории
 	var tabs := HBoxContainer.new()
-	tabs.add_theme_constant_override("separation", 6)
+	tabs.add_theme_constant_override("separation", 3)
 	box.add_child(tabs)
 	var group := ButtonGroup.new()
 	for i in TABS.size():
@@ -376,49 +379,61 @@ func _build_ui() -> void:
 		tb.button_group = group
 		tb.button_pressed = i == tab
 		tb.focus_mode = Control.FOCUS_NONE
-		tb.add_theme_font_size_override("font_size", 18)
+		tb.add_theme_font_size_override("font_size", 14)
 		tb.pressed.connect(_show_tab.bind(i))
 		tabs.add_child(tb)
 		tab_btns.append(tb)
 	# вкладка прокручивается, если не влезает (на «Слот-Машине» много строк)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(680, 350)
+	scroll.custom_minimum_size = Vector2(412, 300)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(scroll)
 	content = VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 6)
 	scroll.add_child(content)
-	# подсказка: название и описание товара под курсором (или по долгому тапу)
+	# подсказка у курсора: название, описание, причина недоступности (промпт 14.11 19:26)
+	tip_panel = PanelContainer.new()
+	tip_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tsb := StyleBoxFlat.new()
+	tsb.bg_color = Color(0.05, 0.04, 0.03, 0.96)
+	tsb.border_color = Color(0.95, 0.6, 0.3, 0.9)
+	tsb.set_border_width_all(1)
+	tsb.set_corner_radius_all(4)
+	tsb.set_content_margin_all(8)
+	tip_panel.add_theme_stylebox_override("panel", tsb)
 	tip_l = RichTextLabel.new()
+	tip_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tip_l.bbcode_enabled = true
 	tip_l.fit_content = true
 	tip_l.scroll_active = false
-	tip_l.custom_minimum_size = Vector2(680, 48)
-	tip_l.add_theme_font_size_override("normal_font_size", 15)
-	tip_l.add_theme_font_size_override("bold_font_size", 17)
-	tip_l.add_theme_color_override("default_color", Color(0.85, 0.83, 0.76))
-	box.add_child(tip_l)
-	_set_tip("")
-	info_l = _label("", 18, Color(0.8, 0.78, 0.7))
+	tip_l.custom_minimum_size = Vector2(260, 0)
+	tip_l.add_theme_font_size_override("normal_font_size", 14)
+	tip_l.add_theme_font_size_override("bold_font_size", 16)
+	tip_l.add_theme_color_override("default_color", Color(0.88, 0.86, 0.8))
+	tip_panel.add_child(tip_l)
+	tip_panel.visible = false
+	ui.add_child(tip_panel)
+	info_l = _label("", 15, Color(0.8, 0.78, 0.7))
+	info_l.custom_minimum_size = Vector2(408, 0)
 	box.add_child(info_l)
 	# внизу: обновить все ящики уровня (сейф не трогаем) и закрыть
 	var bottom := HBoxContainer.new()
-	bottom.add_theme_constant_override("separation", 10)
+	bottom.add_theme_constant_override("separation", 6)
 	box.add_child(bottom)
 	var close := Button.new()
 	close.text = "Закрыть (E / Esc)"
 	close.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	close.focus_mode = Control.FOCUS_NONE
-	close.add_theme_font_size_override("font_size", 20)
+	close.add_theme_font_size_override("font_size", 16)
 	close.pressed.connect(_close)
 	bottom.add_child(close)
 	# продажа (промпты 14.11 18:06, 18:35): кнопка в правом нижнем углу, пояснения — в самом окне продажи
 	var sell_b := Button.new()
 	sell_b.text = "Продажа"   # промпт 14.11 19:11
-	sell_b.custom_minimum_size = Vector2(220, 0)
+	sell_b.custom_minimum_size = Vector2(130, 0)
 	sell_b.focus_mode = Control.FOCUS_NONE
-	sell_b.add_theme_font_size_override("font_size", 20)
+	sell_b.add_theme_font_size_override("font_size", 16)
 	sell_b.add_theme_color_override("font_color", Color(1.0, 0.7, 0.45))
 	sell_b.pressed.connect(_open_sell)
 	bottom.add_child(sell_b)
@@ -461,7 +476,7 @@ func _show_tab(i: int) -> void:
 
 
 ## Товары открытой вкладки: сетка в 3 колонки (промпт 14.11 19:10) — крупная иконка, под ней цена.
-## Наведение (или долгий тап) — название и описание в панели подсказки под сеткой; клик — купить.
+## Наведение (или долгий тап) — название и описание во всплывающем окошке у курсора; клик — купить.
 ## Недоступное затемнено, причина — в подсказке.
 func _rebuild_tab() -> void:
 	if content == null:
@@ -488,14 +503,14 @@ func _rebuild_tab() -> void:
 func _grid() -> GridContainer:
 	var g := GridContainer.new()
 	g.columns = 3
-	g.add_theme_constant_override("h_separation", 8)
-	g.add_theme_constant_override("v_separation", 8)
+	g.add_theme_constant_override("h_separation", 6)
+	g.add_theme_constant_override("v_separation", 6)
 	content.add_child(g)
 	return g
 
 
 func _section(t: String) -> void:
-	content.add_child(_label(t, 20, Color(1.0, 0.45, 0.3)))
+	content.add_child(_label(t, 15, Color(1.0, 0.45, 0.3)))
 
 
 func _can_pay(price: int) -> bool:
@@ -516,7 +531,7 @@ func _item_cell(grid: GridContainer, id: String, price: int) -> void:
 func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, desc: String,
 		reason: String, on_buy: Callable, price_text := "") -> void:
 	var b := Button.new()
-	b.custom_minimum_size = Vector2(210, 104)
+	b.custom_minimum_size = Vector2(130, 82)
 	b.focus_mode = Control.FOCUS_NONE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.13, 0.1, 0.08, 0.95)
@@ -531,25 +546,25 @@ func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, de
 	b.add_theme_stylebox_override("pressed", sh)
 	var icon := Control.new()
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon.position = Vector2(73, 6)
-	icon.size = Vector2(64, 64)
+	icon.position = Vector2(41, 4)
+	icon.size = Vector2(48, 48)
 	icon.draw.connect(func(): draw_fn.call(icon, Rect2(Vector2.ZERO, icon.size)))
 	b.add_child(icon)
 	var pl := Label.new()
 	pl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pl.position = Vector2(0, 72)
-	pl.size = Vector2(210, 28)
+	pl.position = Vector2(0, 54)
+	pl.size = Vector2(130, 24)
 	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	pl.add_theme_font_size_override("font_size", 19)
+	pl.add_theme_font_size_override("font_size", 15)
 	var red: bool = price >= 0 and game.markup_pct() > 0
 	pl.text = price_text if price_text != "" else (_coins(game.marked_price(price)) if price >= 0 else "")
 	pl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4) if red else Color(0.95, 0.82, 0.5))
 	b.add_child(pl)
 	if reason != "":
 		b.modulate = Color(0.5, 0.5, 0.5)
-	var tip := "[b]%s[/b]  %s" % [title, desc]
+	var tip := "[b]%s[/b]\n%s" % [title, desc]
 	if reason != "":
-		tip += "  [color=#ff8a70]%s[/color]" % reason
+		tip += "\n[color=#ff8a70]%s[/color]" % reason
 	b.mouse_entered.connect(func(): _set_tip(tip))
 	b.mouse_exited.connect(func(): _set_tip(""))
 	# долгий тап (телефон): показать подсказку и не покупать
@@ -557,6 +572,9 @@ func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, de
 	b.button_down.connect(func():
 		held[0] = Time.get_ticks_msec()
 		_set_tip(tip))
+	b.button_up.connect(func():
+		if Time.get_ticks_msec() - int(held[0]) > 450:
+			tip_hide_t = 2.5)
 	b.pressed.connect(func():
 		if Time.get_ticks_msec() - int(held[0]) > 450:
 			return
@@ -582,7 +600,40 @@ static func _coins(n: int) -> String:
 func _set_tip(t: String) -> void:
 	if tip_l == null:
 		return
-	tip_l.text = t if t != "" else "[color=#8a857a]Наведи на товар — название и описание. Клик — купить (на телефоне долгий тап — подсказка).[/color]"
+	tip_hide_t = 0.0
+	tip_panel.visible = t != ""
+	if t != "":
+		tip_l.text = t
+		tip_panel.reset_size()
+		_place_tip()
+
+
+## Окошко подсказки — справа-снизу от курсора (пальца); у края экрана — с другой стороны.
+func _place_tip() -> void:
+	var vp := get_viewport().get_visible_rect().size
+	var m := get_viewport().get_mouse_position()
+	var sz := tip_panel.get_combined_minimum_size()
+	var p := m + Vector2(18, 18)
+	if p.x + sz.x > vp.x - 4:
+		p.x = m.x - sz.x - 12
+	if p.y + sz.y > vp.y - 4:
+		p.y = m.y - sz.y - 12
+	tip_panel.position = Vector2(clampf(p.x, 4, maxf(4, vp.x - sz.x - 4)), clampf(p.y, 4, maxf(4, vp.y - sz.y - 4)))
+
+
+func _process(delta: float) -> void:
+	if tip_panel == null or not tip_panel.visible:
+		return
+	if not opened:
+		tip_panel.visible = false
+		return
+	if tip_hide_t > 0.0:
+		tip_hide_t -= delta
+		if tip_hide_t <= 0.0:
+			tip_panel.visible = false
+			return
+	else:
+		_place_tip()
 
 
 ## Вкладка «Слот-Машина»: прокачка окна KILLBOX, гарантированные символы ×1/×2/×3, шанс комбинации.
@@ -607,6 +658,12 @@ func _build_slot_tab() -> void:
 		"Окно %s → %s" % [SM.level_name(lv), SM.level_name(nxt)] if lv < SM.MAX_LEVEL else "Окно %s" % SM.level_name(lv),
 		"Больше клеток — больше линий. С каждым окном в барабанах новый символ: арбуз на 2×3, алмаз на 3×3; семёрки (сейф) и шестёрки — только на 3×5.",
 		up_reason, _buy_upgrade, "максимум" if lv >= SM.MAX_LEVEL else "")
+	_section("ЗАЩИТА ОТ 666")
+	var ga := _grid()
+	var ap: int = SM.APPLE_PRICE
+	_cell(ga, func(ci: Control, r: Rect2): Items.draw_icon(ci, "rot_apple", r), ap,
+		"Гнилое яблоко", "Купи и скорми KILLBOX (E, глядя в пасть). При следующих «666» автомат не заберёт монеты — ни из кармана, ни из лотка; защита сгорает. Можно держать до 2. Шестёрки бывают только на окне 3×5. Сейчас защит: %d." % slot.shield,
+		"" if _can_pay(ap) else "Не хватает монет.", func(): _buy("rot_apple", ap))
 	var gmax: int = SM.GUAR_MAX[lv - 1]
 	_section("ГАРАНТИРОВАННЫЙ СИМВОЛ ×1 / ×2 / ×3")
 	var g2 := _grid()
