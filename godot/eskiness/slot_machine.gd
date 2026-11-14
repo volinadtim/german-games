@@ -15,6 +15,7 @@ extends StaticBody3D
 ## решётки на боках, заклёпки, косые опоры, полосы «опасно».
 
 const Sym := preload("res://slot_symbols.gd")
+const PickupMesh := preload("res://pickup_mesh.gd")
 const WornMetal := preload("res://worn_metal.gdshader")
 
 const COST := 3                  # цена одной крутки в пакете «3 за 8» (для подписей)
@@ -25,8 +26,8 @@ const PACKS := [[3, 8], [6, 15]]
 ## где его нет (выигравшие линии не трогает). k за крутку не больше GUAR_MAX уровня окна.
 ## Цены подобраны симуляцией: прибавка выигрыша за все крутки баффа меньше его цены. Шестёрка не продаётся.
 const LUCK := {
-	"cherry": [6, 8, 12, 16], "lemon": [6, 9, 14, 17], "plum": [6, 11, 15, 18],
-	"grape": [5, 12, 16, 19], "diamond": [4, 13, 17, 20], "seven": [3, 15, 20, 24],
+	"cherry": [6, 8, 14, 16], "lemon": [6, 13, 15, 17], "plum": [6, 17, 18, 19],
+	"grape": [5, 18, 19, 20], "diamond": [4, 19, 20, 22], "seven": [3, 20, 23, 25],
 }
 const REELS := 5
 const ROWS := 3
@@ -49,12 +50,14 @@ const GUAR_MAX := [1, 1, 2, 2, 3]
 ## шанс комбинации (промпт 14.11 18:08): символ -> [круток, цена]. Пока действует, этот символ
 ## «липнет» к соседу слева с шансом STICK_BOOST вместо STICK — 3 в ряд выпадают заметно чаще.
 const BOOST := {
-	"cherry": [6, 8], "lemon": [6, 9], "plum": [6, 10],
-	"grape": [5, 11], "diamond": [4, 12], "seven": [3, 13],
+	"cherry": [6, 8], "lemon": [6, 11], "plum": [6, 13],
+	"grape": [5, 14], "diamond": [4, 15], "seven": [3, 16],
 }
 const STICK_BOOST := 0.45
 ## шанс, что клетка повторит символ соседа слева по ряду (чаще собираются комбинации)
 const STICK := 0.15
+## на начальных окнах тройки чуть реже (промпт 14.11 18:33): своя липкость по уровню
+const STICK_LV := [0.06, 0.1, 0.15, 0.15, 0.15]
 ## выплаты за линию на окне 1×3: символ -> {сколько одинаковых: монет}
 const PAY := {
 	"cherry": {3: 4, 4: 8, 5: 15},
@@ -64,12 +67,13 @@ const PAY := {
 	"diamond": {3: 15, 4: 50, 5: 120},
 	"seven": {3: 30},
 }
-## пара одинаковых подряд в ряду — только на окнах в 3 столбца (промпт 14.11 18:01), без множителя PAY_K
+## пара одинаковых соседних в ряду — только на окнах 1×3 и 2×3 (промпты 14.11 18:01, 18:33), без множителя PAY_K
+const PAIR_MAX_LEVEL := 2
 const PAY2 := {"cherry": 1, "lemon": 1, "plum": 1, "grape": 1, "diamond": 2}
 ## множитель выплат по уровню окна: чем больше линий, тем меньше платит каждая. Подобрано симуляцией
 ## сессий (промпт 14.11 17:56): отдача ~91–99% цены крутки с учётом пар и множителя серии.
 ## Семёрки (сейф / 30 монет) не уменьшаются.
-const PAY_K := [1.58, 0.64, 0.55, 0.295, 0.165]
+const PAY_K := [2.1, 0.58, 0.71, 0.295, 0.165]
 ## множитель за серию (промпт 14.11 17:56): CHAIN[побед подряд перед этой круткой] — множитель выплаты.
 ## Проигрыш (и 666) сбрасывает серию; она живёт, пока крутишь: уход от автомата дальше CHAIN_DIST м
 ## или CHAIN_IDLE с без крутки — сброс.
@@ -104,7 +108,8 @@ var streak := 0                  # побед подряд (множитель �
 var last_spin_t := 0.0
 var tray_coins := 0              # выигрыш, лежащий в лотке (в сейве); забирается на E
 var tray_shown := 0              # сколько монеток горки сейчас видно
-var tray_meshes: Array[MeshInstance3D] = []
+var tray_meshes: Array[Node3D] = []
+var tray_pos: Array[Vector3] = []   # места монеток горки (после «съедания» возвращаем)
 var tray_target: StaticBody3D    # отдельная цель взгляда — лоток
 var board_sv: SubViewport        # доска выплат — перерисовывается при прокачке
 var board_art: Control
@@ -517,7 +522,7 @@ static func roll_window(lv: int, guar, boosted: Array = []) -> Array:
 				var s := _weighted_symbol(lv)
 				if c > 0:
 					var left: String = row[c - 1]
-					if left != "six" and randf() < (STICK_BOOST if boosted.has(left) else STICK):
+					if left != "six" and randf() < (STICK_BOOST if boosted.has(left) else float(STICK_LV[clampi(lv, 1, MAX_LEVEL) - 1])):
 						s = left
 				row.append(s)
 			g.append(row)
@@ -579,14 +584,6 @@ static func evaluate(g: Array, lv: int, lines: Array) -> Dictionary:
 					cells = line.slice(i, j + 1)
 					break
 				i = j + 1
-			# окна шириной 3 столбца (1×3, 2×3, 3×3): пара одинаковых подряд в центральном ряду —
-			# маленькая награда PAY2 (серию не продлевает)
-			if sym == "" and int(line[0][0]) == 1 and int(LEVELS[clampi(lv, 1, MAX_LEVEL) - 1][1]) == 3:
-				for k in syms.size() - 1:
-					if syms[k] == syms[k + 1] and PAY2.has(syms[k]):
-						sym = syms[k]
-						cells = line.slice(k, k + 2)
-						break
 		else:
 			var same := true
 			for s in syms:
@@ -595,6 +592,14 @@ static func evaluate(g: Array, lv: int, lines: Array) -> Dictionary:
 			if same:
 				sym = syms[0]
 				cells = line
+		# окна до 3×3 (1×3 и 2×3): пара одинаковых соседних в любом ряду — маленькая награда PAY2
+		# (промпт 14.11 18:33; серию не продлевает). На галочках пар нет: там они были бы почти каждую крутку.
+		if sym == "" and kind == "row" and lv <= PAIR_MAX_LEVEL:
+			for k in syms.size() - 1:
+				if syms[k] == syms[k + 1] and PAY2.has(syms[k]):
+					sym = syms[k]
+					cells = line.slice(k, k + 2)
+					break
 		if sym == "" or sym == "six":
 			continue
 		var n := cells.size()
@@ -1228,7 +1233,7 @@ func _draw_board(ci: Control) -> void:
 		for n in [5, 4, 3]:
 			if pays.has(n) and n <= int(LEVELS[level - 1][1]):
 				parts.append("×%d — %d" % [n, pay_for(id, n, level)])
-		if int(LEVELS[level - 1][1]) == 3 and PAY2.has(id):
+		if level <= PAIR_MAX_LEVEL and PAY2.has(id):
 			parts.append("×2 — %d" % int(PAY2[id]))
 		_fit(ci, Vector2(pad + 100, y + 54), "    ".join(parts), inner - 160, 30, text_col)
 		_fit(ci, Vector2(w - pad - 70, y + 54), "%.0f%%" % float(WEIGHTS[id]), 66, 18, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_RIGHT)
@@ -1277,14 +1282,12 @@ func _draw_board(ci: Control) -> void:
 			ci.draw_line(pa, pb, Color(1.0, 0.85, 0.4), 2.0)
 		_fit(ci, Vector2(gx, gy + 3 * cell + 20), "%d %s" % [li + 1, names[lines[li][1]]], 5 * cell + 6, 14, Color(0.85, 0.8, 0.7))
 	var ry := 146.0 + 5 * 100.0 + 14
-	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара (×2) — только центр.", "ряд на окнах в 3 столбца.", "Гаранты и шансы — в магазине."]:
+	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара (×2) — в любом ряду,", "только на 1×3 и 2×3.", "Гаранты и шансы — в магазине."]:
 		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 20, Color(0.9, 0.84, 0.72))
 		ry += 28.0
 
 
 func get_prompt(_game) -> String:
-	if tray_coins > 0 and not busy:
-		return "[E] Забрать %d монет" % tray_coins
 	if busy:
 		return ""
 	return "[E] Крутить KILLBOX (осталось %d)" % credits if credits > 0 else "[E] KILLBOX — купить крутки"
@@ -1293,10 +1296,6 @@ func get_prompt(_game) -> String:
 func interact(g) -> void:
 	game = g
 	if busy:
-		return
-	# пока в лотке монеты — E сначала забирает их
-	if tray_coins > 0:
-		take_tray()
 		return
 	if credits <= 0:
 		_open_packs()
@@ -1443,6 +1442,9 @@ func _payout() -> void:
 		var lost := maxi(have - 10, 0)
 		if lost > 0:
 			game.inv.remove("coin", lost)
+		if tray_coins > 0:
+			lost += tray_coins
+			eat_tray()
 		screen.text = "666 — KILLBOX ЗАБРАЛ %d" % lost
 		game.hud.toast("Три шестёрки! Автомат забрал %d монет" % lost, Color(1.0, 0.35, 0.25))
 		game.play_at("buzz", global_position, -6.0, 0.7)
@@ -1813,48 +1815,44 @@ func load_buffs(lk: Dictionary, bst: Dictionary) -> void:
 const TRAY_MAX := 30
 
 
+## Монеты забираются только взглядом на лоток (промпт 14.11 18:32); пустой лоток — как сам автомат.
 class TrayTarget extends StaticBody3D:
 	var slot
 
 	func get_prompt(g) -> String:
+		if slot.tray_coins > 0 and not slot.eating:
+			return "[E] Забрать %d монет" % slot.tray_coins
 		return slot.get_prompt(g)
 
 	func interact(g) -> void:
-		slot.interact(g)
+		if slot.tray_coins > 0 and not slot.eating:
+			slot.game = g
+			slot.take_tray()
+		else:
+			slot.interact(g)
 
 
 func _build_tray() -> void:
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.86, 0.66, 0.3)
-	m.metallic = 0.85
-	m.roughness = 0.35
-	m.emission_enabled = true
-	m.emission = Color(0.5, 0.3, 0.08)
-	m.emission_energy_multiplier = 0.25
-	var cm := CylinderMesh.new()
-	cm.top_radius = 0.017
-	cm.bottom_radius = 0.017
-	cm.height = 0.005
-	cm.radial_segments = 10
-	cm.rings = 1
 	# дно кармана за нижними зубами пасти — на нём лежит горка
 	_box(rig, Vector3(0.44, 0.012, 0.14), Vector3(0, 0.428, 0.38), _mat(Color(0.05, 0.03, 0.025)))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 404
 	for k in TRAY_MAX:
-		var c := MeshInstance3D.new()
-		c.mesh = cm
-		c.material_override = m
+		# та же модель, что у монеты-лута на полу (pickup_mesh.gd), в мировом размере (rig увеличен в K раз)
+		var c: Node3D = PickupMesh.make("coin")[0]
+		c.scale = Vector3.ONE * PickupMesh.COIN_SCALE / K
 		# горка: первые монеты по дну лотка, следующие — выше и ближе к середине
 		var layer := k / 12
-		var spread := 0.19 - layer * 0.05
-		c.position = Vector3(rng.randf_range(-spread, spread), 0.437 + layer * 0.007 + rng.randf_range(0.0, 0.004),
-			rng.randf_range(0.33, 0.43))
+		var spread := 0.17 - layer * 0.05
+		c.position = Vector3(rng.randf_range(-spread, spread), 0.437 + layer * 0.008 + rng.randf_range(0.0, 0.004),
+			rng.randf_range(0.34, 0.42))
 		c.rotation = Vector3(rng.randf_range(-0.35, 0.35), rng.randf() * TAU, rng.randf_range(-0.35, 0.35))
 		c.visible = false
-		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		for mi in c.get_children():
+			(mi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		rig.add_child(c)
 		tray_meshes.append(c)
+		tray_pos.append(c.position)
 	# цель взгляда: коробка перед пастью, чуть выступает из общего коллайдера автомата
 	tray_target = TrayTarget.new()
 	tray_target.slot = self
@@ -1877,6 +1875,7 @@ func set_tray(n: int) -> void:
 	tray_shown = _tray_target_count(tray_coins)
 	for k in tray_meshes.size():
 		tray_meshes[k].visible = k < tray_shown
+		tray_meshes[k].position = tray_pos[k]
 
 
 ## Высыпать win монет в лоток: монетки падают по одной со звоном.
@@ -1888,13 +1887,13 @@ func _pour(win: int) -> void:
 	tray_shown = want
 	for k in range(k0, want):
 		var c := tray_meshes[k]
-		var end := c.position
+		var end := tray_pos[k]
 		tw.tween_callback(func():
 			c.position = end + Vector3(0, 0.1, -0.06)
 			c.visible = true
 			if game and (k - k0) % 2 == 0:
 				game.play_at("coin", tray_target.global_position, -14.0, randf_range(0.95, 1.25)))
-		tw.tween_property(c, "position", end, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.tween_property(c, "position", end, 0.025).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	if want == k0 and game:   # горка уже полная — просто звон
 		game.play_at("coin", tray_target.global_position, -10.0)
 
@@ -1910,3 +1909,80 @@ func take_tray() -> void:
 	game.hud.toast("+%d монет" % (n - left), Color(1.0, 0.8, 0.4))
 	if game.has_method("save_now"):
 		game.save_now()
+
+
+## 666 при монетах в лотке (промпт 14.11 18:32): пасть «съедает» их — монетки втягиваются внутрь
+## и проваливаются, жар в пасти вспыхивает, хруст-чавканье. Лоток обнуляется (в сейве тоже).
+var eating := false
+
+
+func eat_tray() -> void:
+	if tray_coins <= 0:
+		return
+	var n := tray_coins
+	tray_coins = 0
+	eating = true
+	var tw := create_tween().set_parallel(true)
+	for k in tray_shown:
+		var c := tray_meshes[k]
+		var d := randf_range(0.0, 0.35)
+		tw.tween_property(c, "position", Vector3(c.position.x * 0.3, 0.41, 0.31), 0.45).set_delay(d) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tw.chain().tween_callback(func():
+		eating = false
+		set_tray(0))
+	party = 0.0
+	if maw_mat:
+		var mt := create_tween()
+		mt.tween_property(maw_mat, "emission_energy_multiplier", 4.0, 0.15)
+		mt.tween_property(maw_mat, "emission_energy_multiplier", 0.6, 0.8)
+	snd2.stream = _crunch()
+	snd2.volume_db = -4.0
+	snd2.play()
+	if game:
+		game.hud.toast("KILLBOX сожрал монеты из лотка: −%d" % n, Color(1.0, 0.35, 0.25))
+
+
+## Процедурный хруст-чавканье: 4 «укуса» — шумовой треск с низким телом, между ними хлюп.
+static var _crunch_wav: AudioStreamWAV
+
+
+static func _crunch() -> AudioStreamWAV:
+	if _crunch_wav:
+		return _crunch_wav
+	var rate := 22050
+	var n := int(rate * 1.1)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 666
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	var lp := 0.0
+	var lp2 := 0.0
+	var bites := [0.0, 0.24, 0.5, 0.78]
+	for i in n:
+		var t := float(i) / rate
+		var v := 0.0
+		for b in bites:
+			var dt: float = t - b
+			if dt < 0.0 or dt > 0.22:
+				continue
+			# треск: редкие острые щелчки + шум, затухание
+			var crack := (rng.randf() * 2.0 - 1.0) * (1.0 if rng.randf() < 0.25 else 0.35)
+			lp += (crack - lp) * 0.35
+			var env := exp(-dt * 22.0)
+			# низкое «тело» укуса
+			var body := sin(TAU * (90.0 - dt * 120.0) * dt) * exp(-dt * 14.0)
+			v += lp * env * 0.9 + body * 0.7
+			# хлюп после укуса
+			if dt > 0.08:
+				lp2 += ((rng.randf() * 2.0 - 1.0) - lp2) * 0.05
+				v += lp2 * sin(TAU * 7.0 * dt) * exp(-(dt - 0.08) * 18.0) * 1.2
+		var fade := minf(1.0, float(n - i) / (rate * 0.05))
+		data.encode_s16(i * 2, int(clampf(v * 0.6 * fade, -1.0, 1.0) * 32000.0))
+	var st := AudioStreamWAV.new()
+	st.format = AudioStreamWAV.FORMAT_16_BITS
+	st.mix_rate = rate
+	st.stereo = false
+	st.data = data
+	_crunch_wav = st
+	return st
