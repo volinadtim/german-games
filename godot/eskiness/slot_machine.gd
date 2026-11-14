@@ -116,6 +116,17 @@ var tray_shown := 0              # сколько монеток горки се
 var tray_meshes: Array[Node3D] = []
 var tray_pos: Array[Vector3] = []   # места монеток горки (после «съедания» возвращаем)
 var tray_target: StaticBody3D    # отдельная цель взгляда — лоток
+## 7 и 6 на доске скрыты до 3×5; при прокачке до 3×5 — кат-сцена их появления (промпт 14.11 19:27)
+var reveal_pending := false      # прокачали до 3×5, кат-сцену ещё не показали (в сейве)
+var cut_active := false
+var cut_t := 0.0
+var rev7 := 1.0                  # проявление строк 7 / 6 (0..1) во время кат-сцены
+var rev6 := 1.0
+var dark6 := 0.0                 # затемнение доски перед шестёрками
+var cut_cam: Camera3D
+var cut_from: Transform3D
+var cut_to: Transform3D
+var board_node: Node3D
 var board_sv: SubViewport        # доска выплат — перерисовывается при прокачке
 var board_art: Control
 var pack_ui: CanvasLayer
@@ -1181,6 +1192,7 @@ func _build_board() -> void:
 	board.position = BOARD_POS
 	board.rotation.y = -0.12
 	add_child(board)
+	board_node = board
 	var bw := BOARD_M.x + 0.08
 	_box(board, Vector3(bw, 1.56, 0.03), Vector3(0, 0, -0.012), back)
 	for sy in [-1.0, 1.0]:
@@ -1247,20 +1259,56 @@ func _draw_board(ci: Control) -> void:
 	y += 6.0
 	ci.draw_line(Vector2(pad, y), Vector2(w - pad, y), Color(0.85, 0.62, 0.25, 0.7), 2.0)
 	y += 18.0
-	for k in 3:
-		Sym.draw(ci, "seven", Rect2(pad + k * 62, y, 62, 62))
-	_fit(ci, Vector2(pad + 200, y + 28), "×3 на линии — открывают сейф", inner - 200, 24, Color(1.0, 0.85, 0.4))
-	_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — %d монет" % int(PAY["seven"][3]), inner - 200, 22, text_col)
+	# семёрки и шестёрки: до 3×5 их на доске нет совсем; во время кат-сцены — проявляются (rev7, rev6)
+	var show76 := syms_for(level).has("seven") and (not reveal_pending or cut_active)
+	var p7 := rev7 if cut_active else (1.0 if show76 else 0.0)
+	var p6 := rev6 if cut_active else (1.0 if show76 else 0.0)
+	var bg := Color(0.12, 0.05, 0.05)
+	if p7 > 0.0:
+		for k in 3:
+			Sym.draw(ci, "seven", Rect2(pad + k * 62, y, 62, 62))
+		_fit(ci, Vector2(pad + 200, y + 28), "×3 на линии — открывают сейф", inner - 200, 24, Color(1.0, 0.85, 0.4))
+		_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — %d монет" % int(PAY["seven"][3]), inner - 200, 22, text_col)
+		if p7 < 1.0:
+			# изящно: проявление сверху вниз, по кромке — золотое сияние и блёстки
+			var edge := y - 6.0 + 84.0 * p7
+			ci.draw_rect(Rect2(pad - 8, edge, inner + 16, y + 80.0 - edge), bg)
+			ci.draw_rect(Rect2(pad - 8, edge - 3, inner + 16, 6), Color(1.0, 0.85, 0.4, 0.8))
+			ci.draw_rect(Rect2(pad - 8, edge - 12, inner + 16, 24), Color(1.0, 0.8, 0.3, 0.18))
+			var gr := RandomNumberGenerator.new()
+			gr.seed = int(cut_t * 30.0)
+			for k in 26:
+				var sp := Vector2(gr.randf_range(pad, w - pad), edge + gr.randf_range(-30, 10))
+				var sz := gr.randf_range(2.0, 5.0)
+				ci.draw_rect(Rect2(sp - Vector2(sz, 0.6), Vector2(sz * 2, 1.2)), Color(1, 0.95, 0.7, 0.9))
+				ci.draw_rect(Rect2(sp - Vector2(0.6, sz), Vector2(1.2, sz * 2)), Color(1, 0.95, 0.7, 0.9))
 	y += 96.0
-	for k in 3:
-		Sym.draw(ci, "six", Rect2(pad + k * 62, y, 62, 62))
-	_fit(ci, Vector2(pad + 200, y + 28), "×3 где угодно в окне —", inner - 200, 24, Color(1.0, 0.3, 0.2))
-	_fit(ci, Vector2(pad + 200, y + 58), "автомат забирает всё, кроме 10", inner - 200, 22, Color(1.0, 0.3, 0.2))
+	if p6 > 0.0:
+		var sh := Vector2.ZERO
+		if p6 < 1.0:   # зловещая дрожь
+			sh = Vector2(randf_range(-3, 3), randf_range(-2, 2))
+		for k in 3:
+			Sym.draw(ci, "six", Rect2(pad + k * 62 + sh.x, y + sh.y, 62, 62))
+		_fit(ci, Vector2(pad + 200, y + 28) + sh, "×3 где угодно в окне —", inner - 200, 24, Color(1.0, 0.3, 0.2))
+		_fit(ci, Vector2(pad + 200, y + 58) - sh, "автомат забирает всё, кроме 10", inner - 200, 22, Color(1.0, 0.3, 0.2))
+		if p6 < 1.0:
+			# проявление «кровью»: тёмная завеса с рваными подтёками, сползающими вниз
+			var poly := PackedVector2Array([Vector2(pad - 8, y + 80), Vector2(w - pad + 8, y + 80)])
+			var gr := RandomNumberGenerator.new()
+			gr.seed = 66
+			var xs := 24
+			for k in range(xs, -1, -1):
+				var x := pad - 8 + (inner + 16) * k / float(xs)
+				var drip := gr.randf_range(0.0, 1.0)
+				var ey := y - 6.0 + 86.0 * clampf(p6 * (0.6 + drip * 0.8), 0.0, 1.0)
+				poly.append(Vector2(x, ey))
+			ci.draw_colored_polygon(poly, bg)
+			for k in xs:
+				var x := pad - 8 + (inner + 16) * (k + 0.5) / float(xs)
+				var ey := y - 6.0 + 86.0 * clampf(p6 * (0.6 + gr.randf_range(0.0, 1.0) * 0.8), 0.0, 1.0)
+				ci.draw_rect(Rect2(x - 2, y - 6, 4, ey - y + 6), Color(0.55, 0.0, 0.0, 0.55))
+			ci.draw_rect(Rect2(pad - 8, y - 8, inner + 16, 92), Color(1.0, 0.0, 0.0, 0.12 + 0.12 * sin(cut_t * 40.0)))
 	y += 92.0
-	if not syms_for(level).has("seven"):
-		var top := y - 92.0 - 96.0 - 4.0
-		ci.draw_rect(Rect2(pad - 8, top, inner + 16, 188), Color(0.12, 0.05, 0.05, 0.72))
-		_fit(ci, Vector2(pad, top + 104), "семёрки и шестёрки — только на окне %s" % level_name(MAX_LEVEL), inner, 28, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
 	_fit(ci, Vector2(pad, y + 20), "СЕРИЯ ПОБЕД: ×1 → ×1.25 → ×1.5 → ×2 · проигрыш, уход или 30 с без крутки — сброс", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
 	# правая колонка: линии открытого окна схемами 5×3 (закрытые клетки — тёмные)
 	var x0 := w
@@ -1291,6 +1339,8 @@ func _draw_board(ci: Control) -> void:
 	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара (×2) — в любом ряду,", "только на 1×3 и 2×3.", "Гаранты и шансы — в магазине.", "Гнилое яблоко спасёт от 666."]:
 		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 20, Color(0.9, 0.84, 0.72))
 		ry += 28.0
+	if dark6 > 0.0:   # перед шестёрками доска на миг темнеет
+		ci.draw_rect(Rect2(Vector2.ZERO, ci.size), Color(0, 0, 0, dark6))
 
 
 func get_prompt(_game) -> String:
@@ -1411,6 +1461,7 @@ func _process(delta: float) -> void:
 		else:
 			leds[i].emission_energy_multiplier = 0.4 + 1.4 * maxf(w, 0.0)
 	_animate_style(delta)
+	_cutscene(delta)
 	# серия живёт, пока крутишь: ушёл от автомата или долго не крутил — сброс
 	if streak > 0 and not busy and game and game.get("player"):
 		var far: bool = game.player.global_position.distance_to(global_position) > CHAIN_DIST
@@ -1589,7 +1640,12 @@ func _build_packs() -> void:
 	t.add_theme_font_size_override("font_size", 30)
 	t.add_theme_color_override("font_color", Color(1.0, 0.4, 0.25))
 	v.add_child(t)
+	# окно фиксированного размера при любом тексте (промпт 14.11 19:28)
+	panel.custom_minimum_size = Vector2(460, 0)
 	pack_info = Label.new()
+	pack_info.custom_minimum_size = Vector2(416, 28)
+	pack_info.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	pack_info.clip_text = true
 	pack_info.add_theme_font_size_override("font_size", 20)
 	pack_info.add_theme_color_override("font_color", Color(0.92, 0.8, 0.5))
 	v.add_child(pack_info)
@@ -1602,7 +1658,8 @@ func _build_packs() -> void:
 		b.pressed.connect(_buy_pack.bind(int(pk[0]), int(pk[1])))
 		v.add_child(b)
 	pack_up = Button.new()
-	pack_up.custom_minimum_size = Vector2(320, 48)
+	pack_up.custom_minimum_size = Vector2(416, 48)
+	pack_up.clip_text = true
 	pack_up.focus_mode = Control.FOCUS_NONE
 	pack_up.add_theme_font_size_override("font_size", 20)
 	pack_up.pressed.connect(_pack_upgrade)
@@ -1732,6 +1789,9 @@ func buy_upgrade() -> bool:
 		game.play_ui("buzz", -14.0)
 		return false
 	set_level(level + 1)
+	if level >= MAX_LEVEL:
+		reveal_pending = true   # кат-сцена — когда закроются окна (магазин/покупка)
+		_redraw_board()
 	game.play_ui("coin", -10.0)
 	game.hud.toast("KILLBOX: окно %s" % level_name(level), Color(1.0, 0.8, 0.4))
 	game.save_now()
@@ -1748,9 +1808,7 @@ func set_level(lv: int) -> void:
 	for r in shutters.size():
 		for c in shutters[r].size():
 			(shutters[r][c] as Node3D).visible = not is_open(level, r, c)
-	if board_sv:
-		board_art.queue_redraw()
-		board_sv.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_redraw_board()
 
 
 ## Заслонки закрытых клеток: серая стальная пластина, полосы крест-накрест, заклёпки и навесной замок —
@@ -2099,3 +2157,154 @@ func _update_apples() -> void:
 func set_shield(n: int) -> void:
 	shield = clampi(n, 0, SHIELD_MAX)
 	_update_apples()
+
+
+# ---------- кат-сцена появления 7 и 6 (промпт 14.11 19:27) ----------
+
+func _redraw_board() -> void:
+	if board_sv:
+		board_art.queue_redraw()
+		board_sv.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
+func set_reveal_pending(v: bool) -> void:
+	reveal_pending = v and level >= MAX_LEVEL
+	_redraw_board()
+
+
+const CUT_LEN := 4.3
+
+
+func _cutscene(delta: float) -> void:
+	if not cut_active:
+		if reveal_pending and game and game.get("player") and not busy and not game.window_open():
+			_start_cut()
+		return
+	cut_t += delta
+	var t := cut_t
+	# камера: к доске 0–0.9 с, обратно 3.4–4.3 с (плавно)
+	var a := 0.0
+	if t < 0.9:
+		a = _smooth(t / 0.9)
+	elif t < 3.4:
+		a = 1.0
+	else:
+		a = 1.0 - _smooth((t - 3.4) / 0.9)
+	cut_cam.global_transform = cut_from.interpolate_with(cut_to, a)
+	rev7 = clampf((t - 0.95) / 0.9, 0.0, 1.0)
+	dark6 = clampf(1.0 - absf(t - 2.05) / 0.25, 0.0, 1.0) * 0.6
+	rev6 = clampf((t - 2.1) / 1.0, 0.0, 1.0)
+	if t >= 0.9 and t - delta < 0.9:
+		_play_cut(_chime())
+	if t >= 2.0 and t - delta < 2.0:
+		_play_cut(_dread())
+	board_art.queue_redraw()
+	if t >= CUT_LEN:
+		_end_cut()
+
+
+static func _smooth(x: float) -> float:
+	x = clampf(x, 0.0, 1.0)
+	return x * x * (3.0 - 2.0 * x)
+
+
+func _start_cut() -> void:
+	var pcam: Camera3D = game.player.cam
+	cut_active = true
+	cut_t = 0.0
+	rev7 = 0.0
+	rev6 = 0.0
+	game.player.active = false
+	cut_from = pcam.global_transform
+	var bt := board_node.global_transform
+	var eye := bt.origin + bt.basis.z.normalized() * 1.75
+	cut_to = Transform3D(Basis.IDENTITY, eye).looking_at(bt.origin, Vector3.UP)
+	cut_cam = Camera3D.new()
+	cut_cam.fov = pcam.fov
+	get_tree().current_scene.add_child(cut_cam)
+	cut_cam.global_transform = cut_from
+	cut_cam.make_current()
+	board_sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_redraw_board()
+	board_sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+
+
+func _end_cut() -> void:
+	cut_active = false
+	reveal_pending = false
+	rev7 = 1.0
+	rev6 = 1.0
+	dark6 = 0.0
+	if game and game.player:
+		game.player.cam.make_current()
+		game.player.active = true
+	if cut_cam:
+		cut_cam.queue_free()
+		cut_cam = null
+	_redraw_board()
+	if game and game.has_method("save_now"):
+		game.save_now()
+
+
+func _play_cut(st: AudioStream) -> void:
+	var p := AudioStreamPlayer.new()
+	p.stream = st
+	p.volume_db = -6.0
+	add_child(p)
+	p.finished.connect(p.queue_free)
+	p.play()
+
+
+static func _wav(buf: PackedFloat32Array) -> AudioStreamWAV:
+	var peak := 0.0001
+	for v in buf:
+		peak = maxf(peak, absf(v))
+	var data := PackedByteArray()
+	data.resize(buf.size() * 2)
+	for i in buf.size():
+		var fade := minf(1.0, float(buf.size() - i) / (22050.0 * 0.05))
+		data.encode_s16(i * 2, int(clampf(buf[i] / peak * 0.85 * fade, -1.0, 1.0) * 32000.0))
+	var st := AudioStreamWAV.new()
+	st.format = AudioStreamWAV.FORMAT_16_BITS
+	st.mix_rate = 22050
+	st.data = data
+	return st
+
+
+## «Динь»-аккорд: арпеджио C–E–G–C колокольчиками с мерцающими обертонами.
+static func _chime() -> AudioStreamWAV:
+	var rate := 22050
+	var buf := PackedFloat32Array()
+	buf.resize(int(rate * 1.8))
+	var notes := [1046.5, 1318.5, 1568.0, 2093.0]
+	for k in notes.size():
+		var start := int(rate * 0.09 * k)
+		var f: float = notes[k]
+		for i in range(start, buf.size()):
+			var t := float(i - start) / rate
+			var env := exp(-t * 2.6) * minf(1.0, t * 200.0)
+			buf[i] += (sin(TAU * f * t) + 0.35 * sin(TAU * f * 2.01 * t) * exp(-t * 6.0) + 0.15 * sin(TAU * f * 3.0 * t)) * env
+	return _wav(buf)
+
+
+## Зловещее: низкий гул с биениями, нарастающий шёпот-шум и глухой удар.
+static func _dread() -> AudioStreamWAV:
+	var rate := 22050
+	var n := int(rate * 1.7)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6
+	var lp := 0.0
+	var bp := 0.0
+	for i in n:
+		var t := float(i) / rate
+		var env := minf(1.0, t * 3.0) * exp(-maxf(0.0, t - 0.9) * 2.5)
+		var hum := sin(TAU * 41.0 * t) + 0.7 * sin(TAU * 43.3 * t) + 0.3 * sin(TAU * 82.0 * t + sin(TAU * 0.7 * t))
+		var nz := rng.randf() * 2.0 - 1.0
+		lp += (nz - lp) * 0.08
+		bp += (lp - bp) * 0.5
+		var whisper := (lp - bp) * 2.5 * (0.5 + 0.5 * sin(TAU * 5.0 * t)) * minf(1.0, t * 1.5)
+		var hit := sin(TAU * 55.0 * t) * exp(-t * 9.0) * 1.5
+		buf[i] = hum * env * 0.6 + whisper * env + hit
+	return _wav(buf)

@@ -357,6 +357,7 @@ func _build_ui() -> void:
 	head.add_theme_font_override("font", sign_font())
 	box.add_child(head)
 	coins_l = _label("", 17, Color(0.92, 0.8, 0.5))
+	coins_l.autowrap_mode = TextServer.AUTOWRAP_OFF
 	box.add_child(coins_l)
 	markup_l = _label("", 14, Color(1.0, 0.88, 0.85))
 	var msb := StyleBoxFlat.new()
@@ -364,8 +365,11 @@ func _build_ui() -> void:
 	msb.set_content_margin_all(6)
 	msb.set_corner_radius_all(3)
 	markup_l.add_theme_stylebox_override("normal", msb)
-	markup_l.visible = false
-	markup_l.custom_minimum_size = Vector2(408, 0)
+	# размер окна не зависит от текста (промпт 14.11 19:28): плашка наценки всегда занимает место,
+	# строки — в одну линию с многоточием
+	markup_l.custom_minimum_size = Vector2(408, 26)
+	markup_l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	markup_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	box.add_child(markup_l)
 	# вкладки-категории
 	var tabs := HBoxContainer.new()
@@ -390,6 +394,7 @@ func _build_ui() -> void:
 	box.add_child(scroll)
 	content = VBoxContainer.new()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.custom_minimum_size = Vector2(400, 0)
 	content.add_theme_constant_override("separation", 6)
 	scroll.add_child(content)
 	# подсказка у курсора: название, описание, причина недоступности (промпт 14.11 19:26)
@@ -415,7 +420,9 @@ func _build_ui() -> void:
 	tip_panel.visible = false
 	ui.add_child(tip_panel)
 	info_l = _label("", 15, Color(0.8, 0.78, 0.7))
-	info_l.custom_minimum_size = Vector2(408, 0)
+	info_l.custom_minimum_size = Vector2(408, 22)
+	info_l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	info_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	box.add_child(info_l)
 	# внизу: обновить все ящики уровня (сейф не трогаем) и закрыть
 	var bottom := HBoxContainer.new()
@@ -463,8 +470,8 @@ func _label(t: String, size: int, col: Color) -> Label:
 func _refresh() -> void:
 	coins_l.text = "Монет: %d" % game.inv.count("coin")
 	var mp: int = game.markup_pct()
-	markup_l.visible = mp > 0
-	markup_l.text = "Наценка за мухлёж: +%d%% на следующую покупку (цены уже с ней)" % mp
+	markup_l.text = "Наценка за мухлёж: +%d%% (цены уже с ней)" % mp if mp > 0 else ""
+	markup_l.self_modulate = Color.WHITE if mp > 0 else Color(1, 1, 1, 0)
 	_rebuild_tab.call_deferred()   # кнопка, по которой кликнули, ещё в сигнале
 
 
@@ -510,7 +517,9 @@ func _grid() -> GridContainer:
 
 
 func _section(t: String) -> void:
-	content.add_child(_label(t, 15, Color(1.0, 0.45, 0.3)))
+	var l := _label(t, 15, Color(1.0, 0.45, 0.3))
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	content.add_child(l)
 
 
 func _can_pay(price: int) -> bool:
