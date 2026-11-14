@@ -1878,24 +1878,40 @@ func set_tray(n: int) -> void:
 		tray_meshes[k].position = tray_pos[k]
 
 
-## Высыпать win монет в лоток: монетки падают по одной со звоном.
+## Высыпать win монет в лоток (промпт 14.11 19:18): монетки вылетают из пасти почти разом
+## (разброс старта 0.02–0.05 с), каждая летит плавно ~0.6 с по мягкой дуге и чуть подпрыгивает на горке;
+## звон — общая россыпь из нескольких наложенных «coin».
 func _pour(win: int) -> void:
 	tray_coins += win
 	var want := _tray_target_count(tray_coins)
-	var tw := create_tween()
 	var k0 := tray_shown
 	tray_shown = want
+	var delay := 0.0
 	for k in range(k0, want):
 		var c := tray_meshes[k]
 		var end := tray_pos[k]
+		var start := Vector3(end.x * 0.4, 0.465, 0.318)   # из глубины пасти, за верхними зубами
+		var rot0 := c.rotation
+		var tw := create_tween()
+		tw.tween_interval(delay)
 		tw.tween_callback(func():
-			c.position = end + Vector3(0, 0.1, -0.06)
-			c.visible = true
-			if game and (k - k0) % 2 == 0:
-				game.play_at("coin", tray_target.global_position, -14.0, randf_range(0.95, 1.25)))
-		tw.tween_property(c, "position", end, 0.025).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	if want == k0 and game:   # горка уже полная — просто звон
-		game.play_at("coin", tray_target.global_position, -10.0)
+			c.position = start
+			c.visible = true)
+		tw.tween_method(func(t: float):
+			var e := t * t * (3.0 - 2.0 * t)   # плавный разгон и торможение
+			c.position = start.lerp(end, e) + Vector3(0, sin(PI * t) * 0.025, 0)
+			c.rotation = rot0 + Vector3((1.0 - t) * 5.0, 0, (1.0 - t) * 2.0), 0.0, 1.0, randf_range(0.55, 0.68))
+		tw.tween_property(c, "position", end + Vector3(0, 0.012, 0), 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(c, "position", end, 0.1).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		delay += randf_range(0.02, 0.05)
+	# звон россыпью: несколько наложенных «coin» к моменту приземления
+	if game:
+		var rings := clampi(want - k0, 1, 5)
+		for r in rings:
+			var at := 0.5 + r * randf_range(0.05, 0.11)
+			get_tree().create_timer(at).timeout.connect(func():
+				if game:
+					game.play_at("coin", tray_target.global_position, -12.0 - r, randf_range(0.9, 1.3)))
 
 
 ## Забрать всё из лотка в кошелёк.
