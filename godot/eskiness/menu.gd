@@ -8,6 +8,7 @@ signal play_pressed
 const IconButton := preload("res://icon_button.gd")
 const CFG := "user://settings.cfg"
 const Graphics := preload("res://graphics.gd")
+const PlayerScript := preload("res://player.gd")
 
 # имя -> [подпись, мин, макс, шаг, по умолчанию]
 const SETTINGS := {
@@ -17,6 +18,7 @@ const SETTINGS := {
 	"contrast": ["Контраст", 0.6, 1.6, 0.01, 1.0],
 	"posterize": ["Постеризация", 0.0, 100.0, 1.0, 70.0],
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
+	"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],   # градусы; 75 — прежний FOV камеры игрока
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
 	"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],      # галочка: 0 — выкл, 1 — вкл
 	# --- графика (отдельная страница, graphics.gd): пресет и каждый эффект отдельно (промпт 14.11 17:36)
@@ -45,12 +47,49 @@ var slots_box: VBoxContainer      # выбор слота сохранения (
 var settings_box: VBoxContainer
 var gfx_box: VBoxContainer        # страница «Графика»
 var settings_from := "main"
+var ctl_box: VBoxContainer        # страница «Управление»
+var ctl_rows := {}                # действие -> кнопка с клавишей
+var binds := {}                   # действие -> ["k:<physical_keycode>" | "m:<кнопка мыши>"] (только изменённые)
+var waiting_action := ""          # ждём клавишу для этого действия
+
+## Переназначаемые действия: [действие InputMap, подпись, клавиши по умолчанию].
+## «k:N» — физическая клавиша, «m:N» — кнопка мыши. Действия создаются здесь заранее,
+## остальные скрипты (game.gd, inventory.gd, loot_window.gd…) видят, что действие есть, и не трогают его.
+const CONTROLS := [
+	["move_forward", "Вперёд", ["k:87"]],          # W
+	["move_back", "Назад", ["k:83"]],              # S
+	["move_left", "Влево", ["k:65"]],              # A
+	["move_right", "Вправо", ["k:68"]],            # D
+	["sprint", "Бег", ["k:4194325"]],              # Shift
+	["jump", "Прыжок", ["k:32"]],                  # Пробел
+	["crouch", "Присесть (держать)", ["k:4194326"]],     # Ctrl
+	["crouch_toggle", "Присесть (переключить)", ["k:67"]],   # C
+	["attack", "Удар", ["m:1"]],                   # ЛКМ
+	["fists", "Кулаки / стойка", ["m:2"]],         # ПКМ
+	["interact", "Взаимодействие", ["k:69"]],      # E
+	["inventory", "Инвентарь", ["k:4194306", "k:73"]],   # Tab, I
+	["loot_all", "Забрать всё", ["k:82"]],         # R
+	["flashlight", "Фонарик", ["k:70"]],           # F
+	["quick_heal", "Быстрое лечение", ["k:81"]],   # Q
+	["gasmask", "Противогаз", ["k:71"]],           # G
+	["hot_1", "Слот 1", ["k:49"]],
+	["hot_2", "Слот 2", ["k:50"]],
+	["hot_3", "Слот 3", ["k:51"]],
+	["hot_4", "Слот 4", ["k:52"]],
+	["hot_5", "Слот 5", ["k:53"]],
+	["look_left", "Обзор влево", ["k:4194319"]],
+	["look_right", "Обзор вправо", ["k:4194321"]],
+	["look_up", "Обзор вверх", ["k:4194320"]],
+	["look_down", "Обзор вниз", ["k:4194322"]],
+	["toggle_fullscreen", "Полный экран", ["k:4194342"]],   # F11
+]
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().root.size_changed.connect(_apply_ui_scale)
 	_load()
+	_apply_binds()
 
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -131,13 +170,40 @@ func _ready() -> void:
 	gfx_box.add_child(_button("Назад", func():
 		_save()
 		_show("settings")))
-	# «Графика» и «По умолчанию» — в один ряд, чтобы «Назад» не уезжал за экран
+	# --- страница «Управление»: строка = действие и его клавиша; клик — назначить новую
+	ctl_box = _vbox(center)
+	ctl_box.add_child(_title("УПРАВЛЕНИЕ", 60))
+	var hint := _subtitle("Нажмите на клавишу, чтобы переназначить. Esc — отмена.")
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ctl_box.add_child(hint)
+	var csc := ScrollContainer.new()
+	csc.custom_minimum_size = Vector2(640, 300)
+	csc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	ctl_box.add_child(csc)
+	var crows := VBoxContainer.new()
+	crows.add_theme_constant_override("separation", 4)
+	crows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	csc.add_child(crows)
+	for c in CONTROLS:
+		crows.add_child(_bind_row(c[0], c[1]))
+	ctl_box.add_child(_gap(4))
+	var cbtns := HBoxContainer.new()
+	cbtns.add_theme_constant_override("separation", 16)
+	cbtns.add_child(_button("По умолчанию", _reset_binds))
+	cbtns.add_child(_button("Назад", _close_controls))
+	ctl_box.add_child(cbtns)
+
+	# «Графика», «Управление», «По умолчанию», «Назад» — по два в ряд, чтобы всё влезало
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 16)
 	btns.add_child(_button("Графика", func(): _show("gfx")))
-	btns.add_child(_button("По умолчанию", _reset))
+	btns.add_child(_button("Управление", func(): _show("controls")))
 	settings_box.add_child(btns)
-	settings_box.add_child(_button("Назад", _close_settings))
+	var btns2 := HBoxContainer.new()
+	btns2.add_theme_constant_override("separation", 16)
+	btns2.add_child(_button("По умолчанию", _reset))
+	btns2.add_child(_button("Назад", _close_settings))
+	settings_box.add_child(btns2)
 
 	# --- иконки в углу
 	var corner := HBoxContainer.new()
@@ -167,11 +233,29 @@ func _process(_delta: float) -> void:
 		i.queue_redraw()
 
 
+## Ожидание новой клавиши для действия: перехватываем раньше всех (и Esc, и клики мыши).
+func _input(event: InputEvent) -> void:
+	if waiting_action == "" or not visible:
+		return
+	if event is InputEventKey and event.pressed and not event.is_echo():
+		get_viewport().set_input_as_handled()
+		var k: int = event.physical_keycode if event.physical_keycode != 0 else event.keycode
+		if k == KEY_ESCAPE:
+			_stop_wait()
+		else:
+			_assign(waiting_action, "k:%d" % k)
+	elif event is InputEventMouseButton and event.pressed:
+		get_viewport().set_input_as_handled()
+		_assign(waiting_action, "m:%d" % event.button_index)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
 		return
 	get_viewport().set_input_as_handled()
-	if gfx_box.visible:
+	if ctl_box.visible:
+		_close_controls()
+	elif gfx_box.visible:
 		_save()
 		_show("settings")
 	elif settings_box.visible:
@@ -224,6 +308,9 @@ func _show(which: String) -> void:
 	slots_box.visible = which == "slots"
 	settings_box.visible = which == "settings"
 	gfx_box.visible = which == "gfx"
+	ctl_box.visible = which == "controls"
+	if which != "controls":
+		_stop_wait()
 
 
 # ---------- сохранения ----------
@@ -385,6 +472,8 @@ func _slider_row(key: String) -> Control:
 func _fmt(key: String, v: float) -> String:
 	if key == "crosshair":
 		return "вкл" if v > 0.5 else "выкл"
+	if key == "fov":
+		return "%d°" % int(v)
 	if key == "graphics" or key == "g_shadow_res" or key == "g_textures" or key == "g_geometry":
 		return Graphics.NAMES[clampi(int(round(v)), 0, 2)]
 	if key == "g_aa":
@@ -438,7 +527,12 @@ func _apply_ui_scale() -> void:
 func apply_settings() -> void:
 	_apply_ui_scale()
 	Graphics.apply(get_tree(), values)
-	preload("res://player.gd").look_sens = values["sensitivity"]
+	PlayerScript.look_sens = values["sensitivity"]
+	PlayerScript.fov_base = values.get("fov", PlayerScript.FOV)
+	if get_parent():
+		for c in get_parent().get_children():
+			if c is PlayerScript and c.cam:
+				c.cam.fov = PlayerScript.fov_base   # сразу, без ожидания плавного перехода
 	preload("res://hud.gd").show_crosshair = values.get("crosshair", 1.0) > 0.5
 	var vol: float = values["volume"] / 100.0
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(vol, 0.0001)))
@@ -460,13 +554,164 @@ func _load() -> void:
 		var d := Graphics.preset(int(round(float(values["graphics"]))))
 		for k in d:
 			values[k] = d[k]
+	binds.clear()
+	if ok and cf.has_section("controls"):
+		for a in cf.get_section_keys("controls"):
+			var v = cf.get_value("controls", a)
+			if v is Array and not v.is_empty():
+				binds[a] = v
 
 
 func _save() -> void:
 	var cf := ConfigFile.new()
 	for key in values:
 		cf.set_value("settings", key, values[key])
+	for a in binds:
+		cf.set_value("controls", a, binds[a])
 	cf.save(CFG)
+
+
+# ---------- управление ----------
+
+func _default_binds(action: String) -> Array:
+	for c in CONTROLS:
+		if c[0] == action:
+			return c[2]
+	return []
+
+
+func _binds_of(action: String) -> Array:
+	return binds.get(action, _default_binds(action))
+
+
+## Создать все действия и выставить им клавиши (по умолчанию или сохранённые).
+func _apply_binds() -> void:
+	for c in CONTROLS:
+		var a: String = c[0]
+		if not InputMap.has_action(a):
+			InputMap.add_action(a)
+		InputMap.action_erase_events(a)
+		for spec in _binds_of(a):
+			var ev := _spec_event(spec)
+			if ev:
+				InputMap.action_add_event(a, ev)
+
+
+func _spec_event(spec: String) -> InputEvent:
+	var p := spec.split(":")
+	if p.size() != 2:
+		return null
+	if p[0] == "k":
+		var ev := InputEventKey.new()
+		ev.physical_keycode = int(p[1]) as Key
+		return ev
+	if p[0] == "m":
+		var mb := InputEventMouseButton.new()
+		mb.button_index = int(p[1]) as MouseButton
+		return mb
+	return null
+
+
+func _spec_name(spec: String) -> String:
+	var p := spec.split(":")
+	if p.size() != 2:
+		return "—"
+	var n := int(p[1])
+	if p[0] == "m":
+		return {MOUSE_BUTTON_LEFT: "ЛКМ", MOUSE_BUTTON_RIGHT: "ПКМ", MOUSE_BUTTON_MIDDLE: "Колёсико",
+			MOUSE_BUTTON_WHEEL_UP: "Колесо вверх", MOUSE_BUTTON_WHEEL_DOWN: "Колесо вниз",
+			MOUSE_BUTTON_XBUTTON1: "Мышь 4", MOUSE_BUTTON_XBUTTON2: "Мышь 5"}.get(n, "Мышь %d" % n)
+	match n:
+		KEY_SPACE: return "Пробел"
+		KEY_SHIFT: return "Shift"
+		KEY_CTRL: return "Ctrl"
+		KEY_ALT: return "Alt"
+		KEY_TAB: return "Tab"
+		KEY_LEFT: return "←"
+		KEY_RIGHT: return "→"
+		KEY_UP: return "↑"
+		KEY_DOWN: return "↓"
+	# физический код = клавиша на американской раскладке (латинские буквы при любой раскладке)
+	var s := OS.get_keycode_string(n as Key)
+	return s if s != "" else "?"
+
+
+func _binds_text(action: String) -> String:
+	var names := PackedStringArray()
+	for spec in _binds_of(action):
+		names.append(_spec_name(spec))
+	return ", ".join(names) if not names.is_empty() else "—"
+
+
+func _bind_row(action: String, label: String) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	var name_l := Label.new()
+	name_l.text = label
+	name_l.custom_minimum_size = Vector2(320, 0)
+	name_l.add_theme_font_size_override("font_size", 22)
+	name_l.add_theme_color_override("font_color", Color(0.82, 0.81, 0.77))
+	row.add_child(name_l)
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(260, 34)
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_color_override("font_color", Color(0.9, 0.86, 0.76))
+	b.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.82))
+	b.add_theme_stylebox_override("normal", _style(Color(0.06, 0.03, 0.03, 0.8), Color(0.45, 0.1, 0.07)))
+	b.add_theme_stylebox_override("hover", _style(Color(0.2, 0.05, 0.03, 0.85), Color(0.85, 0.18, 0.1)))
+	b.add_theme_stylebox_override("pressed", _style(Color(0.3, 0.05, 0.03, 0.9), Color(1.0, 0.3, 0.2)))
+	b.text = _binds_text(action)
+	b.pressed.connect(func(): _start_wait(action))
+	row.add_child(b)
+	ctl_rows[action] = b
+	return row
+
+
+func _start_wait(action: String) -> void:
+	_stop_wait()
+	waiting_action = action
+	ctl_rows[action].text = "нажмите клавишу…"
+
+
+func _stop_wait() -> void:
+	if waiting_action != "" and ctl_rows.has(waiting_action):
+		ctl_rows[waiting_action].text = _binds_text(waiting_action)
+	waiting_action = ""
+
+
+## Назначить клавишу. Если она уже у другого действия — меняем местами (та получает старую клавишу этого).
+func _assign(action: String, spec: String) -> void:
+	waiting_action = ""
+	var old: Array = _binds_of(action)
+	for c in CONTROLS:
+		var other: String = c[0]
+		if other != action and spec in _binds_of(other):
+			var rest := _binds_of(other).duplicate()
+			rest.erase(spec)
+			if rest.is_empty() and not old.is_empty():
+				rest = [old[0]]
+			binds[other] = rest
+	binds[action] = [spec]
+	_refresh_binds()
+
+
+func _reset_binds() -> void:
+	waiting_action = ""
+	binds.clear()
+	_refresh_binds()
+
+
+func _refresh_binds() -> void:
+	_apply_binds()
+	for a in ctl_rows:
+		ctl_rows[a].text = _binds_text(a)
+
+
+func _close_controls() -> void:
+	_stop_wait()
+	_save()
+	_show("settings")
 
 
 # ---------- оформление ----------

@@ -14,6 +14,8 @@ const JUMP := 5.0            # ~0.55 м
 const SENS := 0.0022
 const CAM_Y := 1.7
 const FOV := 75.0
+## Поле зрения из настроек (menu.gd, ползунок «Поле зрения»); бег прибавляет к нему.
+static var fov_base := FOV
 ## true — тело игрока: модель models/BaseHuman.fbx, анимированная через кости;
 ## false — старое тело из капсул (код оставлен, чтобы легко вернуть).
 const USE_MODEL := true
@@ -206,6 +208,7 @@ var last_kind := ""
 var step_player: AudioStreamPlayer
 var step_noise_player: AudioStreamPlayer
 var step_noise: AudioStreamWAV
+var scuff_noise: Array[AudioStreamWAV] = []   # шарканье при повороте на месте
 var grass_steps: Array[AudioStreamWAV] = []   # шаги по траве (поверхность)
 var step_eq: AudioEffectEQ6
 var voice_player: AudioStreamPlayer
@@ -226,6 +229,8 @@ func _ready() -> void:
 	exhale_out_snd = Sfx.inhale(true)
 	step_noise_player = _audio(3)
 	step_noise = Sfx.step_noise()
+	for i in 3:
+		scuff_noise.append(_scuff(i))
 	for i in 4:
 		grass_steps.append(Sfx.step_grass(i))
 	_setup_step_bus()
@@ -246,7 +251,7 @@ func _ready() -> void:
 	add_child(head)
 	cam = Camera3D.new()
 	cam.near = 0.06
-	cam.fov = FOV
+	cam.fov = fov_base
 	head.add_child(cam)
 
 	_build_body()
@@ -779,13 +784,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if event is InputEventMouseMotion and captured:
 		look(event.relative)
-	elif event is InputEventMouseButton and event.pressed:
-		if not captured:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		elif event.button_index == MOUSE_BUTTON_RIGHT:
-			toggle_fists()
-		elif event.button_index == MOUSE_BUTTON_LEFT and fists:
-			punch()
+	elif event is InputEventMouseButton and event.pressed and not captured:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif captured and event.is_action_pressed("fists") and not event.is_echo():
+		toggle_fists()
+	elif captured and event.is_action_pressed("attack") and fists:
+		punch()
 
 
 ## Чувствительность обзора (множитель из настроек меню) и скорость поворота стрелками, рад/с.
@@ -1365,7 +1369,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		var eye := hb + hd * Vector3(0, 0.08, -0.1)
 		head.position.y = maxf(head.position.y, eye.y)
 		head.position.z = minf(head.position.z, eye.z)
-	var want_fov := FOV + (7.0 if sprinting else 0.0)
+	var want_fov := fov_base + (7.0 if sprinting else 0.0)
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 	_apply_bones()
 
@@ -1535,7 +1539,7 @@ func _turn_step(delta: float) -> void:
 	foot_yaw[i] = lerpf(turn_from_fy, 0.0, k)
 	foot_pitch[i] = -0.25 * sin(PI * turn_t)
 	if turn_t >= 1.0:
-		_play_step(-14.0)
+		_play_step(-14.0, 1.0, true)
 		turn_steps -= 1
 		var rest_off := absf(angle_difference(feet_yaw, rotation.y))
 		# опорная нога осталась развёрнутой или в стороне — подставляем и её
@@ -1619,10 +1623,15 @@ func _leg_ik(i: int, t: Vector3, extra_pitch := 0.0, extra_yaw := 0.0) -> void:
 	ankles[i].rotation.x = -(aim + a_hip - a_knee) + foot_pitch[i] + extra_pitch
 
 
-func _play_step(db: float, _pitch := 1.0) -> void:
+func _play_step(db: float, _pitch := 1.0, turn := false) -> void:
 	db -= 9.0 * crouch   # вприсядку шаги тише
 	_randomize_step_eq()
-	if _ground_kind() == "grass":
+	if turn:
+		# переступание на месте при повороте: не топот, а тихое шарканье подошвой (−11 дБ, выше)
+		step_noise_player.stream = scuff_noise[randi() % scuff_noise.size()]
+		step_noise_player.volume_db = db + STEP_DB - 11.0
+		step_noise_player.pitch_scale = randf_range(1.12, 1.25)
+	elif _ground_kind() == "grass":
 		step_noise_player.stream = grass_steps[randi() % grass_steps.size()]
 		step_noise_player.volume_db = db + STEP_DB + 3.0
 		step_noise_player.pitch_scale = randf_range(0.9, 1.1)
@@ -1631,6 +1640,27 @@ func _play_step(db: float, _pitch := 1.0) -> void:
 		step_noise_player.volume_db = db + STEP_DB
 		step_noise_player.pitch_scale = 1.0
 	step_noise_player.play()
+
+
+## Шарканье подошвы: короткий мягкий шорох (полосовой шум, плавная атака, без удара).
+static func _scuff(variant: int) -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1200 + variant
+	var n := int(Sfx.RATE * 0.16)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var lp := 0.0
+	var lp2 := 0.0
+	var dur := rng.randf_range(0.09, 0.13)
+	for i in n:
+		var t := float(i) / Sfx.RATE
+		var w := rng.randf() * 2.0 - 1.0
+		lp += (w - lp) * 0.5
+		lp2 += (lp - lp2) * 0.08
+		var band := lp - lp2                       # срезаем бас — без «туп»
+		var env := sin(PI * clampf(t / dur, 0.0, 1.0))  # нарастает и спадает, без щелчка удара
+		buf[i] = band * env * env * (0.8 + 0.2 * sin(t * 140.0))
+	return Sfx._wav(buf, 0.5)
 
 
 ## Что под ногами: метка "ground" у коллайдера (трава поляны — "grass"), иначе бетон.
