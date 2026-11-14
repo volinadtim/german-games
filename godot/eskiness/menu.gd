@@ -289,8 +289,22 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # ---------- переходы ----------
 
+func _net_game() -> bool:
+	var nt := get_tree().root.get_node_or_null("Net")
+	return nt != null and nt.in_game
+
+
+## В сетевой игре мир на паузу не встаёт (он общий) — только останавливается свой игрок.
+func _set_player_active(on: bool) -> void:
+	for c in get_parent().get_children():
+		if c is PlayerScript and not c.puppet:
+			c.active = on and (_game() == null or _game().alive)
+
+
 func pause() -> void:
-	get_tree().paused = true
+	get_tree().paused = not _net_game()
+	if _net_game():
+		_set_player_active(false)
 	visible = true
 	_show("pause")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -298,6 +312,8 @@ func pause() -> void:
 
 func resume() -> void:
 	get_tree().paused = false
+	if _net_game():
+		_set_player_active(true)
 	visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -346,7 +362,9 @@ func _game() -> Node:
 
 func _save_game() -> void:
 	var g := _game()
-	if g:
+	if g and g.net:
+		g.hud.toast("Сетевая игра не сохраняется", Color(0.85, 0.7, 0.5))
+	elif g:
 		g.save_now()
 		g.hud.toast("Сохранено: слот %d" % g.save_slot, Color(0.8, 0.85, 0.7))
 

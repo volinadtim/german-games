@@ -90,6 +90,8 @@ func _physics_process(delta: float) -> void:
 	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()
 	var dy := global_position.y - pp.y
 	if d < 1.0 and dy > -0.4 and dy < 1.9:
+		if game.net and game.net.take(self):
+			return
 		var left: int = game.collect(id, n, self)
 		if left <= 0:
 			_fly_to(game)
@@ -167,6 +169,8 @@ func interact(g) -> void:
 	if taken:
 		return
 	g.full_toast_t = 0.0   # на нажатие E сообщение о полной сумке показываем всегда
+	if g.net and g.net.take(self):
+		return
 	var left: int = g.collect(id, n, self)
 	if left >= n:
 		return
@@ -177,17 +181,19 @@ func interact(g) -> void:
 
 
 ## Предмет коротко летит к груди игрока, уменьшаясь, и исчезает.
-func _fly_to(g) -> void:
+func _fly_to(g, to: Node3D = null) -> void:
 	taken = true
 	remove_from_group("pickup")
 	collision_layer = 0
 	collision_mask = 0
 	freeze = true
 	var tw := create_tween().set_parallel()
-	var target: Vector3 = g.player.global_position + Vector3(0, 1.1, 0)
+	if to == null:
+		to = g.player   # в сети — может лететь к другому игроку (net.gd)
+	var target: Vector3 = to.global_position + Vector3(0, 1.1, 0)
 	tw.tween_method(func(k: float) -> void:
-		if is_instance_valid(g) and g.player:
-			target = g.player.global_position + Vector3(0, 1.1, 0)
+		if is_instance_valid(to):
+			target = to.global_position + Vector3(0, 1.1, 0)
 		global_position = global_position.lerp(target, k), 0.0, 1.0, 0.22).set_ease(Tween.EASE_IN)
 	tw.tween_property(model, "scale", model.scale * 0.3, 0.22)
 	tw.chain().tween_callback(queue_free)

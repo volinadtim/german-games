@@ -202,6 +202,8 @@ func take_hit(_dmg: float, dir: Vector3) -> void:
 		return
 	if game:
 		game.weapon_hit()
+	if game and game.net and game.net.jar_hit(self, dir):
+		return   # клиент: удар ушёл хосту, разобьётся по его команде
 	hp -= 1.0
 	if hp > 0.0:
 		# треснул, но держится: качнулся и звякнул
@@ -231,7 +233,9 @@ func _shatter(dir: Vector3) -> void:
 		var w := Vector3(r.randf_range(-12, 12), r.randf_range(-12, 12), r.randf_range(-12, 12))
 		shards.append([sh, global_transform.basis.inverse() * v, w])
 	# лут сразу вылетает на пол (без окна — промпт 14.11 16:43), подбирается, когда подойдёшь
-	if game:
+	if game and game.net:
+		game.net.jar_broken(self, dir)
+	if game and (game.net == null or game.net.is_host()):
 		var pos := global_position + Vector3(0, 0.15, 0)
 		for it in _roll(r):
 			game.spawn_loot(it[0], it[1], pos, Vector3(0, 2.2, 0) + flat * 0.8, 1.0)

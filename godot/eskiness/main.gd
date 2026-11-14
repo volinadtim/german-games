@@ -86,6 +86,10 @@ func _ready() -> void:
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fl.add_child(fade)
 	create_tween().tween_property(fade, "color:a", 0.0, 1.5)
+	# вернулись в меню из сетевой игры — выходим из комнаты
+	var nt := get_tree().root.get_node_or_null("Net")
+	if nt and nt.in_game:
+		nt.leave()
 	# «Начать заново» после смерти (game.gd: restart) — сразу в игру, минуя меню
 	if Engine.has_meta("eskiness_autostart"):
 		Engine.remove_meta("eskiness_autostart")
@@ -128,6 +132,10 @@ func _enter_game() -> void:
 	player.active = true
 	player.post_mat = post_mat
 	var game := Game.new()
+	# сетевая игра (net.gd): комната открыта / подключены — игра общая
+	var nt := get_tree().root.get_node_or_null("Net")
+	if nt and nt.active():
+		game.net = nt
 	add_child(game)
 	game.setup(player)
 	menu.apply_settings()  # качество графики — и для узлов, созданных игрой (фонарик, лампы)

@@ -127,10 +127,112 @@ func _run() -> void:
 	quit(0)
 
 
-## Этап 2 (совместная игра) — дописывается позже.
+func _world_sig(g) -> String:
+	var js: Array = []
+	for j in g.jars:
+		if is_instance_valid(j) and not j.is_queued_for_deletion():
+			js.append("%s@%.1f,%.1f" % [j.get_meta("nid", "?"), j.position.x, j.position.z])
+	return "jars=%d [%s] floor=%d" % [js.size(), ", ".join(js.slice(0, 3)), net._floor_pickups(g).size()]
+
+
+func _enemies_sig() -> String:
+	var s := PackedStringArray()
+	for e in get_nodes_in_group("enemies"):
+		s.append("%s:%s:%.0f@%.1f,%.1f" % [e.get_meta("nid", "?"), e.state, e.hp, e.global_position.x, e.global_position.z])
+	return " ".join(s)
+
+
+## Хост: «Начать», затем следит, что видит клиента и что враги получают урон.
 func _host_game() -> void:
-	await wait(3.0)
+	net.start_game()
+	var w := 0.0
+	while net.game == null and w < 10.0:
+		await wait(0.25)
+		w += 0.25
+	if net.game == null:
+		log_("FAIL game not started")
+		return
+	var g = net.game
+	await wait(1.0)
+	log_("world " + _world_sig(g))
+	log_("puppets %s" % str(net.puppets.keys()))
+	for i in 22:
+		await wait(1.0)
+		for id in net.puppets:
+			var pp = net.puppets[id]
+			log_("sees client at %.2f,%.2f,%.2f fists=%s vis=%s" % [pp.global_position.x, pp.global_position.y, pp.global_position.z, pp.fists, pp.visible])
+		if i % 3 == 0:
+			log_("enemies " + _enemies_sig())
+		if i == 5:
+			await shot("game")
+	log_("enemies end " + _enemies_sig())
+	var broken := 0
+	for j in g.jars:
+		if is_instance_valid(j) and j.broken:
+			broken += 1
+	log_("jars broken %d" % broken)
 
 
+## Клиент: ждёт старта, ходит, оборачивается к хосту, идёт к врагу и бьёт его, разбивает кувшин.
 func _client_game() -> void:
-	await wait(3.0)
+	var w := 0.0
+	while net.game == null and w < 15.0:
+		await wait(0.25)
+		w += 0.25
+	if net.game == null:
+		log_("FAIL game not started")
+		return
+	var g = net.game
+	await wait(1.0)
+	log_("world " + _world_sig(g))
+	var p = g.player
+	log_("me at %.2f,%.2f  host puppet %s" % [p.global_position.x, p.global_position.z, str(net.puppets.keys())])
+	Input.action_press("move_forward")
+	await wait(1.5)
+	Input.action_release("move_forward")
+	log_("walked to %.2f,%.2f" % [p.global_position.x, p.global_position.z])
+	p.toggle_fists()
+	await wait(1.0)
+	p.rotation.y += PI
+	await wait(1.0)
+	await shot("game")
+	p.rotation.y -= PI
+	# кувшин: ударить ближайший
+	var jar = null
+	for j in g.jars:
+		if is_instance_valid(j) and not j.broken and (jar == null or j.global_position.distance_to(p.global_position) < jar.global_position.distance_to(p.global_position)):
+			jar = j
+	if jar:
+		log_("hit jar %s" % jar.get_meta("nid", "?"))
+		for k in 3:
+			if not jar.broken:
+				jar.take_hit(5.0, Vector3(1, 0, 0))
+				await wait(0.4)
+		log_("jar broken on client: %s" % jar.broken)
+	# враг: подойти и ударить
+	log_("enemies " + _enemies_sig())
+	var e = null
+	for c in get_nodes_in_group("enemies"):
+		if c.state != "dead":
+			e = c
+			break
+	if e == null:
+		log_("FAIL no enemy puppets")
+		return
+	var coins0: int = g.inv.coins
+	var to_e: Vector3 = e.global_position
+	p.global_position = to_e + Vector3(-1.3, 0.3, 0)
+	p.rotation.y = -PI / 2.0
+	await wait(0.6)
+	for k in 3:
+		if is_instance_valid(e) and e.state != "dead":
+			log_("hit enemy %s hp(before)=%.0f" % [e.get_meta("nid"), e.hp])
+			e.take_hit(14.0, Vector3(1, 0, 0))
+			await wait(0.7)
+	await wait(1.0)
+	log_("enemy after: %s hp=%.0f state=%s" % [e.get_meta("nid"), e.hp, e.state] if is_instance_valid(e) else "enemy gone")
+	await shot("fight")
+	for k in 5:
+		await wait(1.0)
+		log_("my hp %.0f alive=%s coins=%d (было %d)" % [g.hp, g.alive, g.inv.coins, coins0])
+	log_("enemies end " + _enemies_sig())

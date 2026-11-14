@@ -83,6 +83,14 @@ const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52
 const Fx := preload("res://fx.gd")
 
 var active := false
+## Сетевая игра (net.gd): модель другого игрока — без камеры, ввода, звуков и урона; движется по данным из сети.
+var puppet := false
+var net_pos := Vector3.ZERO
+var net_yaw := 0.0
+var net_pitch := 0.0
+var net_vel := Vector3.ZERO
+var net_crouch := false
+var net_sprint := false
 var dmg_mult := 1.0           # множитель урона (кастет из сейфа — 1.5)
 var speed_mult := 1.0         # замедление (отравление наверху, gasmask.gd)
 var weapon_id := ""           # оружие в правой руке (для совместимости; см. weapon_ids)
@@ -582,6 +590,11 @@ func _build_model() -> void:
 			skin.set_bind_pose(k, Transform3D(bind.basis.scaled(Vector3.ONE * 0.001), bind * inner))
 	body_mi.skin = skin
 	body_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if puppet:
+		# чужой игрок: голова видна целиком, тень — от самого меша
+		body_mi.skin = shadow.skin
+		body_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		shadow.queue_free()
 
 
 ## Кулак для кисти s ("_L"/"_R"). Нормаль ладони — из геометрии кисти (поперёк костяшек × вдоль кисти),
@@ -870,6 +883,8 @@ func _update_crouch(delta: float) -> void:
 	if not Input.is_action_pressed("crouch"):
 		crouch_hold_block = false
 	var want := active and (crouch_toggled or (Input.is_action_pressed("crouch") and not crouch_hold_block))
+	if puppet:
+		want = net_crouch
 	if want:
 		crouched = true
 	elif crouched and not _head_blocked():
@@ -916,7 +931,8 @@ func toggle_fists() -> void:
 	voice_player.stream = inhale_snd if fists else exhale_out_snd
 	voice_player.volume_db = -25.0
 	voice_player.pitch_scale = randf_range(0.95, 1.05)
-	voice_player.play()
+	if not puppet:
+		voice_player.play()
 
 
 ## Удар рукой arm (0 — левая, ЛКМ; 1 — правая, ПКМ) без заряда. Кулаки опущены — только поднимает их.
@@ -1232,6 +1248,8 @@ func _punch_sound() -> void:
 
 
 func _check_hit(arm: int, kind := "straight") -> void:
+	if puppet:
+		return   # чужой игрок бьёт у себя; урон приходит по сети
 	var from := cam.global_position
 	var wid: String = weapon_ids[arm]
 	var armed := wid != ""
@@ -1373,6 +1391,8 @@ func _grip(arm: int, id: String) -> Transform3D:
 
 
 func _play(p: AudioStreamPlayer, set_: Array, db: float) -> void:
+	if puppet:
+		return
 	p.stream = set_[randi() % set_.size()]
 	p.volume_db = db + randf_range(-1.5, 1.5)
 	p.pitch_scale = randf_range(0.92, 1.08)
@@ -1380,7 +1400,7 @@ func _play(p: AudioStreamPlayer, set_: Array, db: float) -> void:
 
 
 func _process(delta: float) -> void:
-	if charge_ui == null:
+	if charge_ui == null and not puppet:
 		_make_charge_ui()
 	_charge_tick(delta)
 	if trail_mesh.is_empty():
@@ -1451,6 +1471,9 @@ func _draw_trail(i: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if puppet:
+		_puppet_tick(delta)
+		return
 	_key_look(delta)
 	var on_floor := is_on_floor()
 	# прыжок из приседа сначала поднимает игрока
@@ -1825,6 +1848,8 @@ func _leg_ik(i: int, t: Vector3, extra_pitch := 0.0, extra_yaw := 0.0) -> void:
 
 
 func _play_step(db: float, _pitch := 1.0, turn := false) -> void:
+	if puppet:
+		return
 	db -= 9.0 * crouch   # вприсядку шаги тише
 	_randomize_step_eq()
 	if turn:
@@ -1873,3 +1898,19 @@ func _ground_kind() -> String:
 	if hit.is_empty():
 		return ""
 	return str(hit.collider.get_meta("ground", ""))
+
+
+## Модель чужого игрока (сеть): догоняет присланную позицию, поворот и наклон головы; походка, присед
+## и стойка — той же процедурной анимацией, что и у своего тела.
+func _puppet_tick(delta: float) -> void:
+	var to := net_pos - global_position
+	if to.length() > 3.0:
+		global_position = net_pos
+		to = Vector3.ZERO
+	velocity = Vector3(to.x * 10.0, to.y * 10.0 - 1.0, to.z * 10.0)
+	move_and_slide()
+	rotation.y = lerp_angle(rotation.y, net_yaw, 1.0 - exp(-14.0 * delta))
+	head.rotation.x = lerpf(head.rotation.x, net_pitch, 1.0 - exp(-14.0 * delta))
+	_update_crouch(delta)
+	var hv := Vector3(net_vel.x, 0, net_vel.z)
+	_animate(delta, global_transform.basis.inverse() * hv, net_sprint)

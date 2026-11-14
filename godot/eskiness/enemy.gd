@@ -34,6 +34,12 @@ const WAYPOINTS := [
 static var _wp_links: Array = []    # для каждой точки — индексы видимых соседей (считаются один раз)
 
 var game  # game.gd
+## Цель: game (локальный игрок) или сетевой игрок (net.gd: RemoteTarget) — у обоих есть player, alive, damage_player.
+## В сети враги думают только на хосте и выбирают ближайшего живого игрока (game.net.pick_target).
+var tg
+var net_puppet := false   # клиент сетевой игры: враг — копия вражеского на хосте (позиция, состояние, HP по сети)
+var net_pos := Vector3.ZERO
+var net_rot := 0.0
 var kind := "heavy"   # "heavy" | "fast" — выставить до add_child
 ## параметры вида (из _apply_kind): скорость погони, дистанции, урон, здоровье, замах, перезарядка, рост
 var speed := SPEED
@@ -109,6 +115,7 @@ func _apply_kind() -> void:
 
 
 func _ready() -> void:
+	tg = game
 	_apply_kind()
 	add_to_group("enemies")
 	ability_cd = randf_range(3.0, 6.0)
@@ -389,6 +396,11 @@ func _set_state(s: String) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if net_puppet:
+		_puppet_tick(delta)
+		return
+	if game.net:
+		tg = game.net.pick_target(self)
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
 	st += delta
@@ -399,7 +411,7 @@ func _physics_process(delta: float) -> void:
 	bar.visible = state != "dead" and bar_t > 0.0
 
 	var want := Vector3.ZERO
-	var ppos: Vector3 = game.player.global_position
+	var ppos: Vector3 = tg.player.global_position
 	var to := ppos - global_position
 	to.y = 0.0
 	var d := to.length()
@@ -407,9 +419,9 @@ func _physics_process(delta: float) -> void:
 		"dead":
 			pass
 		"idle":
-			if hunter and game.alive:
+			if hunter and tg.alive:
 				_set_state("chase")
-			elif game.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos)) and _clear(global_position, ppos):
+			elif tg.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos)) and _clear(global_position, ppos):
 				_set_state("chase")
 				_growl()
 			elif surface and _zone(global_position) != 0:
@@ -432,7 +444,7 @@ func _physics_process(delta: float) -> void:
 					blind_t += delta
 					if _zone(global_position) == _zone(ppos):
 						lost_t += delta
-			if not game.alive or (not hunter and not surface and global_position.distance_to(home) > LEASH) 					or (surface and not hunter and (lost_t > LOSE_T or blind_t > CHASE_MAX or (_zone(global_position) == 0 and _zone(ppos) == 0 and _from_center(global_position) > Surface.MEADOW_R + 8.0))):
+			if not tg.alive or (not hunter and not surface and global_position.distance_to(home) > LEASH) 					or (surface and not hunter and (lost_t > LOSE_T or blind_t > CHASE_MAX or (_zone(global_position) == 0 and _zone(ppos) == 0 and _from_center(global_position) > Surface.MEADOW_R + 8.0))):
 				lost_t = 0.0
 				blind_t = 0.0
 				_set_state("return" if surface and _zone(global_position) != 0 else "idle")
@@ -461,7 +473,7 @@ func _physics_process(delta: float) -> void:
 			# Шныга присела перед прыжком (телеграф)
 			_face(to, delta)
 			if st > 0.3:
-				var lead: Vector3 = ppos + game.player.velocity * 0.35
+				var lead: Vector3 = ppos + tg.player.velocity * 0.35
 				var fl := lead - global_position
 				fl.y = 0.0
 				leap_vel = (fl / 0.5).limit_length(13.0)
@@ -472,7 +484,7 @@ func _physics_process(delta: float) -> void:
 			want = leap_vel
 			if not leap_hit and d < 1.15 and absf(ppos.y - global_position.y) < 1.5:
 				leap_hit = true
-				game.damage_player(LEAP_DMG, global_position)
+				tg.damage_player(LEAP_DMG, global_position)
 			if st > 0.15 and is_on_floor():
 				_set_state("leap_rec")
 		"leap_rec":
@@ -492,7 +504,7 @@ func _physics_process(delta: float) -> void:
 				_set_state("chase")
 		"return":
 			# назад на поляну: через лестницу и будку; увидел игрока — снова в погоню
-			if game.alive and d < SIGHT and _clear(global_position, ppos):
+			if tg.alive and d < SIGHT and _clear(global_position, ppos):
 				_set_state("chase")
 				_growl()
 			elif _zone(global_position) == 0:
@@ -522,7 +534,7 @@ func _dash(delta: float) -> float:
 var _step_dist := 0.0
 var _last_ph_step := 0
 func _footsteps(_delta: float) -> void:
-	if not is_on_floor() or game == null or not game.snd.has("estep"):
+	if (not is_on_floor() and not net_puppet) or game == null or not game.snd.has("estep"):
 		return
 	var hv := Vector2(velocity.x, velocity.z).length()
 	if hv < 0.3:
@@ -612,7 +624,7 @@ func _avoid(dir: Vector3, look: float, delta: float) -> Vector3:
 func _free_dist(from: Vector3, dir: Vector3, look: float) -> float:
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * look)
 	q.collision_mask = 1
-	q.exclude = [get_rid(), game.player.get_rid()]
+	q.exclude = [get_rid(), tg.player.get_rid()]
 	var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(q)
 	return look if hit.is_empty() else from.distance_to(hit["position"])
 
@@ -620,7 +632,7 @@ func _free_dist(from: Vector3, dir: Vector3, look: float) -> float:
 func _free(from: Vector3, dir: Vector3, look: float) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * look)
 	q.collision_mask = 1
-	q.exclude = [get_rid(), game.player.get_rid()]
+	q.exclude = [get_rid(), tg.player.get_rid()]
 	return game.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 
@@ -648,7 +660,7 @@ func _chase_goal(ppos: Vector3, d: float) -> Vector3:
 	var front := _front_enemy(ppos)
 	if front == null or front == self:
 		return ppos
-	var pf: Vector3 = -game.player.global_transform.basis.z
+	var pf: Vector3 = -tg.player.global_transform.basis.z
 	pf.y = 0.0
 	if pf.length() < 0.01:
 		return ppos
@@ -667,7 +679,7 @@ func _chase_goal(ppos: Vector3, d: float) -> Vector3:
 
 ## Кто сейчас «спереди»: ближайший к игроку враг в конусе его взгляда (≈ ±55°) не дальше 2.4 м.
 func _front_enemy(ppos: Vector3) -> Node:
-	var pf: Vector3 = -game.player.global_transform.basis.z
+	var pf: Vector3 = -tg.player.global_transform.basis.z
 	pf.y = 0.0
 	pf = pf.normalized()
 	# кто уже «спереди», тот и остаётся, пока рядом и перед игроком (иначе роли скачут: заходящий сбоку
@@ -695,7 +707,7 @@ func _front_enemy(ppos: Vector3) -> Node:
 
 ## Абилки (кд 12 с у каждого): Шныга прыгает на игрока с 3–6 м, бетонник кидает камень с 5–12 м.
 func _try_ability(d: float, ppos: Vector3) -> bool:
-	if ability_cd > 0.0 or not game.alive or not is_on_floor():
+	if ability_cd > 0.0 or not tg.alive or not is_on_floor():
 		return false
 	if not _clear(global_position, ppos):
 		return false
@@ -721,9 +733,10 @@ func _throw_rock(ppos: Vector3) -> void:
 	var from := global_position + Vector3(0, height * 0.95, 0) - global_transform.basis.z * 0.3
 	var dist := Vector2(ppos.x - from.x, ppos.z - from.z).length()
 	var t := clampf(dist / 11.0, 0.35, 1.1)
-	var aim: Vector3 = ppos + Vector3(0, 1.1, 0) + game.player.velocity * Vector3(1, 0, 1) * t
+	var aim: Vector3 = ppos + Vector3(0, 1.1, 0) + tg.player.velocity * Vector3(1, 0, 1) * t
 	var r := Rock.new()
 	r.game = game
+	r.tg = tg
 	r.dmg = ROCK_DMG
 	r.vel = Vector3((aim.x - from.x) / t, (aim.y - from.y + 0.5 * Rock.G * t * t) / t, (aim.z - from.z) / t)
 	r.owner_rid = get_rid()
@@ -736,6 +749,7 @@ func _throw_rock(ppos: Vector3) -> void:
 class Rock extends Node3D:
 	const G := 14.0
 	var game
+	var tg   # в кого брошен (game или сетевой игрок)
 	var vel := Vector3.ZERO
 	var dmg := 13.0
 	var life := 3.0
@@ -768,16 +782,16 @@ class Rock extends Node3D:
 		var to := from + vel * delta
 		rotation += spin * delta
 		# попал в игрока (капсула ~ от ног до головы)
-		if game != null and game.alive:
-			var pp: Vector3 = game.player.global_position
+		if game != null and tg.alive:
+			var pp: Vector3 = tg.player.global_position
 			var seg := Geometry3D.get_closest_point_to_segment(pp + Vector3(0, 0.9, 0), from, to)
 			if Vector2(seg.x - pp.x, seg.z - pp.z).length() < 0.45 and seg.y > pp.y - 0.1 and seg.y < pp.y + 1.9:
-				game.damage_player(dmg, from - vel.normalized() * 2.0)
+				tg.damage_player(dmg, from - vel.normalized() * 2.0)
 				_burst(seg)
 				return
 		var q := PhysicsRayQueryParameters3D.create(from, to)
 		q.collision_mask = 1
-		q.exclude = [owner_rid, game.player.get_rid()]
+		q.exclude = [owner_rid, tg.player.get_rid()]
 		var hit := get_world_3d().direct_space_state.intersect_ray(q)
 		if hit:
 			_burst(hit.position)
@@ -905,7 +919,7 @@ func _clear(a: Vector3, b: Vector3) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(a + Vector3(0, 1.2, 0), b + Vector3(0, 1.2, 0))
 	q.collision_mask = 1
 	# другие враги обзор не загораживают (иначе второй «не видит» игрока за спиной первого)
-	var ex: Array[RID] = [get_rid(), game.player.get_rid()]
+	var ex: Array[RID] = [get_rid(), tg.player.get_rid()]
 	if is_inside_tree():
 		for e in get_tree().get_nodes_in_group("enemies"):
 			ex.append(e.get_rid())
@@ -923,8 +937,8 @@ func _strike(d: float, to: Vector3) -> void:
 	_play(body_snd, game.snd["whoosh"], -6.0 if kind == "heavy" else -9.0, 0.7 if kind == "heavy" else 1.15)
 	cool = cool_t
 	var fwd := -global_transform.basis.z
-	if game.alive and d < hit_range and fwd.dot(to.normalized()) > 0.3:
-		game.damage_player(damage, global_position)
+	if tg.alive and d < hit_range and fwd.dot(to.normalized()) > 0.3:
+		tg.damage_player(damage, global_position)
 
 
 func _growl() -> void:
@@ -1021,6 +1035,25 @@ func take_hit(dmg: float, dir: Vector3) -> void:
 	if state == "dead":
 		return
 	game.weapon_hit()
+	if net_puppet:
+		_hit_fx(dmg, dir)
+		game.net.enemy_hit(self, dmg, dir)
+		return
+	apply_hit(dmg, dir)
+
+
+func _hit_fx(dmg: float, dir: Vector3) -> void:
+	bar_t = 4.0
+	Fx.damage_number(get_parent(), global_position + Vector3(0, height + 0.1, 0), dmg)
+	Fx.dust_burst(get_parent(), global_position + Vector3(0, height * 0.65, 0) - dir * 0.2)
+	mat.emission_energy_multiplier = 0.5
+	create_tween().tween_property(mat, "emission_energy_multiplier", 0.0, 0.25)
+
+
+## Урон (у хоста — и от ударов других игроков по сети, net.gd).
+func apply_hit(dmg: float, dir: Vector3) -> void:
+	if state == "dead":
+		return
 	hp -= dmg
 	bar_t = 4.0
 	bar_fg.scale.x = maxf(hp / max_hp, 0.0)
@@ -1050,6 +1083,13 @@ func _die(dir: Vector3) -> void:
 	tw.tween_property(torso, "rotation:x", 0.0, 0.4)
 	tw.chain().tween_callback(func(): Fx.dust_burst(get_parent(), global_position + Vector3(0, 0.3, 0), Color(0.4, 0.38, 0.35), 30))
 	# лут (промпт 14.11 18:08): тяжёлый — 0–2 предмета и 0–6 монет; быстрый — 1–3 предмета и 0–2 монеты
+	if net_puppet:
+		# лут и respawn — у хоста (лут придёт по сети); копия только падает и уходит в землю
+		var twp := create_tween()
+		twp.tween_interval(8.0)
+		twp.tween_property(self, "position:y", position.y - 0.8, 3.0)
+		twp.tween_callback(queue_free)
+		return
 	var pos := global_position + Vector3(0, height * 0.5, 0)
 	var coins := randi_range(0, 6) if kind == "heavy" else randi_range(0, 2)
 	if coins > 0:
@@ -1066,3 +1106,48 @@ func _die(dir: Vector3) -> void:
 	tw2.tween_interval(8.0)
 	tw2.tween_property(self, "position:y", position.y - 0.8, 3.0)
 	tw2.tween_callback(queue_free)
+
+
+# ---------- сеть: копия врага у клиента ----------
+
+## Новое состояние с хоста: позиция, поворот, состояние ИИ, здоровье.
+func net_apply(pos: Vector3, rot: float, s: String, h: float) -> void:
+	net_pos = pos
+	net_rot = rot
+	if h < hp - 0.01:
+		bar_t = 4.0
+	hp = h
+	if bar_fg:
+		bar_fg.scale.x = maxf(hp / max_hp, 0.0)
+	if s == state:
+		return
+	if s == "dead":
+		var back := global_transform.basis.z
+		_die(Vector3(back.x, 0, back.z).normalized())
+		return
+	if s == "chase" and state in ["idle", "return"]:
+		_growl()
+	elif s == "recover" and state == "windup":
+		_play(body_snd, game.snd["whoosh"], -6.0 if kind == "heavy" else -9.0, 0.7 if kind == "heavy" else 1.15)
+	_set_state(s)
+
+
+func _puppet_tick(delta: float) -> void:
+	if state == "dead":
+		return
+	st += delta
+	bar_t -= delta
+	bar.visible = bar_t > 0.0
+	knock = Vector3.ZERO
+	var old := global_position
+	if global_position.distance_to(net_pos) > 4.0:
+		global_position = net_pos
+	else:
+		global_position = global_position.lerp(net_pos, 1.0 - exp(-12.0 * delta))
+	rotation.y = lerp_angle(rotation.y, net_rot, 1.0 - exp(-12.0 * delta))
+	velocity = (global_position - old) / maxf(delta, 0.001)
+	var spd := Vector2(velocity.x, velocity.z).length()
+	if kind == "fast" and state == "chase":
+		_dash(delta)
+	_animate(delta, spd)
+	_footsteps(delta)

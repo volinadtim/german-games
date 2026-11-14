@@ -48,6 +48,7 @@ const FAST_SHARE := 0.4   # доля быстрых врагов («Шныга»
 
 var player: Player
 var hud: Hud
+var net = null   # net.gd в сетевой игре (выставляет main.gd до setup), иначе null
 var inv: Inventory
 var flashlight: Flashlight
 var hp := MAX_HP
@@ -107,7 +108,7 @@ func setup(p: Player) -> void:
 		d.game = self
 		d.position = Vector3(-8.0, 0.0, -3.6)
 		add_child(d)
-	if USE_ENEMIES:
+	if USE_ENEMIES and (net == null or net.is_host()):   # в сети враги — у хоста, клиенту приходят копии
 		for s in ENEMY_SPOTS:
 			_spawn_enemy(s)
 	if USE_CHESTS:
@@ -179,7 +180,9 @@ func setup(p: Player) -> void:
 		shop.game = self
 	# сохранения: загрузить выбранный слот (menu.gd) или начать новую игру в нём
 	save_slot = Save.slot()
-	if Engine.get_meta("eskiness_load", false) and Save.exists(save_slot):
+	if net:
+		net.on_game_setup(self)   # сетевая сессия в слоты сохранений не пишет; мир у клиента — от хоста
+	elif Engine.get_meta("eskiness_load", false) and Save.exists(save_slot):
 		load_state(Save.read(save_slot))
 	else:
 		save_now()
@@ -253,6 +256,8 @@ func _is_outside_jar(j) -> bool:
 
 
 func _outside_jar_tick(delta: float) -> void:
+	if net and not net.is_host():
+		return   # кувшины снаружи в сети появляются у хоста и приходят по сети
 	_out_jar_t -= delta
 	if _out_jar_t > 0.0:
 		return
@@ -267,6 +272,8 @@ func _outside_jar_tick(delta: float) -> void:
 				whole += 1
 	while broken_out.size() > 6:
 		var old = broken_out.pop_front()
+		if net:
+			net.jar_removed(old)
 		jars.erase(old)
 		old.queue_free()
 	if whole < OUT_JARS_MAX:
@@ -295,7 +302,9 @@ func _spawn_outside_jar(check_player: bool) -> bool:
 		var prm := Jar.random_params(rng)
 		var r := 0.17 * float(prm["size"])
 		if _jar_spot_ok(p, r + 0.35, placed):
-			_make_jar(p, randf() * TAU, prm, false)
+			var nj := _make_jar(p, randf() * TAU, prm, false)
+			if net:
+				net.jar_spawned(nj)
 			return true
 	return false
 
@@ -770,6 +779,9 @@ func _die() -> void:
 	player.active = false
 	inv.close()
 	inv.enabled = false
+	if net:
+		net.local_died()   # в сети — возрождение у старта через 10 с, без экрана смерти
+		return
 	hud.show_death(true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
@@ -1283,6 +1295,9 @@ func cheat_check() -> bool:
 
 
 func _spawn_hunters(count := 5) -> void:
+	if net and not net.is_host():
+		net.request_hunters(count)   # враги в сети живут у хоста
+		return
 	for k in count:
 		var e := Enemy.new()
 		e.game = self
@@ -1334,6 +1349,8 @@ func _make_pickup(id: String, n: int, pos: Vector3, vel: Vector3) -> Pickup:
 	p.global_position = pos
 	p.linear_velocity = vel
 	p.angular_velocity = Vector3(randf_range(-8, 8), randf_range(-8, 8), randf_range(-8, 8))
+	if net:
+		net.pickup_made(p)   # разослать остальным (поля need_leave/dur выставят после — шлём в конце кадра)
 	return p
 
 
@@ -1372,6 +1389,8 @@ func _notification(what: int) -> void:
 
 
 func save_now() -> void:
+	if net:
+		return   # сетевая игра в обычные слоты не сохраняется
 	if player == null or not alive:
 		return
 	Save.write(save_slot, save_state())
@@ -1580,4 +1599,5 @@ func load_state(d: Dictionary) -> void:
 		_spawn_hunters(h)
 	inv.notify()
 	loading = false
-	hud.toast("Загружено: слот %d" % save_slot, Color(0.8, 0.85, 0.7))
+	if net == null:
+		hud.toast("Загружено: слот %d" % save_slot, Color(0.8, 0.85, 0.7))
