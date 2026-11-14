@@ -1120,11 +1120,31 @@ func refresh_chests() -> int:
 var hunters: Array = []
 
 
+## Наценка за мухлёж (промпт 14.11 18:10): каждая поимка +1 к cheat_count; на одну следующую покупку
+## в Trinkets Market цена × (1 + 10% × cheat_count), вверх. Купил — наценка снята до следующей поимки.
+var cheat_count := 0
+var markup_pending := false
+
+
+func markup_pct() -> int:
+	return 10 * cheat_count if markup_pending else 0
+
+
+func marked_price(p: int) -> int:
+	return (p * (100 + markup_pct()) + 99) / 100
+
+
+func markup_used() -> void:
+	markup_pending = false
+
+
 ## Вызывает автомат после оплаты крутки. true — мухлёж пойман.
 func cheat_check() -> bool:
 	if dropped_coins < CHEAT_DROP or inv.coins > CHEAT_KEEP or dropped_coins < inv.coins:
 		return false
 	dropped_coins = 0
+	cheat_count += 1
+	markup_pending = true
 	hud.cheat_warning(true)
 	play_ui("dread", -1.0, 1.0)  # страшный звук за мухлёж (промпт 14.11 17:26)
 	_spawn_hunters()
@@ -1272,6 +1292,8 @@ func save_state() -> Dictionary:
 		"slot_credits": slot.credits if slot else 0,
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
 		"slot_level": slot.level if slot else 1,
+		"cheat_count": cheat_count,
+		"markup_pending": markup_pending,
 		"slot_tray": slot.tray_coins if slot else 0,
 	}
 
@@ -1390,6 +1412,8 @@ func load_state(d: Dictionary) -> void:
 		slot.set_tray(int(d.get("slot_tray", 0)))
 		slot.screen.text = ""
 		slot._update_screen_hint()
+	cheat_count = int(d.get("cheat_count", 0))
+	markup_pending = bool(d.get("markup_pending", false))
 	var h := int(d.get("hunters", 0))
 	if h > 0:
 		hud.cheat_warning(true)

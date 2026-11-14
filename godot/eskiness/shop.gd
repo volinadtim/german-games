@@ -13,6 +13,7 @@ var ui: CanvasLayer
 var sell_win                  # sell_window.gd
 var coins_l: Label
 var info_l: Label
+var markup_l: Label           # красная плашка «Наценка за мухлёж» (game.gd: markup_pct)
 var opened := false
 var tab := 0                  # открытая вкладка (TABS)
 var tab_btns: Array[Button] = []
@@ -367,6 +368,14 @@ func _build_ui() -> void:
 	box.add_child(head)
 	coins_l = _label("", 22, Color(0.92, 0.8, 0.5))
 	box.add_child(coins_l)
+	markup_l = _label("", 19, Color(1.0, 0.88, 0.85))
+	var msb := StyleBoxFlat.new()
+	msb.bg_color = Color(0.55, 0.06, 0.04, 0.9)
+	msb.set_content_margin_all(6)
+	msb.set_corner_radius_all(3)
+	markup_l.add_theme_stylebox_override("normal", msb)
+	markup_l.visible = false
+	box.add_child(markup_l)
 	# вкладки-категории
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 6)
@@ -425,6 +434,9 @@ func _label(t: String, size: int, col: Color) -> Label:
 
 func _refresh() -> void:
 	coins_l.text = "Монет: %d" % game.inv.count("coin")
+	var mp: int = game.markup_pct()
+	markup_l.visible = mp > 0
+	markup_l.text = "Наценка за мухлёж: +%d%% на следующую покупку (цены уже с ней)" % mp
 	_rebuild_tab.call_deferred()   # кнопка, по которой кликнули, ещё в сигнале
 
 
@@ -482,7 +494,9 @@ func _goods_row(id: String, price: int) -> HBoxContainer:
 	text.add_child(d)
 	row.add_child(text)
 	var buy := Button.new()
-	buy.text = "%d" % price
+	buy.text = "%d" % game.marked_price(price)
+	if game.markup_pct() > 0:
+		buy.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
 	buy.custom_minimum_size = Vector2(64, 34)
 	buy.focus_mode = Control.FOCUS_NONE
 	buy.add_theme_font_size_override("font_size", 18)
@@ -506,6 +520,8 @@ func _build_slot_tab() -> void:
 	content.add_child(_label("С каждым уровнем в барабанах новый символ: арбуз на 2×3, алмаз на 3×3; семёрки (сейф) и шестёрки — только на 3×5.", 14, Color(0.65, 0.63, 0.58)))
 	var up := Button.new()
 	up.text = slot.upgrade_text() if slot else "Автомата нет"
+	if slot and lv < SM.MAX_LEVEL and game.markup_pct() > 0:
+		up.text += "  (+%d наценка)" % (game.marked_price(slot.upgrade_price()) - slot.upgrade_price())
 	up.disabled = slot == null or lv >= SM.MAX_LEVEL
 	up.custom_minimum_size = Vector2(0, 40)
 	up.focus_mode = Control.FOCUS_NONE
@@ -531,7 +547,7 @@ func _build_slot_tab() -> void:
 		l.custom_minimum_size = Vector2(230, 0)
 		row.add_child(l)
 		var b := Button.new()
-		b.text = "%d" % int(d[1])
+		b.text = "%d" % game.marked_price(int(d[1]))
 		b.custom_minimum_size = Vector2(64, 32)
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 17)
@@ -548,7 +564,16 @@ func _build_slot_tab() -> void:
 func _buy_upgrade() -> void:
 	if game.slot == null:
 		return
+	var base: int = game.slot.upgrade_price()
+	var extra: int = game.marked_price(base) - base
+	if game.inv.count("coin") < base + extra:
+		info_l.text = "Не хватает монет"
+		game.play_ui("buzz", -14.0)
+		return
 	if game.slot.buy_upgrade():
+		if extra > 0:
+			game.inv.remove("coin", extra)
+			game.markup_used()
 		info_l.text = "Окно KILLBOX: %s" % game.slot.level_name(game.slot.level)
 	else:
 		info_l.text = "Не хватает монет"
@@ -588,18 +613,21 @@ func _refresh_chests() -> void:
 func _buy_luck(sym: String, price: int) -> void:
 	if game.slot == null:
 		return
+	price = game.marked_price(price)
 	if game.inv.count("coin") < price:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
 		return
 	game.inv.remove("coin", price)
 	game.slot.add_luck(sym)
+	game.markup_used()
 	info_l.text = "Гарант: %s" % preload("res://slot_symbols.gd").NAMES[sym]
 	game.play_ui("coin", -10.0)
 	_refresh()
 
 
 func _buy(id: String, price: int) -> void:
+	price = game.marked_price(price)
 	if game.inv.count("coin") < price:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
@@ -614,6 +642,9 @@ func _buy(id: String, price: int) -> void:
 		info_l.text = "Инвентарь полон"
 		return
 	info_l.text = "Куплено: %s" % Items.item_name(id)
+	if game.markup_pct() > 0:
+		info_l.text += " (с наценкой +%d%%)" % game.markup_pct()
+	game.markup_used()
 	_vend(id)
 	if id == "gasmask" and game.gasmask:
 		game.gasmask.on_bought()
