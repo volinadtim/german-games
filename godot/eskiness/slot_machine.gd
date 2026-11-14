@@ -393,6 +393,14 @@ static func is_open(lv: int, r: int, c: int) -> bool:
 	return rok and c >= c0 and c < c0 + cols
 
 
+## Есть ли в столбце c открытые клетки (только такие барабаны крутятся).
+static func col_open(lv: int, c: int) -> bool:
+	for r in ROWS:
+		if is_open(lv, r, c):
+			return true
+	return false
+
+
 ## Сколько символов sym в открытой части окна g.
 static func count_open(g: Array, lv: int, sym: String) -> int:
 	var n := 0
@@ -1250,6 +1258,10 @@ func interact(g) -> void:
 	tw.tween_property(lever, "rotation:x", 1.1, 0.18).set_trans(Tween.TRANS_QUAD)
 	tw.tween_property(lever, "rotation:x", 0.0, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	for i in REELS:
+		# закрытые столбцы стоят на месте: ни вращения, ни тиков, ни «clunk» (промпт 14.11 17:51)
+		if not col_open(level, i):
+			spinning[i] = false
+			continue
 		spinning[i] = true
 		var cur := reels[i].rotation.x
 		var target := _angle_for(stops[i])
@@ -1269,6 +1281,8 @@ func _roll_stops() -> void:
 	var g := roll_window(level, luck.keys())
 	var n := STRIP.size()
 	for i in REELS:
+		if not col_open(level, i):
+			continue   # закрытый барабан не крутится — его лента не меняется
 		stops[i] = randi() % n
 		var strip := _random_strip(level)
 		for r in ROWS:
