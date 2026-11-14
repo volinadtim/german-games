@@ -187,7 +187,8 @@ func _revolve(prof: Array, col_at: Callable) -> ArrayMesh:
 			var a1 := Vector3(cos(t1) * a.x, a.y, sin(t1) * a.x)
 			var b0 := Vector3(cos(t0) * b.x, b.y, sin(t0) * b.x)
 			var b1 := Vector3(cos(t1) * b.x, b.y, sin(t1) * b.x)
-			for v in [[a0, ca], [b0, cb], [b1, cb], [a0, ca], [b1, cb], [a1, ca]]:
+			# порядок вершин — против часовой снаружи: лицевая сторона наружу (иначе видна изнанка и «прозрачность», промпт 19:16)
+			for v in [[a0, ca], [b1, cb], [b0, cb], [a0, ca], [a1, ca], [b1, cb]]:
 				st.set_color(v[1])
 				st.add_vertex(v[0])
 	st.generate_normals()
