@@ -36,6 +36,8 @@ const ITEMS := {
 		"icon": "pants", "color": Color(0.2, 0.24, 0.32), "equip": "legs", "speed": 0.08},
 	"boots": {"name": "Кирзовые сапоги", "desc": "Обувь: стекло не ранит. Изнашиваются от ходьбы и стекла.", "stack": 1,
 		"icon": "boots", "color": Color(0.17, 0.13, 0.1), "equip": "feet", "glassproof": true, "dur": 100},
+	"backpack": {"name": "Рюкзак", "desc": "Спина: +5 ячеек сумки. Снимешь — вещи из него переложатся в свободные ячейки.", "stack": 1,
+		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": 5},
 	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 5,
 		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
 	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 6,
@@ -73,8 +75,8 @@ const ITEMS := {
 	"glass": {"name": "Кусочек стекла", "desc": "Острый осколок. Нужен для крафта.", "stack": 5,
 		"icon": "glass", "color": Color(0.6, 0.78, 0.76)},
 	# противогаз (G — надеть/снять) и фильтры к нему
-	"gasmask": {"name": "Противогаз", "desc": "Голова. G — надеть/снять. Наверху без него плохо.", "stack": 1,
-		"icon": "gasmask", "color": Color(0.22, 0.25, 0.2), "equip": "head"},
+	"gasmask": {"name": "Противогаз", "desc": "Лицо (вместе с каской). G — надеть/снять. Наверху без него плохо.", "stack": 1,
+		"icon": "gasmask", "color": Color(0.22, 0.25, 0.2), "equip": "face"},
 	"filter": {"name": "Фильтр", "desc": "Сменный фильтр противогаза: 90 секунд наверху.", "stack": 10,
 		"icon": "filter", "color": Color(0.36, 0.38, 0.3)},
 }
@@ -86,7 +88,7 @@ const RECIPES := [
 ]
 
 
-## Куда надевается предмет: hand (левая или правая рука), head (голова), hands (кастет) или "".
+## Куда надевается предмет: hand (левая или правая рука), head (голова), face (противогаз), back (рюкзак), hands (кастет) или "".
 static func equip_slot(id: String) -> String:
 	if not ITEMS.has(id):
 		return ""
@@ -248,6 +250,15 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_line(c + Vector2(0, -s * 0.3), c + Vector2(0, s * 0.33), col.darkened(0.45), maxf(1.5, s * 0.03))
 			for k in 4:
 				ci.draw_line(c + Vector2(-s * 0.2, -s * 0.18 + k * s * 0.12), c + Vector2(s * 0.2, -s * 0.18 + k * s * 0.12), col.darkened(0.25), maxf(1.0, s * 0.02))
+		"backpack":
+			# лямки, корпус, клапан с пряжкой, боковой карман
+			var strap := col.darkened(0.35)
+			ci.draw_arc(c + Vector2(0, -s * 0.24), s * 0.12, PI, TAU, 12, strap, maxf(2.0, s * 0.05))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.27, -s * 0.24), Vector2(s * 0.54, s * 0.6)), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.27, -s * 0.24), Vector2(s * 0.54, s * 0.22)), col.darkened(0.2))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.05, -s * 0.05), Vector2(s * 0.1, s * 0.08)), Color(0.7, 0.62, 0.4))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.18, s * 0.12), Vector2(s * 0.36, s * 0.18)), col.darkened(0.12))
+			ci.draw_line(c + Vector2(-s * 0.18, s * 0.12), c + Vector2(s * 0.18, s * 0.12), dark, maxf(1.0, s * 0.02))
 		"gloves":
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.18, -s * 0.05), Vector2(s * 0.36, s * 0.36)), col)
 			for k in 4:
@@ -386,6 +397,10 @@ static func make_mesh(id: String) -> Node3D:
 		"boots":
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.12, 0.22, 0.26)
+			mi.mesh = bm
+		"backpack":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.28, 0.36, 0.14)
 			mi.mesh = bm
 		"gloves":
 			var bm := BoxMesh.new()

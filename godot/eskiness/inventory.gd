@@ -1,6 +1,6 @@
 extends CanvasLayer
-## Инвентарь: 10 ячеек (монеты — отдельный кошелёк), снаряжение на силуэте человека
-## (голова, тело, руки, ноги, обувь, левая и правая рука — оружие/щит), хотбар 1–5 и крафт.
+## Инвентарь: 10 ячеек (+5 с рюкзаком; монеты — отдельный кошелёк), снаряжение на силуэте человека
+## (голова, лицо — противогаз, спина — рюкзак, тело, руки, ноги, обувь, левая и правая рука — оружие/щит), хотбар 1–5 и крафт.
 ## Tab / I — открыть/закрыть, игра не на паузе.
 ##   ЛКМ — использовать / надеть / снять; ПКМ — выбросить 1 шт., ПКМ подержать — окно с ползунком «сколько»;
 ##   перетаскивание мышью между ячейками и в слоты снаряжения, за окно — выбросить; навёл + 1–5 — хотбар.
@@ -18,21 +18,22 @@ signal craft_requested(recipe: int)
 signal message(text: String)
 
 const Items := preload("res://items.gd")
-const BAG := 10
+const BAG := 10                  # ячеек без рюкзака
+const BAG_MAX := 15              # с рюкзаком (items.gd: "bag" — сколько добавляет)
 const COLS := 5
 const SLOT := 76.0
-const EQUIP := ["head", "body", "hands", "legs", "feet", "left", "right"]
-const EQUIP_NAMES := {"head": "Голова", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
+const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left", "right"]
+const EQUIP_NAMES := {"head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
 	"left": "Левая", "right": "Правая"}
 ## где слоты стоят на силуэте (вид со спины: левая рука слева)
-const DOLL_POS := {"head": Vector2(113, 4), "body": Vector2(113, 92), "left": Vector2(16, 92), "right": Vector2(210, 92),
+const DOLL_POS := {"head": Vector2(113, 4), "face": Vector2(16, 4), "back": Vector2(210, 4), "body": Vector2(113, 92), "left": Vector2(16, 92), "right": Vector2(210, 92),
 	"hands": Vector2(210, 180), "legs": Vector2(113, 180), "feet": Vector2(113, 266)}
 const HOLD_TIME := 0.35
 const TOUCH_HOLD := 0.5                 # палец: столько держать на ячейке, чтобы выбросить
 
 var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
-var equip := {"head": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": ""}
+var equip := {"head": "", "face": "", "back": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": ""}
 var hotbar: Array = ["", "", "", "", ""]
 var equip_dur := {}             # прочность надетого: слот -> значение
 var open := false
@@ -42,6 +43,8 @@ var root: Control
 var info_name: Label
 var info_desc: Label
 var slot_nodes: Array = []
+var bag_nodes: Array = []        # ячейки сумки (BAG_MAX штук; лишние без рюкзака скрыты)
+var bag_l: Label
 var craft_box: VBoxContainer
 var _press_key = null
 var game  # game.gd — чтобы не открываться поверх магазина
@@ -81,7 +84,8 @@ class Slot extends Control:
 		var r := Rect2(Vector2.ZERO, size)
 		var hovered: bool = typeof(inv.hover) == typeof(key) and inv.hover == key
 		var is_eq: bool = key is String
-		draw_rect(r, Color(0.09, 0.06, 0.03, 0.75) if is_eq else Color(0.0, 0.0, 0.0, 0.5))
+		var extra: bool = not is_eq and int(key) >= inv.BAG   # ячейка рюкзака
+		draw_rect(r, Color(0.09, 0.06, 0.03, 0.75) if is_eq else (Color(0.12, 0.09, 0.04, 0.6) if extra else Color(0.0, 0.0, 0.0, 0.5)))
 		draw_rect(r, Color(0.9, 0.7, 0.4, 0.6 if hovered else 0.25) if is_eq else Color(1, 1, 1, 0.45 if hovered else 0.12), false, 1.0)
 		var f := ThemeDB.fallback_font
 		var id := item_id()
@@ -252,18 +256,21 @@ func _build_ui() -> void:
 	vb.add_theme_constant_override("separation", 10)
 	hb.add_child(vb)
 	vb.add_child(_label("ИНВЕНТАРЬ", 34, Color(0.86, 0.85, 0.8)))
-	vb.add_child(_label("СУМКА (%d)" % BAG, 15, Color(0.6, 0.6, 0.56)))
+	bag_l = _label("СУМКА (%d)" % BAG, 15, Color(0.6, 0.6, 0.56))
+	vb.add_child(bag_l)
 	var grid := GridContainer.new()
 	grid.columns = COLS
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 6)
 	vb.add_child(grid)
-	for i in BAG:
+	for i in BAG_MAX:
 		var s := Slot.new()
 		s.inv = self
 		s.key = i
+		s.visible = i < slots.size()
 		grid.add_child(s)
 		slot_nodes.append(s)
+		bag_nodes.append(s)
 	var wallet := HBoxContainer.new()
 	wallet.add_theme_constant_override("separation", 10)
 	var wi := Icon.new()
@@ -612,6 +619,58 @@ func move(from, to) -> void:
 
 
 # ---------- данные ----------
+
+## Сколько ячеек в сумке (рюкзак добавляет). Уменьшать — только когда лишние пусты (free_extra).
+func set_capacity(n: int) -> void:
+	n = clampi(n, BAG, BAG_MAX)
+	slots.resize(n)
+	for i in bag_nodes.size():
+		bag_nodes[i].visible = i < n
+	if bag_l:
+		bag_l.text = "СУМКА (%d)" % n if n == BAG else "СУМКА (%d + %d в рюкзаке)" % [BAG, n - BAG]
+	if hover is int and hover >= n:
+		hover = null
+	if touch_sel is int and touch_sel >= n:
+		touch_sel = null
+
+
+## Переложить вещи из ячеек рюкзака в свободные основные (стаки сливаются). true — рюкзак пуст.
+func free_extra() -> bool:
+	var ok := true
+	for i in range(BAG, slots.size()):
+		var s = slots[i]
+		if s == null:
+			continue
+		var mx: int = Items.ITEMS[s["id"]]["stack"]
+		if not s.has("dur"):
+			for j in BAG:
+				var t = slots[j]
+				if t != null and t["id"] == s["id"] and not t.has("dur") and int(t["n"]) < mx:
+					var take := mini(int(s["n"]), mx - int(t["n"]))
+					t["n"] += take
+					s["n"] -= take
+					if s["n"] <= 0:
+						break
+		if s["n"] <= 0:
+			slots[i] = null
+			continue
+		var j := free_cell(BAG)
+		if j >= 0:
+			slots[j] = s
+			slots[i] = null
+		else:
+			ok = false
+	_after_change()
+	return ok
+
+
+## Первая свободная ячейка среди первых limit (-1 — все); -1 — нет.
+func free_cell(limit := -1) -> int:
+	var n := slots.size() if limit < 0 else mini(limit, slots.size())
+	for i in n:
+		if slots[i] == null:
+			return i
+	return -1
 
 ## Прочность предмета в ячейке (int) или в слоте снаряжения (String).
 func get_dur(key) -> float:

@@ -835,8 +835,16 @@ func unequip(slot_: String, to := -1) -> bool:
 			equip(to, slot_)       # обмен
 			return true
 		to = -1
+	# рюкзак: сначала вещи из его ячеек — в основные; не влезли — не снимаем
+	var limit := -1
+	if slot_ == "back":
+		if not _empty_backpack():
+			return false
+		limit = inv.BAG
+		if to >= limit:
+			to = -1
 	if to < 0:
-		to = inv.slots.find(null)
+		to = inv.free_cell(limit)
 	if to < 0:
 		hud.toast("Сумка полна — некуда снять")
 		return false
@@ -853,6 +861,8 @@ func drop_equipped(slot_: String) -> void:
 	var id: String = inv.equip[slot_]
 	if id == "":
 		return
+	if slot_ == "back" and not _empty_backpack():
+		return
 	var d: float = inv.equip_dur.get(slot_, Items.max_dur(id))
 	inv.equip[slot_] = ""
 	inv.equip_dur.erase(slot_)
@@ -865,6 +875,15 @@ func drop_equipped(slot_: String) -> void:
 		p.set_meta("dur", d)
 
 
+## Перед тем как снять рюкзак: вещи из его ячеек — в свободные основные. false — не влезли (рюкзак остаётся).
+func _empty_backpack() -> bool:
+	if inv.free_extra():
+		return true
+	hud.toast("Рюкзак не снять: в сумке нет места для вещей из него", Color(0.95, 0.6, 0.45))
+	play_ui("buzz", -14.0)
+	return false
+
+
 func _apply_equip(slot_: String) -> void:
 	var id: String = inv.equip[slot_]
 	match slot_:
@@ -873,7 +892,8 @@ func _apply_equip(slot_: String) -> void:
 			player.set_weapon(id, arm)
 			if id != "" and not loading:
 				hud.toast("%s — %s рука" % [Items.item_name(id), "левая" if arm == 0 else "правая"], Color(0.9, 0.85, 0.7))
-		"head":
+		"face":
+			# противогаз — в слоте «Лицо», каска при этом остаётся на голове
 			if gasmask:
 				if loading:
 					gasmask.worn = id == "gasmask"
@@ -881,6 +901,14 @@ func _apply_equip(slot_: String) -> void:
 				else:
 					gasmask.set_worn(id == "gasmask")
 			if id != "" and id != "gasmask" and not loading:
+				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
+		"back":
+			# рюкзак: +ячейки сумки (снимают его только с пустыми доп. ячейками — unequip/drop_equipped)
+			inv.set_capacity(inv.BAG + (int(Items.ITEMS[id].get("bag", 0)) if id != "" else 0))
+			if id != "" and not loading:
+				hud.toast("Надето: %s (+%d ячеек)" % [Items.item_name(id), int(Items.ITEMS[id].get("bag", 0))], Color(0.9, 0.85, 0.7))
+		"head":
+			if id != "" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 		"hands":
 			player.dmg_mult = float(Items.ITEMS[id].get("fist", 1.0)) if id != "" else 1.0
@@ -894,14 +922,14 @@ func _apply_equip(slot_: String) -> void:
 
 ## G: надеть противогаз из сумки / снять его.
 func toggle_gasmask() -> void:
-	if inv.equip["head"] == "gasmask":
-		unequip("head")
+	if inv.equip["face"] == "gasmask":
+		unequip("face")
 		return
 	var i := inv.bag_index("gasmask")
 	if i < 0:
 		hud.toast("Противогаза нет")
 		return
-	equip(i, "head")
+	equip(i, "face")
 
 
 ## Клавиша 1–5: использовать привязанный предмет; надетый — снять.
@@ -1156,6 +1184,18 @@ func load_state(d: Dictionary) -> void:
 	loading = true
 	inv.coins = int(d.get("coins", 0))
 	var bag: Array = d.get("bag", [])
+	var eq: Dictionary = d.get("equip", {}).duplicate()
+	var ed: Dictionary = d.get("equip_dur", {}).duplicate()
+	# старые сейвы: противогаз был в слоте «Голова» — переезжает в «Лицо»
+	if String(eq.get("head", "")) == "gasmask" and String(eq.get("face", "")) == "":
+		eq["face"] = "gasmask"
+		eq["head"] = ""
+		if ed.has("head"):
+			ed["face"] = ed["head"]
+			ed.erase("head")
+	# рюкзак надет — сумка сразу шире, чтобы загрузились вещи из его ячеек
+	var back_id := String(eq.get("back", ""))
+	inv.set_capacity(inv.BAG + (int(Items.ITEMS[back_id].get("bag", 0)) if Items.ITEMS.has(back_id) else 0))
 	for i in inv.slots.size():
 		var s = bag[i] if i < bag.size() else null
 		if s is Dictionary and Items.ITEMS.has(String(s.get("id", ""))):
@@ -1165,8 +1205,7 @@ func load_state(d: Dictionary) -> void:
 			inv.slots[i] = e
 		else:
 			inv.slots[i] = null
-	var eq: Dictionary = d.get("equip", {})
-	var ed: Dictionary = d.get("equip_dur", {})
+	inv.equip_dur.clear()
 	for k in inv.equip:
 		var id: String = String(eq.get(k, ""))
 		inv.equip[k] = id if Items.ITEMS.has(id) else ""

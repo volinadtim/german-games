@@ -13,7 +13,7 @@ const WEAPONS := {
 
 # что продаёт магазин, по порядку
 const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["shield", 70], ["gasmask", 50], ["filter", 25], ["flashlight", 35], ["broom", 30],
-	["helmet", 45], ["jacket", 60], ["gloves", 30], ["pants", 35], ["boots", 40]]
+	["helmet", 45], ["jacket", 60], ["gloves", 30], ["pants", 35], ["boots", 40], ["backpack", 70]]
 
 
 static func _m(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
