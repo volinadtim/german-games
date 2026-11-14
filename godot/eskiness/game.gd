@@ -454,10 +454,42 @@ func _physics_process(delta: float) -> void:
 		q.collision_mask = 1
 		q.exclude = [player.get_rid()]
 		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		var hit_d := 99.0
 		if hit and hit.collider.has_method("interact"):
 			focus = hit.collider
 			text = hit.collider.get_prompt(self)
+			hit_d = from.distance_to(hit.position)
+		# лежащий предмет под прицелом (pickup.gd) — ближе, чем другая цель
+		var pk := _aimed_pickup(from, -player.cam.global_transform.basis.z)
+		if pk != null and from.distance_to(pk.global_position) < hit_d:
+			focus = pk
+			text = pk.get_prompt(self)
 	hud.prompt(text)
+
+
+## Предмет на полу, на который смотрит игрок: в пределах Pickup.REACH, в узком конусе взгляда
+## (чем ближе, тем шире — маленькую вещь легко навести), и не за стеной.
+func _aimed_pickup(from: Vector3, fwd: Vector3) -> Node:
+	var best: Node = null
+	var best_a := 99.0
+	for p in get_tree().get_nodes_in_group("pickup"):
+		if p.taken:
+			continue
+		var to: Vector3 = p.global_position + Vector3(0, 0.03, 0) - from
+		var d := to.length()
+		if d > Pickup.REACH or d < 0.05:
+			continue
+		var a := fwd.angle_to(to)
+		if a > maxf(deg_to_rad(7.0), atan(0.2 / d)) or a >= best_a:
+			continue
+		var q := PhysicsRayQueryParameters3D.create(from, from + to * 0.97)
+		q.collision_mask = 1
+		q.exclude = [player.get_rid()]
+		if get_world_3d().direct_space_state.intersect_ray(q):
+			continue
+		best = p
+		best_a = a
+	return best
 
 
 ## Одно окно за раз: пока открыт инвентарь или магазин, другие окна не открываются.
@@ -1204,7 +1236,7 @@ func save_state() -> Dictionary:
 		cs.append([c.opened, c.broken, c.contents.duplicate(true)] if is_instance_valid(c) else [false, false, []])
 	var floor_items: Array = []
 	for n in get_children():
-		if n is Pickup and is_instance_valid(n) and not n.is_queued_for_deletion():
+		if n is Pickup and is_instance_valid(n) and not n.is_queued_for_deletion() and not n.taken:
 			floor_items.append({"id": n.id, "n": n.n, "pos": _v3(n.global_position),
 				"dur": float(n.get_meta("dur", -1.0)), "dropped": bool(n.get_meta("dropped", false))})
 	var alive_hunters := 0
