@@ -127,6 +127,7 @@ func _enter_game() -> void:
 	var game := Game.new()
 	add_child(game)
 	game.setup(player)
+	menu.apply_settings()  # качество графики — и для узлов, созданных игрой (фонарик, лампы)
 	# экранное управление — только на телефонах (или с флагом запуска `-- --touch`)
 	if TouchControls.wanted():
 		var tc := TouchControls.new()

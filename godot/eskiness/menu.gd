@@ -7,6 +7,7 @@ signal play_pressed
 
 const IconButton := preload("res://icon_button.gd")
 const CFG := "user://settings.cfg"
+const Graphics := preload("res://graphics.gd")
 
 # имя -> [подпись, мин, макс, шаг, по умолчанию]
 const SETTINGS := {
@@ -18,6 +19,7 @@ const SETTINGS := {
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
 	"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],      # галочка: 0 — выкл, 1 — вкл
+	"graphics": ["Графика", 0.0, 2.0, 1.0, 1.0],      # 0 низкая, 1 средняя, 2 высокая (graphics.gd)
 }
 
 var in_game := false          # выставляет main.gd, когда игра началась
@@ -335,6 +337,8 @@ func _slider_row(key: String) -> Control:
 func _fmt(key: String, v: float) -> String:
 	if key == "crosshair":
 		return "вкл" if v > 0.5 else "выкл"
+	if key == "graphics":
+		return Graphics.NAMES[clampi(int(round(v)), 0, 2)]
 	if key == "volume" or key == "posterize" or key == "ui_scale":
 		return "%d%%" % int(v)
 	return "%.2f" % v
@@ -364,6 +368,7 @@ func _apply_ui_scale() -> void:
 
 func apply_settings() -> void:
 	_apply_ui_scale()
+	Graphics.apply(get_tree(), int(round(values.get("graphics", 1.0))))
 	preload("res://player.gd").look_sens = values["sensitivity"]
 	preload("res://hud.gd").show_crosshair = values.get("crosshair", 1.0) > 0.5
 	var vol: float = values["volume"] / 100.0
