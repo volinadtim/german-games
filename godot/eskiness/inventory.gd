@@ -2,8 +2,12 @@ extends CanvasLayer
 ## Инвентарь: 10 ячеек (+5 с рюкзаком; монеты — отдельный кошелёк), снаряжение на силуэте человека
 ## (голова, лицо — противогаз, спина — рюкзак, тело, руки, ноги, обувь, левая и правая рука — оружие/щит), хотбар 1–5 и крафт.
 ## Tab / I — открыть/закрыть, игра не на паузе.
-##   ЛКМ — использовать / надеть / снять; ПКМ — выбросить 1 шт., ПКМ подержать — окно с ползунком «сколько»;
-##   перетаскивание мышью между ячейками и в слоты снаряжения, за окно — выбросить; навёл + 1–5 — хотбар.
+##   ЛКМ — использовать / надеть / снять; ПКМ — меню действий (промпт 14.11 19:07);
+##   Shift+ПКМ — выбросить 1 шт., Shift + держать ПКМ — выбросить всю стопку (кольцо на ячейке);
+##   перетаскивание мышью между ячейками и в слоты снаряжения, за окно — выбросить (стопка — спросит сколько);
+##   палец: долгое нажатие — то же меню; навёл + 1–5 — хотбар.
+##   Хотбар (ссылки на предметы, hud.gd рисует внизу): пока окно открыто, на его ячейки можно перетащить предмет,
+##   ячейку хотбара — на другую (обмен) или обратно в сумку / за окно (отвязать).
 ## Сам инвентарь хранит данные и шлёт сигналы; что делает предмет — решает game.gd.
 
 signal changed
@@ -29,8 +33,8 @@ const EQUIP_NAMES := {"head": "Голова", "face": "Лицо", "back": "Сп�
 ## где слоты стоят на силуэте (вид со спины: левая рука слева)
 const DOLL_POS := {"head": Vector2(113, 4), "face": Vector2(16, 4), "back": Vector2(210, 4), "body": Vector2(113, 92), "left": Vector2(16, 92), "right": Vector2(210, 92),
 	"hands": Vector2(210, 180), "legs": Vector2(113, 180), "feet": Vector2(113, 266)}
-const HOLD_TIME := 0.35
-const TOUCH_HOLD := 0.5                 # палец: столько держать на ячейке, чтобы выбросить
+const HOLD_TIME := 0.4                  # Shift + держать ПКМ столько — выбросить всю стопку
+const TOUCH_HOLD := 0.5                 # палец: столько держать на ячейке — меню действий
 
 var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
@@ -60,6 +64,12 @@ var dlg_title: Label
 var dlg_slider: HSlider
 var dlg_val: Label
 var dlg_key = null
+var menu_bg: Control              # меню действий (ПКМ): прозрачная подложка — клик мимо закрывает
+var menu: PanelContainer
+var menu_box: VBoxContainer
+var menu_key = null
+var touch_pos := Vector2.ZERO
+var hot_nodes: Array = []         # ячейки хотбара поверх hud.gd, пока открыт инвентарь
 
 
 ## Ячейка: key — номер в сумке (int) или имя слота экипировки (String).
@@ -111,6 +121,11 @@ class Slot extends Control:
 			if n > 1:
 				draw_string_outline(f, Vector2(4, size.y - 6), str(n), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 17, 4, Color(0, 0, 0, 0.8))
 				draw_string(f, Vector2(4, size.y - 6), str(n), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 17, Color(0.92, 0.9, 0.84))
+		# Shift + держать ПКМ: кольцо заполняется — на полном выбросится вся стопка
+		if typeof(inv.hold_key) == typeof(key) and inv.hold_key == key:
+			var fr2 := clampf(inv.hold_t / inv.HOLD_TIME, 0.0, 1.0)
+			draw_rect(r, Color(0.6, 0.1, 0.05, 0.25 * fr2))
+			draw_arc(size / 2, size.x * 0.4, -PI / 2, -PI / 2 + TAU * fr2, 32, Color(1.0, 0.45, 0.3, 0.95), 4.0, true)
 		var hk: int = inv.hotbar.find(id)
 		if hk >= 0:
 			draw_string_outline(f, Vector2(5, 17), str(hk + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.8))
@@ -125,16 +140,19 @@ class Slot extends Control:
 				if item_id() != "":
 					inv.touch_key = key
 					inv.touch_t = 0.0
+					inv.touch_pos = get_global_mouse_position()
 			else:
 				inv.touch_key = null
+		# ПКМ — меню действий; Shift+ПКМ — выбросить 1, Shift + держать — всю стопку
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_RIGHT and item_id() != "":
-			if key is String:
-				inv.drop_equipped_requested.emit(key)
-			else:
-				if e.shift_pressed:
-					inv.drop_requested.emit(key, true)
+			if e.shift_pressed:
+				if key is String:
+					inv.drop_equipped_requested.emit(key)
 				else:
 					inv.start_hold(key, int(inv.slots[key]["n"]))
+			else:
+				inv.open_menu(key, get_global_mouse_position())
+			accept_event()
 
 	func _get_drag_data(_at: Vector2) -> Variant:
 		var id := item_id()
@@ -150,10 +168,82 @@ class Slot extends Control:
 		return {"inv_key": key}
 
 	func _can_drop_data(_at: Vector2, data: Variant) -> bool:
-		return data is Dictionary and data.has("inv_key")
+		return data is Dictionary and (data.has("inv_key") or data.has("hot"))
 
 	func _drop_data(_at: Vector2, data: Variant) -> void:
+		if data.has("hot"):
+			inv.unbind_hot(int(data["hot"]))
+			return
 		inv.move(data["inv_key"], key)
+
+
+## Ячейка хотбара 1–5 поверх нарисованной hud.gd (только пока открыт инвентарь): цель перетаскивания.
+class HotSlot extends Control:
+	const Items := preload("res://items.gd")
+	var inv
+	var k := 0
+	var dragging := false
+	var over := false
+
+	func _ready() -> void:
+		mouse_entered.connect(_set_over.bind(true))
+		mouse_exited.connect(_set_over.bind(false))
+
+	func _set_over(v: bool) -> void:
+		over = v
+		queue_redraw()
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_DRAG_BEGIN:
+			dragging = true
+			queue_redraw()
+		elif what == NOTIFICATION_DRAG_END:
+			dragging = false
+			queue_redraw()
+
+	func _draw() -> void:
+		var r := Rect2(Vector2.ZERO, size)
+		var id: String = inv.hotbar[k]
+		draw_rect(r, Color(0.05, 0.04, 0.03, 0.85))
+		if id != "":
+			Items.draw_icon(self, id, r.grow(-11))
+			var cnt: int = inv.count(id)
+			if cnt == 0:
+				draw_rect(r.grow(-1), Color(0, 0, 0, 0.6))
+			elif cnt > 1:
+				var f0 := ThemeDB.fallback_font
+				draw_string_outline(f0, Vector2(0, size.y - 5), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 5, 16, 4, Color(0, 0, 0, 0.8))
+				draw_string(f0, Vector2(0, size.y - 5), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 5, 16, Color(0.92, 0.9, 0.84))
+		var f := ThemeDB.fallback_font
+		draw_string_outline(f, Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.8))
+		draw_string(f, Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0, 0.8, 0.45))
+		# пока тащишь предмет — ячейки подсвечены как цели
+		var a := 0.95 if (dragging and over) else (0.7 if dragging else 0.25)
+		draw_rect(r, Color(1.0, 0.75, 0.35, a), false, 3.0 if dragging else 1.0)
+		if dragging:
+			draw_rect(r, Color(1.0, 0.75, 0.35, 0.18 if over else 0.08))
+
+	func _get_drag_data(_at: Vector2) -> Variant:
+		var id: String = inv.hotbar[k]
+		if id == "":
+			return null
+		var pv := Icon.new()
+		pv.id = id
+		pv.size = Vector2(56, 56)
+		pv.position = Vector2(-28, -28)
+		var holder := Control.new()
+		holder.add_child(pv)
+		set_drag_preview(holder)
+		return {"hot": k}
+
+	func _can_drop_data(_at: Vector2, data: Variant) -> bool:
+		return data is Dictionary and (data.has("inv_key") or data.has("hot"))
+
+	func _drop_data(_at: Vector2, data: Variant) -> void:
+		if data.has("hot"):
+			inv.swap_hot(int(data["hot"]), k)
+		else:
+			inv.bind_hot(data["inv_key"], k)
 
 
 ## Силуэт человека под слотами снаряжения.
@@ -185,12 +275,17 @@ class DropZone extends ColorRect:
 	var inv
 
 	func _can_drop_data(_at: Vector2, data: Variant) -> bool:
-		return data is Dictionary and data.has("inv_key")
+		return data is Dictionary and (data.has("inv_key") or data.has("hot"))
 
 	func _drop_data(_at: Vector2, data: Variant) -> void:
+		if data.has("hot"):
+			inv.unbind_hot(int(data["hot"]))
+			return
 		var k = data["inv_key"]
 		if k is String:
 			inv.drop_equipped_requested.emit(k)
+		elif inv.slots[k] != null and int(inv.slots[k]["n"]) > 1:
+			inv.open_drop_dialog(k)     # стопка — «Сколько выбросить?»
 		else:
 			inv.drop_requested.emit(k, true)
 
@@ -298,9 +393,9 @@ func _build_ui() -> void:
 	info_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_desc.custom_minimum_size = Vector2(COLS * (SLOT + 6), 42)
 	vb.add_child(info_desc)
-	var hint_text := "ЛКМ — использовать    ПКМ — выбросить    1–5 — хотбар    Tab — закрыть"
+	var hint_text := "ЛКМ — использовать    ПКМ — действия    Tab — закрыть\nShift+ПКМ — выбросить 1 (держать — всю стопку)\nЗа окно — выбросить    На ячейки 1–5 внизу — хотбар"
 	if preload("res://touch_controls.gd").wanted():
-		hint_text = "Нажать — использовать    Подержать — выбросить
+		hint_text = "Нажать — использовать    Подержать — действия
 Перетащить — переложить    Коснулся предмета + ячейка 1–5 внизу — хотбар"
 	var hint := _label(hint_text, 14, Color(0.55, 0.55, 0.52))
 	vb.add_child(hint)
@@ -313,7 +408,14 @@ func _build_ui() -> void:
 	craft_box = VBoxContainer.new()
 	craft_box.add_theme_constant_override("separation", 14)
 	cb.add_child(craft_box)
+	for k in 5:
+		var hs := HotSlot.new()
+		hs.inv = self
+		hs.k = k
+		root.add_child(hs)
+		hot_nodes.append(hs)
 	_build_drop_dialog()
+	_build_menu()
 
 
 ## Окно «сколько выбросить»: ползунок и кнопка.
@@ -348,12 +450,25 @@ func _build_drop_dialog() -> void:
 	dlg_val = _label("1", 22, Color(1.0, 0.85, 0.5))
 	dlg_val.custom_minimum_size = Vector2(50, 0)
 	row.add_child(dlg_val)
+	var pm := HBoxContainer.new()
+	pm.add_theme_constant_override("separation", 8)
+	v.add_child(pm)
+	for d in [["−", -1], ["+", 1], ["Всё", 0]]:
+		var b := Button.new()
+		b.text = d[0]
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(56, 34)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 18)
+		var step: int = d[1]
+		b.pressed.connect(func(): dlg_slider.value = dlg_slider.max_value if step == 0 else dlg_slider.value + step)
+		pm.add_child(b)
 	dlg_slider.value_changed.connect(func(x: float): dlg_val.text = str(int(x)))
 	var bb := HBoxContainer.new()
 	bb.add_theme_constant_override("separation", 10)
 	v.add_child(bb)
 	var ok := Button.new()
-	ok.text = "Выбросить"
+	ok.text = "ОК"
 	ok.focus_mode = Control.FOCUS_NONE
 	ok.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ok.add_theme_font_size_override("font_size", 18)
@@ -375,7 +490,7 @@ func open_drop_dialog(key) -> void:
 	if mx <= 0:
 		return
 	dlg_key = key
-	dlg_title.text = "Сколько выбросить: %s" % ("монеты" if key is String else Items.item_name(slots[key]["id"]))
+	dlg_title.text = "Сколько выбросить? %s" % ("Монеты" if key is String else Items.item_name(slots[key]["id"]))
 	dlg_slider.max_value = mx
 	dlg_slider.value = mx
 	dlg_val.text = str(mx)
@@ -450,6 +565,11 @@ func _input(e: InputEvent) -> void:
 		else:
 			return
 		get_viewport().set_input_as_handled()
+	elif open and menu_bg.visible:
+		# пока открыто меню действий — только Esc (клик мимо ловит подложка)
+		if e.is_action_pressed("ui_cancel"):
+			close_menu()
+			get_viewport().set_input_as_handled()
 	elif open and e.is_action_pressed("ui_cancel"):
 		if dlg.visible:
 			dlg.visible = false
@@ -474,7 +594,7 @@ func _input(e: InputEvent) -> void:
 					unequip_requested.emit(hover, -1)
 
 
-## ПКМ: отпустил быстро — выбросить 1 шт.; подержал HOLD_TIME — окно с ползунком.
+## Shift+ПКМ: отпустил быстро — выбросить 1 шт.; продержал HOLD_TIME — всю стопку.
 func start_hold(key, _mx: int) -> void:
 	hold_key = key
 	hold_t = 0.0
@@ -485,16 +605,16 @@ func _process(delta: float) -> void:
 	if hold_key == null:
 		return
 	hold_t += delta
+	_refresh()   # кольцо удержания на ячейке
 	if hold_t >= HOLD_TIME:
 		var k = hold_key
 		hold_key = null
-		if k is int and slots[k] != null and int(slots[k]["n"]) > 1:
-			open_drop_dialog(k)
-		else:
-			_finish_hold_key(k)
+		if k is int and slots[k] != null:
+			drop_requested.emit(k, true)
+		_refresh()
 
 
-## Палец держат на ячейке TOUCH_HOLD секунд и не тащат — окно «сколько выбросить» (снаряжение — снять на пол).
+## Палец держат на ячейке TOUCH_HOLD секунд и не тащат — меню действий.
 func _touch_hold(delta: float) -> void:
 	if touch_key == null:
 		return
@@ -507,22 +627,224 @@ func _touch_hold(delta: float) -> void:
 	var k = touch_key
 	touch_key = null
 	_press_key = null   # отпускание пальца уже не «использовать»
-	if k is String:
-		if equip[k] != "":
-			drop_equipped_requested.emit(k)
-	elif slots[k] != null:
-		open_drop_dialog(k)
+	if (k is String and equip[k] != "") or (k is int and slots[k] != null):
+		open_menu(k, touch_pos)
 
 
 func _finish_hold() -> void:
 	var k = hold_key
 	hold_key = null
 	_finish_hold_key(k)
+	_refresh()
 
 
 func _finish_hold_key(k) -> void:
 	if k is int and slots[k] != null:
 		drop_count_requested.emit(k, 1)
+
+
+# ---------- меню действий (ПКМ / долгий тап) ----------
+
+func _build_menu() -> void:
+	menu_bg = Control.new()
+	menu_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	menu_bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	menu_bg.gui_input.connect(func(e: InputEvent):
+		if e is InputEventMouseButton and e.pressed:
+			close_menu())
+	menu_bg.visible = false
+	root.add_child(menu_bg)
+	menu = PanelContainer.new()
+	var st := StyleBoxFlat.new()
+	st.bg_color = Color(0.1, 0.085, 0.07, 0.98)
+	st.border_color = Color(0.9, 0.7, 0.4, 0.55)
+	st.set_border_width_all(1)
+	st.set_corner_radius_all(3)
+	st.set_content_margin_all(6)
+	menu.add_theme_stylebox_override("panel", st)
+	menu_bg.add_child(menu)
+	menu_box = VBoxContainer.new()
+	menu_box.add_theme_constant_override("separation", 2)
+	menu.add_child(menu_box)
+
+
+## Что делает «использовать» для этой вещи ("" — нечего).
+func _use_label(id: String) -> String:
+	var d: Dictionary = Items.ITEMS[id]
+	if d.has("repair"):
+		return "Починить…"
+	if d.has("weapon"):
+		return "Взять в руку"
+	if d.has("equip"):
+		return "Надеть"
+	if d.has("buff"):
+		return "Съесть" if d["buff"] == "resist" else "Выпить"
+	if d.has("heal"):
+		return "Выпить" if id == "pills" else "Лечиться"
+	return {"wallet": "Открыть", "flashlight": "Включить / выключить", "battery": "Зарядить фонарик",
+		"broom": "Подмести стекло"}.get(id, "")
+
+
+## Меню у курсора: пункты по типу вещи в ячейке / слоте.
+func open_menu(key, at: Vector2) -> void:
+	hold_key = null
+	for c in menu_box.get_children():
+		menu_box.remove_child(c)
+		c.queue_free()
+	var acts: Array = []   # [текст, действие]
+	var title := ""
+	if key is String:
+		if equip[key] == "":
+			return
+		title = Items.item_name(equip[key])
+		acts.append(["Снять", "unequip"])
+		acts.append(["Выбросить", "drop_eq"])
+	else:
+		var s = slots[key]
+		if s == null:
+			return
+		var id: String = s["id"]
+		var n := int(s["n"])
+		title = Items.item_name(id) + ("  ×%d" % n if n > 1 else "")
+		var ul := _use_label(id)
+		if ul != "":
+			acts.append([ul, "use"])
+		if n > 1:
+			acts.append(["Разделить", "split"])
+		acts.append(["Выбросить 1", "drop1"])
+		if n > 1:
+			acts.append(["Выбросить всё", "drop_all"])
+	acts.append(["Отмена", "cancel"])
+	var tl := _label(title, 15, Color(0.75, 0.7, 0.6))
+	menu_box.add_child(tl)
+	# «На хотбар → 1…5»
+	var hrow := HBoxContainer.new()
+	hrow.add_theme_constant_override("separation", 3)
+	hrow.add_child(_label("На хотбар", 16, Color(0.9, 0.85, 0.75)))
+	for hk in 5:
+		var hb := Button.new()
+		hb.text = str(hk + 1)
+		hb.focus_mode = Control.FOCUS_NONE
+		hb.custom_minimum_size = Vector2(26, 28)
+		hb.add_theme_font_size_override("font_size", 15)
+		hb.pressed.connect(func():
+			close_menu()
+			bind_hot(key, hk))
+		hrow.add_child(hb)
+	for a in acts:
+		var b := Button.new()
+		b.text = a[0]
+		b.flat = true
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(190, 32)
+		b.add_theme_font_size_override("font_size", 18)
+		var act: String = a[1]
+		if act.begins_with("drop"):
+			b.add_theme_color_override("font_color", Color(1.0, 0.6, 0.5))
+		b.pressed.connect(_menu_pick.bind(key, act))
+		menu_box.add_child(b)
+		if act == "cancel":
+			menu_box.move_child(b, -1)
+	menu_box.add_child(hrow)
+	menu_box.move_child(hrow, menu_box.get_child_count() - 2)
+	menu_key = key
+	menu_bg.visible = true
+	menu.reset_size()
+	# у курсора, но не за краем экрана
+	var vs := get_viewport().get_visible_rect().size
+	var sz := menu.get_combined_minimum_size()
+	menu.position = Vector2(clampf(at.x + 4, 0, vs.x - sz.x), clampf(at.y + 4, 0, vs.y - sz.y))
+	set_hover(key)
+
+
+func close_menu() -> void:
+	if menu_bg and menu_bg.visible:
+		menu_bg.visible = false
+		menu_key = null
+		_press_key = null
+
+
+func _menu_pick(key, act: String) -> void:
+	close_menu()
+	match act:
+		"use":
+			if key is int and slots[key] != null:
+				use_requested.emit(key)
+		"split":
+			split(key)
+		"drop1":
+			if key is int and slots[key] != null:
+				drop_count_requested.emit(key, 1)
+		"drop_all":
+			if key is int and slots[key] != null:
+				drop_requested.emit(key, true)
+		"unequip":
+			unequip_requested.emit(key, -1)
+		"drop_eq":
+			drop_equipped_requested.emit(key)
+
+
+## Разделить стопку пополам: половина (меньшая) — в первую свободную ячейку.
+func split(idx: int) -> void:
+	var s = slots[idx]
+	if s == null or int(s["n"]) < 2:
+		return
+	var j := free_cell()
+	if j < 0:
+		message.emit("Нет свободной ячейки")
+		return
+	var half := int(s["n"]) / 2
+	s["n"] = int(s["n"]) - half
+	slots[j] = {"id": s["id"], "n": half}
+	_after_change()
+
+
+## Привязать к ячейке хотбара hk предмет из ячейки сумки / слота снаряжения key.
+func bind_hot(key, hk: int) -> void:
+	var id := ""
+	if key is String:
+		id = equip[key]
+	elif key is int and key < slots.size() and slots[key] != null:
+		id = slots[key]["id"]
+	if id == "":
+		return
+	var old := hotbar.find(id)
+	if old >= 0:
+		hotbar[old] = ""
+	hotbar[hk] = id
+	message.emit("%s → клавиша %d" % [Items.item_name(id), hk + 1])
+	_after_change()
+
+
+func swap_hot(a: int, b: int) -> void:
+	if a == b:
+		return
+	var t: String = hotbar[a]
+	hotbar[a] = hotbar[b]
+	hotbar[b] = t
+	_after_change()
+
+
+func unbind_hot(k: int) -> void:
+	if hotbar[k] == "":
+		return
+	message.emit("%s отвязан от %d" % [Items.item_name(hotbar[k]), k + 1])
+	hotbar[k] = ""
+	_after_change()
+
+
+## Ячейки хотбара — там же, где их рисует hud.gd (внизу по центру).
+func _place_hot() -> void:
+	var sz := root.size
+	var cell := 64.0
+	var gap := 8.0
+	var x0 := sz.x / 2.0 - (cell * 5 + gap * 4) / 2.0
+	for k in hot_nodes.size():
+		var hs: Control = hot_nodes[k]
+		hs.position = Vector2(x0 + k * (cell + gap), sz.y - cell - 18.0)
+		hs.size = Vector2(cell, cell)
+		hs.queue_redraw()
 
 
 func _bind_hover(k: int) -> void:
@@ -553,6 +875,7 @@ func show_inventory() -> void:
 	root.visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_rebuild_craft()
+	_place_hot()
 	set_hover(null)
 
 
@@ -566,6 +889,7 @@ func close() -> void:
 	touch_key = null
 	touch_sel = null
 	dlg.visible = false
+	close_menu()
 	if not get_tree().paused:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -591,6 +915,8 @@ func set_hover(k) -> void:
 
 func _refresh() -> void:
 	for n in slot_nodes:
+		n.queue_redraw()
+	for n in hot_nodes:
 		n.queue_redraw()
 
 
