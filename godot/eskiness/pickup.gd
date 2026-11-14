@@ -17,6 +17,11 @@ var taken := false   # уже летит к игроку (в сохранени�
 var model: Node3D
 var model_base := Vector3.ZERO   # положение визуала без подъёма
 var lift := 0.0                  # подъём визуала над полом — по мировой вертикали, как бы предмет ни лёг
+var box: CollisionShape3D
+var settled := false             # улёгся: выровнен на грань по полу и заморожен (не качается, не толкается)
+var slow_t := 0.0
+var last_ok := Vector3.INF       # последняя точка, где под предметом была земля (на случай провала сквозь неё)
+var ok_check := 0
 
 
 func _ready() -> void:
@@ -24,11 +29,13 @@ func _ready() -> void:
 	collision_layer = 4
 	collision_mask = 1
 	mass = 0.2
-	continuous_cd = true
+	continuous_cd = false
 	var pm := PhysicsMaterial.new()
-	pm.bounce = 0.25
-	pm.friction = 0.8
+	pm.bounce = 0.1      # было 0.25 — плоские вещи от упругости бесконечно качались на полу
+	pm.friction = 0.9
 	physics_material_override = pm
+	angular_damp = 2.5   # гасит покачивание, кувыркаться в полёте всё равно успевает
+	linear_damp = 0.3
 	var made: Array = PickupMesh.make(id)
 	model = made[0]
 	add_child(model)
@@ -38,18 +45,31 @@ func _ready() -> void:
 	var s: Vector3 = made[1]
 	var cs := CollisionShape3D.new()
 	var bs := BoxShape3D.new()
-	bs.size = Vector3(maxf(s.x, 0.04), maxf(s.y, 0.03), maxf(s.z, 0.04))
+	var pad := Vector3.ONE * PickupMesh.PAD * 2.0
+	bs.size = Vector3(maxf(s.x, 0.04), maxf(s.y, 0.03), maxf(s.z, 0.04)) + (Vector3.ZERO if model is Sprite3D else pad)
 	cs.shape = bs
 	if model is Sprite3D:
 		cs.position.y = s.y * 0.5
 	add_child(cs)
+	box = cs
+	# игрок не толкает предметы (раньше мог запихать их в стену): тело игрока для них «прозрачно»
+	if game != null and game.player != null:
+		add_collision_exception_with(game.player)
+	freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 
 
 func _physics_process(delta: float) -> void:
 	age += delta
-	if not taken:
+	# непрерывная проверка столкновений — только в быстром полёте (чтобы не пролететь сквозь землю);
+	# на полу она заставляла тонкие вещи (осколок стекла) бесконечно качаться и ползти (промпт 18:29)
+	continuous_cd = linear_velocity.length() > 2.5
+	if not taken and not settled:
 		# лёг на бок — визуал всё равно приподнят вверх по миру (тело без масштаба: inverse = transposed)
 		model.position = model_base + global_transform.basis.transposed() * Vector3(0, lift, 0)
+		slow_t = slow_t + delta if linear_velocity.length() < 0.6 else 0.0
+		if age > 0.3 and (slow_t > 0.25 or age > 4.0):
+			_settle()
+		_guard_fall()
 	if taken or game == null or not game.alive or age < 0.6 or id != "coin":
 		return
 	var pp: Vector3 = game.player.global_position
@@ -65,6 +85,64 @@ func _physics_process(delta: float) -> void:
 			_fly_to(game)
 		else:
 			n = left
+
+
+## Проскочил сквозь землю (быстрое падение тонкой вещи на склон поляны) — вернуть туда, где земля была под ним.
+func _guard_fall() -> void:
+	if settled:
+		return
+	ok_check += 1
+	if last_ok != Vector3.INF and global_position.y < last_ok.y - 3.0:
+		global_position = last_ok + Vector3(0, 0.25, 0)
+		linear_velocity = Vector3.ZERO
+		angular_velocity = Vector3.ZERO
+		return
+	if ok_check % 5 != 0:
+		return
+	var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 0.05, 0), global_position - Vector3(0, 2.0, 0))
+	q.collision_mask = 1
+	if game != null and game.player != null:
+		q.exclude = [game.player.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit:
+		last_ok = global_position
+
+
+## Уложить на пол и заморозить: ближайшая к вертикали ось коробки становится строго вертикальной (лежит на грани),
+## низ коробки — на 1 мм над полом под предметом. Так нет ни покачивания и ползания тонких вещей, ни дёрганья,
+## ни утопания в пол (физика Godot разрешает телам проваливаться в пол до 1 см) — промпты 18:29 / 18:36.
+func _settle() -> void:
+	var b := global_transform.basis.orthonormalized()
+	var best := 1
+	for i in 3:
+		if absf(b[i].y) > absf(b[best].y):
+			best = i
+	var up := Vector3(0, signf(b[best].y) if b[best].y != 0.0 else 1.0, 0)
+	var nb := (Basis(Quaternion(b[best].normalized(), up)) * b).orthonormalized()
+	var center := global_position + nb * box.position
+	var q := PhysicsRayQueryParameters3D.create(center + Vector3(0, 0.3, 0), center - Vector3(0, 0.6, 0))
+	q.collision_mask = 1
+	if game != null and game.player != null:
+		q.exclude = [game.player.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		if age > 4.0:
+			slow_t = 0.0   # висит над пустотой (или ещё падает) — ждём дальше
+			age = 0.31
+		return
+	if (hit.normal as Vector3).y < 0.6:
+		return   # упёрся в стену/крутой склон — пусть физика ещё подвигает
+	var h: Vector3 = (box.shape as BoxShape3D).size * 0.5
+	var below := absf(nb[0].y) * h.x + absf(nb[1].y) * h.y + absf(nb[2].y) * h.z
+	var dy: float = hit.position.y + 0.001 - (center.y - below)
+	if absf(dy) > 0.08:
+		return   # далеко от пола — ещё не улёгся
+	settled = true
+	freeze = true
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	global_transform = Transform3D(nb, global_position + Vector3(0, dy, 0))
+	model.position = model_base + nb.transposed() * Vector3(0, lift, 0)
 
 
 func get_prompt(_g) -> String:

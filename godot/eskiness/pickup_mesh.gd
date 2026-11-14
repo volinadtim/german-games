@@ -4,12 +4,35 @@ extends RefCounted
 ## (рисуется items.gd: draw_icon), оружие и снаряжение — модели weapons.gd, чуть крупнее.
 
 const Items := preload("res://items.gd")
-const SCALE := 2.8          # ×2 к прежним 1.4 (промпт 14.11 18:12)
-const WEAPON_SCALE := 1.875  # оружие и снаряжение — ×1.5 к прежним 1.25, чтобы не стали гигантскими
+## Масштаб модели по предмету (промпт 14.11 18:29): правдоподобный размер, не больше ~1.4× реального.
+## Модель в «единичном» масштабе × это число; итоговый размер — в комментарии.
+const SCALES := {
+	"coin": 1.0,      # ⌀10 см — как до 18:02 (монеты не трогаем)
+	"bandage": 1.3,   # рулон ⌀10, ширина 8.5 см
+	"pills": 1.3,     # баночка ⌀7, высота 11 см
+	"canned": 1.4,    # банка ⌀12, высота 11 см
+	"water": 1.4,     # бутылка 29 см
+	"soda": 1.5,      # банка ⌀9, высота 15 см
+	"rusk": 0.85,     # сухарь 9.5×6.5 см
+	"choco": 1.3,     # плитка 16×8 см
+	"battery": 0.9,   # батарейка 8 см
+	"nut": 1.0,       # гайка 5 см
+	"gear": 1.5,      # шестерёнка ⌀13 см
+	"wallet": 1.3,    # кошелёк 12×9 см
+	"tape": 1.2,      # моток ⌀10 см
+	"wood": 1.6,      # обломок доски 32 см
+	"glass": 1.4,     # осколки ~11 см
+	"medkit": 1.5,    # аптечка 26×20 см
+	"photo": 1.4,     # фото 10×13 см
+	"scrap": 1.8,     # железки 23 см
+}
+const WEAPON_SCALE := 1.15  # оружие и снаряжение — почти реальный размер (бита ~0.8 м)
+## Коробка столкновений больше модели на PAD с каждой стороны: физика Godot разрешает телам
+## утопать в пол до 1 см — так модель всё равно не касается пола (без мерцания) и не уходит в него.
+const PAD := 0.008
 ## Визуал приподнят над низом коллизии, чтобы нижние грани не совпадали с полом (иначе мерцают, как было с кувшинами).
-const LIFT := 0.008
-const LIFT_FLAT := 0.014     # тонкие плоские вещи (монеты, фото, плитка…)
-const COIN_SCALE := 1.0      # монеты — маленькие, как до 18:02 (промпт 14.11 18:16)
+const LIFT := 0.003
+const LIFT_FLAT := 0.005     # тонкие плоские вещи (монеты, фото, плитка…)
 const FLAT := ["coin", "photo", "choco", "glass", "wallet", "nut", "gear", "tape", "rusk"]
 
 ## Есть ли у предмета своя модель здесь.
@@ -19,6 +42,21 @@ const MODELS := ["coin", "bandage", "pills", "canned", "water", "soda", "rusk", 
 const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter"]
 
 static var _icon_cache := {}
+static var _gauze: ImageTexture
+
+
+## Марля: светлые нити сеткой на чуть более тёмном фоне (просветы).
+static func _gauze_tex() -> ImageTexture:
+	if _gauze:
+		return _gauze
+	var img := Image.create(8, 8, true, Image.FORMAT_RGB8)
+	for y in 8:
+		for x in 8:
+			var thread := x % 4 == 0 or y % 4 == 0
+			img.set_pixel(x, y, Color(1, 1, 1) if thread else Color(0.72, 0.7, 0.66))
+	img.generate_mipmaps()
+	_gauze = ImageTexture.create_from_image(img)
+	return _gauze
 
 
 ## Узел модели и размер коробки столкновений: [Node3D, Vector3].
@@ -79,7 +117,7 @@ static func _box(s: Vector3) -> BoxMesh:
 	return b
 
 
-## Собрать модель в root (в «единичном» масштабе, потом root.scale = SCALE). Возвращает размер коробки.
+## Собрать модель в root (в «единичном» масштабе, потом root.scale = SCALES[id]). Возвращает размер коробки.
 static func _build(root: Node3D, id: String) -> Vector3:
 	var col: Color = Items.ITEMS[id]["color"] if Items.ITEMS.has(id) else Color.WHITE
 	var size := Vector3(0.1, 0.05, 0.1)
@@ -92,12 +130,23 @@ static func _build(root: Node3D, id: String) -> Vector3:
 			_add(root, _cyl(0.016, 0.015, 12), gold)
 			size = Vector3(0.1, 0.015, 0.1)
 		"bandage":
-			# рулон бинта на боку, с тёмной втулкой и свисающим концом
-			var cloth := _mat(col, 0.0, 0.95, 0.2)
-			_add(root, _cyl(0.04, 0.065, 20), cloth, Vector3.ZERO, Vector3(0, 0, PI / 2))
-			_add(root, _cyl(0.014, 0.067, 12), _mat(Color(0.35, 0.3, 0.25), 0.0, 0.9, 0.05), Vector3.ZERO, Vector3(0, 0, PI / 2))
-			_add(root, _box(Vector3(0.05, 0.003, 0.06)), cloth, Vector3(0.0, -0.037, 0.05), Vector3(0.15, 0, 0))
-			size = Vector3(0.065, 0.08, 0.1)
+			# скатка марли (промпт 18:36 — «не туалетная бумага»): узкий плотный рулон без дырки,
+			# грязно-кремовая марля в сеточку, бумажная лента с красным крестом, размотанный хвост по полу
+			var gauze := _mat(Color(0.78, 0.75, 0.66), 0.0, 1.0, 0.15)
+			gauze.albedo_texture = _gauze_tex()
+			gauze.uv1_triplanar = true
+			gauze.uv1_scale = Vector3.ONE * 28.0
+			var z0 := -0.034
+			_add(root, _cyl(0.022, 0.05, 18), gauze, Vector3(0, 0, z0), Vector3(0, 0, PI / 2))
+			_add(root, _cyl(0.016, 0.0506, 14), _mat(Color(0.6, 0.57, 0.5), 0.0, 1.0, 0.1), Vector3(0, 0, z0), Vector3(0, 0, PI / 2))   # торцы темнее — видно витки
+			_add(root, _cyl(0.0228, 0.018, 18), _mat(Color(0.74, 0.65, 0.48), 0.0, 0.9, 0.15), Vector3(0, 0, z0), Vector3(0, 0, PI / 2))   # бумажная лента
+			var red := _mat(Color(0.72, 0.12, 0.08), 0.0, 0.8, 0.25)
+			_add(root, _box(Vector3(0.004, 0.002, 0.012)), red, Vector3(0, 0.0232, z0))
+			_add(root, _box(Vector3(0.012, 0.002, 0.004)), red, Vector3(0, 0.0232, z0))
+			# хвост: лента марли сползает с рулона и тянется по полу
+			_add(root, _box(Vector3(0.042, 0.002, 0.03)), gauze, Vector3(0, -0.012, z0 + 0.026), Vector3(-0.75, 0, 0))
+			_add(root, _box(Vector3(0.042, 0.002, 0.075)), gauze, Vector3(0, -0.021, z0 + 0.075), Vector3(0, 0.06, 0))
+			size = Vector3(0.05, 0.046, 0.115)
 		"pills":
 			# баночка таблеток: оранжевая банка, белая крышка, этикетка
 			_add(root, _cyl(0.024, 0.06, 18), _mat(Color(0.75, 0.42, 0.12, 0.92), 0.0, 0.3, 0.25))
@@ -206,8 +255,10 @@ static func _build(root: Node3D, id: String) -> Vector3:
 			_add(root, _cyl(0.006, 0.002, 10), _mat(Color(0.45, 0.42, 0.4), 0.85, 0.5, 0.15), Vector3(-0.06, 0.03, 0))
 			size = Vector3(0.2, 0.03, 0.06)
 		"glass":
-			# кусочки стекла: два прозрачных острых осколка
-			var gm := _mat(Color(col.r, col.g, col.b, 0.5), 0.0, 0.05, 0.3)
+			# кусочки стекла: два острых осколка. Непрозрачные (блестящие): прозрачные лежали на прозрачной
+			# кучке битого стекла и мерцали — движок не мог решить, что из них рисовать сверху (промпт 18:29)
+			var gm := _mat(Color(col.r, col.g, col.b).lightened(0.2), 0.3, 0.05, 0.35)
+			gm.metallic_specular = 1.0
 			gm.cull_mode = BaseMaterial3D.CULL_DISABLED
 			var p1 := PrismMesh.new()
 			p1.size = Vector3(0.05, 0.075, 0.004)
@@ -240,7 +291,7 @@ static func _build(root: Node3D, id: String) -> Vector3:
 			_add(root, _box(Vector3(0.06, 0.006, 0.035)), _mat(col.lightened(0.15), 0.7, 0.6, 0.15), Vector3(0.035, 0.008, 0.01), Vector3(0.2, -0.5, -0.2))
 			_add(root, _cyl(0.004, 0.11, 8), _mat(col.darkened(0.3), 0.7, 0.6, 0.12), Vector3(0, 0.012, -0.005), Vector3(0, 0.9, PI / 2))
 			size = Vector3(0.13, 0.03, 0.07)
-	var k := COIN_SCALE if id == "coin" else SCALE
+	var k: float = SCALES.get(id, 1.4)
 	root.scale = Vector3.ONE * k
 	return size * k
 
@@ -249,17 +300,17 @@ static func _build(root: Node3D, id: String) -> Vector3:
 static func _sprite(id: String) -> Array:
 	var spr := Sprite3D.new()
 	spr.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	spr.pixel_size = 0.52 / 128.0
+	spr.pixel_size = 0.4 / 128.0
 	spr.shaded = false
 	spr.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
 	spr.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	spr.position.y = 0.26 + LIFT
+	spr.position.y = 0.2 + LIFT
 	spr.modulate = Color(0.85, 0.85, 0.85)
 	if _icon_cache.has(id):
 		spr.texture = _icon_cache[id]
 	else:
 		_render_icon.call_deferred(spr, id)
-	return [spr, Vector3(0.4, 0.52, 0.4)]
+	return [spr, Vector3(0.3, 0.4, 0.3)]
 
 
 ## Нарисовать иконку один раз во вьюпорте 128×128 и закэшировать текстуру.

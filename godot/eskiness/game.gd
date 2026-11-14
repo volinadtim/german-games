@@ -1233,6 +1233,16 @@ func spawn_loot(id: String, n: int, pos: Vector3, vel: Vector3, spread: float) -
 
 
 func _make_pickup(id: String, n: int, pos: Vector3, vel: Vector3) -> Pickup:
+	# рядом с игроком (выброс из инвентаря у стены) — не в стене и не за ней: ставим перед стеной (промпт 18:36)
+	if is_instance_valid(player) and player.is_inside_tree():
+		var from := player.global_position + Vector3(0, 1.0, 0)
+		if from.distance_to(pos) < 2.0:
+			var q := PhysicsRayQueryParameters3D.create(from, pos)
+			q.collision_mask = 1
+			q.exclude = [player.get_rid()]
+			var hit := get_world_3d().direct_space_state.intersect_ray(q)
+			if hit:
+				pos = (hit.position as Vector3) - (pos - from).normalized() * 0.2
 	var p := Pickup.new()
 	p.game = self
 	p.id = id

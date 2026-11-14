@@ -156,10 +156,20 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_rect(Rect2(c - Vector2(s * 0.06, s * 0.19), Vector2(s * 0.12, s * 0.38)), col)
 			ci.draw_rect(Rect2(c - Vector2(s * 0.19, s * 0.06), Vector2(s * 0.38, s * 0.12)), col)
 		"bandage":
-			ci.draw_rect(Rect2(c + Vector2(0, s * 0.05), Vector2(s * 0.38, s * 0.16)), col.darkened(0.1))
-			ci.draw_circle(c, s * 0.27, col)
-			ci.draw_arc(c, s * 0.18, 0.0, TAU, 24, col.darkened(0.2), maxf(1.0, s * 0.03), true)
-			ci.draw_circle(c, s * 0.08, col.darkened(0.5))
+			# скатка марли сбоку: узкий плотный рулон, бумажная лента с красным крестом, хвостик вниз (промпт 18:36)
+			var gz := col.darkened(0.08)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(s * 0.12, s * 0.06), c + Vector2(s * 0.24, s * 0.06),
+				c + Vector2(s * 0.4, s * 0.36), c + Vector2(s * 0.28, s * 0.38)]), gz.darkened(0.1))
+			ci.draw_rect(Rect2(c - Vector2(s * 0.26, s * 0.13), Vector2(s * 0.46, s * 0.26)), gz)
+			ci.draw_circle(c + Vector2(-s * 0.26, 0), s * 0.13, gz.darkened(0.12))
+			ci.draw_circle(c + Vector2(s * 0.2, 0), s * 0.13, gz.lightened(0.05))
+			ci.draw_arc(c + Vector2(s * 0.2, 0), s * 0.07, 0.0, TAU * 0.8, 16, gz.darkened(0.25), maxf(1.0, s * 0.02), true)
+			for k in 4:
+				var x := -s * 0.2 + k * s * 0.11
+				ci.draw_line(c + Vector2(x, -s * 0.12), c + Vector2(x, s * 0.12), gz.darkened(0.15), maxf(1.0, s * 0.012))
+			ci.draw_rect(Rect2(c - Vector2(s * 0.09, s * 0.14), Vector2(s * 0.15, s * 0.28)), Color(0.74, 0.65, 0.48))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.04, -s * 0.07), Vector2(s * 0.05, s * 0.14)), Color(0.75, 0.14, 0.1))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.085, -s * 0.025), Vector2(s * 0.14, s * 0.05)), Color(0.75, 0.14, 0.1))
 		"choco":
 			var box := Rect2(c - Vector2(s * 0.34, s * 0.2), Vector2(s * 0.68, s * 0.4))
 			ci.draw_rect(box, col)
