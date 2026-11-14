@@ -1,37 +1,21 @@
-# Ответ на промпт 14.11 16:50 МСК (@mehheehh)
+# Ответ на промпт 14.11 17:07 МСК (@mehheehh)
 
-> я сделал несколько локальных изменений, как мне теперь всё запушить на гитхаб
+> я ничего не понял, как и что мне сделать всё это (+ скрин: `git stash pop` → конфликт в jar.gd)
 
-**Важно:** `auto-pull` при каждом новом коммите с GitHub **прячет твои локальные изменения в stash** (в окне пишет «Local changes found, stashing them»). Если правки «пропали» из файлов, они там, ничего не потеряно.
+Ничего не потерялось. Разбираться самому не надо: **скопируй весь блок ниже целиком в то же окно PowerShell и нажми Enter**. Он сохранит всё как есть и отправит на GitHub в отдельные ветки `german-...`, а я сам соединю твои правки с игрой.
 
-Сделай так (PowerShell или Git Bash):
+```
+cd $env:USERPROFILE\german-games
+git checkout -b german-now
+git add -A
+git commit -m "German: local changes"
+$n = @(git stash list).Count
+for ($i = 0; $i -lt $n; $i++) { git push origin "stash@{$i}:refs/heads/german-stash-$i" }
+git push origin german-now
+git checkout main
+```
 
-1. **Закрой окно auto-pull**, чтобы оно не спрятало правки посреди дела.
-2. Перейди в папку с репо:
-   ```
-   cd $env:USERPROFILE\german-games
-   ```
-3. Проверь, где правки:
-   ```
-   git status
-   git stash list
-   ```
-   Если в `git status` твоих файлов нет, а в `stash list` есть строки `auto-pull ...`, верни последнюю:
-   ```
-   git stash pop
-   ```
-   (если правок было несколько раз — `git stash list` покажет несколько; `git stash pop` достаёт верхнюю, повтори для остальных). При конфликте git покажет файлы с `<<<<<<<` — поправь их, потом `git add .`
-4. Закоммить и запушь:
-   ```
-   git add -A
-   git commit -m "что я поменял"
-   git pull --rebase origin main
-   git push origin main
-   ```
-5. Снова запусти auto-pull.
+Потом снова запусти auto-pull так же, как раньше (двойной клик по `auto-pull.bat`). Писать `auto-pull` в PowerShell не надо, так он не запускается.
 
-Если `git push` пишет **Permission denied / 403** или просит войти: у твоего аккаунта GitHub нет прав на запись в `volinadtim/german-games`. Тиму нужно добавить тебя в Collaborators (Settings → Collaborators), а ты принимаешь приглашение. При первом пуше Windows откроет окно входа в GitHub.
-
-Если что-то пошло не так, напиши, что вывела команда; auto-pull ещё делает ветки `backup-...`, так что потерять сложно.
-
-Раньше сделано: оптимизация (тело 550k→38k треугольников, настройка «Графика»), слоты, кувшины.
+- Если в конце видно `-> german-now` и `-> german-stash-0`, всё ушло, напиши «готово».
+- Если пишет **Permission denied / 403** или просит войти: у твоего GitHub нет прав на запись. Тогда пришли скрин, Тим добавит тебя в Collaborators.
