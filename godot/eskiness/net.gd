@@ -278,12 +278,13 @@ func _on_failed() -> void:
 
 func _on_server_gone() -> void:
 	var was_game := in_game
+	var g = game
 	_close_peer()
 	last_msg = "Хост отключился"
 	status.emit(last_msg, true)
 	lobby_changed.emit()
 	if was_game:
-		_host_lost_in_game()
+		_host_lost_in_game(g)
 
 
 ## Выйти из комнаты / закрыть её.
@@ -470,9 +471,8 @@ func _peer_left(id: int, nm: String) -> void:
 		game.hud.toast("%s вышел из игры" % nm, Color(0.85, 0.7, 0.5))
 
 
-func _host_lost_in_game() -> void:
+func _host_lost_in_game(g) -> void:
 	last_msg = "Хост отключился — игра закончена"
-	var g = game
 	_net_reset()
 	if g and is_instance_valid(g):
 		g.to_main_menu()
@@ -1016,3 +1016,37 @@ func jar_del(nid: String) -> void:
 	if j:
 		game.jars.erase(j)
 		j.queue_free()
+
+
+# ---------- выстрелы (gun.gd) ----------
+## Урон пули по врагу идёт обычным путём (enemy.take_hit → хосту). Здесь — вспышка и звук у других игроков,
+## а у хоста враги рядом слышат выстрел клиента.
+func shot(pos: Vector3) -> void:
+	if peer and game:
+		rpc("pshot", pos)
+
+
+@rpc("any_peer", "unreliable", "call_remote", 1)
+func pshot(pos: Vector3) -> void:
+	if game == null or not is_instance_valid(game) or game.gun == null:
+		return
+	var a := AudioStreamPlayer3D.new()
+	a.stream = game.gun.snd_shot
+	a.unit_size = 12.0
+	a.volume_db = 2.0
+	a.pitch_scale = randf_range(0.95, 1.05)
+	game.add_child(a)
+	a.global_position = pos
+	a.finished.connect(a.queue_free)
+	a.play()
+	var l := OmniLight3D.new()
+	l.light_color = Color(1.0, 0.75, 0.4)
+	l.light_energy = 5.0
+	l.omni_range = 7.0
+	game.add_child(l)
+	l.global_position = pos
+	var tw := l.create_tween()
+	tw.tween_property(l, "light_energy", 0.0, 0.07)
+	tw.tween_callback(l.queue_free)
+	if hosting:
+		game.gun._alert(pos)

@@ -132,6 +132,8 @@ func fire() -> void:
 	_recoil()
 	_eject()
 	_alert(p.global_position)
+	if game.net:
+		game.net.shot(_muzzle())   # сеть: выстрел видят и слышат другие, враги у хоста слышат
 	if game.inv.open:
 		game.inv._refresh()
 

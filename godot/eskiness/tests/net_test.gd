@@ -166,6 +166,12 @@ func _host_game() -> void:
 		if i == 5:
 			await shot("game")
 	log_("enemies end " + _enemies_sig())
+	for i in 14:
+		await wait(1.0)
+		for id in net.puppets:
+			var pp = net.puppets[id]
+			log_("client puppet vis=%s at %.1f,%.1f" % [pp.visible, pp.global_position.x, pp.global_position.z])
+	await shot("end")
 	var broken := 0
 	for j in g.jars:
 		if is_instance_valid(j) and j.broken:
@@ -209,6 +215,16 @@ func _client_game() -> void:
 				jar.take_hit(5.0, Vector3(1, 0, 0))
 				await wait(0.4)
 		log_("jar broken on client: %s" % jar.broken)
+		await wait(1.5)
+		var near := 0
+		for pk in net._floor_pickups(g):
+			if pk.global_position.distance_to(jar.global_position) < 3.0:
+				near += 1
+		log_("loot near jar (from host): %d, bag before: coins=%d items=%d" % [near, g.inv.coins, _items(g)])
+		p.global_position = jar.global_position + Vector3(0, 0.2, 0)
+		await wait(2.5)
+		log_("after walking onto loot: coins=%d items=%d, pickups left near jar=%d" % [g.inv.coins, _items(g), _near(g, jar.global_position)])
+		p.global_position = Vector3(-4.7, 0.05, 0)
 	# враг: подойти и ударить
 	log_("enemies " + _enemies_sig())
 	var e = null
@@ -229,6 +245,31 @@ func _client_game() -> void:
 			log_("hit enemy %s hp(before)=%.0f" % [e.get_meta("nid"), e.hp])
 			e.take_hit(14.0, Vector3(1, 0, 0))
 			await wait(0.7)
+	# выстрел из пистолета (gun.gd) — урон тоже через хоста
+	var e2 = null
+	for c in get_nodes_in_group("enemies"):
+		if c.state != "dead":
+			e2 = c
+			break
+	if e2 and g.gun:
+		g.inv.equip["right"] = "pistol"
+		g.inv.equip_dur["right"] = 8.0
+		g._apply_equip("right")
+		await wait(0.3)
+		for k in 2:
+			if not is_instance_valid(e2) or e2.state == "dead":
+				break
+			var c: Vector3 = p.cam.global_position
+			var tgt: Vector3 = e2.global_position + Vector3(0, 1.0, 0)
+			var d := tgt - c
+			p.rotation.y = atan2(-d.x, -d.z)
+			p.head.rotation.x = atan2(d.y, Vector2(d.x, d.z).length())
+			await wait(0.05)
+			log_("shoot enemy %s hp(before)=%.0f" % [e2.get_meta("nid"), e2.hp])
+			g.gun.cd = 0.0
+			g.gun.fire()
+			await wait(0.6)
+		log_("after shots: %s" % (("%s hp=%.0f state=%s" % [e2.get_meta("nid"), e2.hp, e2.state]) if is_instance_valid(e2) else "gone"))
 	await wait(1.0)
 	log_("enemy after: %s hp=%.0f state=%s" % [e.get_meta("nid"), e.hp, e.state] if is_instance_valid(e) else "enemy gone")
 	await shot("fight")
@@ -236,3 +277,32 @@ func _client_game() -> void:
 		await wait(1.0)
 		log_("my hp %.0f alive=%s coins=%d (было %d)" % [g.hp, g.alive, g.inv.coins, coins0])
 	log_("enemies end " + _enemies_sig())
+	var w2 := 0.0
+	while not g.alive and w2 < 14.0:
+		await wait(1.0)
+		w2 += 1.0
+	log_("respawned=%s hp=%.0f at %.1f,%.1f" % [g.alive, g.hp, p.global_position.x, p.global_position.z])
+	# хост выходит — ждём сообщение и выход в меню
+	w2 = 0.0
+	while net.active() and w2 < 25.0:
+		await wait(0.5)
+		w2 += 0.5
+	await wait(2.0)
+	log_("after host quit: active=%s last_msg=%s menu_visible=%s" % [net.active(), net.last_msg, _find_menu().visible if _find_menu() else "?"])
+	await shot("host_left")
+
+
+func _items(g) -> int:
+	var n := 0
+	for s in g.inv.slots:
+		if s != null:
+			n += int(s["n"])
+	return n
+
+
+func _near(g, pos: Vector3) -> int:
+	var c := 0
+	for pk in net._floor_pickups(g):
+		if pk.global_position.distance_to(pos) < 3.0:
+			c += 1
+	return c
