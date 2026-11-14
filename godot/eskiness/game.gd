@@ -27,6 +27,8 @@ const Shop := preload("res://shop.gd")
 const GasMask := preload("res://gasmask.gd")
 const Gun := preload("res://gun.gd")
 var gun   # gun.gd — пистолет
+const StoneThrow := preload("res://stone_throw.gd")
+var stone_throw   # stone_throw.gd — бросок камня (T)
 const Sfx := preload("res://sfx.gd")
 const Sfx2 := preload("res://sfx_extra.gd")
 const Car := preload("res://car.gd")
@@ -131,6 +133,9 @@ func setup(p: Player) -> void:
 	add_child(gun)
 	player.gun = gun
 	player.game = self
+	stone_throw = StoneThrow.new()
+	stone_throw.game = self
+	add_child(stone_throw)
 	gasmask = GasMask.new()
 	gasmask.game = self
 	add_child(gasmask)

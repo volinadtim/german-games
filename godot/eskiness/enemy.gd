@@ -20,8 +20,14 @@ const DAMAGE := 16.0       # было 12 (промпт 19:15: сильнее и 
 const MAX_HP := 95.0       # было 70
 const LEASH := 14.0
 const WANDER_SPEED := 0.85
-## проёмы между комнатами и коридором — через них враг обходит стены
-const DOORWAYS := [Vector3(-6, 0, -1.6), Vector3(-6, 0, 1.6), Vector3(6, 0, -1.6), Vector3(6, 0, 1.6), Vector3(0, 0, 5.5)]
+## проёмы бункера (level.gd: DOOR_W 1.7, DOOR_H 2.3): [центр, нормаль стены]. Через них враг проходит по оси —
+## сначала выходит на центр проёма со своей стороны, потом насквозь, не трётся о косяки (промпт 14.11 20:07)
+const DOORS := [
+	[Vector3(-6, 0, -1.6), Vector3(0, 0, 1)], [Vector3(-6, 0, 1.6), Vector3(0, 0, 1)],
+	[Vector3(6, 0, -1.6), Vector3(0, 0, 1)], [Vector3(6, 0, 1.6), Vector3(0, 0, 1)],
+	[Vector3(0, 0, 5.5), Vector3(1, 0, 0)], [Vector3(12, 0, 0), Vector3(1, 0, 0)],
+]
+const DOOR_HALF := 0.85
 ## точки пути по бункеру: коридор, обе стороны каждого проёма, середины комнат, выход к лестнице.
 ## Между ними ищется кратчайший путь (связи — где точки видят друг друга), так враг находит дорогу в любую комнату.
 const WAYPOINTS := [
@@ -65,6 +71,10 @@ var avoid_clear := 0.0     # сколько путь уже свободен
 var avoid_side := 1.0
 var stuck_t := 0.0
 var stuck_pos := Vector3.ZERO
+var in_door := false       # сейчас проходит проём (_through_door) — без «усов», по оси
+var throw_vel := Vector3.ZERO
+var probe := Vector3.ZERO  # камень игрока упал здесь — идёт проверить (hear_stone)
+var probe_wait := 0.0
 static var _screech_cache: Array = []
 static var _front_id := 0   # кто из врагов сейчас атакует игрока спереди (окружение)
 var home := Vector3.ZERO
@@ -476,8 +486,10 @@ func _physics_process(delta: float) -> void:
 				var lead: Vector3 = ppos + tg.player.velocity * 0.35
 				var fl := lead - global_position
 				fl.y = 0.0
-				leap_vel = (fl / 0.5).limit_length(13.0)
-				velocity.y = 5.0
+				# в бункере — низкий прыжок (макушка ≈ 1.8 м: не в потолок и не в притолоку)
+				var low := _zone(global_position) == 2
+				leap_vel = (fl / (0.36 if low else 0.5)).limit_length(13.0)
+				velocity.y = 3.6 if low else 5.0
 				leap_hit = false
 				_set_state("leap")
 		"leap":
@@ -496,9 +508,22 @@ func _physics_process(delta: float) -> void:
 			_face(to, delta)
 			if st > 0.6 and not thrown:
 				thrown = true
-				_throw_rock(ppos)
+				if not _throw_rock(ppos):
+					ability_cd = 3.0   # дуга перекрылась за время замаха — не бросает
 			if st > 1.0:
 				_set_state("chase")
+		"investigate":
+			# услышал камень (hear_stone): идёт к месту падения, стоит там, озирается, потом назад
+			if tg.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos) or _zone(global_position) == _zone(ppos)) and _clear(global_position, ppos):
+				_set_state("chase")
+				_growl()
+			elif st > 20.0 or probe_wait > 2.6:
+				_set_state("return" if surface and _zone(global_position) != 0 else "idle")
+			elif probe_wait <= 0.0 and Vector2(probe.x - global_position.x, probe.z - global_position.z).length() > 0.9:
+				want = _steer(probe, delta) * speed * 0.75
+			else:
+				probe_wait += delta
+				rotation.y += sin(probe_wait * 2.4) * 1.6 * delta
 		"stagger":
 			if st > (0.4 if kind == "heavy" else 0.3):
 				_set_state("chase")
@@ -579,14 +604,59 @@ func _steer(goal: Vector3, delta: float) -> Vector3:
 				target = _doorway_to(target)
 		elif (not surface or _zone(global_position) == 2) and not _clear(global_position, goal):
 			target = _doorway_to(goal)
-	var dir := target - global_position
+	var tp := target
+	in_door = false
+	if _zone(global_position) == 2:
+		tp = _through_door(target)
+	var dir := tp - global_position
 	dir.y = 0.0
 	var dist := dir.length()
 	if dist < 0.05:
 		return Vector3.ZERO
-	dir = _avoid(dir.normalized(), minf(dist, 1.3), delta)
+	# в проёме «усы» не нужны (они цепляют косяки и уводят в стену) — идём по оси, соседей обтекает move_and_slide
+	dir = dir.normalized() if in_door else _avoid(dir.normalized(), minf(dist, 1.3), delta)
 	_face(dir, delta)
 	return dir
+
+
+## Путь к goal пересекает проём — сначала точка на оси проёма со своей стороны, у оси — насквозь на 1.2 м.
+func _through_door(goal: Vector3) -> Vector3:
+	var p := global_position
+	for dr in DOORS:
+		var c: Vector3 = dr[0]
+		var n: Vector3 = dr[1]
+		var sp := (p.x - c.x) * n.x + (p.z - c.z) * n.z
+		var sg := (goal.x - c.x) * n.x + (goal.z - c.z) * n.z
+		if sp * sg >= 0.0 or absf(sp) > 3.5:
+			continue
+		var ax := Vector3(n.z, 0, -n.x)   # вдоль стены
+		var x := p.lerp(goal, sp / (sp - sg))
+		if absf((x.x - c.x) * ax.x + (x.z - c.z) * ax.z) > DOOR_HALF + 0.8:
+			continue   # путь пересекает стену не у этого проёма
+		var lat := (p.x - c.x) * ax.x + (p.z - c.z) * ax.z
+		var side := signf(sp)
+		var cc := Vector3(c.x, p.y, c.z)
+		if absf(lat) > 0.2 and absf(sp) > 0.45:
+			return cc + n * side * clampf(absf(sp) * 0.5, 0.45, 1.0)
+		in_door = absf(lat) < DOOR_HALF + 0.3
+		return cc - n * side * 1.2
+	return goal
+
+
+## Отрезок a→b проходит через проём бункера (прыжок Шныги так не делаем).
+func _crosses_door(a: Vector3, b: Vector3) -> bool:
+	for dr in DOORS:
+		var c: Vector3 = dr[0]
+		var n: Vector3 = dr[1]
+		var sa := (a.x - c.x) * n.x + (a.z - c.z) * n.z
+		var sb := (b.x - c.x) * n.x + (b.z - c.z) * n.z
+		if sa * sb > 0.0 and minf(absf(sa), absf(sb)) > 0.5:
+			continue
+		var ax := Vector3(n.z, 0, -n.x)
+		var x := a.lerp(b, clampf(sa / (sa - sb), 0.0, 1.0)) if absf(sa - sb) > 0.001 else a
+		if absf((x.x - c.x) * ax.x + (x.z - c.z) * ax.z) < DOOR_HALF + 0.6:
+			return true
+	return false
 
 
 # ---------- ум (промпт 19:15): обход препятствий, окружение, абилки ----------
@@ -711,7 +781,7 @@ func _try_ability(d: float, ppos: Vector3) -> bool:
 		return false
 	if not _clear(global_position, ppos):
 		return false
-	if kind == "fast" and d > 3.0 and d < 6.0 and _free(global_position + Vector3(0, 0.5, 0), (ppos - global_position) * Vector3(1, 0, 1) / d, d):
+	if kind == "fast" and d > 3.0 and d < 6.0 and _leap_ok(ppos, d):
 		ability_cd = ABILITY_CD
 		_set_state("leap_prep")
 		if _screech_cache.is_empty():
@@ -720,7 +790,12 @@ func _try_ability(d: float, ppos: Vector3) -> bool:
 		_play(voice, _screech_cache, -4.0, 1.25)
 		return true
 	if kind == "heavy" and d > 5.0 and d < 12.0:
-		ability_cd = ABILITY_CD
+		throw_vel = _plan_throw(ppos)
+		if throw_vel == Vector3.INF:
+			ability_cd = 1.5   # дуга не проходит (косяк, притолока, потолок) — подождать и попробовать снова
+			return false
+		# в бункере бросает реже
+		ability_cd = ABILITY_CD * (1.6 if _zone(global_position) == 2 else 1.0)
 		thrown = false
 		_set_state("throw")
 		_play(voice, game.snd["growl"], -9.0, 1.15)
@@ -728,21 +803,91 @@ func _try_ability(d: float, ppos: Vector3) -> bool:
 	return false
 
 
-## Бросок камня по дуге с упреждением: летит ~0.75 с к тому месту, где игрок будет.
-func _throw_rock(ppos: Vector3) -> void:
-	var from := global_position + Vector3(0, height * 0.95, 0) - global_transform.basis.z * 0.3
+## Прыжок Шныги: коридор прыжка свободен (лучи на трёх высотах и по бокам), в бункере — не через проём.
+func _leap_ok(ppos: Vector3, d: float) -> bool:
+	var dir := (ppos - global_position) * Vector3(1, 0, 1) / d
+	var side := dir.cross(Vector3.UP) * 0.3
+	var low := _zone(global_position) == 2
+	if low and _crosses_door(global_position, ppos + tg.player.velocity * Vector3(1, 0, 1) * 0.35):
+		return false
+	for h in [0.35, 0.9, 1.8 if low else 2.1]:
+		for s in [-1.0, 0.0, 1.0]:
+			if not _free(global_position + Vector3(0, h, 0) + side * s, dir, d):
+				return false
+	return true
+
+
+func _rock_from() -> Vector3:
+	return global_position + Vector3(0, height * 0.95, 0) - global_transform.basis.z * 0.3
+
+
+## Скорость броска, при которой ВСЯ дуга чиста (отрезками, как летит камень), или Vector3.INF.
+## Наверху — обычная дуга, если перекрыта — площе или выше; в бункере — только прямой низкий бросок под притолокой.
+func _plan_throw(ppos: Vector3) -> Vector3:
+	var from := _rock_from()
 	var dist := Vector2(ppos.x - from.x, ppos.z - from.z).length()
-	var t := clampf(dist / 11.0, 0.35, 1.1)
-	var aim: Vector3 = ppos + Vector3(0, 1.1, 0) + tg.player.velocity * Vector3(1, 0, 1) * t
+	var low := _zone(global_position) == 2 or _zone(ppos) == 2
+	var times: Array = [dist / 17.0, dist / 14.0] if low else [dist / 11.0, dist / 16.0, dist / 8.5]
+	for t0 in times:
+		var t := clampf(t0, 0.25 if low else 0.35, 1.3)
+		var aim: Vector3 = ppos + Vector3(0, 1.1, 0) + tg.player.velocity * Vector3(1, 0, 1) * t
+		var v := Vector3((aim.x - from.x) / t, (aim.y - from.y + 0.5 * Rock.G * t * t) / t, (aim.z - from.z) / t)
+		if low and v.y > 0.0 and from.y + v.y * v.y / (2.0 * Rock.G) > global_position.y + 2.15:
+			continue   # выше притолоки проёма — в бункере так не кидает
+		if _arc_clear(from, v, t):
+			return v
+	return Vector3.INF
+
+
+## Дуга свободна: шаги по 0.04 с, луч на каждом отрезке (и чуть выше — камень не точка).
+func _arc_clear(from: Vector3, v: Vector3, t: float) -> bool:
+	var space: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+	var ex: Array[RID] = [get_rid(), tg.player.get_rid()]
+	var n := maxi(int(ceil(t / 0.04)), 1)
+	var dt := t / n
+	var p := from
+	for i in n:
+		v.y -= Rock.G * dt
+		var np := p + v * dt
+		for off in [Vector3.ZERO, Vector3(0, 0.14, 0)]:
+			var q := PhysicsRayQueryParameters3D.create(p + off, np + off)
+			q.collision_mask = 1
+			q.exclude = ex
+			if not space.intersect_ray(q).is_empty():
+				return false
+		p = np
+	return true
+
+
+## Бросок камня по дуге с упреждением (дуга перепроверяется в момент броска). false — не бросил.
+func _throw_rock(ppos: Vector3) -> bool:
+	var from := _rock_from()
+	var v := _plan_throw(ppos)
+	if v == Vector3.INF:
+		return false
 	var r := Rock.new()
 	r.game = game
 	r.tg = tg
 	r.dmg = ROCK_DMG
-	r.vel = Vector3((aim.x - from.x) / t, (aim.y - from.y + 0.5 * Rock.G * t * t) / t, (aim.z - from.z) / t)
+	r.vel = v
 	r.owner_rid = get_rid()
 	get_parent().add_child(r)
 	r.global_position = from
 	_play(body_snd, game.snd["whoosh"], -4.0, 0.6)
+	return true
+
+
+## Камень игрока упал рядом (stone_throw.gd): кто не видит игрока — идёт проверить место и стоит там пару секунд.
+func hear_stone(at: Vector3) -> void:
+	if net_puppet or not state in ["idle", "return", "investigate"]:
+		return
+	var ppos: Vector3 = tg.player.global_position
+	if tg.alive and global_position.distance_to(ppos) < SIGHT and _clear(global_position, ppos):
+		return   # игрока видит — отвлечь не выйдет
+	probe = at
+	probe_wait = 0.0
+	think = 0.0
+	_set_state("investigate")
 
 
 ## Камень бетонника: видимый серый булыжник, летит по дуге; попал в игрока — урон, в стену/землю — пыль и стук.

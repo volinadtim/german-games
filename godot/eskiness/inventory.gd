@@ -755,6 +755,8 @@ func open_menu(key, at: Vector2) -> void:
 		var ul := _use_label(id)
 		if ul != "":
 			acts.append([ul, "use"])
+		if id == "stone":
+			acts.append(["Бросить камень", "throw_stone"])
 		if n > 1:
 			acts.append(["Разделить", "split"])
 		acts.append(["Выбросить 1", "drop1"])
@@ -803,6 +805,10 @@ func _menu_pick(key, act: String) -> void:
 		"use":
 			if key is int and slots[key] != null:
 				use_requested.emit(key)
+		"throw_stone":
+			if game and game.stone_throw:
+				close()
+				game.stone_throw.throw()
 		"split":
 			split(key)
 		"drop1":
