@@ -250,7 +250,7 @@ func _hide_body() -> void:
 func _roll(r: RandomNumberGenerator) -> Array:
 	var out: Array = []
 	var roll := r.randf()
-	var n := 0 if roll < 0.22 else (1 if roll < 0.8 else 2)
+	var n := 2 if roll < 0.22 else (3 if roll < 0.8 else 4)
 	if size > 1.25:
 		n += 1
 	var total := 0

@@ -88,8 +88,8 @@ func setup(p: Player) -> void:
 		flashlight.attach(player.cam)
 
 	# стартовый набор (крутка автомата — 10 монет). Фонарика нет — он в магазине снаряжения.
-	inv.add("coin", 30)
-	inv.add("bandage", 1)
+	inv.add("coin", 50)
+	inv.add("bandage", 2)
 
 	if USE_DUMMY:
 		# манекен — в левой комнате, ближайшей к старту (северо-западная)
@@ -107,7 +107,7 @@ func setup(p: Player) -> void:
 		safe.kind = "safe"
 		safe.locked = true
 		safe.random_loot = false
-		safe.extra = [["knuckles", 1], ["coin", 60], ["medkit", 2], ["battery", 2], ["canned", 2], ["wallet", 1]]
+		safe.extra = [["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
 		safe.position = Vector3(11.5, 0.0, 7.0)
 		safe.rotation.y = -PI / 2.0
 		add_child(safe)

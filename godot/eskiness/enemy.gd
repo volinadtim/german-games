@@ -547,7 +547,7 @@ func _die(dir: Vector3) -> void:
 	var pos := global_position + Vector3(0, 1.0, 0)
 	game.spawn_loot("coin", randi_range(2, 6), pos, Vector3(0, 2.5, 0), 1.6)
 	if randf() < 0.45:
-		var extra: Array = ["bandage", "battery", "rusk", "pills", "water", "wallet"]
+		var extra: Array = ["bandage", "pills", "choco", "wallet"]
 		game.spawn_loot(extra[randi() % extra.size()], 1, pos, Vector3(0, 2.5, 0), 1.2)
 	died.emit(self)
 	var tw2 := create_tween()
