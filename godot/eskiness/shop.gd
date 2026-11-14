@@ -167,6 +167,7 @@ func _build() -> void:
 	_box(Vector3(W + 0.06, 0.02, 0.14), Vector3(0, H + 0.27, 0.12), steel)
 	var title := Label3D.new()
 	title.text = "Trinkets Market"
+	title.font = sign_font()
 	title.font_size = 64
 	title.pixel_size = 0.00175
 	title.outline_size = 6
@@ -374,7 +375,9 @@ func _build_ui() -> void:
 		b.pressed.connect(_buy_luck.bind(sym, int(d[2])))
 		row.add_child(b)
 		sell_col.add_child(row)
-	box.add_child(_label("TRINKETS MARKET", 28, Color(0.55, 1.0, 0.6)))
+	var head := _label("TRINKETS MARKET", 30, Color(0.55, 1.0, 0.6))
+	head.add_theme_font_override("font", sign_font())
+	box.add_child(head)
 	coins_l = _label("", 22, Color(0.92, 0.8, 0.5))
 	box.add_child(coins_l)
 	var goods := GridContainer.new()
@@ -420,6 +423,18 @@ func _build_ui() -> void:
 	close.add_theme_font_size_override("font_size", 20)
 	close.pressed.connect(_close)
 	bottom.add_child(close)
+
+
+## Шрифт вывески «Trinkets Market» (промпт 14.11 17:19): узкий жирный «вывесочный» —
+## Bahnschrift из Windows, если нет — Impact / Arial Black / Roboto Condensed.
+static var _sign_font: SystemFont
+static func sign_font() -> SystemFont:
+	if _sign_font == null:
+		_sign_font = SystemFont.new()
+		_sign_font.font_names = PackedStringArray(["Bahnschrift", "Impact", "Arial Black", "Roboto Condensed", "sans-serif"])
+		_sign_font.font_weight = 700
+		_sign_font.font_stretch = 75
+	return _sign_font
 
 
 func _label(t: String, size: int, col: Color) -> Label:
