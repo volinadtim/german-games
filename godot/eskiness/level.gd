@@ -30,8 +30,8 @@ var rng := RandomNumberGenerator.new()
 var lite := OS.has_feature("mobile") or "--lite" in OS.get_cmdline_user_args()
 var noise_extra: Array = []
 ## поломанная лампа — её подрагивание делает atmosphere.gd
-var broken_mesh: MeshInstance3D
-var broken_light: OmniLight3D
+var broken_mesh: Node3D
+var broken_light: SpotLight3D
 
 ## Кнопка в инспекторе (выдели узел Level): сохраняет сгенерированную локацию в обычную сцену
 ## res://level_baked.tscn — с настоящими узлами, мешами и материалами, которые можно двигать и править руками.
@@ -118,12 +118,30 @@ func _debris() -> void:
 		for i in n:
 			var sz := Vector3(rng.randf_range(0.2, 0.9), rng.randf_range(0.1, 0.5), rng.randf_range(0.2, 0.9))
 			var p: Vector3 = s + Vector3(rng.randf_range(-0.8, 0.8), sz.y / 2, rng.randf_range(-0.8, 0.8))
+			p = _off_walls(p, Vector2(sz.x, sz.z).length() / 2.0)   # обломок не врезается в стену
 			var b := _box(p, sz, wall_mat)
 			b.rotation.y = rng.randf_range(0, TAU)
-	var slab := _box(Vector3(-5.5, 0.6, -8.3), Vector3(2.4, 0.2, 1.4), wall_mat)
+	# плиты прислонены к стене: верхний край упирается в стену, нижний — в пол (раньше висели в 15–25 см от стены)
+	var slab := _box(Vector3(-5.5, 0.66, -8.43), Vector3(2.4, 0.2, 1.4), wall_mat)
 	slab.rotation.x = 1.1
-	var slab2 := _box(Vector3(7.5, 0.5, 8.2), Vector3(2.0, 0.2, 1.2), wall_mat)
+	var slab2 := _box(Vector3(7.5, 0.55, 8.43), Vector3(2.0, 0.2, 1.2), wall_mat)
 	slab2.rotation.x = -1.0
+
+
+## Сдвигает точку пола внутрь помещения, если круг радиуса r заходит за стену (внешние стены, перегородки, коридор).
+func _off_walls(p: Vector3, r: float) -> Vector3:
+	var ix := X0 + T / 2 + r
+	var ax := X1 - T / 2 - r
+	p.x = clampf(p.x, ix, ax)
+	if p.z < -CW - T / 2:           # северные комнаты
+		p.z = clampf(p.z, ZN + T / 2 + r, -CW - T / 2 - r)
+	elif p.z > CW + T / 2:          # южные
+		p.z = clampf(p.z, CW + T / 2 + r, ZS - T / 2 - r)
+	else:
+		return p
+	if absf(p.x) < T / 2 + r and not (p.z > CW and absf(p.z - 5.5) < DOOR_W / 2):
+		p.x = (T / 2 + r) * (1.0 if p.x >= 0.0 else -1.0)
+	return p
 
 
 func _lights() -> void:
@@ -139,45 +157,23 @@ func _lights() -> void:
 
 
 func _broken_lamp(pos: Vector3, energy: float) -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.12, 0.12, 0.12)
-	mat.emission_enabled = true
-	mat.emission = WARM
-	mat.emission_energy_multiplier = 1.5
+	# светильник оторвался одним краем и висит на проводах; светит туда, куда смотрит его отражатель
 	var tilt := 0.6
-	var attach := pos + Vector3(-0.5, -0.05, 0)       # этот край ещё держится за потолок
+	var attach := pos + Vector3(-0.55, -0.01, 0)       # этот край ещё держится за потолок
 	var along := Vector3(cos(tilt), -sin(tilt), 0)
-	var center := attach + along * 0.5
-	var tip := attach + along * 1.0                     # этот край оторвался и висит
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(1.0, 0.08, 0.18)
-	bm.material = mat
-	mi.mesh = bm
-	mi.position = center
-	mi.rotation.z = -tilt
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	broken_mesh = mi
+	var tip := attach + along * 1.1                     # этот край оторвался и висит
+	var xf := Transform3D(Basis(Vector3.BACK, -tilt), attach + along * 0.55)
+	var l := lamp_fixture(self, xf, energy, true, 1.1)
+	broken_mesh = l.get_meta("fixture")
+	broken_light = l
 	# провода от оторванного края в потолок, с провисом
 	for side in [-0.05, 0.05]:
-		var a := tip + Vector3(0, 0.03, side)
+		var a := tip + Vector3(0, -0.03, side)
 		var b := Vector3(tip.x - 0.12 + side, H, side * 2.0)
 		var m := (a + b) / 2.0 + Vector3(0.09, -0.06, side * 0.6)
 		_wire(a, m)
 		_wire(m, b)
-	_wire(attach + Vector3(0.05, 0, 0.06), Vector3(attach.x + 0.05, H, 0.08))
-	var l: OmniLight3D = FlickerLight.new()
-	l.light_color = WARM
-	l.base_energy = energy
-	l.flicker = true
-	l.lamp_mat = mat
-	l.omni_range = 8.5
-	l.omni_attenuation = 1.0
-	l.shadow_enabled = not lite
-	l.position = center - Vector3(0, 0.15, 0)
-	add_child(l)
-	broken_light = l
+	_wire(attach + Vector3(0.05, -0.02, 0.06), Vector3(attach.x + 0.05, H, 0.08))
 
 
 func _wire(a: Vector3, b: Vector3) -> void:
@@ -201,31 +197,101 @@ func _wire(a: Vector3, b: Vector3) -> void:
 
 
 func _lamp(pos: Vector3, energy: float, flicker: bool) -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.12, 0.12, 0.12)
-	mat.emission_enabled = energy > 0.0
-	mat.emission = WARM
-	mat.emission_energy_multiplier = 1.5
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(1.0, 0.08, 0.18)
-	bm.material = mat
-	mi.mesh = bm
-	mi.position = pos - Vector3(0, 0.05, 0)
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
+	lamp_fixture(self, Transform3D(Basis(), pos), energy, flicker, 1.1)
+
+
+## Потолочный светильник (промпт 14.11 18:46): металлический короб-отражатель с отогнутыми бортами,
+## лампа-трубка внутри и решётка снизу. Свет только вниз — SpotLight3D с мягким краем; над коробом
+## потолок подсвечивает лишь слабый ореол (маленький OmniLight без теней).
+## xf — верх короба (прижат к потолку), трубка вдоль локальной X длиной len_; возвращает свет (meta "lamp"),
+## сам светильник — в meta "fixture".
+func lamp_fixture(parent: Node3D, xf: Transform3D, energy: float, flicker: bool, len_ := 1.1, lite_ := lite) -> SpotLight3D:
+	var fx := Node3D.new()
+	fx.transform = xf
+	parent.add_child(fx)
+	var metal := StandardMaterial3D.new()
+	metal.albedo_color = Color(0.2, 0.2, 0.19)
+	metal.metallic = 0.75
+	metal.roughness = 0.5
+	var inner := StandardMaterial3D.new()       # нутро отражателя — светлая облупленная эмаль, ловит свет трубки
+	inner.albedo_color = Color(0.55, 0.52, 0.45)
+	inner.roughness = 0.6
+	var tube := StandardMaterial3D.new()
+	tube.albedo_color = Color(0.9, 0.85, 0.75)
+	tube.emission_enabled = energy > 0.0
+	tube.emission = WARM
+	tube.emission_energy_multiplier = 1.5
+	var w := 0.26                                # ширина короба
+	_fx_box(fx, Vector3(len_, 0.03, w), Vector3(0, -0.01, 0), metal)                  # крышка у потолка
+	_fx_box(fx, Vector3(len_ - 0.02, 0.005, w - 0.03), Vector3(0, -0.028, 0), inner)  # эмаль изнутри
+	for sz in [-1.0, 1.0]:
+		var side := _fx_box(fx, Vector3(len_, 0.12, 0.012), Vector3(0, -0.075, sz * (w / 2.0 + 0.02)), metal)
+		side.rotation.x = sz * 0.42               # борта отогнуты наружу — отражатель
+	for sx in [-1.0, 1.0]:
+		_fx_box(fx, Vector3(0.012, 0.1, w + 0.02), Vector3(sx * (len_ / 2.0 - 0.006), -0.065, 0), metal)
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.022
+	cm.bottom_radius = 0.022
+	cm.height = len_ - 0.06
+	cm.radial_segments = 8
+	cm.rings = 1
+	cm.material = tube
+	var tm := MeshInstance3D.new()
+	tm.mesh = cm
+	tm.rotation.z = PI / 2.0
+	tm.position = Vector3(0, -0.06, 0)
+	tm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	fx.add_child(tm)
+	# защитная решётка снизу: две продольные рейки и поперечные прутья
+	for sz in [-1.0, 1.0]:
+		_fx_box(fx, Vector3(len_ - 0.02, 0.01, 0.01), Vector3(0, -0.125, sz * (w / 2.0 + 0.04)), metal)
+	var bars := int(len_ / 0.14)
+	for i in bars + 1:
+		_fx_box(fx, Vector3(0.008, 0.008, w + 0.09), Vector3(-len_ / 2.0 + 0.04 + (len_ - 0.08) * i / bars, -0.125, 0), metal)
 	if energy <= 0.0:
-		return
-	var l: OmniLight3D = FlickerLight.new()
+		return null
+	var l: SpotLight3D = FlickerLight.new()
 	l.light_color = WARM
-	l.base_energy = energy
+	l.base_energy = energy * 3.0      # весь свет — в конус, поэтому ярче прежней всенаправленной
 	l.flicker = flicker
-	l.lamp_mat = mat
-	l.omni_range = 8.5
-	l.omni_attenuation = 1.0
-	l.shadow_enabled = not lite
-	l.position = pos - Vector3(0, 0.3, 0)
-	add_child(l)
+	l.lamp_mat = tube
+	l.spot_range = 8.0
+	l.spot_attenuation = 1.2          # спад круче прежнего — свет не размазывается по всему бункеру
+	l.spot_angle = 66.0
+	l.spot_angle_attenuation = 0.9    # мягкий край пятна
+	l.shadow_enabled = not lite_
+	l.shadow_bias = 0.04
+	l.shadow_normal_bias = 1.2
+	l.shadow_blur = 0.8
+	l.shadow_opacity = 0.9
+	l.position = Vector3(0, -0.07, 0)
+	l.rotation.x = -PI / 2.0          # SpotLight светит по −Z → вниз по −Y короба
+	l.set_meta("lamp", true)
+	l.set_meta("fixture", fx)
+	fx.add_child(l)
+	var halo := OmniLight3D.new()     # слабый ореол на потолке вокруг короба
+	halo.light_color = WARM
+	halo.light_energy = energy * 0.3
+	halo.omni_range = 1.1
+	halo.omni_attenuation = 1.6
+	halo.shadow_enabled = false
+	halo.position = Vector3(0, -0.16, 0)
+	fx.add_child(halo)
+	l.halo = halo
+	l.halo_k = 0.3 / 3.0
+	return l
+
+
+func _fx_box(parent: Node3D, size: Vector3, pos: Vector3, mat: Material) -> MeshInstance3D:
+	var bm := BoxMesh.new()
+	bm.size = size
+	bm.material = mat
+	var mi := MeshInstance3D.new()
+	mi.mesh = bm
+	mi.position = pos
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	return mi
 
 
 func _wall_x(z: float, xa: float, xb: float, doors: Array) -> void:

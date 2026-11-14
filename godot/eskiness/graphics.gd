@@ -80,12 +80,12 @@ static func apply(tree: SceneTree, v: Dictionary) -> void:
 		e.ssr_enabled = bool(o[1]) and full and _b(v, "g_ssr")
 		e.volumetric_fog_enabled = bool(o[2]) and full and _b(v, "g_volfog")
 		e.glow_enabled = bool(o[3]) and _b(v, "g_glow")
-	# тени ламп: выключены — остаются только у фонарика (SpotLight)
+	# тени ламп: выключены — остаются только у фонарика и фар (SpotLight без meta "lamp"; потолочные лампы — тоже SpotLight, но с meta)
 	var sh := _b(v, "g_shadows")
 	for l in tree.root.find_children("*", "Light3D", true, false):
 		if not l.has_meta("q_shadow"):
 			l.set_meta("q_shadow", l.shadow_enabled)
-		l.shadow_enabled = bool(l.get_meta("q_shadow")) and (sh or l is SpotLight3D)
+		l.shadow_enabled = bool(l.get_meta("q_shadow")) and (sh or (l is SpotLight3D and not l.has_meta("lamp")))
 	# трава (MultiMesh): доля видимых травинок (позиции случайные — прореживается равномерно)
 	var grass := clampf(_f(v, "g_grass") / 100.0, 0.0, 1.0)
 	for mmi in tree.root.find_children("*", "MultiMeshInstance3D", true, false):

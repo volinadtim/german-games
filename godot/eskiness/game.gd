@@ -117,7 +117,7 @@ func setup(p: Player) -> void:
 		safe.locked = true
 		safe.random_loot = false
 		safe.extra = [["car_key", 1], ["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
-		safe.position = Vector3(11.5, 0.0, 7.0)
+		safe.position = Vector3(11.54, 0.0, 7.0)   # задняя стенка вплотную к стене
 		safe.rotation.y = -PI / 2.0
 		add_child(safe)
 	# противогаз и отравленный воздух наверху (G)
@@ -142,7 +142,7 @@ func setup(p: Player) -> void:
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
 	tape = TapeSpot.new()
 	tape.game = self
-	tape.position = Vector3(-7.05, 0.95, 8.66)   # доска выплат сдвинута на 0.1 (автомат шире)
+	tape.position = Vector3(-7.05, 0.95, 8.813)   # на самой доске выплат (main.gd прижимает её к стене)
 	add_child(tape)
 	# осколки стекла на полу (там, где битое стекло) — материал для ножика
 	loot_window = LootWindow.new()
@@ -151,7 +151,7 @@ func setup(p: Player) -> void:
 	# сундук-хранилище (один, у старта): складывать вещи (промпт 00:08)
 	storage = Chest.new()
 	storage.kind = "storage"
-	storage.position = Vector3(-11.45, 0.0, -2.7)
+	storage.position = Vector3(-11.55, 0.0, -2.7)   # вплотную к стене (был зазор 11 см)
 	storage.rotation.y = PI / 2.0
 	add_child(storage)
 	glass_floor = GlassFloor.new()
@@ -312,10 +312,31 @@ func _jar_group(rng: RandomNumberGenerator, anchor: Vector3, along: Vector3, fro
 			p.y = surf.height(p.x, p.z) - 0.02
 		if _jar_spot_ok(p, r, placed):
 			placed.append([p, r])
-			_make_jar(p, rng.randf() * TAU, prm, false)
+			var j := _make_jar(p, rng.randf() * TAU, prm, false)
+			if inside:
+				# настоящий размер (с ручками) известен после постройки: придвигаем вплотную (~1 см до стены)
+				j.position -= front * ((r + 0.06) - (_jar_reach(j, -front) + 0.01))
 			made += 1
 		off += (r * 2.0 + 0.12) * (1.0 if k % 2 == 0 else -1.0) * (k + 1)
 	return made
+
+
+## Насколько сосуд выступает от своего центра в сторону dir (по габаритам мешей, dir почти вдоль оси).
+func _jar_reach(j: Node3D, dir: Vector3) -> float:
+	var bb := AABB()
+	var first := true
+	for mi in j.find_children("*", "MeshInstance3D", true, false):
+		if not mi.visible:
+			continue
+		var b: AABB = mi.global_transform * mi.get_aabb()
+		bb = b if first else bb.merge(b)
+		first = false
+	if first:
+		return j.max_r * j.size
+	var c := j.global_position
+	if absf(dir.x) > absf(dir.z):
+		return (bb.end.x - c.x) if dir.x > 0.0 else (c.x - bb.position.x)
+	return (bb.end.z - c.z) if dir.z > 0.0 else (c.z - bb.position.z)
 
 
 func _jar_spot_ok(p: Vector3, r: float, placed: Array) -> bool:
@@ -340,7 +361,7 @@ func _jar_spot_ok(p: Vector3, r: float, placed: Array) -> bool:
 	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 
-func _make_jar(pos: Vector3, rot: float, prm: Dictionary, was_broken: bool) -> void:
+func _make_jar(pos: Vector3, rot: float, prm: Dictionary, was_broken: bool) -> Jar:
 	var j := Jar.new()
 	j.game = self
 	j.setup(prm)
@@ -349,6 +370,7 @@ func _make_jar(pos: Vector3, rot: float, prm: Dictionary, was_broken: bool) -> v
 	j.rotation.y = rot
 	add_child(j)
 	jars.append(j)
+	return j
 
 
 ## Точка у случайной стены случайной комнаты бункера; поворот — передом (+Z ящика) в комнату.

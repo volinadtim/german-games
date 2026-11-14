@@ -43,6 +43,9 @@ func _ready() -> void:
 	slot_board = _find_board()
 	if slot_board:
 		slot_board.visible = false
+		# доска висела под углом и одним краем отходила от стены на 16 см — ровно и вплотную (промпт 14.11 18:46)
+		slot_board.rotation.y = 0.0
+		slot_board.position.z = SlotMachine.BOARD_POS.z - 0.072
 	# магазин оружия — слева от автомата (если смотреть на автомат)
 	var shop := preload("res://shop.gd").new()
 	shop.name = "Shop"

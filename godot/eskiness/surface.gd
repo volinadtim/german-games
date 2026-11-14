@@ -6,7 +6,6 @@ extends Node3D
 ##   Окружение (свет, туман, небо) плавно переключается, когда камера выходит наружу, — внутри бункера остаётся темно.
 ## Создаётся из level.gd (_ready).
 
-const FlickerLight := preload("res://flicker_light.gd")
 const GrassShader := preload("res://grass.gdshader")
 const SkyShader := preload("res://sky.gdshader")
 
@@ -135,8 +134,9 @@ func _stairs() -> void:
 		x += STEP_RUN
 		i += 1
 	# лампа над серединой марша
-	_lamp(Vector3(16.6, G + HUT_H - 0.1, 0), 0.55, true)
-	_lamp(Vector3(12.6, 2.56, 0), 0.35, false)
+	# (y — потолок: короб светильника прижат к нему)
+	_lamp(Vector3(16.6, G + HUT_H, 0), 0.6, true)
+	_lamp(Vector3(12.6, 2.6, 0), 0.4, false)
 
 
 # ---------- будка-выход ----------
@@ -458,27 +458,6 @@ func _col(a: Vector3, b: Vector3) -> void:
 	body.add_child(cs)
 
 
+## Светильник в металлическом коробе, светит вниз (общий с бункером: level.gd: lamp_fixture); трубка вдоль прохода (Z).
 func _lamp(pos: Vector3, energy: float, flicker: bool) -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.12, 0.12, 0.12)
-	mat.emission_enabled = true
-	mat.emission = WARM
-	mat.emission_energy_multiplier = 1.5
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(0.18, 0.08, 0.7)
-	bm.material = mat
-	mi.mesh = bm
-	mi.position = pos
-	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(mi)
-	var l: OmniLight3D = FlickerLight.new()
-	l.light_color = WARM
-	l.base_energy = energy
-	l.flicker = flicker
-	l.lamp_mat = mat
-	l.omni_range = 7.0
-	l.omni_attenuation = 1.0
-	l.shadow_enabled = true
-	l.position = pos - Vector3(0, 0.25, 0)
-	add_child(l)
+	level.lamp_fixture(self, Transform3D(Basis(Vector3.UP, PI / 2.0), pos), energy, flicker, 0.7, false)

@@ -27,7 +27,6 @@ var far_player: AudioStreamPlayer3D
 var far_snds: Array[AudioStreamWAV] = []
 var far_wait := 0.0
 var broken_base := Transform3D()
-var broken_light_base := Vector3.ZERO
 
 
 func _ready() -> void:
@@ -55,13 +54,15 @@ func _process(delta: float) -> void:
 func _moths() -> void:
 	var buzz: AudioStreamWAV = null   # жужжание мошек выключено (промпт 21:39); вернуть: _buzz_loop()
 	var tex := _moth_tex()
-	var lights := level.find_children("*", "OmniLight3D", true, false)
+	# потолочные лампы — SpotLight с meta "lamp" (level.gd: lamp_fixture); мошки кружат под коробом
+	var lights := level.find_children("*", "SpotLight3D", true, false)
 	var k := 0
 	for l in lights:
-		var lt := l as OmniLight3D
-		if lt.light_energy <= 0.0 and lt.get("base_energy") == null:
+		var lt := l as SpotLight3D
+		if not lt.has_meta("lamp"):
 			continue
-		_moth_swarm(lt.global_position if lt.is_inside_tree() else lt.position, tex)
+		var at: Vector3 = lt.global_position if lt.is_inside_tree() else (lt.get_parent() as Node3D).transform * lt.position
+		_moth_swarm(at + Vector3(0, -0.15, 0), tex)
 		# жужжание — не у каждой лампы, чтобы не гудело хором
 		if buzz and k % 2 == 0:
 			var p := AudioStreamPlayer3D.new()
@@ -70,8 +71,7 @@ func _moths() -> void:
 			p.unit_size = 1.2
 			p.max_distance = 7.0
 			p.pitch_scale = rng.randf_range(0.85, 1.15)
-			p.position = lt.position + Vector3(0, 0.1, 0)
-			lt.get_parent().add_child(p)
+			lt.add_child(p)
 			p.play(rng.randf_range(0.0, 2.5))
 		k += 1
 
@@ -178,8 +178,6 @@ func _buzz_loop() -> AudioStreamWAV:
 func _broken_lamp_tremble() -> void:
 	if level.broken_mesh:
 		broken_base = level.broken_mesh.transform
-	if level.broken_light:
-		broken_light_base = level.broken_light.position
 
 
 func _update_tremble() -> void:
@@ -187,12 +185,11 @@ func _update_tremble() -> void:
 		return
 	# медленное покачивание на проводах + мелкая дрожь
 	var sway := sin(t * 0.9) * 0.012 + sin(t * 2.3 + 1.0) * 0.006 + sin(t * 23.0) * 0.0015
-	var pivot := broken_base.origin + broken_base.basis.x * -0.5
+	var pivot := broken_base.origin + broken_base.basis.x * -0.55   # край, что держится за потолок
 	var rot := Transform3D(Basis(Vector3.FORWARD, sway), Vector3.ZERO)
 	var off := Transform3D(Basis(), pivot) * rot * Transform3D(Basis(), -pivot)
-	level.broken_mesh.transform = off * broken_base
-	if level.broken_light:
-		level.broken_light.position = off * broken_light_base + Vector3(sin(t * 31.0), 0, cos(t * 27.0)) * 0.004
+	# свет — внутри короба (дочерний), качается и дрожит вместе с ним: пятно и тени гуляют по полу
+	level.broken_mesh.transform = off * broken_base.translated(Vector3(sin(t * 31.0), 0, cos(t * 27.0)) * 0.002)
 
 
 # ---------- капли с потолка ----------
@@ -318,7 +315,7 @@ func _drip_sound(variant: int) -> AudioStreamWAV:
 
 func _steam() -> void:
 	# ржавая труба вдоль северной стены северо-восточной комнаты, под потолком
-	var z := ZN + T / 2 + 0.16
+	var z := ZN + T / 2 + 0.1     # труба почти касается стены, хомуты уходят в бетон
 	var y := H - 0.45
 	var rust := StandardMaterial3D.new()
 	rust.albedo_color = Color(0.2, 0.12, 0.08)
@@ -342,7 +339,7 @@ func _steam() -> void:
 	for bx in [1.0, 3.5, 6.0, 8.5, 11.0]:
 		var b := MeshInstance3D.new()
 		b.mesh = bm
-		b.position = Vector3(bx, y + 0.02, z - 0.06)
+		b.position = Vector3(bx, y + 0.02, z - 0.04)
 		add_child(b)
 	# пар из трещины
 	var leak := Vector3(8.0, y - 0.02, z + 0.05)

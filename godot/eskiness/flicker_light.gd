@@ -1,10 +1,13 @@
 @tool
-extends OmniLight3D
+extends SpotLight3D
 ## Лампа: ровный тёплый свет; у «больных» ламп — редкие случайные сбои (одно моргание, серия или долгий провал).
+## Светит направленно вниз (короб-отражатель, level.gd: lamp_fixture); halo — слабый ореол на потолке, мигает в такт.
 
 @export var base_energy := 0.8
 @export var flicker := true
 @export var lamp_mat: StandardMaterial3D
+var halo: Light3D
+var halo_k := 0.22
 
 var _t := 0.0
 var _off := 0.0        # сколько ещё лампа «провалена»
@@ -43,5 +46,7 @@ func _process(delta: float) -> void:
 				else:
 					_next = _rng.randf_range(4.0, 25.0)
 	light_energy = base_energy * k
+	if halo:
+		halo.light_energy = base_energy * halo_k * k
 	if lamp_mat:
 		lamp_mat.emission_energy_multiplier = 1.5 * k
