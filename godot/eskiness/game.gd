@@ -934,11 +934,7 @@ func _apply_equip(slot_: String) -> void:
 		"face":
 			# противогаз — в слоте «Лицо», каска при этом остаётся на голове
 			if gasmask:
-				if loading:
-					gasmask.worn = id == "gasmask"
-					gasmask.overlay.visible = gasmask.worn
-				else:
-					gasmask.set_worn(id == "gasmask")
+				gasmask.set_worn(id == "gasmask", loading)
 			if id != "" and id != "gasmask" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 		"back":
@@ -966,7 +962,7 @@ func toggle_gasmask() -> void:
 		return
 	var i := inv.bag_index("gasmask")
 	if i < 0:
-		hud.toast("Противогаза нет")
+		hud.toast("Нюхича нет")
 		return
 	equip(i, "face")
 

@@ -106,21 +106,55 @@ static func make(id: String) -> Node3D:
 			bl.position.y = 0.17
 			root.add_child(bl)
 		"gasmask":
-			var rub := _m(Color(0.16, 0.18, 0.15))
+			# «Нюхич»: резиновый шлем-маска, два круглых окуляра в стальных обоймах, гофрированный шланг к банке фильтра
+			var rub := _m(Color(0.1, 0.11, 0.1), 0.0, 0.55)
 			var face := SphereMesh.new()
 			face.radius = 0.1
-			face.height = 0.16
+			face.height = 0.22
 			var mi := MeshInstance3D.new()
 			mi.mesh = face
 			mi.material_override = rub
+			mi.scale = Vector3(1.0, 1.0, 0.85)
 			root.add_child(mi)
-			for sx in [-0.04, 0.04]:
-				var g := _cyl(root, 0.026, 0.026, 0.012, 0.0, _m(Color(0.4, 0.45, 0.4), 0.3, 0.1))
+			var steel := _m(Color(0.32, 0.33, 0.31), 0.8, 0.35)
+			var glass := _m(Color(0.35, 0.45, 0.38, 0.75), 0.3, 0.05)
+			glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			for sx in [-0.042, 0.042]:
+				var ring := MeshInstance3D.new()
+				var tm := TorusMesh.new()
+				tm.inner_radius = 0.022
+				tm.outer_radius = 0.032
+				tm.rings = 12
+				tm.ring_segments = 6
+				ring.mesh = tm
+				ring.material_override = steel
+				ring.rotation.x = PI / 2
+				ring.position = Vector3(sx, 0.03, -0.08)
+				root.add_child(ring)
+				var g := _cyl(root, 0.023, 0.023, 0.006, 0.0, glass)
 				g.rotation.x = PI / 2
-				g.position = Vector3(sx, 0.025, -0.07)
-			var f := _cyl(root, 0.035, 0.035, 0.06, 0.0, _m(Color(0.3, 0.32, 0.25), 0.4, 0.5))
-			f.rotation.x = PI / 2
-			f.position = Vector3(0, -0.05, -0.1)
+				g.position = Vector3(sx, 0.03, -0.08)
+			# клапан на носу
+			var v := _cyl(root, 0.022, 0.026, 0.03, 0.0, _m(Color(0.06, 0.06, 0.06), 0.2, 0.6))
+			v.rotation.x = PI / 2
+			v.position = Vector3(0, -0.04, -0.095)
+			# гофра: кольца вниз и вбок
+			for k in 7:
+				var hz := MeshInstance3D.new()
+				var tm2 := TorusMesh.new()
+				tm2.inner_radius = 0.008
+				tm2.outer_radius = 0.016
+				tm2.rings = 8
+				tm2.ring_segments = 5
+				hz.mesh = tm2
+				hz.material_override = rub
+				hz.position = Vector3(0.01 * k, -0.07 - 0.018 * k, -0.09 + 0.006 * k)
+				hz.rotation.z = 0.25
+				root.add_child(hz)
+			# банка фильтра на конце шланга
+			var f := _cyl(root, 0.034, 0.034, 0.07, 0.0, _m(Color(0.28, 0.3, 0.22), 0.5, 0.5))
+			f.position = Vector3(0.08, -0.22, -0.05)
+			_cyl(root, 0.02, 0.02, 0.012, 0.0, steel).position = Vector3(0.08, -0.18, -0.05)
 		"filter":
 			_cyl(root, 0.035, 0.035, 0.06, 0.0, _m(Color(0.3, 0.32, 0.25), 0.4, 0.5))
 			_cyl(root, 0.02, 0.02, 0.015, 0.035, _m(Color(0.25, 0.25, 0.25), 0.6, 0.4))
@@ -160,10 +194,23 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2, col: Color) -> void:
 			var nrm := Vector2(s * 0.07, s * 0.07)
 			ci.draw_colored_polygon(PackedVector2Array([base + nrm, base - nrm, tip]), Color(0.62, 0.8, 0.78, 0.85))
 		"gasmask":
-			ci.draw_circle(c, s * 0.3, col)
-			ci.draw_circle(c + Vector2(-s * 0.12, -s * 0.06), s * 0.08, Color(0.55, 0.62, 0.55))
-			ci.draw_circle(c + Vector2(s * 0.12, -s * 0.06), s * 0.08, Color(0.55, 0.62, 0.55))
-			ci.draw_circle(c + Vector2(0, s * 0.17), s * 0.1, col.darkened(0.4))
+			# «Нюхич»: тёмная резиновая маска, два окуляра в стальных обоймах, гофра к банке фильтра
+			var rubber := Color(0.11, 0.12, 0.11)
+			ci.draw_rect(Rect2(c + Vector2(s * 0.12, s * 0.2), Vector2(s * 0.2, s * 0.22)), Color(0.3, 0.32, 0.24))
+			ci.draw_rect(Rect2(c + Vector2(s * 0.15, s * 0.17), Vector2(s * 0.14, s * 0.04)), Color(0.4, 0.4, 0.38))
+			for k in 4:
+				ci.draw_circle(c + Vector2(s * (0.02 + 0.045 * k), s * (0.2 + 0.0 * k)), s * 0.045, rubber.lightened(0.08 * (k % 2)))
+			var hood := PackedVector2Array()
+			for k in 20:
+				var ang := TAU * k / 20.0
+				hood.append(c + Vector2(cos(ang) * s * 0.36, sin(ang) * s * 0.33) + Vector2(-s * 0.06, -s * 0.06))
+			ci.draw_colored_polygon(hood, rubber)
+			for sx in [-0.2, 0.08]:
+				var e := c + Vector2(s * sx, -s * 0.1)
+				ci.draw_circle(e, s * 0.12, Color(0.42, 0.43, 0.41))
+				ci.draw_circle(e, s * 0.088, Color(0.32, 0.4, 0.34))
+				ci.draw_circle(e + Vector2(-s * 0.03, -s * 0.03), s * 0.025, Color(0.6, 0.68, 0.62))
+			ci.draw_circle(c + Vector2(-s * 0.06, s * 0.12), s * 0.07, Color(0.05, 0.05, 0.05))
 		"filter":
 			ci.draw_rect(Rect2(c - Vector2(s * 0.2, s * 0.26), Vector2(s * 0.4, s * 0.52)), col)
 			ci.draw_rect(Rect2(c - Vector2(s * 0.1, s * 0.34), Vector2(s * 0.2, s * 0.1)), col.darkened(0.4))
