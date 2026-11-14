@@ -19,7 +19,20 @@ const SETTINGS := {
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
 	"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],      # галочка: 0 — выкл, 1 — вкл
-	"graphics": ["Графика", 0.0, 2.0, 1.0, 1.0],      # 0 низкая, 1 средняя, 2 высокая (graphics.gd)
+	# --- графика (отдельная страница, graphics.gd): пресет и каждый эффект отдельно (промпт 14.11 17:36)
+	"graphics": ["Пресет", 0.0, 2.0, 1.0, 1.0],       # 0 низкая, 1 средняя, 2 высокая — выставляет все g_*
+	"g_shadows": ["Тени ламп", 0.0, 1.0, 1.0, 1.0],
+	"g_shadow_res": ["Качество теней", 0.0, 2.0, 1.0, 1.0],
+	"g_ssao": ["Затенение углов", 0.0, 1.0, 1.0, 1.0],
+	"g_ssr": ["Отражения", 0.0, 1.0, 1.0, 0.0],
+	"g_volfog": ["Объёмный туман", 0.0, 1.0, 1.0, 0.0],
+	"g_glow": ["Свечение", 0.0, 1.0, 1.0, 1.0],
+	"g_aa": ["Сглаживание", 0.0, 2.0, 1.0, 1.0],
+	"g_scale": ["Разрешение 3D", 50.0, 100.0, 5.0, 100.0],
+	"g_textures": ["Текстуры", 0.0, 2.0, 1.0, 1.0],
+	"g_geometry": ["Геометрия", 0.0, 2.0, 1.0, 1.0],
+	"g_grass": ["Трава", 0.0, 100.0, 5.0, 70.0],
+	"g_particles": ["Пыль и мошки", 0.0, 100.0, 5.0, 100.0],
 }
 
 var in_game := false          # выставляет main.gd, когда игра началась
@@ -30,6 +43,7 @@ var main_box: VBoxContainer
 var pause_box: VBoxContainer
 var slots_box: VBoxContainer      # выбор слота сохранения (промпт 23:39)
 var settings_box: VBoxContainer
+var gfx_box: VBoxContainer        # страница «Графика»
 var settings_from := "main"
 
 
@@ -90,12 +104,39 @@ func _ready() -> void:
 	# --- настройки
 	settings_box = _vbox(center)
 	settings_box.add_child(_title("НАСТРОЙКИ", 60))
-	settings_box.add_child(_gap(16))
+	settings_box.add_child(_gap(6))
 	for key in SETTINGS:
+		if key == "graphics" or key.begins_with("g_"):
+			continue
 		settings_box.add_child(_check_row(key) if key == "crosshair" else _slider_row(key))
-	settings_box.add_child(_gap(10))
-	var reset := _button("По умолчанию", _reset)
-	settings_box.add_child(reset)
+	settings_box.add_child(_gap(6))
+
+	# --- страница «Графика»: пресет сверху, ниже каждый эффект (с прокруткой — строк много)
+	gfx_box = _vbox(center)
+	gfx_box.add_child(_title("ГРАФИКА", 60))
+	gfx_box.add_child(_gap(8))
+	gfx_box.add_child(_slider_row("graphics"))
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(640, 330)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	gfx_box.add_child(sc)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 6)
+	sc.add_child(rows)
+	for key in SETTINGS:
+		if key.begins_with("g_"):
+			var is_check: bool = SETTINGS[key][1] == 0.0 and SETTINGS[key][2] == 1.0
+			rows.add_child(_check_row(key) if is_check else _slider_row(key))
+	gfx_box.add_child(_gap(8))
+	gfx_box.add_child(_button("Назад", func():
+		_save()
+		_show("settings")))
+	# «Графика» и «По умолчанию» — в один ряд, чтобы «Назад» не уезжал за экран
+	var btns := HBoxContainer.new()
+	btns.add_theme_constant_override("separation", 16)
+	btns.add_child(_button("Графика", func(): _show("gfx")))
+	btns.add_child(_button("По умолчанию", _reset))
+	settings_box.add_child(btns)
 	settings_box.add_child(_button("Назад", _close_settings))
 
 	# --- иконки в углу
@@ -130,7 +171,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
 		return
 	get_viewport().set_input_as_handled()
-	if settings_box.visible:
+	if gfx_box.visible:
+		_save()
+		_show("settings")
+	elif settings_box.visible:
 		_close_settings()
 	elif slots_box.visible:
 		_show("main")
@@ -179,6 +223,7 @@ func _show(which: String) -> void:
 	pause_box.visible = which == "pause"
 	slots_box.visible = which == "slots"
 	settings_box.visible = which == "settings"
+	gfx_box.visible = which == "gfx"
 
 
 # ---------- сохранения ----------
@@ -330,15 +375,24 @@ func _slider_row(key: String) -> Control:
 	s.value_changed.connect(func(v: float) -> void:
 		values[key] = v
 		val_l.text = _fmt(key, v)
-		apply_settings())
+		if key == "graphics":
+			_apply_preset(int(round(v)))
+		else:
+			apply_settings())
 	return row
 
 
 func _fmt(key: String, v: float) -> String:
 	if key == "crosshair":
 		return "вкл" if v > 0.5 else "выкл"
-	if key == "graphics":
+	if key == "graphics" or key == "g_shadow_res" or key == "g_textures" or key == "g_geometry":
 		return Graphics.NAMES[clampi(int(round(v)), 0, 2)]
+	if key == "g_aa":
+		return ["выкл", "FXAA", "MSAA"][clampi(int(round(v)), 0, 2)]
+	if key.begins_with("g_") and SETTINGS[key][2] == 1.0:
+		return "вкл" if v > 0.5 else "выкл"
+	if key == "g_scale" or key == "g_grass" or key == "g_particles":
+		return "%d%%" % int(v)
 	if key == "volume" or key == "posterize" or key == "ui_scale":
 		return "%d%%" % int(v)
 	return "%.2f" % v
@@ -347,11 +401,26 @@ func _fmt(key: String, v: float) -> String:
 func _reset() -> void:
 	for key in SETTINGS:
 		values[key] = SETTINGS[key][4]
-		var s := settings_box.find_child(key, true, false)
+		_set_widget(key)
+	apply_settings()
+
+
+## Обновить ползунок/галочку под values[key] (виджет может быть на странице настроек или «Графика»).
+func _set_widget(key: String) -> void:
+	for box in [settings_box, gfx_box]:
+		var s: Node = box.find_child(key, true, false)
 		if s is HSlider:
 			s.value = values[key]
 		elif s is CheckBox:
 			s.button_pressed = values[key] > 0.5
+
+
+## Пресет графики выставляет все отдельные настройки g_*.
+func _apply_preset(q: int) -> void:
+	var d := Graphics.preset(q)
+	for k in d:
+		values[k] = d[k]
+		_set_widget(k)
 	apply_settings()
 
 
@@ -368,7 +437,7 @@ func _apply_ui_scale() -> void:
 
 func apply_settings() -> void:
 	_apply_ui_scale()
-	Graphics.apply(get_tree(), int(round(values.get("graphics", 1.0))))
+	Graphics.apply(get_tree(), values)
 	preload("res://player.gd").look_sens = values["sensitivity"]
 	preload("res://hud.gd").show_crosshair = values.get("crosshair", 1.0) > 0.5
 	var vol: float = values["volume"] / 100.0
@@ -386,6 +455,11 @@ func _load() -> void:
 	var ok := cf.load(CFG) == OK
 	for key in SETTINGS:
 		values[key] = cf.get_value("settings", key, SETTINGS[key][4]) if ok else SETTINGS[key][4]
+	# старые настройки без отдельных g_* — берём их из сохранённого пресета
+	if ok and cf.has_section_key("settings", "graphics") and not cf.has_section_key("settings", "g_shadows"):
+		var d := Graphics.preset(int(round(float(values["graphics"]))))
+		for k in d:
+			values[k] = d[k]
 
 
 func _save() -> void:
