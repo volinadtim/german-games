@@ -405,9 +405,15 @@ func _build_ui() -> void:
 	cb.custom_minimum_size = Vector2(250, 0)
 	hb.add_child(cb)
 	cb.add_child(_label("КРАФТ", 34, Color(0.86, 0.85, 0.8)))
+	# рецептов много (молоток и что им делается) — список прокручивается
+	var cscroll := ScrollContainer.new()
+	cscroll.custom_minimum_size = Vector2(290, 400)
+	cscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cb.add_child(cscroll)
 	craft_box = VBoxContainer.new()
-	craft_box.add_theme_constant_override("separation", 14)
-	cb.add_child(craft_box)
+	craft_box.add_theme_constant_override("separation", 8)
+	craft_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cscroll.add_child(craft_box)
 	for k in 5:
 		var hs := HotSlot.new()
 		hs.inv = self
@@ -543,6 +549,20 @@ func _rebuild_craft() -> void:
 			nr.add_child(ni)
 			nr.add_child(_label("%s  %d/%d" % [Items.item_name(id), mini(have, n), n], 15, Color(0.7, 0.85, 0.6) if have >= n else Color(0.85, 0.5, 0.4)))
 			craft_box.add_child(nr)
+		if rec.has("tool"):
+			# инструмент не тратится, но теряет прочность
+			var tid: String = rec["tool"]
+			var have_t := count(tid) > 0
+			ok = ok and have_t
+			var tr := HBoxContainer.new()
+			tr.add_theme_constant_override("separation", 6)
+			var ti := Icon.new()
+			ti.id = tid
+			ti.dim = not have_t
+			ti.custom_minimum_size = Vector2(30, 30)
+			tr.add_child(ti)
+			tr.add_child(_label("%s (−%d прочности)" % [Items.item_name(tid), int(rec.get("wear", 1))], 15, Color(0.7, 0.85, 0.6) if have_t else Color(0.85, 0.5, 0.4)))
+			craft_box.add_child(tr)
 		var b := Button.new()
 		b.text = "Скрафтить"
 		b.focus_mode = Control.FOCUS_NONE

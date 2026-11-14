@@ -25,6 +25,8 @@ const SCALES := {
 	"medkit": 1.5,    # аптечка 26×20 см
 	"photo": 1.4,     # фото 10×13 см
 	"scrap": 1.8,     # железки 23 см
+	"stone": 1.4,     # булыжник ~14 см
+	"twine": 1.3,     # моток ⌀10 см
 }
 const WEAPON_SCALE := 1.15  # оружие и снаряжение — почти реальный размер (бита ~0.8 м)
 ## Коробка столкновений больше модели на PAD с каждой стороны: физика Godot разрешает телам
@@ -37,9 +39,9 @@ const FLAT := ["coin", "photo", "choco", "glass", "wallet", "nut", "gear", "tape
 
 ## Есть ли у предмета своя модель здесь.
 const MODELS := ["coin", "bandage", "pills", "canned", "water", "soda", "rusk", "choco", "battery",
-	"nut", "gear", "wallet", "tape", "wood", "glass", "medkit", "photo", "scrap"]
+	"nut", "gear", "wallet", "tape", "wood", "glass", "medkit", "photo", "scrap", "stone", "twine"]
 ## Предметы с моделью weapons.gd (через Items.make_mesh).
-const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter"]
+const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club"]
 
 static var _icon_cache := {}
 static var _gauze: ImageTexture
@@ -64,7 +66,7 @@ static func make(id: String) -> Array:
 	if id in WEAPON_LIKE:
 		var w := Items.make_mesh(id)
 		w.scale = Vector3.ONE * WEAPON_SCALE
-		var s := (Vector3(0.7, 0.06, 0.06) if id in ["bat", "pipe", "crowbar", "machete", "knife"] else Vector3(0.2, 0.1, 0.2)) * WEAPON_SCALE
+		var s := (Vector3(0.7, 0.06, 0.06) if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "shiv", "spiked_club"] else Vector3(0.2, 0.1, 0.2)) * WEAPON_SCALE
 		w.position.y += LIFT
 		return [w, s]
 	if id in MODELS:
@@ -291,6 +293,26 @@ static func _build(root: Node3D, id: String) -> Vector3:
 			_add(root, _box(Vector3(0.06, 0.006, 0.035)), _mat(col.lightened(0.15), 0.7, 0.6, 0.15), Vector3(0.035, 0.008, 0.01), Vector3(0.2, -0.5, -0.2))
 			_add(root, _cyl(0.004, 0.11, 8), _mat(col.darkened(0.3), 0.7, 0.6, 0.12), Vector3(0, 0.012, -0.005), Vector3(0, 0.9, PI / 2))
 			size = Vector3(0.13, 0.03, 0.07)
+		"stone":
+			# булыжник: приплюснутая угловатая сфера и скол сбоку
+			var sm := SphereMesh.new()
+			sm.radius = 0.05
+			sm.height = 0.07
+			sm.radial_segments = 7
+			sm.rings = 3
+			_add(root, sm, _mat(col, 0.0, 0.95, 0.12), Vector3(0, 0.035, 0)).scale = Vector3(1.2, 1.0, 0.9)
+			_add(root, _box(Vector3(0.03, 0.02, 0.03)), _mat(col.lightened(0.12), 0.0, 0.9, 0.12), Vector3(0.04, 0.025, 0.0), Vector3(0.3, 0.5, 0.2))
+			size = Vector3(0.12, 0.07, 0.09)
+		"twine":
+			# моток бечёвки и свисающий конец
+			var tm := TorusMesh.new()
+			tm.inner_radius = 0.018
+			tm.outer_radius = 0.045
+			tm.rings = 12
+			tm.ring_segments = 8
+			_add(root, tm, _mat(col, 0.0, 0.95, 0.15), Vector3(0, 0.014, 0))
+			_add(root, _cyl(0.003, 0.07, 6), _mat(col.darkened(0.1), 0.0, 0.95, 0.12), Vector3(0.06, 0.004, 0.02), Vector3(0, 0.4, PI / 2))
+			size = Vector3(0.12, 0.03, 0.1)
 	var k: float = SCALES.get(id, 1.4)
 	root.scale = Vector3.ONE * k
 	return size * k

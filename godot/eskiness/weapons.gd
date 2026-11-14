@@ -9,6 +9,10 @@ const WEAPONS := {
 	"machete": {"mult": 3.6, "reach": 1.5, "price": 140},
 	"shield": {"mult": 1.8, "reach": 1.2, "price": 70},   # в левой — блок 50%, в правой — бьют краем
 	"knife": {"mult": 2.4, "reach": 1.25, "price": 0},     # крафт: деревяшка + стекло + изолента
+	# крафт с молотком (промпт 14.11 19:22)
+	"hammer": {"mult": 2.2, "reach": 1.3, "price": 0},     # камень + деревяшка + бечёвка; 6 ударов
+	"shiv": {"mult": 2.7, "reach": 1.25, "price": 0},      # молоток + металлолом ×2
+	"spiked_club": {"mult": 3.2, "reach": 1.5, "price": 0}, # молоток + деревяшка ×2 + гайки ×3
 }
 
 # что продаёт магазин, по порядку
@@ -89,6 +93,43 @@ static func make(id: String) -> Node3D:
 			boss.rotation.x = PI / 2
 			boss.position = Vector3(0, 0.05, 0.068)
 			_box(root, Vector3(0.06, 0.14, 0.02), Vector3(0, 0.0, 0.025), _m(Color(0.12, 0.1, 0.08)))
+		"hammer":
+			# палка, на конце камень, примотанный бечёвкой
+			_cyl(root, 0.016, 0.014, 0.42, 0.13, _m(Color(0.5, 0.36, 0.2)))
+			var st := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.06
+			sm.height = 0.1
+			sm.radial_segments = 8
+			sm.rings = 4
+			st.mesh = sm
+			st.material_override = _m(Color(0.46, 0.45, 0.42), 0.0, 0.9)
+			st.position = Vector3(0, 0.34, 0)
+			st.scale = Vector3(1.4, 0.9, 1.0)
+			root.add_child(st)
+			for k in 3:
+				_cyl(root, 0.019, 0.019, 0.012, 0.28 + k * 0.02, _m(Color(0.7, 0.6, 0.4)))
+		"shiv":
+			# рукоять из тряпки, жало — заострённая ржавая пластина
+			_cyl(root, 0.016, 0.016, 0.11, 0.02, _m(Color(0.3, 0.26, 0.2)))
+			var bl := MeshInstance3D.new()
+			var pm := PrismMesh.new()
+			pm.size = Vector3(0.04, 0.2, 0.008)
+			bl.mesh = pm
+			bl.material_override = _m(Color(0.5, 0.48, 0.46), 0.7, 0.45)
+			bl.position = Vector3(0, 0.17, 0)
+			root.add_child(bl)
+		"spiked_club":
+			# сбитые доски, из которых торчат болты
+			var wood2 := _m(Color(0.45, 0.32, 0.2))
+			_box(root, Vector3(0.05, 0.62, 0.035), Vector3(-0.012, 0.28, 0), wood2)
+			_box(root, Vector3(0.04, 0.4, 0.03), Vector3(0.02, 0.4, 0.01), _m(Color(0.4, 0.28, 0.17)))
+			var steel := _m(Color(0.5, 0.5, 0.5), 0.8, 0.4)
+			for k in 6:
+				var nl := _cyl(root, 0.005, 0.005, 0.08, 0.0, steel)
+				nl.rotation.z = PI / 2 if k % 2 == 0 else 0.0
+				nl.rotation.x = 0.0 if k % 2 == 0 else PI / 2
+				nl.position = Vector3(0.0, 0.3 + k * 0.05, 0.0)
 		"knife":
 			# рукоять — деревяшка, примотанная изолентой к осколку стекла
 			_box(root, Vector3(0.03, 0.14, 0.022), Vector3(0, 0.02, 0), _m(Color(0.5, 0.35, 0.2)))
@@ -186,6 +227,23 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2, col: Color) -> void:
 			ci.draw_rect(rr, col)
 			ci.draw_rect(rr, col.darkened(0.5), false, maxf(2.0, s * 0.05))
 			ci.draw_circle(c, s * 0.08, col.lightened(0.3))
+		"hammer":
+			ci.draw_line(a, a.lerp(b, 0.78), Color(0.5, 0.36, 0.2), w)
+			var hd := a.lerp(b, 0.8)
+			ci.draw_circle(hd, s * 0.15, col)
+			ci.draw_circle(hd + Vector2(-s * 0.04, -s * 0.04), s * 0.06, col.lightened(0.15))
+			ci.draw_line(hd + Vector2(-s * 0.1, s * 0.1), hd + Vector2(s * 0.02, s * 0.12), Color(0.7, 0.6, 0.4), w * 0.6)
+		"shiv":
+			ci.draw_line(a, a.lerp(b, 0.38), Color(0.3, 0.26, 0.2), w * 1.4)
+			var base2 := a.lerp(b, 0.38)
+			var nrm2 := Vector2(s * 0.06, s * 0.06)
+			ci.draw_colored_polygon(PackedVector2Array([base2 + nrm2, base2 - nrm2, b]), col)
+			ci.draw_line(base2, b, col.lightened(0.3), maxf(1.0, w * 0.3))
+		"spiked_club":
+			ci.draw_line(a, b, col, w * 1.6)
+			for k in 4:
+				var p := a.lerp(b, 0.5 + k * 0.12)
+				ci.draw_line(p + Vector2(-s * 0.07, -s * 0.07), p + Vector2(s * 0.07, s * 0.07), Color(0.75, 0.75, 0.75), maxf(1.5, w * 0.35))
 		"knife":
 			ci.draw_line(a, a.lerp(b, 0.42), Color(0.5, 0.35, 0.2), w * 1.3)
 			ci.draw_line(a.lerp(b, 0.25), a.lerp(b, 0.36), Color(0.15, 0.22, 0.5), w * 1.6)

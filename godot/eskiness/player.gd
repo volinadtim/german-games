@@ -1083,6 +1083,8 @@ func _weapon_swing(i: int, wid: String) -> void:
 	var group := "heavy"
 	if wid in ["machete", "knife", "shield"]:
 		group = wid
+	elif wid == "shiv":
+		group = "knife"
 	var set_: Array = SWINGS[group]
 	var v := randi() % set_.size()
 	if v == last_swing[i] and randf() < 0.65:

@@ -252,6 +252,8 @@ func _roll(r: RandomNumberGenerator) -> Array:
 	var out: Array = []
 	if r.randf() < 0.5:
 		out.append(["coin", r.randi_range(3, 6)])
+	if r.randf() < 0.2:   # бечёвка (промпт 14.11 19:22)
+		out.append(["twine", 1])
 	var pool: Array = []
 	for row in Chest.LOOT:
 		if row[0] != "coin":

@@ -770,6 +770,8 @@ func _die(dir: Vector3) -> void:
 	var extra: Array = ["bandage", "pills", "choco", "rusk", "battery", "scrap", "nut"]
 	for k in (randi_range(0, 2) if kind == "heavy" else randi_range(1, 3)):
 		game.spawn_loot(extra[randi() % extra.size()], 1, pos, Vector3(0, 2.5, 0), 1.2)
+	if randf() < 0.2:   # бечёвка — для молотка и кастета (промпт 14.11 19:22)
+		game.spawn_loot("twine", 1, pos, Vector3(0, 2.5, 0), 1.2)
 	if randf() < 0.03:  # кошелёк — редкость (промпт 14.11 17:21)
 		game.spawn_loot("wallet", 1, pos, Vector3(0, 2.5, 0), 1.2)
 	died.emit(self)

@@ -15,6 +15,7 @@ const Fx := preload("res://fx.gd")
 const Pickup := preload("res://pickup.gd")
 const Flashlight := preload("res://flashlight.gd")
 const TapeSpot := preload("res://tape_spot.gd")
+const StonePile := preload("res://stone_pile.gd")
 var tape  # моток изоленты у доски выплат — один на игру
 const Enemy := preload("res://enemy.gd")
 const Dummy := preload("res://dummy.gd")
@@ -140,6 +141,7 @@ func setup(p: Player) -> void:
 		slot.set_level(1)
 		slot.set_tray(0)
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
+	_spawn_stone_piles()
 	tape = TapeSpot.new()
 	tape.game = self
 	tape.position = Vector3(-7.05, 0.95, 8.813)   # на самой доске выплат (main.gd прижимает её к стене)
@@ -1121,8 +1123,14 @@ func craft(r: int) -> void:
 		if inv.count(id) < int(need[id]):
 			hud.toast("Не хватает: %s" % Items.item_name(id))
 			return
+	var tool_id: String = rec.get("tool", "")
+	if tool_id != "" and inv.count(tool_id) == 0:
+		hud.toast("Нужен инструмент: %s" % Items.item_name(tool_id))
+		return
 	for id in need:
 		inv.remove(id, int(need[id]))
+	if tool_id != "":
+		_wear_tool(tool_id, float(rec.get("wear", 1)))
 	var out: String = rec["out"]
 	if inv.add(out, 1) > 0:
 		var fwd := -player.global_transform.basis.z
@@ -1131,6 +1139,56 @@ func craft(r: int) -> void:
 	else:
 		hud.toast("Скрафчено: %s" % Items.item_name(out), Color(0.8, 0.9, 0.6))
 	play_ui("creak", -14.0, 1.6)
+
+
+## Инструмент крафта теряет прочность: сначала тот, что в сумке, иначе — в руке. На нуле ломается.
+func _wear_tool(id: String, amount: float) -> void:
+	var i := inv.bag_index(id)
+	if i >= 0:
+		var d: float = float(inv.slots[i].get("dur", Items.max_dur(id))) - amount
+		if d <= 0.0:
+			inv.slots[i] = null
+			hud.toast("Сломано: %s" % Items.item_name(id), Color(1.0, 0.5, 0.35))
+			play_ui("thud", -10.0, 1.6)
+		else:
+			inv.slots[i]["dur"] = d
+		inv.notify()
+		return
+	for sl in ["right", "left"]:
+		if inv.equip[sl] == id:
+			_wear(sl, amount)
+			return
+
+
+# ---------- каменные кучки (промпт 14.11 19:22) ----------
+
+## Где лежат кучки: в бункере у завалов (level.gd: _debris) и наверху у руин (surface.gd: _ruins).
+const STONE_BUNKER := [Vector3(-9.2, 0.0, -6.8), Vector3(3.3, 0.0, -7.1), Vector3(10.1, 0.0, 2.9)]
+const STONE_SURFACE := [Vector3(27.8, 0.0, -9.5), Vector3(36.6, 0.0, 8.6), Vector3(42.5, 0.0, -1.2)]
+var stone_piles: Array = []
+
+
+func _spawn_stone_piles() -> void:
+	var sf: Node = null
+	var level: Node = get_parent().get_node_or_null("Level")
+	if level:
+		for c in level.get_children():
+			if c.has_method("height"):
+				sf = c
+	var all: Array = []
+	for p in STONE_BUNKER:
+		all.append(p)
+	for p in STONE_SURFACE:
+		var q: Vector3 = p
+		q.y = sf.height(q.x, q.z) if sf else 4.0
+		all.append(q)
+	for k in all.size():
+		var sp := StonePile.new()
+		sp.seed_ = k
+		sp.left = randi_range(3, 5)
+		sp.position = all[k]
+		add_child(sp)
+		stone_piles.append(sp)
 
 
 func drop_item(idx: int, all: bool) -> void:
@@ -1364,6 +1422,7 @@ func save_state() -> Dictionary:
 		"chests": cs,
 		"chest_pos": chest_pos,
 		"tape_taken": tape != null and not tape.ready_,
+		"stone_piles": stone_piles.map(func(sp): return sp.left),
 		"jars": jars.filter(func(x): return is_instance_valid(x)).map(func(x): return x.to_save()),
 		"safe_open": safe != null and is_instance_valid(safe) and safe.opened,
 		"storage": storage.contents.duplicate(true) if storage else [],
@@ -1448,6 +1507,9 @@ func load_state(d: Dictionary) -> void:
 	# кувшины и колбы из сейва: то же место, вид, размер и рисунок; разбитые — осколками
 	if tape:
 		tape.set_taken(bool(d.get("tape_taken", false)))
+	var spl: Array = d.get("stone_piles", [])
+	for k in mini(spl.size(), stone_piles.size()):
+		stone_piles[k].set_left(int(spl[k]))
 	if d.has("jars"):
 		for jr in jars:
 			if is_instance_valid(jr):

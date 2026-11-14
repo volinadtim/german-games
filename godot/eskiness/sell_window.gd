@@ -11,7 +11,8 @@ extends CanvasLayer
 const Items := preload("res://items.gd")
 const Weapons := preload("res://weapons.gd")
 ## рыночные цены вещей, которых нет в магазине и которые не хлам
-const EXTRA_MARKET := {"wood": 2, "glass": 2, "wallet": 10, "knuckles": 30}
+const EXTRA_MARKET := {"wood": 2, "glass": 2, "wallet": 10, "knuckles": 30, "stone": 2, "twine": 4,
+	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20}
 const NO_SELL := ["coin", "car_key"]
 
 var game

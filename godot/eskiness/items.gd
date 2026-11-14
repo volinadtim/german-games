@@ -76,6 +76,18 @@ const ITEMS := {
 	"knife": {"name": "Ножик", "desc": "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.2.", "stack": 1,
 		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true, "dur": 15},
 	# материалы для крафта
+	# камень — с каменных кучек (stone_pile.gd, E), бечёвка — из кувшинов и врагов (промпт 14.11 19:22)
+	"stone": {"name": "Камень", "desc": "Увесистый булыжник. Нужен для молотка.", "stack": 10,
+		"icon": "stone", "color": Color(0.46, 0.45, 0.42)},
+	"twine": {"name": "Бечёвка", "desc": "Моток грубой верёвки. Для крафта: молоток, кастет.", "stack": 10,
+		"icon": "twine", "color": Color(0.7, 0.6, 0.4)},
+	# молоток: оружие на 6 ударов и инструмент — без него не скрафтить заточку, кастет и дубину
+	"hammer": {"name": "Молоток", "desc": "Камень на палке. Урон ×2.2, но всего 6 ударов. Инструмент: заточка, кастет, дубина (крафт тратит прочность).", "stack": 1,
+		"icon": "hammer", "color": Color(0.46, 0.45, 0.42), "weapon": true, "dur": 6},
+	"shiv": {"name": "Заточка", "desc": "Металлолом, отбитый молотком в острое жало. Урон ×2.7, быстрая.", "stack": 1,
+		"icon": "shiv", "color": Color(0.5, 0.48, 0.46), "weapon": true, "dur": 25},
+	"spiked_club": {"name": "Дубина с гвоздями", "desc": "Доски, сбитые гайками и болтами. Урон ×3.2, бьёт широко.", "stack": 1,
+		"icon": "spiked_club", "color": Color(0.45, 0.32, 0.2), "weapon": true, "dur": 35},
 	"wood": {"name": "Деревяшка", "desc": "Обломок доски. Нужна для крафта.", "stack": 5,
 		"icon": "wood", "color": Color(0.5, 0.35, 0.2)},
 	"glass": {"name": "Кусочек стекла", "desc": "Острый осколок. Нужен для крафта.", "stack": 5,
@@ -92,8 +104,13 @@ const ITEMS := {
 
 
 ## Рецепты крафта: что получится и что нужно.
+## tool — инструмент (не тратится, а теряет прочность wear), промпт 14.11 19:22.
 const RECIPES := [
 	{"out": "knife", "need": {"wood": 1, "glass": 1, "tape": 1}},
+	{"out": "hammer", "need": {"stone": 1, "wood": 1, "twine": 1}},
+	{"out": "shiv", "need": {"scrap": 2}, "tool": "hammer", "wear": 1},
+	{"out": "knuckles", "need": {"gear": 1, "twine": 1}, "tool": "hammer", "wear": 1},
+	{"out": "spiked_club", "need": {"wood": 2, "nut": 3}, "tool": "hammer", "wear": 2},
 ]
 
 
@@ -140,7 +157,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var s := minf(r.size.x, r.size.y)
 	var col: Color = ITEMS[id]["color"]
 	var dark := col.darkened(0.45)
-	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter"]:
+	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club"]:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
@@ -304,6 +321,22 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				ci.draw_rect(Rect2(c + Vector2(-s * 0.15, -s * 0.1), Vector2(s * 0.22, s * 0.04)), dark)
 				ci.draw_rect(Rect2(c + Vector2(-s * 0.15, s * 0.16), Vector2(s * 0.22, s * 0.04)), dark)
 				ci.draw_line(c + Vector2(s * 0.12, -s * 0.1), c + Vector2(s * 0.22, s * 0.2), mark, maxf(1.0, s * 0.025))
+		"stone":
+			var pts := PackedVector2Array()
+			for k in 9:
+				var ang := TAU * k / 9.0
+				var rr := s * (0.3 + 0.05 * sin(k * 2.3))
+				pts.append(c + Vector2(cos(ang) * rr * 1.15, sin(ang) * rr * 0.85 + s * 0.04))
+			ci.draw_colored_polygon(pts, col)
+			ci.draw_circle(c + Vector2(-s * 0.08, -s * 0.06), s * 0.09, col.lightened(0.15))
+			ci.draw_line(c + Vector2(s * 0.05, s * 0.02), c + Vector2(s * 0.2, s * 0.12), dark, maxf(1.0, s * 0.03))
+		"twine":
+			ci.draw_circle(c, s * 0.3, col.darkened(0.15))
+			ci.draw_circle(c, s * 0.1, Color(0.12, 0.1, 0.08))
+			for k in 6:
+				var yy := -s * 0.25 + k * s * 0.1
+				ci.draw_line(c + Vector2(-s * 0.26, yy), c + Vector2(s * 0.26, yy + s * 0.05), col.lightened(0.1), maxf(1.0, s * 0.025))
+			ci.draw_line(c + Vector2(s * 0.25, s * 0.15), c + Vector2(s * 0.42, s * 0.38), col, maxf(1.5, s * 0.035))
 		"backpack":
 			# лямки, корпус, клапан с пряжкой, боковой карман
 			var strap := col.darkened(0.35)
@@ -362,9 +395,9 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
 static func make_mesh(id: String) -> Node3D:
-	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter"]:
+	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club"]:
 		var w := Weapons.make(id)
-		if id in ["bat", "pipe", "crowbar", "machete", "knife"]:
+		if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "shiv", "spiked_club"]:
 			w.rotation.z = PI / 2   # на полу оружие лежит
 		return w
 	var col: Color = ITEMS[id]["color"] if ITEMS.has(id) else Color.WHITE
