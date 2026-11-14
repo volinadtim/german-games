@@ -186,10 +186,10 @@ func _begin(role: String, p: Vector2) -> void:
 		"look":
 			pass
 		"attack_left", "attack_right":
-			# удар этой рукой; кулаки опущены — player.attack сам поднимет их и ударит
+			# держишь кнопку — копится заряд, отпустил — удар (кулаки опущены — поднимутся сами)
 			held[role] = true
 			if player:
-				player.attack(0 if role == "attack_left" else 1)
+				player.charge_begin(0 if role == "attack_left" else 1)
 		"fists":
 			held[role] = true
 			if player:
@@ -206,7 +206,10 @@ func _end(role: String) -> void:
 			stick_on = false
 			for a in ["move_left", "move_right", "move_forward", "move_back", "sprint"]:
 				Input.action_release(a)
-		"look", "attack_left", "attack_right", "fists":
+		"attack_left", "attack_right":
+			if player:
+				player.charge_release(0 if role == "attack_left" else 1)
+		"look", "fists":
 			pass
 		_:
 			_send(role, false)

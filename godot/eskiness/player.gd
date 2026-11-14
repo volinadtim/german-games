@@ -1,7 +1,8 @@
 extends CharacterBody3D
 ## Игрок от первого лица: тело видно, если посмотреть вниз.
-## WASD, Shift — бег, пробел — прыжок, V — боевая стойка (руки в стойку), ЛКМ — удар левой, ПКМ — удар правой
-## (промпт 14.11 18:57; без стойки удар сам поднимает кулаки и бьёт).
+## WASD, Shift — бег, пробел — прыжок, V — боевая стойка (руки в стойку), СКМ — убрать стойку,
+## ЛКМ — удар левой, ПКМ — удар правой; зажать — заряд до 1.5 с (промпты 18:57, 19:06, 19:09).
+## Без стойки ЛКМ/ПКМ только поднимают кулаки, удара нет (промпт 19:08).
 
 const Sfx := preload("res://sfx.gd")
 ## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы; по траве — step_grass.
@@ -783,16 +784,27 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	# отпустил кнопку удара — удар с накопленным зарядом (отпускание ловим и без захвата мыши)
+	if event.is_action_released("attack_left"):
+		charge_release(0)
+		return
+	if event.is_action_released("attack_right"):
+		charge_release(1)
+		return
 	if event is InputEventMouseMotion and captured:
 		look(event.relative)
 	elif event is InputEventMouseButton and event.pressed and not captured:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif captured and event.is_action_pressed("fists") and not event.is_echo():
 		toggle_fists()
-	elif captured and event.is_action_pressed("attack_left"):
-		attack(0)
-	elif captured and event.is_action_pressed("attack_right"):
-		attack(1)
+	elif captured and event.is_action_pressed("fists_down") and not event.is_echo():
+		if fists:
+			charging = -1
+			toggle_fists()   # СКМ — только убрать стойку (промпт 19:09)
+	elif captured and event.is_action_pressed("attack_left") and not event.is_echo():
+		charge_begin(0)
+	elif captured and event.is_action_pressed("attack_right") and not event.is_echo():
+		charge_begin(1)
 
 
 ## Чувствительность обзора (множитель из настроек меню) и скорость поворота стрелками, рад/с.
@@ -893,30 +905,122 @@ func toggle_fists() -> void:
 	voice_player.play()
 
 
-## Удар рукой arm (0 — левая, ЛКМ; 1 — правая, ПКМ). Кулаки опущены — сначала поднимает их,
-## удар следует сам, как только стойка встанет. В руке оружие (или щит) — бьёт им.
+## Удар рукой arm (0 — левая, ЛКМ; 1 — правая, ПКМ) без заряда. Кулаки опущены — только поднимает их.
+## В руке оружие (или щит) — бьёт им.
 func attack(arm: int) -> void:
 	if punching:
 		return
 	if not fists:
 		toggle_fists()
-		_queued_arm = arm
-		get_tree().create_timer(0.32).timeout.connect(func():
-			if fists and _queued_arm == arm:
-				_queued_arm = -1
-				punch(arm))
 		return
 	punch(arm)
 
 
 var _queued_arm := -1
 
+# ---------- заряженный удар (промпт 14.11 19:06) ----------
+## Зажал ЛКМ/ПКМ — рука отводится назад и копит заряд до CHARGE_MAX с; отпустил — удар.
+## Урон без случайности: база × (1 + CHARGE_GAIN × заряд) — короткий клик ×1, полный заряд ×2.5.
+## Отдача врага считается от урона (enemy.gd) — тоже растёт. Полоска заряда — над хотбаром (_charge_draw).
+const CHARGE_MAX := 1.5
+const CHARGE_GAIN := 1.5
+const TAP_T := 0.12            # короче — обычный удар без заряда
+const PUNCH_BASE := 8.0        # урон кулака (вид удара на урон больше не влияет)
+var charging := -1             # какая рука копит заряд (-1 — никакая)
+var charge_t := 0.0            # сколько копит (с), считается только с поднятыми кулаками
+var strike_charge := 0.0       # заряд удара, который сейчас летит (0..1) — для _check_hit
+var charge_ui: Control
+var charge_ui_a := 0.0         # прозрачность полоски (плавно появляется и гаснет)
+var charge_ui_k := 0.0         # что показывает полоска (0..1)
 
-## arm = -1 — рука выбирается сама (чередование; экранные кнопки и старый код).
-func punch(arm := -1) -> void:
+
+func charge_frac() -> float:
+	return clampf((charge_t - TAP_T) / (CHARGE_MAX - TAP_T), 0.0, 1.0)
+
+
+## Нажал кнопку удара. Кулаки опущены — только поднимаем их, без удара и заряда (промпт 19:08);
+## следующее нажатие, уже в стойке, копит заряд.
+func charge_begin(arm: int) -> void:
+	if charging >= 0 or not active:
+		return
+	if not fists:
+		toggle_fists()
+		return
+	charging = arm
+	charge_t = 0.0
+
+
+## Отпустил: удар этой рукой с накопленным зарядом (кулаки ещё поднимаются — ударит, как поднимутся).
+func charge_release(arm: int) -> void:
+	if charging != arm:
+		return
+	charging = -1
+	var c := charge_frac()
+	reach[arm] = 0.0
+	if fists and fist_blend >= 0.9:
+		punch(arm, c)
+	else:
+		_queued_arm = arm
+		get_tree().create_timer(0.32).timeout.connect(func():
+			if fists and _queued_arm == arm:
+				_queued_arm = -1
+				punch(arm, c))
+
+
+func _charge_tick(delta: float) -> void:
+	if charging >= 0:
+		if punching or not fists:
+			if not fists and fist_blend < 0.05 and not punching:
+				charging = -1   # кулаки опустили (V) — заряд сброшен
+		elif fist_blend >= 0.9:
+			charge_t = minf(charge_t + delta, CHARGE_MAX)
+			# замах тянется: плечо уходит назад
+			reach[charging] = -0.09 * charge_frac()
+		charge_ui_k = charge_frac()
+	var want := 1.0 if charging >= 0 and charge_t > TAP_T else 0.0
+	charge_ui_a = move_toward(charge_ui_a, want, delta * (6.0 if want > 0.0 else 3.0))
+	if charge_ui:
+		charge_ui.visible = charge_ui_a > 0.01
+		if charge_ui.visible:
+			charge_ui.queue_redraw()
+
+
+func _make_charge_ui() -> void:
+	var cl := CanvasLayer.new()
+	cl.layer = 1
+	add_child(cl)
+	charge_ui = Control.new()
+	charge_ui.set_anchors_preset(Control.PRESET_FULL_RECT)
+	charge_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	charge_ui.visible = false
+	charge_ui.draw.connect(_charge_draw)
+	cl.add_child(charge_ui)
+
+
+## Тонкая белая полоска над хотбаром (хотбар hud.gd: ячейки 64, отступ снизу 18).
+func _charge_draw() -> void:
+	var sz := charge_ui.size
+	var w := 240.0
+	var h := 5.0
+	var x0 := sz.x / 2.0 - w / 2.0
+	var y0 := sz.y - 64.0 - 18.0 - 16.0
+	var a := charge_ui_a
+	var full := charge_ui_k >= 0.999
+	charge_ui.draw_rect(Rect2(x0 - 2, y0 - 2, w + 4, h + 4), Color(0, 0, 0, 0.55 * a))
+	charge_ui.draw_rect(Rect2(x0, y0, w, h), Color(1, 1, 1, 0.12 * a))
+	charge_ui.draw_rect(Rect2(x0, y0, w * charge_ui_k, h), Color(1, 1, 1, 0.9 * a))
+	if full:
+		# максимум: пульсирующее свечение вокруг
+		var p := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 3.0)
+		charge_ui.draw_rect(Rect2(x0 - 4, y0 - 4, w + 8, h + 8), Color(1, 1, 1, (0.25 + 0.45 * p) * a), false, 2.0)
+
+
+## arm = -1 — рука выбирается сама (чередование; старый код). charge — заряд удара 0..1.
+func punch(arm := -1, charge := 0.0) -> void:
 	if punching or fist_blend < 0.9:
 		return
 	punching = true
+	strike_charge = charge
 	var i := arm
 	if i < 0:
 		# рука: с шансом 75% другая, чем в прошлый раз
@@ -1083,13 +1187,13 @@ func _check_hit(arm: int, kind := "straight") -> void:
 		# урон врагам/манекену (тестовые механики, см. game.gd): у цели должен быть take_hit(урон, направление)
 		if hit.collider.has_method("take_hit"):
 			var mult: float = Weapons.WEAPONS[wid]["mult"] if armed else dmg_mult
-			var dmg: float = PUNCH_DMG.get(kind, 8.0) * mult * HAND_DMG[arm]
+			# без случайности (промпт 19:06): вид удара и криты на урон не влияют, растёт только от заряда
+			var dmg: float = PUNCH_BASE * mult * HAND_DMG[arm] * (1.0 + CHARGE_GAIN * strike_charge)
 			# ящик кулаками ломается медленно (~10 ударов)
 			if not armed and hit.collider is StaticBody3D and str(hit.collider.get("kind")) == "crate":
 				dmg *= 0.45
-			if randf() < HAND_CRIT[arm]:
-				dmg *= CRIT_MULT
-				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.35, 0), "КРИТ!", Color(1.0, 0.25, 0.15))
+			if strike_charge >= 0.999:
+				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.35, 0), "МОЩНО!", Color(1.0, 0.9, 0.7))
 			hit.collider.take_hit(dmg, -cam.global_transform.basis.z)
 		# лёгкая отдача в камеру
 		# короткий «дёрг» камеры: крен в сторону руки и кивок, оружием — сильнее
@@ -1218,6 +1322,9 @@ func _play(p: AudioStreamPlayer, set_: Array, db: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if charge_ui == null:
+		_make_charge_ui()
+	_charge_tick(delta)
 	if trail_mesh.is_empty():
 		_make_trails()
 	for i in 2:

@@ -195,7 +195,6 @@ func set_worn(on: bool, instant := false) -> void:
 	voice.pitch_scale = 0.72 if worn else 0.9
 	voice.play()
 	breath_t = 1.4
-	game.hud.toast("Нюхич надет" if worn else "Нюхич снят", Color(0.75, 0.85, 0.7))
 
 
 func _outside() -> float:
