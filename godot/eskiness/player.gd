@@ -139,6 +139,7 @@ var skel: Skeleton3D
 var rig_rel: Basis                 # поворот скелета относительно игрока (без масштаба)
 var bone_map: Array = []          # [кость, узел-драйвер, опорный базис, рука (-1 — нет), кисть?]
 var finger_bones: Array = []      # [кость, поворот расслабленной кисти, поворот в кулаке]
+var finger_arm: Array[int] = []   # чья это кость пальца: 0 — левая рука, 1 — правая
 var spine_bone := -1
 var clav_bones: Array[int] = [-1, -1]
 var hands: Array[Node3D] = []     # драйверы кистей
@@ -541,7 +542,10 @@ func _build_model() -> void:
 			bone_map.append([skel.find_bone(e[0] + s), e[1], ref, arm, e[0] == "hand", e[0] in ["thigh", "calf", "foot"]])
 		clav_bones[i] = skel.find_bone("clavicle" + s)
 		# пальцы: ось сгиба — поперёк пальца, к ладони (ладонь в A-позе смотрит вниз, -Z скелета)
+		var nf := finger_bones.size()
 		_build_fist_pose(s)
+		for _k in finger_bones.size() - nf:
+			finger_arm.append(i)
 		# точка кулака для следа и попаданий — на кости кисти
 		var att := BoneAttachment3D.new()
 		att.bone_name = "hand" + s
@@ -723,6 +727,9 @@ func _apply_bones() -> void:
 		var f: Array = finger_bones[n]
 		# шевелит пальцами — каждый палец сгибается в своём ритме
 		var b := clampf(fist_blend + wig * (0.22 + 0.22 * sin(idle_time * 13.0 + float(n) * 1.7)), 0.0, 1.0)
+		# заряд удара: на второй руке кулак слегка раскрывается (пальцы полусогнуты) — в ожидании удара
+		if n < finger_arm.size() and finger_arm[n] != charge_arm and charge_vis > 0.0:
+			b *= 1.0 - 0.8 * smoothstep(0.0, 1.0, charge_vis)
 		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], b))
 	_flex_weapons()
 
@@ -932,6 +939,11 @@ var strike_charge := 0.0       # заряд удара, который сейч�
 var charge_ui: Control
 var charge_ui_a := 0.0         # прозрачность полоски (плавно появляется и гаснет)
 var charge_ui_k := 0.0         # что показывает полоска (0..1)
+var charge_vis := 0.0          # сколько заряда видно в позе рук (плавно догоняет заряд, после удара плавно уходит)
+var charge_arm := -1           # какая рука заряжает (для позы); вторая — раскрытая ладонь впереди
+## Поза при полном заряде (добавка к стойке, градусы как у GUARDS: подъём, внутрь, в сторону, локоть).
+const CHARGE_POSE := Vector4(-6, -6, 7, 11)       # рука удара: отведена назад-вниз и в сторону, локоть чуть согнут (в кадре — у правого нижнего края)
+const CHARGE_OTHER := Vector4(16, -6, 4, -30)      # вторая рука: вперёд и чуть в сторону, локоть почти разогнут
 
 
 ## Цель удара получает урон или ломается: враги, манекен, целый кувшин, ящик. Автомат, сейф, сундук и т.п. — нет.
@@ -976,7 +988,8 @@ func charge_release(arm: int) -> void:
 		return
 	charging = -1
 	var c := charge_frac()
-	reach[arm] = 0.0
+	# выпад плеча удара начнётся с оттянутого положения (так удар хлёстче); вторая рука плавно возвращается
+	create_tween().tween_method(_reach_setter(1 - arm), reach[1 - arm], 0.0, 0.2).set_trans(Tween.TRANS_SINE)
 	if fists and fist_blend >= 0.9:
 		punch(arm, c)
 	else:
@@ -994,9 +1007,23 @@ func _charge_tick(delta: float) -> void:
 				charging = -1   # кулаки опустили (V) — заряд сброшен
 		elif fist_blend >= 0.9:
 			charge_t = minf(charge_t + delta, CHARGE_MAX)
-			# замах тянется: плечо уходит назад
-			reach[charging] = -0.09 * charge_frac()
+			# замах тянется: плечо уходит назад (корпус поворачивается за счёт разницы выпадов плеч)
+			var kk := smoothstep(0.0, 1.0, charge_frac())
+			var heavy := 1.3 if weapon_ids[charging] != "" else 1.0
+			reach[charging] = -0.05 * kk * heavy
+			reach[1 - charging] = 0.02 * kk
 		charge_ui_k = charge_frac()
+	# поза рук догоняет заряд; после удара плавно возвращается
+	if charging >= 0:
+		charge_arm = charging
+		charge_vis = lerpf(charge_vis, charge_frac(), 1.0 - exp(-10.0 * delta))
+	else:
+		charge_vis = move_toward(charge_vis, 0.0, delta * 5.0)
+		if charge_vis <= 0.0:
+			charge_arm = -1
+		if not punching:
+			for i in 2:   # заряд отменён без удара — плечи плавно на место
+				reach[i] = move_toward(reach[i], 0.0, delta * 0.8)
 	var want := 1.0 if charging >= 0 and charge_t > TAP_T else 0.0
 	charge_ui_a = move_toward(charge_ui_a, want, delta * (6.0 if want > 0.0 else 3.0))
 	if charge_ui:
@@ -1485,6 +1512,17 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
 		var p: Vector4 = arm_pose[i]
+		# заряд удара (промпт 19:32): рука удара оттягивается к щеке, вторая выдвигается вперёд раскрытой ладонью
+		if charge_arm >= 0 and charge_vis > 0.0:
+			var ck := smoothstep(0.0, 1.0, charge_vis)
+			if i == charge_arm:
+				var hv := 1.3 if weapon_ids[i] != "" else 1.0   # с оружием замах сильнее
+				p += CHARGE_POSE * ck * hv
+				if charge_vis > 0.97 and charging >= 0:
+					# на максимуме — лёгкая дрожь от напряжения
+					p += Vector4(sin(idle_time * 41.0) * 1.6, 0, cos(idle_time * 37.0) * 1.2, sin(idle_time * 47.0) * 1.4)
+			else:
+				p += CHARGE_OTHER * ck
 		# рука качается навстречу противоположной ноге
 		var arm_swing := clampf(-foot[1 - i].z * 1.1, -0.6, 0.6) * (1.0 - fist_blend)
 		var guard_bob := deg_to_rad(sin(phase + float(i)) * 3.0 * amt * fist_blend + box_ph * 2.5)
