@@ -625,13 +625,7 @@ var bleed_t := 0.0
 
 func _glass(delta: float) -> void:
 	glass_cd -= delta
-	# сапоги стираются от ходьбы: 1 прочности за 8 м
-	var pp0 := player.global_position
-	if inv.equip["feet"] != "" and player.is_on_floor() and last_feet_pos != Vector3.INF:
-		var step := Vector2(pp0.x - last_feet_pos.x, pp0.z - last_feet_pos.z).length()
-		if step < 1.0:
-			_wear("feet", step / 8.0)
-	last_feet_pos = pp0
+	# сапоги от ходьбы больше не стираются (14.11 21:13) — только стекло и удары врагов
 	if bleed_t > 0.0:
 		bleed_t = maxf(bleed_t - delta, 0.0)
 		drain_hp(BLEED_DPS * delta)
@@ -662,7 +656,7 @@ func _glass(delta: float) -> void:
 
 # ---------- прочность (промпт 21:46) ----------
 
-## Попадание по врагу/манекену/ящику: изнашивается оружие в бьющей руке (player.last_arm).
+## Попадание по врагу/ящику/кувшину (не манекену): изнашивается оружие в бьющей руке (player.last_arm).
 func weapon_hit() -> void:
 	if player == null or player.last_arm < 0:
 		return
@@ -762,8 +756,8 @@ func damage_player(amount: float, from: Vector3) -> void:
 		Fx.popup_text(self, player.global_position + Vector3(0, 1.4, 0) - player.global_transform.basis.z * 0.8, "БЛОК", Color(0.6, 0.85, 1.0))
 		return
 	amount *= buff_mult("resist") * (1.0 - gear_armor())
-	# одежда с защитой изнашивается от ударов (чинит ремкомплект одежды)
-	for sl in ["head", "body", "legs"]:
+	# одежда изнашивается только от вражеских ударов, камней, прыжков (чинит ремкомплект одежды)
+	for sl in ["head", "body", "legs", "feet"]:
 		_wear(sl, 1.0)
 	hp = maxf(hp - amount, 0.0)
 	hud.set_hp(hp, MAX_HP)

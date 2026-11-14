@@ -98,8 +98,7 @@ func _physics_process(delta: float) -> void:
 
 
 func take_hit(dmg: float, dir: Vector3) -> void:
-	if game:
-		game.weapon_hit()
+	# манекен не тратит прочность оружия (14.11 21:13)
 	var local := global_transform.basis.inverse() * dir
 	ang_v += Vector2(local.z, -local.x) * (2.0 + dmg * 0.08)
 	combo += dmg

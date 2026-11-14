@@ -26,7 +26,7 @@ const ITEMS := {
 	"knuckles": {"name": "Кастет", "desc": "Руки: удар кулаком ×1.5.", "stack": 1,
 		"icon": "knuckles", "color": Color(0.58, 0.58, 0.6), "equip": "hands", "fist": 1.5},
 	# одежда (магазин снаряжения): слот и небольшой эффект
-	# каска, ватник, штаны изнашиваются от ударов по игроку (game.gd: damage_player), сапоги — от ходьбы и стекла
+	# каска, ватник, штаны изнашиваются от ударов по игроку (game.gd: damage_player), сапоги — от ударов и стекла (не от ходьбы)
 	"helmet": {"name": "Каска", "desc": "Голова: −10% урона. Изнашивается от ударов.", "stack": 1,
 		"icon": "helmet", "color": Color(0.78, 0.6, 0.15), "equip": "head", "armor": 0.10, "dur": 60},
 	"jacket": {"name": "Ватник", "desc": "Тело: −15% урона. Изнашивается от ударов.", "stack": 1,
@@ -150,7 +150,7 @@ static func repairable(id: String) -> String:
 	return "gear" if ITEMS[id].has("equip") else ""
 
 
-## Прочность предмета (0 — вечный): оружие ломается от ударов, сапоги — от ходьбы и стекла.
+## Прочность предмета (0 — вечный): оружие ломается от ударов, сапоги — от ударов и стекла (не от ходьбы).
 static func max_dur(id: String) -> float:
 	return float(ITEMS[id].get("dur", 0)) if ITEMS.has(id) else 0.0
 
