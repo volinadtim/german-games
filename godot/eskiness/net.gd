@@ -33,6 +33,15 @@ var udp_in: PacketPeerUDP
 var bc_t := 0.0
 var last_msg := ""         # сообщение для лобби после выхода в меню (хост отключился и т.п.)
 var game                   # game.gd, пока идёт сетевая игра (этап 2)
+var bye := {}              # peer_id -> true: попрощался сам (вышел), а не пропал по таймауту
+var host_bye := false      # клиент: хост сам закрыл комнату
+var last_seen := {}        # peer_id -> время (с) последнего пакета позиции — для «связь прерывается»
+## Таймауты ENet. По умолчанию ENet рвёт связь уже через ~5 с без ответа: хватает подвисания Wi-Fi
+## (энергосбережение телефона/роутера), сворачивания игры на телефоне или долгого кадра при загрузке.
+## Теперь: не раньше 20 с тишины, наверняка — через 60 с.
+const TIMEOUT_LIMIT := 64
+const TIMEOUT_MIN := 20000
+const TIMEOUT_MAX := 60000
 
 
 static func ensure(tree: SceneTree) -> Node:
@@ -182,18 +191,30 @@ func host(p: int) -> Error:
 
 
 func _on_peer_connected(id: int) -> void:
+	_lenient(id)
 	if hosting:
 		pass   # ждём rq_hello с именем
 	_peer_joined(id)
 
 
+func _lenient(id: int) -> void:
+	if peer:
+		var pp := peer.get_peer(id)
+		if pp:
+			pp.set_timeout(TIMEOUT_LIMIT, TIMEOUT_MIN, TIMEOUT_MAX)
+			pp.ping_interval(500)
+
+
 func _on_peer_disconnected(id: int) -> void:
+	last_seen.erase(id)
 	if players.has(id):
 		var nm: String = players[id]
+		var lost := not bye.has(id)
+		bye.erase(id)
 		players.erase(id)
 		if hosting:
 			_send_players()
-		_peer_left(id, nm)
+		_peer_left(id, nm, lost)
 	lobby_changed.emit()
 
 
@@ -216,6 +237,14 @@ func rq_hello(nm: String, ver: int) -> void:
 	players[id] = nm
 	_send_players()
 	lobby_changed.emit()
+
+
+@rpc("any_peer", "reliable")
+func rq_bye() -> void:
+	var id := multiplayer.get_remote_sender_id()
+	bye[id] = true
+	if id == 1:
+		host_bye = true
 
 
 func _drop_later(id: int) -> void:
@@ -261,6 +290,8 @@ func join(ip: String, p: int) -> Error:
 
 
 func _on_connected() -> void:
+	_lenient(1)
+	host_bye = false
 	joining = false
 	connected = true
 	status.emit("Подключено. Ждём, пока хост начнёт игру…", false)
@@ -280,7 +311,8 @@ func _on_server_gone() -> void:
 	var was_game := in_game
 	var g = game
 	_close_peer()
-	last_msg = "Хост отключился"
+	last_msg = "Хост закрыл комнату" if host_bye else "Связь с хостом пропала (нет ответа по сети больше 20 с)"
+	host_bye = false
 	status.emit(last_msg, true)
 	lobby_changed.emit()
 	if was_game:
@@ -289,6 +321,9 @@ func _on_server_gone() -> void:
 
 ## Выйти из комнаты / закрыть её.
 func leave() -> void:
+	if peer and (hosting or connected):
+		rpc("rq_bye")   # другие узнают, что вышли сами, а не пропала связь
+		peer.host.flush()
 	_close_peer()
 	lobby_changed.emit()
 
@@ -466,14 +501,14 @@ func _peer_joined(_id: int) -> void:
 	pass
 
 
-func _peer_left(id: int, nm: String) -> void:
+func _peer_left(id: int, nm: String, lost := false) -> void:
 	if puppets.has(id):
 		if is_instance_valid(puppets[id]):
 			puppets[id].queue_free()
 		puppets.erase(id)
 	targets.erase(id)
 	if game and is_instance_valid(game):
-		game.hud.toast("%s вышел из игры" % nm, Color(0.85, 0.7, 0.5))
+		game.hud.toast(("%s отключился: пропала связь" if lost else "%s вышел из игры") % nm, Color(0.85, 0.7, 0.5))
 
 
 func _host_lost_in_game(g) -> void:
@@ -491,6 +526,7 @@ func _net_reset() -> void:
 	pickups = {}
 	pending_world = {}
 	early = []
+	last_seen = {}
 	dead_t = -1.0
 	if ui and is_instance_valid(ui):
 		ui.queue_free()
@@ -659,7 +695,14 @@ func _game_tick(delta: float) -> void:
 	if ui_t <= 0.0:
 		ui_t = 0.5
 		var pm := ping_ms()
-		ping_l.text = ("пинг %d мс" % pm if pm >= 0 else "пинг —") + "  ·  игроков %d" % players.size()
+		var txt := ("пинг %d мс" % pm if pm >= 0 else "пинг —") + "  ·  игроков %d" % players.size()
+		var now := Time.get_ticks_msec() / 1000.0
+		for id in last_seen:
+			var gap: float = now - float(last_seen[id])
+			if gap > 2.0:
+				txt += "
+нет связи с %s %d с…" % [String(players.get(id, "?")), int(gap)]
+		ping_l.text = txt
 
 
 func _make_ui() -> void:
@@ -698,6 +741,7 @@ func _make_ui() -> void:
 @rpc("any_peer", "unreliable_ordered", "call_remote", 1)
 func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: String, w1: String) -> void:
 	var id := multiplayer.get_remote_sender_id()
+	last_seen[id] = Time.get_ticks_msec() / 1000.0
 	var pp = puppets.get(id)
 	if pp == null or not is_instance_valid(pp):
 		return
