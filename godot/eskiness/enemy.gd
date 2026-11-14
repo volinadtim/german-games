@@ -117,7 +117,7 @@ func _apply_kind() -> void:
 		attack_range = 0.95
 		hit_range = 1.3
 		damage = 8.0         # было 6
-		max_hp = 43.0        # было 32
+		max_hp = 34.0        # было 43 (−20%, промпт 14.11 20:33)
 		windup_t = 0.3
 		cool_t = 0.8
 		height = 1.45
