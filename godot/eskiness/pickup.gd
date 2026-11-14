@@ -1,9 +1,10 @@
 extends RigidBody3D
 ## Предмет на полу (тестовые механики): физическое тельце. Подбирается на E издалека (до ~2.8 м):
 ## game.gd ищет лежащий предмет под прицелом, подсказка «[E] Взять: …», предмет летит к игроку.
-## И любые вещи подбираются сами, если встать на них / подойти ближе 1 м (промпт 18:44), не раньше чем через 1.5 с
-## после появления. Выброшенное игроком (и не взятое из окна лута) поднимается само только после того,
-## как игрок отойдёт и вернётся. Сумка полна — сообщение не чаще раза в 3 с (game.collect).
+## И любые вещи подбираются сами, если встать на них / подойти ближе 1 м (промпт 18:44) — сразу, без задержки.
+## Выброшенное самим игроком (и не взятое из окна лута) само не подбирается никогда — только по E (промпт 19:03).
+## Лежит 3.5 минуты, последние 5 с мигает и исчезает; ключ от машины не исчезает (промпт 19:04).
+## Сумка полна — сообщение не чаще раза в 3 с (game.collect).
 
 const Items := preload("res://items.gd")
 const PickupMesh := preload("res://pickup_mesh.gd")
@@ -13,7 +14,10 @@ var game  # game.gd
 var id := "coin"
 var n := 1
 var age := 0.0
-var need_leave := false
+var need_leave := false   # выбросил сам игрок — сам не подбирается никогда, только по E (промпт 19:03; в сейве)
+const LIFE := 210.0       # лежит на полу 3.5 мин, потом исчезает (промпт 19:04; ключ от машины — никогда)
+const FADE := 5.0         # последние секунды мигает
+var life := LIFE          # сколько осталось (в сейве)
 var taken := false   # уже летит к игроку (в сохранение не попадает)
 var model: Node3D
 var model_base := Vector3.ZERO   # положение визуала без подъёма
@@ -71,15 +75,20 @@ func _physics_process(delta: float) -> void:
 		if age > 0.3 and (slow_t > 0.25 or age > 4.0):
 			_settle()
 		_guard_fall()
-	if taken or game == null or not game.alive or age < 1.5:
+	if not taken and id != "car_key":
+		life -= delta
+		if life <= 0.0:
+			queue_free()
+			return
+		if life < FADE:
+			# мигает всё чаще перед исчезновением
+			model.visible = fmod(life, 0.1 + 0.3 * life / FADE) > 0.08
+	# подбор вплотную — каждый кадр по расстоянию, сразу (стоишь рядом — вещь подлетит, едва упав)
+	if taken or need_leave or game == null or not game.alive or age < 0.15:
 		return
 	var pp: Vector3 = game.player.global_position
 	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()
 	var dy := global_position.y - pp.y
-	if need_leave:
-		if d > 1.6:
-			need_leave = false
-		return
 	if d < 1.0 and dy > -0.4 and dy < 1.9:
 		var left: int = game.collect(id, n, self)
 		if left <= 0:

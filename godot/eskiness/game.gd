@@ -1338,7 +1338,8 @@ func save_state() -> Dictionary:
 	for n in get_children():
 		if n is Pickup and is_instance_valid(n) and not n.is_queued_for_deletion() and not n.taken:
 			floor_items.append({"id": n.id, "n": n.n, "pos": _v3(n.global_position),
-				"dur": float(n.get_meta("dur", -1.0)), "dropped": bool(n.get_meta("dropped", false))})
+				"dur": float(n.get_meta("dur", -1.0)), "dropped": bool(n.get_meta("dropped", false)),
+				"manual": n.need_leave, "ttl": n.life})
 	var alive_hunters := 0
 	for h in hunters:
 		if is_instance_valid(h):
@@ -1474,6 +1475,8 @@ func load_state(d: Dictionary) -> void:
 			p.set_meta("dur", float(it["dur"]))
 		if bool(it.get("dropped", false)):
 			p.set_meta("dropped", true)
+		p.need_leave = bool(it.get("manual", it.get("dropped", false)))   # выброшенное игроком — только по E
+		p.life = float(it.get("ttl", Pickup.LIFE))
 	dropped_coins = int(d.get("dropped_coins", 0))
 	if storage:
 		storage.contents = []
