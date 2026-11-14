@@ -1,7 +1,7 @@
 extends StaticBody3D
 ## Магазин снаряжения «Trinkets Market» — зелёный торговый автомат слева от KILLBOX.
 ## E — открыть окно: покупка за монеты по вкладкам (промпт 14.11 17:21): «Оружие», «Одежда» (снаряжение),
-## «Улучшения автомата» (окно KILLBOX и гарантированные символы), «Расходники» (еда, хилки, батарейки);
+## «Расходники» (еда, хилки, батарейки), «Слот-Машина» (окно KILLBOX и гарантированные символы) — порядок и имя с промпта 14.11 18:35;
 ## справа — кнопка окна продажи (sell_window.gd, промпт 14.11 18:06: почти всё за полцены).
 ## Интерфейс взаимодействия (его дёргает game.gd): get_prompt(game) -> String, interact(game).
 
@@ -19,7 +19,7 @@ var tab := 0                  # открытая вкладка (TABS)
 var tab_btns: Array[Button] = []
 var content: VBoxContainer    # содержимое вкладки — пересобирается при переключении и покупке
 
-const TABS := ["Оружие", "Одежда", "Улучшения автомата", "Расходники"]
+const TABS := ["Оружие", "Одежда", "Расходники", "Слот-Машина"]
 ## расходники (промпт 14.11 17:21): [id, цена]. Батарейки и сухари — дёшево, хилки дороже.
 ## Экономика: старт 50 монет, кувшин даёт 1–4, хлам продаётся за 2–5.
 const CONSUMABLES := [["battery", 3], ["rusk", 2], ["water", 3], ["soda", 5], ["choco", 5], ["canned", 6],
@@ -350,19 +350,6 @@ func _build_ui() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 6)
 	cols.add_child(box)
-	# продажа (промпт 14.11 18:06): правая колонка — кнопка отдельного окна «сумка | на продажу»
-	var sell_col := VBoxContainer.new()
-	sell_col.add_theme_constant_override("separation", 8)
-	sell_col.custom_minimum_size = Vector2(240, 0)
-	cols.add_child(sell_col)
-	sell_col.add_child(_label("ПРОДАЖА", 28, Color(1.0, 0.6, 0.35)))
-	sell_col.add_child(_label("Магазин берёт почти любые вещи за полцены от своей цены (округляем в твою пользу). Побитое оружие и одежда — дешевле.", 15, Color(0.65, 0.63, 0.58)))
-	var sell_b := Button.new()
-	sell_b.text = "Продать вещи…"
-	sell_b.focus_mode = Control.FOCUS_NONE
-	sell_b.add_theme_font_size_override("font_size", 20)
-	sell_b.pressed.connect(_open_sell)
-	sell_col.add_child(sell_b)
 	var head := _label("TRINKETS MARKET", 30, Color(0.55, 1.0, 0.6))
 	head.add_theme_font_override("font", sign_font())
 	box.add_child(head)
@@ -392,7 +379,7 @@ func _build_ui() -> void:
 		tb.pressed.connect(_show_tab.bind(i))
 		tabs.add_child(tb)
 		tab_btns.append(tb)
-	# вкладка прокручивается, если не влезает (на «Улучшениях автомата» много строк)
+	# вкладка прокручивается, если не влезает (на «Слот-Машине» много строк)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(680, 420)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -414,6 +401,15 @@ func _build_ui() -> void:
 	close.add_theme_font_size_override("font_size", 20)
 	close.pressed.connect(_close)
 	bottom.add_child(close)
+	# продажа (промпты 14.11 18:06, 18:35): кнопка в правом нижнем углу, пояснения — в самом окне продажи
+	var sell_b := Button.new()
+	sell_b.text = "Продать вещи…"
+	sell_b.custom_minimum_size = Vector2(220, 0)
+	sell_b.focus_mode = Control.FOCUS_NONE
+	sell_b.add_theme_font_size_override("font_size", 20)
+	sell_b.add_theme_color_override("font_color", Color(1.0, 0.7, 0.45))
+	sell_b.pressed.connect(_open_sell)
+	bottom.add_child(sell_b)
 
 
 ## Шрифт вывески «Trinkets Market» (промпт 14.11 17:19): узкий жирный «вывесочный» —
@@ -467,11 +463,11 @@ func _rebuild_tab() -> void:
 				if Items.ITEMS[id].get("weapon", false) == (tab == 0):
 					grid.add_child(_goods_row(id, int(e[1])))
 		2:
-			_build_slot_tab()
-		3:
 			var grid := _grid()
 			for e in CONSUMABLES:
 				grid.add_child(_goods_row(String(e[0]), int(e[1])))
+		3:
+			_build_slot_tab()
 
 
 func _grid() -> GridContainer:
@@ -510,7 +506,7 @@ func _goods_row(id: String, price: int) -> HBoxContainer:
 	return row
 
 
-## Вкладка «Улучшения автомата»: прокачка окна KILLBOX (1×3 → 3×5) и гарантированные символы.
+## Вкладка «Слот-Машина»: прокачка окна KILLBOX (1×3 → 3×5) и гарантированные символы.
 func _build_slot_tab() -> void:
 	var SM := preload("res://slot_machine.gd")
 	var SymS := preload("res://slot_symbols.gd")
