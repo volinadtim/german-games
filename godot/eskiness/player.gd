@@ -214,6 +214,7 @@ var inhale_snd: AudioStreamWAV
 var exhale_out_snd: AudioStreamWAV   # опускание рук — тот же вдох задом наперёд
 var last_arm := -1
 var gun   # gun.gd (ставит game.gd)
+var game   # game.gd (ставит game.gd): пока открыто окно — клик не захватывает мышь
 var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали
 var head_bone := -1
 var THUMB_CURL := [0.0, 0.0, 40.0, 45.0]   # обхватывает кулак поперёк, поверх пальцев (цель — снаружи средних фаланг)
@@ -823,7 +824,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and captured:
 		look(event.relative)
 	elif event is InputEventMouseButton and event.pressed and not captured:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		# клик мимо кнопок инвентаря/лута/магазина не должен прятать курсор (баг 14.11 20:05)
+		if game == null or not game.window_open():
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif captured and event.is_action_pressed("fists") and not event.is_echo():
 		toggle_fists()
 	elif captured and event.is_action_pressed("fists_down") and not event.is_echo():

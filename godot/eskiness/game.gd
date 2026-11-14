@@ -130,6 +130,7 @@ func setup(p: Player) -> void:
 	gun.game = self
 	add_child(gun)
 	player.gun = gun
+	player.game = self
 	gasmask = GasMask.new()
 	gasmask.game = self
 	add_child(gasmask)
@@ -493,6 +494,13 @@ func _add_keys(action: String, keys: Array) -> void:
 
 
 # ---------- взаимодействие ----------
+
+## Пока открыто любое окно (инвентарь, лут, магазин, продажа, автомат) — курсор всегда виден:
+## кто бы ни вернул захват (закрытие подокна, клик, стойка), снимаем его (баг 14.11 20:05).
+func _process(_delta: float) -> void:
+	if alive and window_open() and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
 
 func _physics_process(delta: float) -> void:
 	full_toast_t -= delta
