@@ -85,6 +85,9 @@ const ITEMS := {
 		"icon": "gasmask", "color": Color(0.22, 0.25, 0.2), "equip": "face"},
 	"filter": {"name": "Фильтр", "desc": "Сменный фильтр для Нюхича: 100 секунд наверху.", "stack": 10,
 		"icon": "filter", "color": Color(0.36, 0.38, 0.3)},
+	# ключ от ржавой машины на поляне (car.gd) — лежит в сейфе; завести машину и уехать = победа
+	"car_key": {"name": "Ключ от машины", "desc": "От старой легковушки на поляне. Подойди к ней — [E] завести и уехать.", "stack": 1,
+		"icon": "car_key", "color": Color(0.7, 0.55, 0.25), "quest": true},
 }
 
 
@@ -312,6 +315,28 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				pts.append(c + Vector2(cos(a), sin(a)) * s * 0.3)
 			ci.draw_colored_polygon(pts, col)
 			ci.draw_circle(c, s * 0.12, Color(0.08, 0.08, 0.08))
+		"car_key":
+			# ключ по диагонали: чёрная пластмассовая головка, стальное жало с бородкой, кольцо и латунная бирка
+			var d := Vector2(1, 1).normalized()          # вдоль жала
+			var n := Vector2(-d.y, d.x)                  # поперёк
+			var hc := c - d * s * 0.12
+			var head := PackedVector2Array([hc - d * s * 0.14 - n * s * 0.12, hc + d * s * 0.06 - n * s * 0.12,
+				hc + d * s * 0.06 + n * s * 0.12, hc - d * s * 0.14 + n * s * 0.12])
+			ci.draw_colored_polygon(head, Color(0.08, 0.08, 0.08))
+			ci.draw_line(hc - d * s * 0.1 - n * s * 0.08, hc - d * s * 0.1 + n * s * 0.08, Color(0.3, 0.3, 0.3), maxf(1.0, s * 0.03))
+			var b0 := hc + d * s * 0.06
+			var b1 := b0 + d * s * 0.36
+			var steel := Color(0.72, 0.73, 0.72)
+			ci.draw_colored_polygon(PackedVector2Array([b0 - n * s * 0.05, b1 - n * s * 0.05, b1 + d * s * 0.03, b1 + n * s * 0.03, b0 + n * s * 0.05]), steel)
+			for k in 3:
+				var tp := b0.lerp(b1, 0.3 + 0.22 * k)
+				ci.draw_colored_polygon(PackedVector2Array([tp + n * s * 0.04, tp + d * s * 0.04 + n * s * 0.1, tp + d * s * 0.08 + n * s * 0.04]), steel.darkened(0.15))
+			ci.draw_line(b0, b1, steel.darkened(0.35), maxf(1.0, s * 0.02))
+			var rc := hc - d * s * 0.2
+			ci.draw_arc(rc, s * 0.08, 0.0, TAU, 16, Color(0.6, 0.6, 0.58), maxf(1.5, s * 0.03), true)
+			var tg := rc + Vector2(-s * 0.12, s * 0.02)
+			ci.draw_rect(Rect2(tg - Vector2(s * 0.08, 0), Vector2(s * 0.13, s * 0.2)), col)
+			ci.draw_circle(tg + Vector2(-s * 0.015, s * 0.04), s * 0.02, Color(0.1, 0.08, 0.05))
 
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).

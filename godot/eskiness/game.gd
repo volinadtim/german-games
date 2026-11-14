@@ -26,6 +26,10 @@ const Shop := preload("res://shop.gd")
 const GasMask := preload("res://gasmask.gd")
 const Sfx := preload("res://sfx.gd")
 const Sfx2 := preload("res://sfx_extra.gd")
+const Car := preload("res://car.gd")
+var car   # старая машина на поляне (car.gd): ключ в сейфе, уехать = победа
+var play_time := 0.0   # сколько играл (для экрана победы, в сейве)
+var won := false
 
 # включение механик
 const USE_ENEMIES := true
@@ -84,6 +88,7 @@ func setup(p: Player) -> void:
 	hud.inv = inv
 	hud.set_hp(hp, MAX_HP)
 	hud.restart_pressed.connect(restart)
+	hud.menu_pressed.connect(to_main_menu)
 
 	if USE_FLASHLIGHT:
 		flashlight = Flashlight.new()
@@ -111,7 +116,7 @@ func setup(p: Player) -> void:
 		safe.kind = "safe"
 		safe.locked = true
 		safe.random_loot = false
-		safe.extra = [["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
+		safe.extra = [["car_key", 1], ["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
 		safe.position = Vector3(11.5, 0.0, 7.0)
 		safe.rotation.y = -PI / 2.0
 		add_child(safe)
@@ -154,6 +159,15 @@ func setup(p: Player) -> void:
 	glass_floor.generate()
 	for sp in glass_floor.spots:
 		_make_pickup("glass", 1, (sp[0] as Vector3) + Vector3(0.2, 0.1, 0.2), Vector3.ZERO)
+	# старая машина на поляне — до кувшинов, чтобы они её обходили
+	var surf_node: Node = get_parent().get_node_or_null("Level/Surface")
+	if surf_node:
+		car = Car.new()
+		car.game = self
+		car.surface = surf_node
+		car.position = Surface.CAR_POS
+		car.rotation.y = Surface.CAR_YAW
+		add_child(car)
 	if USE_CHESTS:
 		_random_jars()
 	shop = get_parent().get_node_or_null("Shop") as Shop
@@ -267,7 +281,7 @@ func _spawn_outside_jar(check_player: bool) -> bool:
 		var ang := randf() * TAU
 		var rad := randf_range(2.0, Surface.MEADOW_R + 3.0)
 		var p := Surface.CENTER + Vector3(cos(ang), 0, sin(ang)) * rad
-		if Surface.in_hut(p, 1.0):
+		if Surface.in_hut(p, 1.0) or Vector2(p.x - Surface.CAR_POS.x, p.z - Surface.CAR_POS.z).length() < Surface.CAR_R:
 			continue
 		if check_player and player and Vector2(p.x - player.global_position.x, p.z - player.global_position.z).length() < 6.0:
 			continue
@@ -440,6 +454,8 @@ func _add_keys(action: String, keys: Array) -> void:
 
 func _physics_process(delta: float) -> void:
 	full_toast_t -= delta
+	if alive:
+		play_time += delta
 	_outside_jar_tick(delta)
 	autosave_t -= delta
 	if autosave_t <= 0.0:
@@ -732,6 +748,36 @@ func _die() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+## Сел в машину (car.gd): игрок больше не управляется, враги и отрава его не трогают, HUD прячется.
+func begin_escape() -> void:
+	alive = false
+	won = true
+	player.active = false
+	inv.close()
+	inv.enabled = false
+	if loot_window and loot_window.open:
+		loot_window.close()
+	hud.set_cinematic(true)
+	if gasmask:
+		gasmask.visible = false
+	for n in get_parent().get_children():
+		if n.get_script() == preload("res://touch_controls.gd"):
+			n.visible = false
+
+
+## Машина уехала: экран победы со статистикой.
+func win() -> void:
+	var s := int(play_time)
+	hud.show_win("Время: %d:%02d   ·   Монет: %d" % [s / 60, s % 60, inv.coins])
+
+
+## «В главное меню» с экрана победы.
+func to_main_menu() -> void:
+	get_tree().paused = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	get_tree().reload_current_scene()
+
+
 ## «Начать заново»: полный сброс — сцена перезагружается и сразу стартует игра (main.gd), минуя меню.
 func restart() -> void:
 	Engine.set_meta("eskiness_autostart", true)
@@ -838,6 +884,8 @@ func use_item(idx: int) -> void:
 		hud.toast("Фильтр ставится сам")
 	elif id == "coin":
 		pass
+	elif id == "car_key":
+		hud.toast("Ключ от машины на поляне — подойди к ней и нажми E")
 	elif id == "wallet":
 		inv.take_at(idx, 1)
 		var c := randi_range(10, 40)
@@ -1297,6 +1345,7 @@ func save_state() -> Dictionary:
 		"cheat_count": cheat_count,
 		"markup_pending": markup_pending,
 		"slot_tray": slot.tray_coins if slot else 0,
+		"play_time": play_time,
 	}
 
 
@@ -1400,6 +1449,16 @@ func load_state(d: Dictionary) -> void:
 			if it.size() > 2:
 				e.append(float(it[2]))
 			storage.contents.append(e)
+	play_time = float(d.get("play_time", 0.0))
+	# сейвы до машины: сейф уже открыт, а ключа нигде нет — кладём его в сейф
+	if safe and safe.opened:
+		var has_key := inv.count("car_key") > 0
+		for arr in [safe.contents, storage.contents if storage else [], d.get("floor", []).map(func(x): return [String(x.get("id", ""))])]:
+			for it in arr:
+				if String(it[0]) == "car_key":
+					has_key = true
+		if not has_key:
+			safe.contents.append(["car_key", 1])
 	if d.has("glass"):
 		glass_floor.from_save(d["glass"])
 	if slot:

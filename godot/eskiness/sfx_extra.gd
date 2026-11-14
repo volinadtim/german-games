@@ -228,3 +228,97 @@ static func dread() -> AudioStreamWAV:
 		v += hiss.bp(w) * we * (0.6 + 0.4 * sin(TAU * 9.0 * t)) * 0.7
 		buf[i] = v
 	return Sfx._wav(buf, 0.9)
+
+
+## Старая машина заводится (car.gd), ~5.6 с: две неудачные попытки стартера «чух-чух-чух»
+## (аккумулятор подсел — вторая медленнее), третья схватывает: мотор чихает, рокочет,
+## перегазовка и неровный холостой ход.
+const STARTER_CATCH := 3.55   # на какой секунде мотор завёлся (car.gd трясёт машину и пускает дым)
+static func starter() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	var dur := 5.6
+	var buf := _buf(dur)
+	var cranks := [[0.0, 0.85, 5.6], [1.25, 0.95, 4.6], [2.55, 1.0, 5.3]]   # начало, длительность, «чухов» в секунду
+	var chuh := Sfx.Svf.new(520.0, 1.3)
+	var body := Sfx.Svf.new(140.0, 1.6)
+	var exh := Sfx.Svf.new(260.0, 1.1)
+	var ph_m := 0.0
+	var ph_c := 0.0
+	var ph_e := 0.0
+	var since := 1.0
+	var lp := 0.0
+	for i in buf.size():
+		var t := float(i) / RATE
+		var w := rng.randf() * 2.0 - 1.0
+		var v := 0.0
+		# стартер: визг моторчика, тормозится на каждом сжатии; «чух» — шумовой выдох после сжатия
+		for c in cranks:
+			var tl := t - float(c[0])
+			if tl < 0.0 or tl > float(c[1]):
+				continue
+			var env := smoothstep(0.0, 0.05, tl) * (1.0 - smoothstep(float(c[1]) - 0.08, float(c[1]), tl))
+			ph_c += float(c[2]) * (0.9 + 0.2 * tl) / RATE
+			var comp := pow(0.5 + 0.5 * cos(TAU * ph_c), 6.0)          # 1 — поршень упёрся
+			var fm := 190.0 * (1.0 - 0.35 * comp)
+			ph_m = fmod(ph_m + fm / RATE, 1.0)
+			var whine := sin(TAU * ph_m) + 0.5 * sin(TAU * ph_m * 2.0) + 0.25 * sin(TAU * ph_m * 3.0)
+			var rel := pow(0.5 + 0.5 * cos(TAU * (ph_c - 0.18)), 10.0)  # сразу после сжатия
+			v += whine * 0.16 * env * (0.6 + 0.4 * comp)
+			v += chuh.bp(w) * rel * env * 1.6
+			v += body.bp(w * rel) * env * 1.2
+		# мотор: вспышки цилиндров — глухие толчки с шумом выхлопа
+		if t > STARTER_CATCH:
+			var te := t - STARTER_CATCH
+			# сначала чихает редко, потом перегазовка и неровный холостой
+			var ff := lerpf(9.0, 46.0, smoothstep(0.0, 0.7, te)) * (1.0 - 0.38 * smoothstep(0.9, 1.6, te))
+			ff *= 1.0 + 0.08 * sin(TAU * 1.3 * te) + 0.05 * sin(TAU * 3.1 * te)
+			ph_e += ff / RATE
+			if ph_e >= 1.0:
+				ph_e -= 1.0
+				since = 0.0
+				if rng.randf() < 0.07 and te > 0.6:
+					since = 0.5       # пропуск зажигания — старый мотор
+			since += 1.0 / RATE
+			var thump := sin(TAU * 62.0 * since) * exp(-since * 38.0)
+			var env_e := smoothstep(0.0, 0.08, te) * (1.0 - smoothstep(dur - 0.4, dur, t))
+			lp += (w - lp) * 0.08
+			v += (thump * 0.9 + exh.bp(w * exp(-since * 25.0)) * 1.5 + lp * 0.25) * env_e
+		buf[i] = v
+	return Sfx._wav(buf, 0.85)
+
+
+## Рокот мотора на ходу: бесшовная петля 2 с (car.gd крутит её, поднимая pitch_scale при разгоне).
+static func engine_loop() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4343
+	var period := RATE / 30     # 30 вспышек в секунду: за 2 с ровно 60, петля сходится
+	var total := RATE * 3
+	var exh := Sfx.Svf.new(240.0, 1.1)
+	var lp := 0.0
+	var raw := PackedFloat32Array()
+	raw.resize(total)
+	for i in total:
+		var since := float(i % period) / RATE
+		var w := rng.randf() * 2.0 - 1.0
+		lp += (w - lp) * 0.07
+		var thump := sin(TAU * 58.0 * since) * exp(-since * 34.0)
+		raw[i] = thump * 0.8 + exh.bp(w * exp(-since * 22.0)) * 1.4 + lp * 0.3
+	# берём последние 2 с — фильтры уже «разогреты», края петли совпадают по фазе вспышек
+	var n := RATE * 2
+	var peak := 0.0001
+	for i in n:
+		peak = maxf(peak, absf(raw[total - n + i]))
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	for i in n:
+		data.encode_s16(i * 2, int(clampf(raw[total - n + i] / peak * 0.8, -1.0, 1.0) * 32000.0))
+	var st := AudioStreamWAV.new()
+	st.format = AudioStreamWAV.FORMAT_16_BITS
+	st.mix_rate = RATE
+	st.stereo = false
+	st.data = data
+	st.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	st.loop_begin = 0
+	st.loop_end = n
+	return st

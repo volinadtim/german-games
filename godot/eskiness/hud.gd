@@ -17,6 +17,7 @@ var battery := 1.0
 var light_on := false
 var has_light := false     # фонарик есть в инвентаре — показываем заряд
 signal restart_pressed
+signal menu_pressed      # экран победы → «В главное меню»
 var restart_b: Button
 var knuckles := false
 var inv  # inventory.gd — для хотбара 1–5
@@ -267,6 +268,73 @@ func show_death(on: bool) -> void:
 	var tw := create_tween().set_parallel()
 	tw.tween_property(death_bg, "color:a", 0.75 if on else 0.0, 1.2 if on else 0.6)
 	tw.tween_property(death_l, "modulate:a", 1.0 if on else 0.0, 1.5 if on else 0.4)
+
+
+## Кат-сцена (отъезд на машине, car.gd): прячем полоски, хотбар, прицел и сообщения.
+func set_cinematic(on: bool) -> void:
+	paint.visible = not on
+	prompt_l.visible = not on
+	toasts.visible = not on
+	big_toasts.visible = not on
+	cheat_l.visible = cheat_l.visible and not on
+
+
+## Экран победы: экран темнеет, «ТЫ ВЫБРАЛСЯ», статистика и кнопки «В главное меню» / «Начать заново».
+func show_win(stats: String) -> void:
+	set_cinematic(true)
+	var root: Control = paint.get_parent()
+	var bg := ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.0, 0.0, 0.0, 0.0)
+	root.add_child(bg)
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 14)
+	box.modulate.a = 0.0
+	root.add_child(box)
+	var title := Label.new()
+	title.text = "ТЫ ВЫБРАЛСЯ"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 84)
+	title.add_theme_color_override("font_color", Color(0.92, 0.78, 0.5))
+	title.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	title.add_theme_constant_override("outline_size", 10)
+	box.add_child(title)
+	var sub := Label.new()
+	sub.text = "Старая машина завелась с третьего раза и увезла тебя прочь от бункера."
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.add_theme_font_size_override("font_size", 22)
+	sub.add_theme_color_override("font_color", Color(0.72, 0.68, 0.6))
+	box.add_child(sub)
+	var st := Label.new()
+	st.text = stats
+	st.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	st.add_theme_font_size_override("font_size", 24)
+	st.add_theme_color_override("font_color", Color(0.85, 0.82, 0.74))
+	box.add_child(st)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 18)
+	box.add_child(gap)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 24)
+	box.add_child(row)
+	for b in [["В главное меню", func(): menu_pressed.emit()], ["Начать заново", func(): restart_pressed.emit()]]:
+		var bt := Button.new()
+		bt.text = b[0]
+		bt.custom_minimum_size = Vector2(300, 60)
+		bt.add_theme_font_size_override("font_size", 28)
+		bt.focus_mode = Control.FOCUS_NONE
+		bt.pressed.connect(b[1])
+		row.add_child(bt)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tw := create_tween()
+	tw.tween_property(bg, "color:a", 1.0, 2.2)
+	tw.tween_property(box, "modulate:a", 1.0, 1.2)
+	tw.tween_callback(func(): Input.mouse_mode = Input.MOUSE_MODE_VISIBLE)
 
 
 func _paint() -> void:

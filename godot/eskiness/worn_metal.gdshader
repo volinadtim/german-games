@@ -15,12 +15,13 @@ uniform float wear = 0.3;      // доля облупившейся краски
 uniform float rust = 0.6;
 uniform float dust = 0.6;
 uniform float base_y = 0.0;    // уровень пола — у пола больше грязи и сколов
+uniform vec3 origin_shift = vec3(0.0);  // сдвиг движущегося предмета (машина, car.gd) — чтобы краска не «плыла»
 
 varying vec3 wpos;
 varying vec3 wnrm;
 
 void vertex() {
-	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz - origin_shift;
 	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
 }
 

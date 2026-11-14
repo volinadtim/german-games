@@ -24,6 +24,10 @@ const HUT_X0 := 14.6                   # западная стена будки
 const HUT_H := 2.4                     # высота будки над землёй (до потолка)
 ## прямоугольник будки (x0, x1, z0, z1) — враги туда не заходят
 const HUT := Rect2(14.4, -2.2, 7.0, 4.4)
+## старая машина (car.gd): к северо-востоку от выхода из будки, между руинами; перед — по CAR_YAW
+const CAR_POS := Vector3(31.0, G, 9.5)
+const CAR_YAW := 0.35
+const CAR_R := 3.0                     # радиус, где не ставим кувшины и арматуру
 
 var level: Node3D
 var env: Environment
@@ -307,7 +311,7 @@ func _ruins() -> void:
 	rebar.roughness = 0.8
 	for k in 14:
 		var p := CENTER + Vector3(rng.randf_range(-16, 16), 0, rng.randf_range(-16, 16))
-		if _rect_dist(p.x, p.z) < 2.0:
+		if _rect_dist(p.x, p.z) < 2.0 or Vector2(p.x - CAR_POS.x, p.z - CAR_POS.z).length() < CAR_R:
 			continue
 		var cm := CylinderMesh.new()
 		cm.top_radius = 0.015
