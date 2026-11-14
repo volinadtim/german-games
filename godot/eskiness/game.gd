@@ -39,6 +39,7 @@ const START := Vector3(-10.5, 0.05, 0.0)
 ## враги бродят по поляне наверху (выход из бункера — лестница в восточном торце коридора)
 const ENEMY_SPOTS := [Vector3(28.0, 4.1, 7.0), Vector3(36.0, 4.1, -6.0), Vector3(40.0, 4.1, 4.0), Vector3(31.0, 4.1, -10.0)]
 const RESPAWN := 40.0
+const FAST_SHARE := 0.4   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
 
 var player: Player
 var hud: Hud
@@ -365,6 +366,7 @@ func _bunker_chest_spot() -> Array:
 func _spawn_enemy(pos: Vector3) -> void:
 	var e := Enemy.new()
 	e.game = self
+	e.kind = "fast" if randf() < FAST_SHARE else "heavy"   # смешанные типы (промпт 14.11 18:08)
 	e.position = pos
 	e.rotation.y = randf_range(0, TAU)
 	add_child(e)
