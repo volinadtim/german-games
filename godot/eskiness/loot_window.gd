@@ -128,6 +128,9 @@ func _ready() -> void:
 	var sc := VBoxContainer.new()
 	cols.add_child(sc)
 	title = _label("", 28, Color(0.95, 0.8, 0.5))
+	title.clip_text = true
+	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	title.custom_minimum_size = Vector2(5 * 76, 0)
 	sc.add_child(title)
 	src_grid = _pane(sc, "src")
 	bag_col = VBoxContainer.new()
@@ -136,6 +139,8 @@ func _ready() -> void:
 	bag_grid = _pane(bag_col, "bag")
 	cols.move_child(bag_col, 0)  # сумка слева, сундук справа (промпт 14.11 16:43)
 	info = _label("", 15, Color(0.7, 0.68, 0.62))
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.custom_minimum_size = Vector2(5 * 76, 2 * 20)
 	v.add_child(info)
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 10)
@@ -164,6 +169,7 @@ func _label(t: String, size: int, col: Color) -> Label:
 	return l
 
 
+## Колонка фиксированного размера (промпт 14.11 19:28): 5 × 4 клетки, больше — прокрутка, окно не растёт.
 func _pane(parent: Control, side: String) -> GridContainer:
 	var p := Pane.new()
 	p.lw = self
@@ -172,13 +178,18 @@ func _pane(parent: Control, side: String) -> GridContainer:
 	st.bg_color = Color(0, 0, 0, 0.3)
 	st.set_content_margin_all(6)
 	p.add_theme_stylebox_override("panel", st)
-	p.custom_minimum_size = Vector2(5 * 76, 2 * 76)
+	p.custom_minimum_size = Vector2(5 * 76 + 14, 4 * 76)
 	parent.add_child(p)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.mouse_filter = Control.MOUSE_FILTER_PASS
+	p.add_child(sc)
 	var g := GridContainer.new()
 	g.columns = 5
+	g.mouse_filter = Control.MOUSE_FILTER_PASS
 	g.add_theme_constant_override("h_separation", 6)
 	g.add_theme_constant_override("v_separation", 6)
-	p.add_child(g)
+	sc.add_child(g)
 	return g
 
 

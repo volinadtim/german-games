@@ -187,13 +187,18 @@ func _pane(parent: Control, side: String) -> GridContainer:
 	st.bg_color = Color(0, 0, 0, 0.3)
 	st.set_content_margin_all(6)
 	p.add_theme_stylebox_override("panel", st)
-	p.custom_minimum_size = Vector2(5 * 76, 3 * 76)
+	p.custom_minimum_size = Vector2(5 * 76 + 14, 3 * 76)   # фиксированно: больше — прокрутка (промпт 14.11 19:28)
 	parent.add_child(p)
+	var sc := ScrollContainer.new()
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.mouse_filter = Control.MOUSE_FILTER_PASS
+	p.add_child(sc)
 	var g := GridContainer.new()
 	g.columns = 5
+	g.mouse_filter = Control.MOUSE_FILTER_PASS
 	g.add_theme_constant_override("h_separation", 6)
 	g.add_theme_constant_override("v_separation", 6)
-	p.add_child(g)
+	sc.add_child(g)
 	return g
 
 

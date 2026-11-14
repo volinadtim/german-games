@@ -321,6 +321,7 @@ func _build_ui() -> void:
 	root.add_child(shade)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.offset_bottom = -92   # окно — над хотбаром (ячейки 1–5 внизу остаются видны для перетаскивания)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(center)
 	var panel := PanelContainer.new()
@@ -329,7 +330,7 @@ func _build_ui() -> void:
 	st.border_color = Color(1, 1, 1, 0.14)
 	st.set_border_width_all(1)
 	st.set_corner_radius_all(3)
-	st.set_content_margin_all(22)
+	st.set_content_margin_all(14)
 	panel.add_theme_stylebox_override("panel", st)
 	center.add_child(panel)
 	var hb := HBoxContainer.new()
@@ -363,6 +364,7 @@ func _build_ui() -> void:
 	grid.columns = COLS
 	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 6)
+	grid.custom_minimum_size = Vector2(0, (SLOT + 6) * 3 - 6)   # место под 3 ряда: с рюкзаком окно не растёт
 	vb.add_child(grid)
 	for i in BAG_MAX:
 		var s := Slot.new()
@@ -379,6 +381,7 @@ func _build_ui() -> void:
 	wi.custom_minimum_size = Vector2(30, 30)
 	wallet.add_child(wi)
 	wallet_l = _label("", 20, Color(0.92, 0.8, 0.5))
+	wallet_l.custom_minimum_size = Vector2(170, 0)
 	wallet.add_child(wallet_l)
 	var wb := Button.new()
 	wb.text = "Выбросить монеты"
@@ -387,11 +390,19 @@ func _build_ui() -> void:
 	wb.pressed.connect(open_drop_dialog.bind("coin"))
 	wallet.add_child(wb)
 	vb.add_child(wallet)
+	# название и описание фиксированного размера (промпт 14.11 19:28): окно не прыгает при наведении
 	info_name = _label(" ", 21, Color(0.9, 0.82, 0.62))
+	info_name.clip_text = true
+	info_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	info_name.custom_minimum_size = Vector2(COLS * (SLOT + 6), 30)
 	vb.add_child(info_name)
 	info_desc = _label(" ", 16, Color(0.72, 0.71, 0.67))
 	info_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info_desc.custom_minimum_size = Vector2(COLS * (SLOT + 6), 42)
+	info_desc.max_lines_visible = 3
+	info_desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	info_desc.clip_text = true
+	info_desc.custom_minimum_size = Vector2(COLS * (SLOT + 6), 3 * 27)
+	info_desc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	vb.add_child(info_desc)
 	var hint_text := "ЛКМ — использовать    ПКМ — действия    Tab — закрыть\nShift+ПКМ — выбросить 1 (держать — всю стопку)\nЗа окно — выбросить    На ячейки 1–5 внизу — хотбар"
 	if preload("res://touch_controls.gd").wanted():
@@ -407,8 +418,8 @@ func _build_ui() -> void:
 	cb.add_child(_label("КРАФТ", 34, Color(0.86, 0.85, 0.8)))
 	# рецептов много (молоток и что им делается) — список прокручивается
 	var cscroll := ScrollContainer.new()
-	cscroll.custom_minimum_size = Vector2(290, 400)
-	cscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cscroll.custom_minimum_size = Vector2(290, 380)
+	cscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER   # длинные подписи не расширяют окно
 	cb.add_child(cscroll)
 	craft_box = VBoxContainer.new()
 	craft_box.add_theme_constant_override("separation", 8)
@@ -443,6 +454,9 @@ func _build_drop_dialog() -> void:
 	v.add_theme_constant_override("separation", 12)
 	dlg.add_child(v)
 	dlg_title = _label("", 22, Color(0.92, 0.88, 0.75))
+	dlg_title.clip_text = true
+	dlg_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	dlg_title.custom_minimum_size = Vector2(400, 0)
 	v.add_child(dlg_title)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
@@ -532,7 +546,12 @@ func _rebuild_craft() -> void:
 		ic.id = out
 		ic.custom_minimum_size = Vector2(48, 48)
 		row.add_child(ic)
-		row.add_child(_label(Items.item_name(out), 20, Color(0.92, 0.88, 0.75)))
+		var on := _label(Items.item_name(out), 20, Color(0.92, 0.88, 0.75))
+		on.clip_text = true
+		on.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		on.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		on.custom_minimum_size.x = 60
+		row.add_child(on)
 		craft_box.add_child(row)
 		var ok := true
 		var need: Dictionary = rec["need"]
@@ -736,6 +755,9 @@ func open_menu(key, at: Vector2) -> void:
 			acts.append(["Выбросить всё", "drop_all"])
 	acts.append(["Отмена", "cancel"])
 	var tl := _label(title, 15, Color(0.75, 0.7, 0.6))
+	tl.clip_text = true
+	tl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	tl.custom_minimum_size = Vector2(190, 0)
 	menu_box.add_child(tl)
 	# пункта «На хотбар» нет (промпт 14.11 19:20) — на хотбар только перетаскиванием
 	for a in acts:
