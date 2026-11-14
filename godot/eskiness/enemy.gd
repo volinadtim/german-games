@@ -463,6 +463,7 @@ func _dash(delta: float) -> float:
 
 ## Шаги врага (промпт 14.11 17:26): тяжёлые, ниже по тону, чем у игрока; шаг — каждые ~0.7 м пройденного пути.
 var _step_dist := 0.0
+var _last_ph_step := 0
 func _footsteps(_delta: float) -> void:
 	if not is_on_floor() or game == null or not game.snd.has("estep"):
 		return
@@ -477,10 +478,12 @@ func _footsteps(_delta: float) -> void:
 			_step_dist = 0.0
 			game.play_at("estep", global_position + Vector3(0, 0.05, 0), -17.0 + minf(hv, 4.0) * 0.5, randf_range(1.15, 1.4))
 		return
-	var stride := 0.7 if hv < 3.0 else 0.95
-	if _step_dist >= stride:
-		_step_dist = 0.0
-		game.play_at("estep", global_position + Vector3(0, 0.05, 0), -9.0 + minf(hv, 4.0), randf_range(0.62, 0.78))
+	# тяжёлый: шаг — строго когда нога ставится на землю по анимации (walk_ph проходит каждые π),
+	# а не по пройденному пути — так звук не обгоняет медленную походку (промпт 14.11 18:41)
+	var ph_step := int(floor(walk_ph / PI))
+	if ph_step != _last_ph_step:
+		_last_ph_step = ph_step
+		game.play_at("estep", global_position + Vector3(0, 0.05, 0), -9.0 + minf(hv, 4.0), randf_range(0.58, 0.7))
 
 
 ## Сделать охотником (наказание за мухлёж): гонится всегда, без привязи к дому и поляне.
