@@ -81,6 +81,10 @@ var luck := {}                   # гарантированный символ -
 var level := MAX_LEVEL           # прокачка окна (1..MAX_LEVEL), хранится в сейве; в меню — всё открыто
 var shutters: Array = []         # заслонки закрытых клеток: [ряд][барабан]
 var pack_up: Button              # кнопка прокачки в окне покупки круток
+var tray_coins := 0              # выигрыш, лежащий в лотке (в сейве); забирается на E
+var tray_shown := 0              # сколько монеток горки сейчас видно
+var tray_meshes: Array[MeshInstance3D] = []
+var tray_target: StaticBody3D    # отдельная цель взгляда — лоток
 var board_sv: SubViewport        # доска выплат — перерисовывается при прокачке
 var board_art: Control
 var pack_ui: CanvasLayer
@@ -749,6 +753,7 @@ func _build_extras(body: Material, trim: Material, black: Material) -> void:
 	_arch_skull(body, trim, black)
 	_cage_lamps(trim)
 	_maw(trim, black)
+	_build_tray()
 	_grilles(trim, black)
 	_braces(body, trim)
 	_rivets(trim)
@@ -1222,6 +1227,8 @@ func _draw_board(ci: Control) -> void:
 
 
 func get_prompt(_game) -> String:
+	if tray_coins > 0 and not busy:
+		return "[E] Забрать %d монет" % tray_coins
 	if busy:
 		return ""
 	return "[E] Крутить KILLBOX (осталось %d)" % credits if credits > 0 else "[E] KILLBOX — купить крутки"
@@ -1230,6 +1237,10 @@ func get_prompt(_game) -> String:
 func interact(g) -> void:
 	game = g
 	if busy:
+		return
+	# пока в лотке монеты — E сначала забирает их
+	if tray_coins > 0:
+		take_tray()
 		return
 	if credits <= 0:
 		_open_packs()
@@ -1381,10 +1392,9 @@ func _payout() -> void:
 	if win > 0:
 		msg = (msg + " · ") if msg != "" else ""
 		msg += "+%d" % win
-		var tray := rig.global_transform * Vector3(0, 0.45, 0.4)
-		var fwd := global_transform.basis.z
-		game.spawn_loot("coin", win, tray, fwd * 1.2 + Vector3(0, 1.2, 0), 0.5)
-		game.hud.toast("KILLBOX: +%d" % win, Color(1.0, 0.8, 0.4))
+		# выигрыш со звоном высыпается в лоток-«пасть», забирать на E (промпт 14.11 17:53)
+		_pour(win)
+		game.hud.toast("KILLBOX: +%d — монеты в лотке" % win, Color(1.0, 0.8, 0.4))
 	if sevens or win >= 30:
 		party = 2.5
 		snd2.stream = game.snd["jingle"][0]
@@ -1675,3 +1685,110 @@ func add_luck(sym: String) -> void:
 	luck[sym] = int(luck.get(sym, 0)) + int(LUCK[sym][0])
 	screen.text = ""
 	_update_screen_hint()
+
+
+# ---------- лоток с выигрышем ----------
+
+## Лоток в «пасти»: горка до TRAY_MAX маленьких золотых монеток (как монеты лута) на дне,
+## и отдельная цель взгляда перед пастью (TrayTarget) — подсказка «[E] Забрать N монет».
+## Если лоток пуст, цель ведёт себя как сам автомат (крутка / окно покупки).
+const TRAY_MAX := 30
+
+
+class TrayTarget extends StaticBody3D:
+	var slot
+
+	func get_prompt(g) -> String:
+		return slot.get_prompt(g)
+
+	func interact(g) -> void:
+		slot.interact(g)
+
+
+func _build_tray() -> void:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.86, 0.66, 0.3)
+	m.metallic = 0.85
+	m.roughness = 0.35
+	m.emission_enabled = true
+	m.emission = Color(0.5, 0.3, 0.08)
+	m.emission_energy_multiplier = 0.25
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.017
+	cm.bottom_radius = 0.017
+	cm.height = 0.005
+	cm.radial_segments = 10
+	cm.rings = 1
+	# дно кармана за нижними зубами пасти — на нём лежит горка
+	_box(rig, Vector3(0.44, 0.012, 0.14), Vector3(0, 0.428, 0.38), _mat(Color(0.05, 0.03, 0.025)))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 404
+	for k in TRAY_MAX:
+		var c := MeshInstance3D.new()
+		c.mesh = cm
+		c.material_override = m
+		# горка: первые монеты по дну лотка, следующие — выше и ближе к середине
+		var layer := k / 12
+		var spread := 0.19 - layer * 0.05
+		c.position = Vector3(rng.randf_range(-spread, spread), 0.437 + layer * 0.007 + rng.randf_range(0.0, 0.004),
+			rng.randf_range(0.33, 0.43))
+		c.rotation = Vector3(rng.randf_range(-0.35, 0.35), rng.randf() * TAU, rng.randf_range(-0.35, 0.35))
+		c.visible = false
+		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		rig.add_child(c)
+		tray_meshes.append(c)
+	# цель взгляда: коробка перед пастью, чуть выступает из общего коллайдера автомата
+	tray_target = TrayTarget.new()
+	tray_target.slot = self
+	add_child(tray_target)
+	var cs := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(0.5 * K, 0.2 * K, 0.16 * K)
+	cs.shape = bs
+	cs.position = Vector3(0, PED + 0.42 * K, RIG_Z + 0.4 * K)
+	tray_target.add_child(cs)
+
+
+func _tray_target_count(n: int) -> int:
+	return clampi(n, 0, TRAY_MAX)
+
+
+## Сразу показать горку под сумму (загрузка сейва).
+func set_tray(n: int) -> void:
+	tray_coins = maxi(n, 0)
+	tray_shown = _tray_target_count(tray_coins)
+	for k in tray_meshes.size():
+		tray_meshes[k].visible = k < tray_shown
+
+
+## Высыпать win монет в лоток: монетки падают по одной со звоном.
+func _pour(win: int) -> void:
+	tray_coins += win
+	var want := _tray_target_count(tray_coins)
+	var tw := create_tween()
+	var k0 := tray_shown
+	tray_shown = want
+	for k in range(k0, want):
+		var c := tray_meshes[k]
+		var end := c.position
+		tw.tween_callback(func():
+			c.position = end + Vector3(0, 0.1, -0.06)
+			c.visible = true
+			if game and (k - k0) % 2 == 0:
+				game.play_at("coin", tray_target.global_position, -14.0, randf_range(0.95, 1.25)))
+		tw.tween_property(c, "position", end, 0.07).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	if want == k0 and game:   # горка уже полная — просто звон
+		game.play_at("coin", tray_target.global_position, -10.0)
+
+
+## Забрать всё из лотка в кошелёк.
+func take_tray() -> void:
+	if tray_coins <= 0 or game == null:
+		return
+	var n := tray_coins
+	var left: int = game.inv.add("coin", n)
+	set_tray(left)
+	game.play_ui("coin", -8.0, 1.05)
+	game.hud.toast("+%d монет" % (n - left), Color(1.0, 0.8, 0.4))
+	if game.has_method("save_now"):
+		game.save_now()

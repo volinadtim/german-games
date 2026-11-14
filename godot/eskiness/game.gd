@@ -129,6 +129,7 @@ func setup(p: Player) -> void:
 		slot.credits = 0
 		slot.luck = {}
 		slot.set_level(1)
+		slot.set_tray(0)
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
 	var tape := TapeSpot.new()
 	tape.game = self
@@ -1147,6 +1148,7 @@ func save_state() -> Dictionary:
 		"slot_credits": slot.credits if slot else 0,
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
 		"slot_level": slot.level if slot else 1,
+		"slot_tray": slot.tray_coins if slot else 0,
 	}
 
 
@@ -1248,6 +1250,7 @@ func load_state(d: Dictionary) -> void:
 				var v = lk[k]
 				slot.luck[k] = int(v[1]) if v is Array else int(v)
 		slot.set_level(int(d.get("slot_level", 1)))
+		slot.set_tray(int(d.get("slot_tray", 0)))
 		slot.screen.text = ""
 		slot._update_screen_hint()
 	var h := int(d.get("hunters", 0))
