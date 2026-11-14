@@ -1,11 +1,13 @@
 extends StaticBody3D
-## Игровой автомат KILLBOX (слоты): E — крутка за 10 монет.
-## Окно 3 ряда × 4 барабана. Барабаны — настоящие цилиндры с отпечатанной лентой символов,
-## вращаются и останавливаются по очереди. 9 линий (LINES): 3 ряда, 4 малые диагонали по 3 клетки, 2 мостика.
-## В рядах выигрывают 3–4 одинаковых подряд слева направо, на мостиках — только все 4.
-##   3 шестёрки где угодно в окне — автомат забирает все монеты, оставляет 10 (выпадают редко).
-##   3 семёрки подряд на линии — открывают сейф; если сейф уже открыт — 20 монет.
-## 4 семёрки или 4 шестёрки в окне не выпадают никогда (исключены при генерации).
+## Игровой автомат KILLBOX (слоты): E — крутка (крутки покупаются пакетами).
+## Окно 3 ряда × 5 барабанов, но открыта только часть — окно прокачивается за монеты (LEVELS):
+##   ур.1 — 1×3 (центр), 2 — 2×3, 3 — 3×3, 4 — 3×4, 5 — 3×5. Закрытые клетки — под стальными заслонками
+##   и в выигрыше не участвуют. Барабаны — настоящие цилиндры с отпечатанной лентой символов,
+## вращаются и останавливаются по очереди. Линии строятся под открытую область (lines_for):
+##   ряды (3+ одинаковых подряд), галочки (на 2×3), диагонали по 3 клетки, мостики по 4.
+##   3 шестёрки где угодно в открытом окне — автомат забирает все монеты, оставляет 10.
+##   3 семёрки на линии — открывают сейф; если сейф уже открыт — 30 монет.
+## 4+ семёрки или 4+ шестёрки в открытом окне не выпадают никогда (исключены при генерации).
 ## Справа от автомата на стене — доска выплат. Автомат стоит в тёмной комнате и мерцает.
 ## Вид: над вывеской — арка с черепом и венцом из шипов, по углам лампы в проволочных клетках,
 ## неоновые буквы KILLBOX (одна «О» барахлит), лоток для монет — «пасть» с зубами и красным жаром,
@@ -14,45 +16,42 @@ extends StaticBody3D
 const Sym := preload("res://slot_symbols.gd")
 const WornMetal := preload("res://worn_metal.gdshader")
 
-const COST := 3                  # цена одной крутки в пакете «3 за 9» (для подписей)
+const COST := 3                  # цена одной крутки в пакете «3 за 8» (для подписей)
 ## пакеты круток (промпт 23:57): [круток, монет]
 const PACKS := [[3, 8], [6, 15]]
-## баффы удачи из магазина: символ -> [прибавка к весу, круток, цена]; чем реже символ, тем дороже
+## гарантированный символ из магазина (промпт 14.11 17:18): символ -> [круток, цена].
+## Пока действует — после каждого прокрута этот символ ставится в случайную открытую клетку,
+## где его нет. Шестёрка не продаётся.
 const LUCK := {
-	"cherry": [0.3, 6, 6], "lemon": [0.4, 6, 8], "plum": [0.5, 6, 9],
-	"grape": [0.6, 6, 12], "diamond": [0.8, 3, 16], "seven": [1, 3, 20],
+	"cherry": [6, 4], "lemon": [6, 5], "plum": [6, 6],
+	"grape": [5, 7], "diamond": [4, 9], "seven": [3, 12],
 }
-const REELS := 4
+const REELS := 5
+const ROWS := 3
+## прокачка окна: LEVELS[ур-1] = [рядов, барабанов, цена перехода на этот уровень]
+const LEVELS := [[1, 3, 0], [2, 3, 40], [3, 3, 80], [3, 4, 130], [3, 5, 200]]
+const MAX_LEVEL := 5
 ## лента барабана (одна на все барабаны, у каждого свой сдвиг): семёрки далеко друг от друга,
 ## поэтому в окне одного барабана больше одной семёрки не бывает
 const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
-## Шанс символа в каждой клетке окна, %: чем ценнее, тем реже. Вес шестёрки подобран симуляцией так,
-## чтобы три шестёрки в окне выпадали ≈1% круток (промпт 23:57).
+## Шанс символа в каждой клетке окна, %: чем ценнее, тем реже.
 ## Окно разыгрывается по этим весам, затем на ленты барабанов «впечатываются» выпавшие символы.
-## Выплаты в 5 раз меньше прежних (промпт 23:57): в среднем ~1.5 монеты с крутки, выигрыш в ~33% круток.
 const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "diamond": 13.0, "seven": 10.5, "six": 3.5}
-## линии — списки клеток [ряд (0 верх), барабан]; LINE_KIND — как линия платит:
-##   row — 3 одинаковых подряд где угодно в ряду (барабаны 1–3 или 2–4) или все 4;
-##   diag — малая диагональ из 3 клеток, все 3 одинаковых; bridge — мостик, только все 4.
-const LINES := [
-	[[1, 0], [1, 1], [1, 2], [1, 3]], [[0, 0], [0, 1], [0, 2], [0, 3]], [[2, 0], [2, 1], [2, 2], [2, 3]],
-	[[0, 0], [1, 1], [2, 2]], [[0, 1], [1, 2], [2, 3]], [[2, 0], [1, 1], [0, 2]], [[2, 1], [1, 2], [0, 3]],
-	[[1, 0], [0, 1], [0, 2], [1, 3]], [[1, 0], [2, 1], [2, 2], [1, 3]],
-]
-const LINE_KIND := ["row", "row", "row", "diag", "diag", "diag", "diag", "bridge", "bridge"]
-## доля раскладов с тремя шестёрками, которые всё-таки остаются (остальные перебрасываются)
 ## шанс, что клетка повторит символ соседа слева по ряду (чаще собираются комбинации)
 const STICK := 0.15
-const SIX_KEEP := 0.35
-## выплаты за линию: символ -> {сколько подряд слева: монет}
+## выплаты за линию на окне 1×3: символ -> {сколько одинаковых: монет}
 const PAY := {
-	"cherry": {3: 4, 4: 10},
-	"lemon": {3: 6, 4: 20},
-	"plum": {3: 8, 4: 30},
-	"grape": {3: 10, 4: 50},
-	"diamond": {3: 15, 4: 150},
+	"cherry": {3: 4, 4: 8, 5: 15},
+	"lemon": {3: 6, 4: 12, 5: 25},
+	"plum": {3: 8, 4: 16, 5: 35},
+	"grape": {3: 10, 4: 25, 5: 60},
+	"diamond": {3: 15, 4: 50, 5: 120},
 	"seven": {3: 30},
 }
+## множитель выплат по уровню окна: чем больше линий, тем меньше платит каждая —
+## иначе на 3×5 автомат отдавал бы больше, чем стоит крутка (подобрано симуляцией).
+## Семёрки (сейф / 30 монет) не уменьшаются.
+const PAY_K := [1.0, 0.65, 0.6, 0.34, 0.22]
 const R := 0.19            # радиус барабана
 const RW := 0.125          # ширина барабана
 const REEL_Y := 0.98
@@ -61,30 +60,38 @@ const TEX := 64            # пикселей на символ в ленте (�
 const K := 1.3             # во сколько раз автомат больше «базового»
 const PED := 0.25          # высота подиума
 const RIG_Z := 0.1         # сдвиг вперёд, чтобы задняя стенка не уходила в стену
+## на сколько корпус шире с каждой стороны, чем у прежнего автомата на 4 барабана (пол-барабана)
+const EX := 0.0725
+const PITCH := 0.145      # шаг барабанов
 ## доска выплат на стене справа от автомата (в координатах автомата)
-const BOARD_POS := Vector3(1.45, 1.6, -0.25)
+const BOARD_POS := Vector3(1.55, 1.6, -0.25)
 const BOARD_PX := Vector2i(900, 980)
 const BOARD_M := Vector2(1.35, 1.47)
 
 var game  # game.gd (выставляет game.gd; в меню — null)
 var busy := false
 var credits := 0                 # оплаченные крутки
-var luck := {}                   # символ -> [прибавка к весу, осталось круток]
+var luck := {}                   # гарантированный символ -> осталось круток
+var level := 1                   # прокачка окна (1..MAX_LEVEL), хранится в сейве
+var shutters: Array = []         # заслонки закрытых клеток: [ряд][барабан]
+var pack_up: Button              # кнопка прокачки в окне покупки круток
+var board_sv: SubViewport        # доска выплат — перерисовывается при прокачке
+var board_art: Control
 var pack_ui: CanvasLayer
 var pack_open := false
 var pack_info: Label
 var reels: Array[Node3D] = []
 var strips: Array = []          # лента каждого барабана (12 символов), обновляется к каждой крутке
 var strip_views: Array = []     # [SubViewport, Control] на барабан — перерисовка ленты
-var stops: Array[int] = [0, 0, 0, 0]
-var last_cell: Array[int] = [0, 0, 0, 0]
-var spinning: Array[bool] = [false, false, false, false]
+var stops: Array[int] = [0, 0, 0, 0, 0]
+var last_cell: Array[int] = [0, 0, 0, 0, 0]
+var spinning: Array[bool] = [false, false, false, false, false]
 var lever: Node3D
 var bulbs: Array[StandardMaterial3D] = []
 const USE_LEDS := false     # цветные RGB-огоньки по краям корпуса (убраны по просьбе, 19:27)
 var leds: Array[StandardMaterial3D] = []
 var rig: Node3D
-var hl_cells: Array = []        # подсветка ячеек 3×4 на стекле: [ряд][барабан]
+var hl_cells: Array = []        # подсветка ячеек 3×5 на стекле: [ряд][барабан]
 var hl_lines: Array = []        # выигравшие линии последней крутки
 var hl_t := 0.0
 const HL_COLORS := [Color(1.0, 0.75, 0.25), Color(0.4, 1.0, 0.5), Color(0.4, 0.8, 1.0), Color(1.0, 0.45, 0.8), Color(1.0, 0.35, 0.2)]
@@ -185,22 +192,23 @@ func _build() -> void:
 	add_child(rig)
 	_build_extras(body, trim, black)
 	# корпус: низ, полость под барабаны (бока, задник, рамка окна), верх, вывеска
-	_box(rig, Vector3(0.8, 0.8, 0.6), Vector3(0, 0.4, 0), body)
+	var e2 := EX * 2.0
+	_box(rig, Vector3(0.8 + e2, 0.8, 0.6), Vector3(0, 0.4, 0), body)
 	for sx in [-1.0, 1.0]:
-		_box(rig, Vector3(0.1, 0.4, 0.6), Vector3(0.35 * sx, 0.98, 0), body)
-	_box(rig, Vector3(0.6, 0.4, 0.1), Vector3(0, 0.98, -0.25), black)
-	_box(rig, Vector3(0.8, 0.04, 0.6), Vector3(0, 1.18, 0), body)
-	_box(rig, Vector3(0.62, 0.05, 0.05), Vector3(0, 1.14, 0.275), trim)
-	_box(rig, Vector3(0.62, 0.05, 0.05), Vector3(0, 0.82, 0.275), trim)
-	_box(rig, Vector3(0.62, 0.035, 0.12), Vector3(0, 1.17, 0.21), black)
-	_box(rig, Vector3(0.62, 0.035, 0.12), Vector3(0, 0.79, 0.21), black)
-	for k in 3:
-		_box(rig, Vector3(0.018, 0.28, 0.04), Vector3((k - 1) * 0.145, REEL_Y, 0.275), trim)
+		_box(rig, Vector3(0.1, 0.4, 0.6), Vector3((0.35 + EX) * sx, 0.98, 0), body)
+	_box(rig, Vector3(0.6 + e2, 0.4, 0.1), Vector3(0, 0.98, -0.25), black)
+	_box(rig, Vector3(0.8 + e2, 0.04, 0.6), Vector3(0, 1.18, 0), body)
+	_box(rig, Vector3(0.62 + e2, 0.05, 0.05), Vector3(0, 1.14, 0.275), trim)
+	_box(rig, Vector3(0.62 + e2, 0.05, 0.05), Vector3(0, 0.82, 0.275), trim)
+	_box(rig, Vector3(0.62 + e2, 0.035, 0.12), Vector3(0, 1.17, 0.21), black)
+	_box(rig, Vector3(0.62 + e2, 0.035, 0.12), Vector3(0, 0.79, 0.21), black)
+	for k in REELS - 1:
+		_box(rig, Vector3(0.018, 0.28, 0.04), Vector3((k - (REELS - 2) / 2.0) * PITCH, REEL_Y, 0.275), trim)
 	for sx in [-1.0, 1.0]:
-		_box(rig, Vector3(0.025, 0.32, 0.05), Vector3(0.3 * sx, REEL_Y, 0.275), trim)
-	_box(rig, Vector3(0.86, 0.36, 0.66), Vector3(0, 1.38, 0), body)
-	_box(rig, Vector3(0.88, 0.04, 0.68), Vector3(0, 1.2, 0), trim)
-	_box(rig, Vector3(0.88, 0.04, 0.68), Vector3(0, 1.56, 0), trim)
+		_box(rig, Vector3(0.025, 0.32, 0.05), Vector3((0.3 + EX) * sx, REEL_Y, 0.275), trim)
+	_box(rig, Vector3(0.86 + e2, 0.36, 0.66), Vector3(0, 1.38, 0), body)
+	_box(rig, Vector3(0.88 + e2, 0.04, 0.68), Vector3(0, 1.2, 0), trim)
+	_box(rig, Vector3(0.88 + e2, 0.04, 0.68), Vector3(0, 1.56, 0), trim)
 
 	# барабаны: у каждого своя лента символов в SubViewport, натянутая на цилиндр
 	var reel_mats: Array = []
@@ -231,14 +239,14 @@ func _build() -> void:
 		var r := MeshInstance3D.new()
 		r.mesh = mesh
 		r.material_override = reel_mats[i]
-		r.position = Vector3((i - 1.5) * 0.145, REEL_Y, REEL_Z)
+		r.position = Vector3(_reel_x(i), REEL_Y, REEL_Z)
 		rig.add_child(r)
 		reels.append(r)
 
 	# вывеска
 	_neon_sign(trim, black)
 	screen = Label3D.new()
-	screen.text = "3 КРУТКИ — 9 · 6 — 16"
+	screen.text = "%d КРУТКИ — %d · %d — %d" % [PACKS[0][0], PACKS[0][1], PACKS[1][0], PACKS[1][1]]
 	screen.font_size = 40
 	screen.pixel_size = 0.0009
 	screen.outline_size = 0
@@ -249,7 +257,7 @@ func _build() -> void:
 	rig.add_child(screen)
 	_box(rig, Vector3(0.58, 0.1, 0.01), Vector3(-0.05, 0.71, 0.3), black)
 	# лампочки по верху вывески
-	for k in 9:
+	for k in 11:
 		var m := StandardMaterial3D.new()
 		m.albedo_color = Color(0.3, 0.2, 0.1)
 		m.emission_enabled = true
@@ -260,17 +268,17 @@ func _build() -> void:
 		sm.height = 0.044
 		b.mesh = sm
 		b.material_override = m
-		b.position = Vector3(-0.36 + k * 0.09, 1.6, 0.31)
+		b.position = Vector3(-0.45 + k * 0.09, 1.6, 0.31)
 		rig.add_child(b)
 		bulbs.append(m)
 	# прорезь для монет и лоток
-	_box(rig, Vector3(0.08, 0.1, 0.02), Vector3(0.3, 0.71, 0.305), trim)
-	_box(rig, Vector3(0.012, 0.06, 0.01), Vector3(0.3, 0.71, 0.318), black)
+	_box(rig, Vector3(0.08, 0.1, 0.02), Vector3(0.3 + EX, 0.71, 0.305), trim)
+	_box(rig, Vector3(0.012, 0.06, 0.01), Vector3(0.3 + EX, 0.71, 0.318), black)
 	_box(rig, Vector3(0.5, 0.06, 0.2), Vector3(0, 0.3, 0.36), trim)
 	_box(rig, Vector3(0.46, 0.14, 0.02), Vector3(0, 0.36, 0.45), trim)
 	# рычаг справа
 	lever = Node3D.new()
-	lever.position = Vector3(0.43, 0.9, 0.05)
+	lever.position = Vector3(0.43 + EX, 0.9, 0.05)
 	rig.add_child(lever)
 	var rod := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
@@ -289,10 +297,11 @@ func _build() -> void:
 	ball.material_override = _worn(Color(0.5, 0.07, 0.05), false, 0.15, 0.3, 0.3)
 	ball.position = Vector3(0.03, 0.46, 0)
 	lever.add_child(ball)
-	_box(rig, Vector3(0.06, 0.12, 0.12), Vector3(0.42, 0.9, 0.05), trim)
+	_box(rig, Vector3(0.06, 0.12, 0.12), Vector3(0.42 + EX, 0.9, 0.05), trim)
 
 	_build_grime()
 	_build_highlight()
+	_build_shutters()
 
 	light = OmniLight3D.new()
 	light.light_color = Color(1.0, 0.5, 0.28)
@@ -305,7 +314,7 @@ func _build() -> void:
 	var cs := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
 	var top := PED + 2.0 * K
-	shape.size = Vector3(0.9 * K, top, 0.68 * K)
+	shape.size = Vector3((0.9 + EX * 2.0) * K, top, 0.68 * K)
 	cs.shape = shape
 	cs.position = Vector3(0, top / 2.0, RIG_Z)
 	add_child(cs)
@@ -333,30 +342,187 @@ func _draw_strip(art: Control, ri: int) -> void:
 	art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.08))
 
 
-func _w(k: String) -> float:
-	var w := float(WEIGHTS[k])
-	if luck.has(k):
-		w *= 1.0 + float(luck[k][0])
-	return w
-
-
-func _weighted_symbol() -> String:
+static func _weighted_symbol() -> String:
 	var total := 0.0
 	for k in WEIGHTS:
-		total += _w(k)
+		total += float(WEIGHTS[k])
 	var r := randf() * total
 	for k in WEIGHTS:
-		r -= _w(k)
+		r -= float(WEIGHTS[k])
 		if r <= 0.0:
 			return k
 	return "cherry"
 
 
-func _random_strip() -> Array:
+static func _random_strip() -> Array:
 	var out: Array = []
 	for i in STRIP.size():
 		out.append(_weighted_symbol())
 	return out
+
+
+## Открыта ли клетка [ряд r, барабан c] на уровне прокачки lv.
+## Ряды: 1 — только средний, 2 — верхний и средний, 3 — все. Барабаны: 3 центральных (2–4),
+## на ур.4 добавляется левый, на ур.5 — правый.
+static func is_open(lv: int, r: int, c: int) -> bool:
+	var d: Array = LEVELS[clampi(lv, 1, MAX_LEVEL) - 1]
+	var rows: int = d[0]
+	var cols: int = d[1]
+	var rok := rows >= 3 or (rows == 2 and r <= 1) or (rows == 1 and r == 1)
+	var c0 := 1 if cols <= 3 else 0
+	return rok and c >= c0 and c < c0 + cols
+
+
+## Сколько символов sym в открытой части окна g.
+static func count_open(g: Array, lv: int, sym: String) -> int:
+	var n := 0
+	for r in ROWS:
+		for c in REELS:
+			if is_open(lv, r, c) and g[r][c] == sym:
+				n += 1
+	return n
+
+
+## Линии на уровне lv: [[клетки [ряд, барабан]], вид]. Только целиком в открытой области.
+##   row — открытая часть ряда, платят 3+ одинаковых подряд; v — галочка из 3 клеток (на 2×3);
+##   diag — диагональ из 3 клеток; bridge — мостик из 4, только все 4.
+static func lines_for(lv: int) -> Array:
+	var out: Array = []
+	for r in ROWS:
+		var cells: Array = []
+		for c in REELS:
+			if is_open(lv, r, c):
+				cells.append([r, c])
+		if cells.size() >= 3:
+			out.append([cells, "row"])
+	var shapes: Array = []
+	var three_rows := is_open(lv, 0, 2) and is_open(lv, 2, 2)
+	for c in REELS - 2:
+		if three_rows:
+			shapes.append([[[0, c], [1, c + 1], [2, c + 2]], "diag"])
+			shapes.append([[[2, c], [1, c + 1], [0, c + 2]], "diag"])
+		else:
+			for r in ROWS - 1:
+				shapes.append([[[r, c], [r + 1, c + 1], [r, c + 2]], "v"])
+				shapes.append([[[r + 1, c], [r, c + 1], [r + 1, c + 2]], "v"])
+	for c in REELS - 3:
+		shapes.append([[[1, c], [0, c + 1], [0, c + 2], [1, c + 3]], "bridge"])
+		shapes.append([[[1, c], [2, c + 1], [2, c + 2], [1, c + 3]], "bridge"])
+	for sh in shapes:
+		var ok := true
+		for cl in sh[0]:
+			if not is_open(lv, int(cl[0]), int(cl[1])):
+				ok = false
+		if ok:
+			out.append(sh)
+	return out
+
+
+## Гарантированный символ: ставим sym в случайную открытую клетку, где его нет.
+## Клетки уже выигравших линий не трогаем (если есть другие) — гарант только добавляет шансы.
+## Семёрку не ставим, если в окне их уже 3 (4 семёрки не бывает).
+static func _guarantee(g: Array, lv: int, sym: String) -> void:
+	if sym == "six" or (sym == "seven" and count_open(g, lv, "seven") >= 3):
+		return
+	var keep: Array = []
+	for cells in evaluate(g, lv, lines_for(lv))["lines"]:
+		keep.append_array(cells)
+	var cand: Array = []
+	var spare: Array = []
+	for r in ROWS:
+		for c in REELS:
+			if is_open(lv, r, c) and g[r][c] != sym:
+				cand.append([r, c])
+				if not keep.has([r, c]):
+					spare.append([r, c])
+	if not spare.is_empty():
+		cand = spare
+	if cand.is_empty():
+		return
+	var p: Array = cand[randi() % cand.size()]
+	g[p[0]][p[1]] = sym
+
+
+## Розыгрыш окна 3×5: каждая клетка — по весам WEIGHTS, иногда повторяет соседа слева
+## («липкость» STICK, шестёрки не липнут); затем гарантированные символы guar.
+## 4+ семёрки или 4+ шестёрки в открытой области перебрасываем.
+static func roll_window(lv: int, guar: Array) -> Array:
+	var g: Array = []
+	for attempt in 200:
+		g = []
+		for r in ROWS:
+			var row: Array = []
+			for c in REELS:
+				var s := _weighted_symbol()
+				if c > 0:
+					var left: String = row[c - 1]
+					if left != "six" and randf() < STICK:
+						s = left
+				row.append(s)
+			g.append(row)
+		for sym in guar:
+			_guarantee(g, lv, String(sym))
+		if count_open(g, lv, "seven") <= 3 and count_open(g, lv, "six") <= 3:
+			break
+	return g
+
+
+## Выплата за n символов sym на линии при уровне окна lv (0 — не платит).
+static func pay_for(sym: String, n: int, lv: int) -> int:
+	if not PAY.has(sym) or not PAY[sym].has(n):
+		return 0
+	if sym == "seven":
+		return int(PAY[sym][n])
+	return maxi(1, roundi(float(PAY[sym][n]) * float(PAY_K[clampi(lv, 1, MAX_LEVEL) - 1])))
+
+
+## Итог крутки: {"six": забирает ли автомат, "win": монет, "sevens": 3 семёрки на линии,
+## "lines": [клетки выигравших линий], "ids": номера линий}.
+static func evaluate(g: Array, lv: int, lines: Array) -> Dictionary:
+	var res := {"six": false, "win": 0, "sevens": false, "lines": [], "ids": PackedStringArray()}
+	if count_open(g, lv, "six") >= 3:
+		res["six"] = true
+		return res
+	for li in lines.size():
+		var line: Array = lines[li][0]
+		var kind: String = lines[li][1]
+		var syms: Array = []
+		for cl in line:
+			syms.append(g[int(cl[0])][int(cl[1])])
+		var sym := ""
+		var cells: Array = []
+		if kind == "row":
+			# самая длинная серия одинаковых подряд (в ряду из 5 клеток две серии по 3 не бывают)
+			var i := 0
+			while i < syms.size():
+				var j := i
+				while j + 1 < syms.size() and syms[j + 1] == syms[i]:
+					j += 1
+				if j - i + 1 >= 3:
+					sym = syms[i]
+					cells = line.slice(i, j + 1)
+					break
+				i = j + 1
+		else:
+			var same := true
+			for s in syms:
+				if s != syms[0]:
+					same = false
+			if same:
+				sym = syms[0]
+				cells = line
+		if sym == "" or sym == "six":
+			continue
+		var n := cells.size()
+		if sym == "seven":
+			res["sevens"] = true
+		elif PAY.has(sym) and PAY[sym].has(n):
+			res["win"] = int(res["win"]) + pay_for(sym, n, lv)
+		else:
+			continue
+		res["ids"].append(str(li + 1))
+		res["lines"].append(cells)
+	return res
 
 
 func _redraw_strips() -> void:
@@ -381,7 +547,7 @@ func _build_highlight() -> void:
 			var mi := MeshInstance3D.new()
 			mi.mesh = q
 			mi.material_override = m
-			mi.position = Vector3((i - 1.5) * 0.145, REEL_Y + (1 - r) * 0.094, 0.291)
+			mi.position = Vector3(_reel_x(i), REEL_Y + (1 - r) * 0.094, 0.291)
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mi.visible = false
 			rig.add_child(mi)
@@ -437,18 +603,18 @@ void fragment() {
 	gm.set_shader_parameter("n_lin", _noise())
 	var glass := MeshInstance3D.new()
 	var gq := QuadMesh.new()
-	gq.size = Vector2(0.58, 0.28)
+	gq.size = Vector2(0.58 + EX * 2.0, 0.28)
 	glass.mesh = gq
 	glass.material_override = gm
 	glass.position = Vector3(0, REEL_Y, 0.288)
 	glass.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	rig.add_child(glass)
 	# наклейки: выцветшие, с оборванным краем
-	_sticker(Vector3(-0.24, 0.6, 0.302), Vector2(0.15, 0.09), 0.08, Color(0.78, 0.66, 0.28), 1, 0.0)
-	_sticker(Vector3(0.24, 0.16, 0.302), Vector2(0.11, 0.11), -0.25, Color(0.82, 0.8, 0.74), 2, 0.0)
-	_sticker(Vector3(0.405, 0.45, 0.05), Vector2(0.14, 0.09), 0.15, Color(0.7, 0.72, 0.6), 3, PI / 2.0)
+	_sticker(Vector3(-0.24 - EX, 0.6, 0.302), Vector2(0.15, 0.09), 0.08, Color(0.78, 0.66, 0.28), 1, 0.0)
+	_sticker(Vector3(0.24 + EX, 0.16, 0.302), Vector2(0.11, 0.11), -0.25, Color(0.82, 0.8, 0.74), 2, 0.0)
+	_sticker(Vector3(0.405 + EX, 0.45, 0.05), Vector2(0.14, 0.09), 0.15, Color(0.7, 0.72, 0.6), 3, PI / 2.0)
 	# следы скотча: полупрозрачные пожелтевшие полоски
-	for t in [[Vector3(0.27, 1.14, 0.306), 0.6], [Vector3(-0.3, 0.84, 0.306), -0.5], [Vector3(-0.36, 0.2, 0.302), 0.1]]:
+	for t in [[Vector3(0.27 + EX, 1.14, 0.306), 0.6], [Vector3(-0.3 - EX, 0.84, 0.306), -0.5], [Vector3(-0.36 - EX, 0.2, 0.302), 0.1]]:
 		var tm := StandardMaterial3D.new()
 		tm.albedo_color = Color(0.72, 0.64, 0.45, 0.55)
 		tm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -474,7 +640,7 @@ void fragment() {
 	dt.fill_to = Vector2(1.0, 0.5)
 	dt.width = 32
 	dt.height = 32
-	for d in [[Vector3(0.1, 0.24, 0.302), 0.0, Vector2(0.09, 0.06)], [Vector3(-0.401, 0.62, 0.12), -PI / 2.0, Vector2(0.12, 0.08)], [Vector3(0.2, 1.47, 0.332), 0.0, Vector2(0.07, 0.05)]]:
+	for d in [[Vector3(0.1, 0.24, 0.302), 0.0, Vector2(0.09, 0.06)], [Vector3(-0.401 - EX, 0.62, 0.12), -PI / 2.0, Vector2(0.12, 0.08)], [Vector3(0.2, 1.47, 0.332), 0.0, Vector2(0.07, 0.05)]]:
 		var dm := StandardMaterial3D.new()
 		dm.albedo_texture = dt
 		dm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -547,8 +713,8 @@ func _build_extras(body: Material, trim: Material, black: Material) -> void:
 	# подиум в цементной пыли
 	var ped := _worn(Color(0.1, 0.085, 0.07), false, 0.4, 0.5, 1.0)
 	ped.set_shader_parameter("dust_color", Color(0.42, 0.4, 0.37))
-	_box(self, Vector3(0.9 * K + 0.06, PED, 0.68 * K + 0.06), Vector3(0, PED / 2.0, RIG_Z), ped)
-	_box(self, Vector3(0.9 * K + 0.08, 0.03, 0.68 * K + 0.08), Vector3(0, PED, RIG_Z), trim)
+	_box(self, Vector3((0.9 + EX * 2.0) * K + 0.06, PED, 0.68 * K + 0.06), Vector3(0, PED / 2.0, RIG_Z), ped)
+	_box(self, Vector3((0.9 + EX * 2.0) * K + 0.08, 0.03, 0.68 * K + 0.08), Vector3(0, PED, RIG_Z), trim)
 	# надстройка над вывеской: арка с черепом и шипами; лампы в клетках; пасть, решётки, заклёпки, опоры
 	_arch_skull(body, trim, black)
 	_cage_lamps(trim)
@@ -583,7 +749,7 @@ func _build_extras(body: Material, trim: Material, black: Material) -> void:
 		leds.append(m)
 	# хромированные полосы по бокам
 	for sx in [-1.0, 1.0]:
-		_box(rig, Vector3(0.012, 1.5, 0.02), Vector3(0.43 * sx, 0.78, 0.29), trim)
+		_box(rig, Vector3(0.012, 1.5, 0.02), Vector3((0.43 + EX) * sx, 0.78, 0.29), trim)
 
 
 # ---------- стиль: арка, череп, клетки, неон, пасть ----------
@@ -685,7 +851,7 @@ func _arch_skull(body: Material, trim: Material, black: Material) -> void:
 ## Лампы в проволочных клетках по углам над вывеской.
 func _cage_lamps(trim: Material) -> void:
 	for sx in [-1.0, 1.0]:
-		var base := Vector3(0.375 * sx, 1.6, 0.2)
+		var base := Vector3((0.375 + EX) * sx, 1.6, 0.2)
 		_cyl(rig, 0.04, 0.03, base, Vector3.ZERO, trim, 10)
 		var em := _emis(Color(1.0, 0.42, 0.12), 2.0)
 		_sphere(rig, 0.032, base + Vector3(0, 0.06, 0), em, 10)
@@ -700,9 +866,9 @@ func _cage_lamps(trim: Material) -> void:
 ## Неоновые буквы KILLBOX шрифтом меню, каждая чуть криво — будто вешали вручную.
 ## Тёмная подложка с хромовой рамкой.
 func _neon_sign(trim: Material, black: Material) -> void:
-	_box(rig, Vector3(0.78, 0.25, 0.012), Vector3(0, 1.385, 0.334), black)
+	_box(rig, Vector3(0.78 + EX * 2.0, 0.25, 0.012), Vector3(0, 1.385, 0.334), black)
 	for sy in [-1.0, 1.0]:
-		_box(rig, Vector3(0.8, 0.018, 0.02), Vector3(0, 1.385 + 0.125 * sy, 0.338), trim)
+		_box(rig, Vector3(0.8 + EX * 2.0, 0.018, 0.02), Vector3(0, 1.385 + 0.125 * sy, 0.338), trim)
 	var font: Font = null
 	if ResourceLoader.exists("res://fonts/RubikDirt-Regular.ttf"):
 		font = load("res://fonts/RubikDirt-Regular.ttf")
@@ -717,7 +883,7 @@ func _neon_sign(trim: Material, black: Material) -> void:
 		widths.append(wdt)
 		total += wdt
 	# ужимаем, чтобы надпись влезла в подложку
-	var fit := minf(1.0, 0.68 / total)
+	var fit := minf(1.0, 0.78 / total)
 	px *= fit
 	total *= fit
 	for i in widths.size():
@@ -766,21 +932,21 @@ func _maw(trim: Material, black: Material) -> void:
 func _grilles(trim: Material, black: Material) -> void:
 	var glow := _emis(Color(0.7, 0.1, 0.04), 0.35)
 	for sx in [-1.0, 1.0]:
-		_box(rig, Vector3(0.012, 0.22, 0.34), Vector3(0.401 * sx, 0.66, 0.0), black)
-		_box(rig, Vector3(0.006, 0.2, 0.32), Vector3(0.398 * sx, 0.66, 0.0), glow)
+		_box(rig, Vector3(0.012, 0.22, 0.34), Vector3((0.401 + EX) * sx, 0.66, 0.0), black)
+		_box(rig, Vector3(0.006, 0.2, 0.32), Vector3((0.398 + EX) * sx, 0.66, 0.0), glow)
 		for k in 6:
-			var sl := _box(rig, Vector3(0.02, 0.012, 0.34), Vector3(0.408 * sx, 0.565 + k * 0.038, 0.0), trim)
+			var sl := _box(rig, Vector3(0.02, 0.012, 0.34), Vector3((0.408 + EX) * sx, 0.565 + k * 0.038, 0.0), trim)
 			sl.rotation.x = 0.35
 		for sz in [-1.0, 1.0]:
-			_box(rig, Vector3(0.025, 0.25, 0.02), Vector3(0.41 * sx, 0.66, 0.18 * sz), trim)
+			_box(rig, Vector3(0.025, 0.25, 0.02), Vector3((0.41 + EX) * sx, 0.66, 0.18 * sz), trim)
 
 
 ## Косые опоры по бокам у пола — силуэт шире книзу, как у тяжёлой станины.
 func _braces(body: Material, trim: Material) -> void:
 	for sx in [-1.0, 1.0]:
-		var b := _box(rig, Vector3(0.05, 0.42, 0.44), Vector3(0.43 * sx, 0.19, 0.0), body)
+		var b := _box(rig, Vector3(0.05, 0.42, 0.44), Vector3((0.43 + EX) * sx, 0.19, 0.0), body)
 		b.rotation.z = -0.22 * sx
-		_box(rig, Vector3(0.09, 0.03, 0.5), Vector3(0.45 * sx, 0.015, 0.0), trim)
+		_box(rig, Vector3(0.09, 0.03, 0.5), Vector3((0.45 + EX) * sx, 0.015, 0.0), trim)
 
 
 ## Заклёпки по рамке окна, вывеске, рёбрам корпуса и арке.
@@ -791,17 +957,17 @@ func _rivets(trim: Material) -> void:
 	sm.radial_segments = 6
 	sm.rings = 3
 	var pts: Array[Vector3] = []
-	for k in 9:
-		var x := -0.28 + k * 0.07
+	for k in 11:
+		var x := -0.35 + k * 0.07
 		pts.append(Vector3(x, 1.14, 0.302))
 		pts.append(Vector3(x, 0.82, 0.302))
 	for k in 12:
 		var y := 0.1 + k * 0.095
-		pts.append(Vector3(-0.385, y, 0.302))
-		pts.append(Vector3(0.385, y, 0.302))
-	for k in 8:
-		pts.append(Vector3(-0.35 + k * 0.1, 1.236, 0.341))
-		pts.append(Vector3(-0.35 + k * 0.1, 1.534, 0.341))
+		pts.append(Vector3(-0.385 - EX, y, 0.302))
+		pts.append(Vector3(0.385 + EX, y, 0.302))
+	for k in 10:
+		pts.append(Vector3(-0.45 + k * 0.1, 1.236, 0.341))
+		pts.append(Vector3(-0.45 + k * 0.1, 1.534, 0.341))
 	for k in 7:
 		var a := lerpf(0.15, PI - 0.15, k / 6.0)
 		pts.append(Vector3(cos(a) * 0.3, 1.58 + sin(a) * 0.3, 0.27))
@@ -831,7 +997,7 @@ func _hazard_bands() -> void:
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	m.roughness = 0.85
 	var q := QuadMesh.new()
-	q.size = Vector2(0.76, 0.06)
+	q.size = Vector2(0.76 + EX * 2.0, 0.06)
 	var mi := MeshInstance3D.new()
 	mi.mesh = q
 	mi.material_override = m
@@ -907,6 +1073,8 @@ func _build_board() -> void:
 	art.size = Vector2(sv.size)
 	art.draw.connect(_draw_board.bind(art))
 	sv.add_child(art)
+	board_sv = sv
+	board_art = art
 	var frame := _worn(Color(0.62, 0.5, 0.26), true, 0.0, 0.6, 0.5)
 	var back := _worn(Color(0.12, 0.08, 0.05), false, 0.2, 0.4, 0.5)
 	var board := Node3D.new()
@@ -952,7 +1120,7 @@ func _draw_board(ci: Control) -> void:
 	ci.draw_rect(Rect2(Vector2(18, 18), ci.size - Vector2(36, 36)), Color(0.85, 0.2, 0.15, 0.6), false, 2.0)
 	_fit(ci, Vector2(pad, 82), "KILLBOX", inner, 64, Color(1.0, 0.35, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
 	_fit(ci, Vector2(pad, 124), "ТАБЛИЦА ВЫПЛАТ", inner, 30, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
-	_fit(ci, Vector2(pad, 158), "3 крутки — 9 монет, 6 — 16 · 3 подряд в любом месте линии", inner, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
+	_fit(ci, Vector2(pad, 158), "%d крутки — %d монет, %d — %d · окно %s (ур. %d из %d)" % [PACKS[0][0], PACKS[0][1], PACKS[1][0], PACKS[1][1], level_name(level), level, MAX_LEVEL], inner, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
 	var y := 184.0
 	var text_col := Color(0.95, 0.9, 0.78)
 	var rows := ["diamond", "grape", "plum", "lemon", "cherry"]
@@ -960,12 +1128,12 @@ func _draw_board(ci: Control) -> void:
 		var id: String = rows[k]
 		if k % 2 == 0:
 			ci.draw_rect(Rect2(pad - 8, y - 4, inner + 16, 92), Color(1, 1, 1, 0.04))
-		var pays: Dictionary = PAY[id]
+		var pays: Dictionary = PAY[id]   # выплаты — для текущего окна (pay_for)
 		Sym.draw(ci, id, Rect2(pad, y, 84, 84))
 		var parts := PackedStringArray()
-		for n in [4, 3, 2]:
-			if pays.has(n):
-				parts.append("×%d — %d" % [n, pays[n]])
+		for n in [5, 4, 3]:
+			if pays.has(n) and n <= int(LEVELS[level - 1][1]):
+				parts.append("×%d — %d" % [n, pay_for(id, n, level)])
 		_fit(ci, Vector2(pad + 100, y + 54), "    ".join(parts), inner - 160, 30, text_col)
 		_fit(ci, Vector2(w - pad - 70, y + 54), "%.0f%%" % float(WEIGHTS[id]), 66, 18, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_RIGHT)
 		y += 100.0
@@ -975,39 +1143,41 @@ func _draw_board(ci: Control) -> void:
 	for k in 3:
 		Sym.draw(ci, "seven", Rect2(pad + k * 62, y, 62, 62))
 	_fit(ci, Vector2(pad + 200, y + 28), "×3 на линии — открывают сейф", inner - 200, 24, Color(1.0, 0.85, 0.4))
-	_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — 20 монет", inner - 200, 22, text_col)
+	_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — %d монет" % int(PAY["seven"][3]), inner - 200, 22, text_col)
 	y += 96.0
 	for k in 3:
 		Sym.draw(ci, "six", Rect2(pad + k * 62, y, 62, 62))
 	_fit(ci, Vector2(pad + 200, y + 28), "×3 где угодно в окне —", inner - 200, 24, Color(1.0, 0.3, 0.2))
 	_fit(ci, Vector2(pad + 200, y + 58), "автомат забирает всё, кроме 10", inner - 200, 22, Color(1.0, 0.3, 0.2))
 	y += 92.0
-	_fit(ci, Vector2(pad, y + 20), "три шестёрки — около 1% круток · 4 семёрки и 4 шестёрки не выпадают", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
-	# правая колонка: 9 линий схемами 4×3
+	_fit(ci, Vector2(pad, y + 20), "чем больше окно, тем больше линий и меньше выплата каждой · 4 семёрки и 4 шестёрки не выпадают", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
+	# правая колонка: линии открытого окна схемами 5×3 (закрытые клетки — тёмные)
 	var x0 := w
 	var cw := ci.size.x - w - pad
 	ci.draw_line(Vector2(x0 - 4, 40), Vector2(x0 - 4, ci.size.y - 40), Color(0.85, 0.62, 0.25, 0.5), 2.0)
 	_fit(ci, Vector2(x0, 82), "ЛИНИИ", cw, 44, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
-	_fit(ci, Vector2(x0, 120), "ряды, диагонали, мостики", cw, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
-	var names := {"row": "ряд 3–4", "diag": "диагональ 3", "bridge": "мостик 4"}
-	var cell := 18.0
-	for li in LINES.size():
-		var gx := x0 + 14 + (li % 3) * 88.0
-		var gy := 150.0 + (li / 3) * 128.0
-		var line: Array = LINES[li]
-		for c in 4:
-			for r in 3:
+	_fit(ci, Vector2(x0, 120), "окно %s · линий: %d" % [level_name(level), lines_for(level).size()], cw, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
+	var names := {"row": "ряд", "v": "галочка", "diag": "диагональ", "bridge": "мостик"}
+	var cell := 17.0
+	var lines := lines_for(level)
+	for li in lines.size():
+		var gx := x0 + 10 + (li % 3) * 88.0
+		var gy := 146.0 + (li / 3) * 100.0
+		var line: Array = lines[li][0]
+		for c in REELS:
+			for r in ROWS:
 				var on: bool = line.has([r, c])
-				ci.draw_rect(Rect2(gx + c * cell, gy + r * cell, cell - 2, cell - 2), Color(1.0, 0.45, 0.2) if on else Color(1, 1, 1, 0.08))
+				var col := Color(1.0, 0.45, 0.2) if on else (Color(1, 1, 1, 0.12) if is_open(level, r, c) else Color(1, 1, 1, 0.03))
+				ci.draw_rect(Rect2(gx + c * cell, gy + r * cell, cell - 2, cell - 2), col)
 		for j in line.size() - 1:
 			var p0: Array = line[j]
 			var p1: Array = line[j + 1]
 			var pa := Vector2(gx + int(p0[1]) * cell + cell / 2 - 1, gy + int(p0[0]) * cell + cell / 2 - 1)
 			var pb := Vector2(gx + int(p1[1]) * cell + cell / 2 - 1, gy + int(p1[0]) * cell + cell / 2 - 1)
 			ci.draw_line(pa, pb, Color(1.0, 0.85, 0.4), 2.0)
-		_fit(ci, Vector2(gx, gy + 3 * cell + 22), "%d %s" % [li + 1, names[LINE_KIND[li]]], 4 * cell + 10, 14, Color(0.85, 0.8, 0.7))
-	var ry := 150.0 + 3 * 128.0 + 10
-	for t_ in ["Ряды: 3 одинаковых подряд", "в любом месте ряда или 4.", "Диагонали: все 3 клетки.", "Мостики: только все 4.", "Линии платят отдельно,", "выигрыши складываются."]:
+		_fit(ci, Vector2(gx, gy + 3 * cell + 20), "%d %s" % [li + 1, names[lines[li][1]]], 5 * cell + 6, 14, Color(0.85, 0.8, 0.7))
+	var ry := 146.0 + 5 * 100.0 + 14
+	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Линии платят отдельно,", "выигрыши складываются."]:
 		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 20, Color(0.9, 0.84, 0.72))
 		ry += 28.0
 
@@ -1026,9 +1196,9 @@ func interact(g) -> void:
 		_open_packs()
 		return
 	credits -= 1
-	# бафф удачи тратится с каждой круткой
+	# гарантированный символ тратится с каждой круткой
 	for k in luck.keys():
-		luck[k][1] = int(luck[k][1]) - 1
+		luck[k] = int(luck[k]) - 1
 	busy = true
 	screen.text = "КРУТИТСЯ..."
 	if g.has_method("cheat_check"):
@@ -1037,7 +1207,7 @@ func interact(g) -> void:
 		g.save_now()      # крутка уже списана — перезагрузка не вернёт её
 	_roll_stops()
 	for k in luck.keys():
-		if int(luck[k][1]) <= 0:
+		if int(luck[k]) <= 0:
 			luck.erase(k)
 	hl_lines = []
 	hl_t = 0.0
@@ -1061,40 +1231,22 @@ func interact(g) -> void:
 		rt.tween_callback(_reel_stopped.bind(i))
 
 
-## Розыгрыш окна: каждая клетка — по весам WEIGHTS; 4+ семёрки или 4+ шестёрки перебрасываем.
-## Потом в ленту каждого барабана вокруг новой остановки «впечатываем» выпавшие 3 символа
-## (остальная лента — тоже по весам). Ленты перерисовываются, когда барабаны уже разогнались.
+## Розыгрыш окна (roll_window) с гарантированными символами; потом в ленту каждого барабана
+## вокруг новой остановки «впечатываем» выпавшие 3 символа (остальная лента — по весам).
+## Ленты перерисовываются, когда барабаны уже разогнались.
 func _roll_stops() -> void:
-	var cols: Array = []
-	for attempt in 200:
-		cols = []
-		var sevens := 0
-		var sixes := 0
-		for i in REELS:
-			var col: Array = [_weighted_symbol(), _weighted_symbol(), _weighted_symbol()]
-			# «липкость»: клетка иногда повторяет соседа слева по ряду — комбинации собираются чаще
-			# (промпт 14.11 16:46). Шестёрки не липнут, чтобы «три шестёрки» не участились.
-			if i > 0:
-				for r in 3:
-					var left: String = cols[i - 1][r]
-					if left != "six" and randf() < STICK:
-						col[r] = left
-			sevens += col.count("seven")
-			sixes += col.count("six")
-			cols.append(col)
-		if sevens <= 3 and sixes <= 3:
-			break
+	var g := roll_window(level, luck.keys())
 	var n := STRIP.size()
 	for i in REELS:
 		stops[i] = randi() % n
 		var strip := _random_strip()
-		for r in 3:
-			strip[(stops[i] + r - 1 + n) % n] = cols[i][r]
+		for r in ROWS:
+			strip[(stops[i] + r - 1 + n) % n] = g[r][i]
 		strips[i] = strip
 	get_tree().create_timer(0.3).timeout.connect(_redraw_strips)
 
 
-## Видимое окно: 3 ряда по 4 символа (сверху вниз).
+## Видимое окно: 3 ряда по 5 символов (сверху вниз), включая закрытые клетки.
 func grid() -> Array:
 	var n := STRIP.size()
 	var rows: Array = []
@@ -1158,10 +1310,8 @@ func _process(delta: float) -> void:
 func _payout() -> void:
 	busy = false
 	var g := grid()
-	var sixes := 0
-	for row in g:
-		sixes += row.count("six")
-	if sixes >= 3:
+	var res := evaluate(g, level, lines_for(level))
+	if res["six"]:
 		var have: int = game.inv.count("coin")
 		var lost := maxi(have - 10, 0)
 		if lost > 0:
@@ -1172,46 +1322,10 @@ func _payout() -> void:
 		game.hud.hurt_flash(0.5)
 		game.call_deferred("save_now")
 		return
-	var win := 0
-	var sevens := false
-	var won_lines := PackedStringArray()
-	for li in LINES.size():
-		var line: Array = LINES[li]
-		var sym := ""
-		var cells: Array = []
-		var syms: Array = []
-		for cl in line:
-			syms.append(g[int(cl[0])][int(cl[1])])
-		match LINE_KIND[li]:
-			"row":
-				if syms[0] == syms[1] and syms[1] == syms[2] and syms[2] == syms[3]:
-					sym = syms[0]
-					cells = line
-				elif syms[0] == syms[1] and syms[1] == syms[2]:
-					sym = syms[0]
-					cells = line.slice(0, 3)
-				elif syms[1] == syms[2] and syms[2] == syms[3]:
-					sym = syms[1]
-					cells = line.slice(1, 4)
-			"diag":
-				if syms[0] == syms[1] and syms[1] == syms[2]:
-					sym = syms[0]
-					cells = line
-			"bridge":
-				if syms[0] == syms[1] and syms[1] == syms[2] and syms[2] == syms[3]:
-					sym = syms[0]
-					cells = line
-		if sym == "" or sym == "six":
-			continue
-		var n := cells.size()
-		if sym == "seven" and n >= 3:
-			sevens = true
-		elif PAY.has(sym) and PAY[sym].has(n):
-			win += int(PAY[sym][n])
-		else:
-			continue
-		won_lines.append(str(li + 1))
-		hl_lines.append(cells)
+	var win: int = res["win"]
+	var sevens: bool = res["sevens"]
+	var won_lines: PackedStringArray = res["ids"]
+	hl_lines = res["lines"]
 	var msg := ""
 	if sevens:
 		if game.open_safe():
@@ -1242,7 +1356,7 @@ func _payout() -> void:
 	_update_screen_hint()
 
 
-## Экран автомата между крутками: сколько круток осталось и активная удача.
+## Экран автомата между крутками: сколько круток осталось и гарантированные символы.
 func _update_screen_hint() -> void:
 	if credits <= 0 and luck.is_empty():
 		return
@@ -1250,7 +1364,7 @@ func _update_screen_hint() -> void:
 	if credits > 0:
 		parts.append("КРУТОК: %d" % credits)
 	for k in luck:
-		parts.append("%s +%d%% (%d)" % [Sym.NAMES[k].to_upper(), int(float(luck[k][0]) * 100), int(luck[k][1])])
+		parts.append("%s ГАРАНТ (%d)" % [Sym.NAMES[k].to_upper(), int(luck[k])])
 	screen.text = (screen.text + "\n" if screen.text != "" else "") + " · ".join(parts)
 
 
@@ -1262,6 +1376,7 @@ func _open_packs() -> void:
 	pack_open = true
 	pack_ui.visible = true
 	pack_info.text = "Монет: %d" % game.inv.coins
+	_refresh_pack_up()
 	game.player.active = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
@@ -1322,6 +1437,12 @@ func _build_packs() -> void:
 		b.add_theme_font_size_override("font_size", 22)
 		b.pressed.connect(_buy_pack.bind(int(pk[0]), int(pk[1])))
 		v.add_child(b)
+	pack_up = Button.new()
+	pack_up.custom_minimum_size = Vector2(320, 48)
+	pack_up.focus_mode = Control.FOCUS_NONE
+	pack_up.add_theme_font_size_override("font_size", 20)
+	pack_up.pressed.connect(_pack_upgrade)
+	v.add_child(pack_up)
 	var c := Button.new()
 	c.text = "Закрыть (E / Esc)"
 	c.focus_mode = Control.FOCUS_NONE
@@ -1345,12 +1466,110 @@ func _buy_pack(n: int, price: int) -> void:
 	close_packs()
 
 
-## Магазин: бафф удачи на символ. Повторная покупка того же символа добавляет крутки.
-func add_luck(sym: String) -> void:
-	var d: Array = LUCK[sym]
-	if luck.has(sym):
-		luck[sym][1] = int(luck[sym][1]) + int(d[1])
+
+
+func _refresh_pack_up() -> void:
+	if pack_up == null:
+		return
+	pack_up.text = upgrade_text()
+	pack_up.disabled = level >= MAX_LEVEL
+
+
+func _pack_upgrade() -> void:
+	if buy_upgrade():
+		pack_info.text = "Окно прокачано: %s" % level_name(level)
 	else:
-		luck[sym] = [float(d[0]), int(d[1])]
+		pack_info.text = "Не хватает монет (есть %d)" % game.inv.coins
+	_refresh_pack_up()
+
+
+# ---------- прокачка окна ----------
+
+## X-центр барабана i (центральный — третий).
+func _reel_x(i: int) -> float:
+	return (i - (REELS - 1) / 2.0) * PITCH
+
+
+static func level_name(lv: int) -> String:
+	var d: Array = LEVELS[clampi(lv, 1, MAX_LEVEL) - 1]
+	return "%d×%d" % [d[0], d[1]]
+
+
+## Цена следующего уровня (0 — уже максимум).
+func upgrade_price() -> int:
+	return int(LEVELS[level][2]) if level < MAX_LEVEL else 0
+
+
+func upgrade_text() -> String:
+	if level >= MAX_LEVEL:
+		return "Окно %s — максимум" % level_name(level)
+	return "Окно %s (ур. %d) → %s — %d монет" % [level_name(level), level, level_name(level + 1), upgrade_price()]
+
+
+## Купить следующий уровень окна. false — максимум или не хватает монет.
+func buy_upgrade() -> bool:
+	if level >= MAX_LEVEL or game == null:
+		return false
+	if not game.inv.remove("coin", upgrade_price()):
+		game.play_ui("buzz", -14.0)
+		return false
+	set_level(level + 1)
+	game.play_ui("coin", -10.0)
+	game.hud.toast("KILLBOX: окно %s" % level_name(level), Color(1.0, 0.8, 0.4))
+	game.save_now()
+	return true
+
+
+func set_level(lv: int) -> void:
+	level = clampi(lv, 1, MAX_LEVEL)
+	for r in shutters.size():
+		for c in shutters[r].size():
+			(shutters[r][c] as Node3D).visible = not is_open(level, r, c)
+	if board_sv:
+		board_art.queue_redraw()
+		board_sv.render_target_update_mode = SubViewport.UPDATE_ONCE
+
+
+## Заслонки закрытых клеток: стальная пластина в ржавчине, хромовые полосы крест-накрест,
+## заклёпки и навесной замок с красным огоньком — клетка «заколочена».
+func _build_shutters() -> void:
+	var plate := _worn(Color(0.16, 0.13, 0.11), false, 0.35, 0.9, 0.7)
+	var trim := _worn(Color(0.62, 0.5, 0.26), true, 0.0, 0.6, 0.5)
+	var dark := _mat(Color(0.03, 0.02, 0.02))
+	var lamp := _emis(Color(1.0, 0.1, 0.04), 1.2)
+	var w := PITCH - 0.02
+	var h := 0.09
+	var diag := sqrt(w * w + h * h)
+	var ang := atan2(h, w)
+	for r in ROWS:
+		var row: Array = []
+		for c in REELS:
+			var n := Node3D.new()
+			n.position = Vector3(_reel_x(c), REEL_Y + (1 - r) * 0.094, 0.274)
+			rig.add_child(n)
+			_box(n, Vector3(w, h, 0.008), Vector3.ZERO, plate)
+			for k in 3:   # тёмные щели жалюзи
+				_box(n, Vector3(w - 0.012, 0.004, 0.002), Vector3(0, -0.03 + k * 0.03, 0.005), dark)
+			for sg in [-1.0, 1.0]:
+				var bar := _box(n, Vector3(diag - 0.01, 0.009, 0.006), Vector3(0, 0, 0.008), trim)
+				bar.rotation.z = ang * sg
+			for sx in [-1.0, 1.0]:
+				for sy in [-1.0, 1.0]:
+					_sphere(n, 0.005, Vector3(sx * (w / 2.0 - 0.009), sy * (h / 2.0 - 0.009), 0.006), trim, 6)
+			_box(n, Vector3(0.022, 0.018, 0.008), Vector3(0, -0.012, 0.014), trim)
+			_box(n, Vector3(0.012, 0.012, 0.004), Vector3(0, 0.002, 0.012), dark)
+			_sphere(n, 0.0035, Vector3(0, -0.012, 0.019), lamp, 6)
+			for mi in n.get_children():
+				(mi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			row.append(n)
+		shutters.append(row)
+	set_level(level)
+
+
+## Магазин: гарантированный символ. Повторная покупка того же символа добавляет крутки.
+func add_luck(sym: String) -> void:
+	if not LUCK.has(sym):
+		return
+	luck[sym] = int(luck.get(sym, 0)) + int(LUCK[sym][0])
 	screen.text = ""
 	_update_screen_hint()

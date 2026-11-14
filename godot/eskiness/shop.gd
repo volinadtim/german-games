@@ -352,8 +352,8 @@ func _build_ui() -> void:
 	sell_col.add_child(all_b)
 	# удача для KILLBOX (промпт 23:57): +50% к шансу символа на несколько круток
 	sell_col.add_child(_label(" ", 8, Color.WHITE))
-	sell_col.add_child(_label("УДАЧА KILLBOX", 28, Color(1.0, 0.45, 0.3)))
-	sell_col.add_child(_label("+50% к шансу символа на несколько круток", 14, Color(0.65, 0.63, 0.58)))
+	sell_col.add_child(_label("ГАРАНТ KILLBOX", 28, Color(1.0, 0.45, 0.3)))
+	sell_col.add_child(_label("после каждой крутки +1 символ в окне", 14, Color(0.65, 0.63, 0.58)))
 	var SM := preload("res://slot_machine.gd")
 	var SymS := preload("res://slot_symbols.gd")
 	for sym in SM.LUCK:
@@ -364,15 +364,15 @@ func _build_ui() -> void:
 		ic.custom_minimum_size = Vector2(32, 32)
 		ic.draw.connect(func(): SymS.draw(ic, sym, Rect2(Vector2.ZERO, ic.size)))
 		row.add_child(ic)
-		var l := _label("%s — %d круток" % [SymS.NAMES[sym], int(d[1])], 16, Color(0.88, 0.86, 0.8))
+		var l := _label("%s — %d круток" % [SymS.NAMES[sym], int(d[0])], 16, Color(0.88, 0.86, 0.8))
 		l.custom_minimum_size = Vector2(170, 0)
 		row.add_child(l)
 		var b := Button.new()
-		b.text = "%d" % int(d[2])
+		b.text = "%d" % int(d[1])
 		b.custom_minimum_size = Vector2(56, 30)
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 16)
-		b.pressed.connect(_buy_luck.bind(sym, int(d[2])))
+		b.pressed.connect(_buy_luck.bind(sym, int(d[1])))
 		row.add_child(b)
 		sell_col.add_child(row)
 	var head := _label("TRINKETS MARKET", 30, Color(0.55, 1.0, 0.6))
@@ -536,7 +536,7 @@ func _buy_luck(sym: String, price: int) -> void:
 		return
 	game.inv.remove("coin", price)
 	game.slot.add_luck(sym)
-	info_l.text = "Удача: %s +50%%" % preload("res://slot_symbols.gd").NAMES[sym]
+	info_l.text = "Гарант: %s" % preload("res://slot_symbols.gd").NAMES[sym]
 	game.play_ui("coin", -10.0)
 	_refresh()
 

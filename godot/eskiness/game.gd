@@ -124,10 +124,14 @@ func setup(p: Player) -> void:
 			slot.rotation.y = PI
 			add_child(slot)
 		slot.game = self
+		# новая игра в той же сессии: автомат общий с меню — сбрасываем (загрузка сейва выставит своё)
+		slot.credits = 0
+		slot.luck = {}
+		slot.set_level(1)
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
 	var tape := TapeSpot.new()
 	tape.game = self
-	tape.position = Vector3(-6.95, 0.95, 8.66)
+	tape.position = Vector3(-7.05, 0.95, 8.66)   # доска выплат сдвинута на 0.1 (автомат шире)
 	add_child(tape)
 	# осколки стекла на полу (там, где битое стекло) — материал для ножика
 	loot_window = LootWindow.new()
@@ -1090,6 +1094,7 @@ func save_state() -> Dictionary:
 		"glass": glass_floor.to_save(),
 		"slot_credits": slot.credits if slot else 0,
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
+		"slot_level": slot.level if slot else 1,
 	}
 
 
@@ -1187,8 +1192,10 @@ func load_state(d: Dictionary) -> void:
 		slot.luck = {}
 		var lk: Dictionary = d.get("slot_luck", {})
 		for k in lk:
-			if slot.WEIGHTS.has(k):
-				slot.luck[k] = [float(lk[k][0]), int(lk[k][1])]
+			if slot.LUCK.has(k):   # гарантированный символ: осталось круток (старые сейвы — [вес, круток])
+				var v = lk[k]
+				slot.luck[k] = int(v[1]) if v is Array else int(v)
+		slot.set_level(int(d.get("slot_level", 1)))
 		slot.screen.text = ""
 		slot._update_screen_hint()
 	var h := int(d.get("hunters", 0))
