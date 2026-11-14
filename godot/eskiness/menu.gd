@@ -48,6 +48,7 @@ var settings_box: VBoxContainer
 var gfx_box: VBoxContainer        # страница «Графика»
 var settings_from := "main"
 var ctl_box: VBoxContainer        # страница «Управление»
+var net_box: Control              # страница «Сетевая игра» (net_lobby.gd, промпт 14.11 19:37)
 var ctl_rows := {}                # действие -> кнопка с клавишей
 var binds := {}                   # действие -> ["k:<physical_keycode>" | "m:<кнопка мыши>"] (только изменённые)
 var waiting_action := ""          # ждём клавишу для этого действия
@@ -128,6 +129,7 @@ func _ready() -> void:
 	main_box.add_child(_subtitle("no luck. no fun."))
 	main_box.add_child(_gap(34))
 	main_box.add_child(_button("Играть", _open_slots))
+	main_box.add_child(_button("Сетевая игра", _open_net))
 	main_box.add_child(_button("Настройки", func(): _open_settings("main")))
 	main_box.add_child(_button("Выход", func(): get_tree().quit()))
 
@@ -142,6 +144,10 @@ func _ready() -> void:
 
 	# --- слоты сохранений
 	slots_box = _vbox(right_col)
+
+	# --- сетевая игра
+	net_box = preload("res://net_lobby.gd").new(self)
+	center.add_child(net_box)
 
 	# --- настройки
 	settings_box = _vbox(center)
@@ -233,6 +239,10 @@ func _ready() -> void:
 
 	_show("main")
 	apply_settings()
+	# вышли из сетевой игры (хост отключился и т.п.) — сразу на страницу сети с сообщением
+	var nt := get_tree().root.get_node_or_null("Net")
+	if nt and nt.last_msg != "":
+		_open_net.call_deferred()
 
 
 func _process(_delta: float) -> void:
@@ -269,6 +279,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_close_settings()
 	elif slots_box.visible:
 		_show("main")
+	elif net_box.visible:
+		net_box.back()
 	elif in_game and not visible:
 		pause()
 	elif in_game and pause_box.visible:
@@ -316,6 +328,7 @@ func _show(which: String) -> void:
 	settings_box.visible = which == "settings"
 	gfx_box.visible = which == "gfx"
 	ctl_box.visible = which == "controls"
+	net_box.visible = which == "net"
 	if which != "controls":
 		_stop_wait()
 
@@ -373,6 +386,11 @@ func _open_slots() -> void:
 	slots_box.add_child(_gap(10))
 	slots_box.add_child(_button("Назад", func(): _show("main")))
 	_show("slots")
+
+
+func _open_net() -> void:
+	_show("net")
+	net_box.open()
 
 
 func _pick_slot(i: int) -> void:
@@ -598,6 +616,10 @@ func _load() -> void:
 
 func _save() -> void:
 	var cf := ConfigFile.new()
+	cf.load(CFG)   # другие секции (имя в сети — [net]) не теряем
+	for sec in ["settings", "controls"]:
+		if cf.has_section(sec):
+			cf.erase_section(sec)
 	for key in values:
 		cf.set_value("settings", key, values[key])
 	for a in binds:
