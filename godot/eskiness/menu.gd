@@ -69,7 +69,7 @@ func _ready() -> void:
 	# --- главное меню
 	main_box = _vbox(right_col)
 	main_box.add_child(_title("eskiNess", 104))
-	main_box.add_child(_subtitle("бункер. автомат. ничего хорошего."))
+	main_box.add_child(_subtitle("щербетики."))
 	main_box.add_child(_gap(34))
 	main_box.add_child(_button("Играть", _open_slots))
 	main_box.add_child(_button("Настройки", func(): _open_settings("main")))
@@ -203,7 +203,7 @@ func _save_game() -> void:
 func _open_slots() -> void:
 	for c in slots_box.get_children():
 		c.queue_free()
-	slots_box.add_child(_title("СЛОТЫ", 72))
+	slots_box.add_child(_title("СОХРАНЕНИЯ", 72))
 	slots_box.add_child(_gap(18))
 	for i in range(1, Save.SLOTS + 1):
 		var row := HBoxContainer.new()

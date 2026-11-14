@@ -243,10 +243,12 @@ func _hide_body() -> void:
 			c.set_deferred("disabled", true)
 
 
-## Лут кувшина/колбы: всегда монеты + 2–3 вещи (большой — ещё одна). Пусто не бывает.
+## Лут кувшина: всегда монеты + 2–4 вещи (большой — ещё одна). Пусто не бывает.
 func _roll(r: RandomNumberGenerator) -> Array:
 	var out: Array = [["coin", r.randi_range(4, 10) + int(6 * maxf(size - 1.0, 0.0))]]
-	var n := r.randi_range(2, 3)
+	# сколько вещей — по правке Германа: 2 / 3 / 4
+	var roll := r.randf()
+	var n := 2 if roll < 0.22 else (3 if roll < 0.8 else 4)
 	if size > 1.25:
 		n += 1
 	var total := 0

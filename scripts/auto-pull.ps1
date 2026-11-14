@@ -1,8 +1,13 @@
-# Watches GitHub and pulls new commits automatically.
-# Usage: powershell -ExecutionPolicy Bypass -File auto-pull.ps1 [-Dir C:\path] [-Interval 10]
+﻿# Watches GitHub and pulls new commits automatically.
+# Local changes are NOT hidden in stash any more: when GitHub has something new, they are committed
+# ("German: local changes ...") and pushed to main together with the update. If they clash with the update,
+# they go to a separate branch german-<date> on GitHub (Tim merges it) and the folder is reset to main.
+# push.bat (-Once) does the same right now, without waiting.
+# Usage: powershell -ExecutionPolicy Bypass -File auto-pull.ps1 [-Dir C:\path] [-Interval 10] [-Once]
 param(
     [string]$Dir = "$env:USERPROFILE\german-games",
     [int]$Interval = 10,
+    [switch]$Once,
     [string]$Repo = "https://github.com/volinadtim/german-games.git",
     [string]$Branch = "main"
 )
@@ -85,6 +90,46 @@ function Enable-GodotAutoReload {
 Enable-GodotAutoReload
 
 Set-Location $Dir
+
+# Commit local changes and send everything to GitHub. Clash with the update -> separate branch german-<date>.
+function Sync-Local([string]$stamp) {
+    if (git status --porcelain) {
+        Write-Host "[$stamp] Local changes found, committing them" -ForegroundColor Yellow
+        git add -A
+        git commit --quiet -m "German: local changes $stamp"
+    }
+    $ahead = [int](git rev-list --count "origin/$Branch..HEAD")
+    if ($ahead -eq 0) {
+        git merge --ff-only --quiet "origin/$Branch"
+        return
+    }
+    git rebase --quiet "origin/$Branch" 2>$null
+    $ok = $LASTEXITCODE -eq 0
+    if ($ok) {
+        git push --quiet origin "HEAD:$Branch"
+        $ok = $LASTEXITCODE -eq 0
+        if ($ok) { Write-Host "[$stamp] Your changes are on GitHub (main)" -ForegroundColor Green; return }
+    } else {
+        git rebase --abort 2>$null
+    }
+    $br = "german-$(Get-Date -Format yyyyMMdd-HHmmss)"
+    git push --quiet origin "HEAD:refs/heads/$br"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[$stamp] Your changes clash with the update: saved on GitHub as branch $br, Tim will merge it" -ForegroundColor Yellow
+        git branch --quiet "backup-$(Get-Date -Format yyyyMMdd-HHmmss)" 2>$null
+        git reset --hard --quiet "origin/$Branch"
+    } else {
+        Write-Host "[$stamp] Push failed (no access to GitHub?). Your changes stay here in a local commit." -ForegroundColor Red
+    }
+}
+
+git checkout --quiet $Branch 2>$null
+if ($Once) {
+    git fetch --quiet origin $Branch
+    Sync-Local (Get-Date -Format "HH:mm:ss")
+    exit 0
+}
+
 Write-Host "Watching $Repo ($Branch) every $Interval s in $Dir. Close the window to stop." -ForegroundColor Cyan
 
 while ($true) {
@@ -94,17 +139,7 @@ while ($true) {
         $remote = (git rev-parse "origin/$Branch").Trim()
         if ($local -ne $remote) {
             $stamp = Get-Date -Format "HH:mm:ss"
-            if (git status --porcelain) {
-                Write-Host "[$stamp] Local changes found, stashing them" -ForegroundColor Yellow
-                git stash push --include-untracked -m "auto-pull $stamp" | Out-Null
-            }
-            git checkout --quiet $Branch 2>$null
-            git merge --ff-only --quiet "origin/$Branch"
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "[$stamp] Fast-forward failed, resetting to origin/$Branch" -ForegroundColor Yellow
-                git branch --quiet "backup-$(Get-Date -Format yyyyMMdd-HHmmss)" 2>$null
-                git reset --hard --quiet "origin/$Branch"
-            }
+            Sync-Local $stamp
             Write-Host "[$stamp] Updated:" -ForegroundColor Green
             git log --oneline "$local..HEAD" 2>$null | Select-Object -First 10
             [console]::Beep(880, 150)
