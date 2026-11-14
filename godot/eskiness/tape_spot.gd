@@ -1,9 +1,7 @@
 extends StaticBody3D
 ## Моток изоленты, прилепленный к доске выплат у игрового автомата: E — взять.
-## Через RESPAWN секунд на доске появляется новый. Вместе со стеклом на полу и деревом из ящиков —
-## всё для первого ножика под рукой.
-
-const RESPAWN := 90.0
+## Один на всю игру (промпт 14.11 18:04): взял — больше не появляется; «взят» пишется в сейв (game.gd: tape_taken).
+## Вместе со стеклом на полу и деревом из ящиков — всё для первого ножика под рукой.
 
 var game  # game.gd
 var ready_ := true
@@ -65,8 +63,13 @@ func interact(g) -> void:
 		return
 	g.hud.toast("+ Изолента", Color(0.85, 0.85, 0.8))
 	g.play_ui("pickup", -10.0)
-	ready_ = false
-	vis.visible = false
-	await get_tree().create_timer(RESPAWN).timeout
-	ready_ = true
-	vis.visible = true
+	set_taken(true)
+
+
+func set_taken(t: bool) -> void:
+	ready_ = not t
+	if vis:
+		vis.visible = not t
+	for c in get_children():
+		if c is CollisionShape3D:
+			c.set_deferred("disabled", t)

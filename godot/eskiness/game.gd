@@ -15,6 +15,7 @@ const Fx := preload("res://fx.gd")
 const Pickup := preload("res://pickup.gd")
 const Flashlight := preload("res://flashlight.gd")
 const TapeSpot := preload("res://tape_spot.gd")
+var tape  # моток изоленты у доски выплат — один на игру
 const Enemy := preload("res://enemy.gd")
 const Dummy := preload("res://dummy.gd")
 const Chest := preload("res://chest.gd")
@@ -132,7 +133,7 @@ func setup(p: Player) -> void:
 		slot.set_level(1)
 		slot.set_tray(0)
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
-	var tape := TapeSpot.new()
+	tape = TapeSpot.new()
 	tape.game = self
 	tape.position = Vector3(-7.05, 0.95, 8.66)   # доска выплат сдвинута на 0.1 (автомат шире)
 	add_child(tape)
@@ -1229,6 +1230,7 @@ func save_state() -> Dictionary:
 		"tox": gasmask.tox if gasmask else 0.0,
 		"chests": cs,
 		"chest_pos": chest_pos,
+		"tape_taken": tape != null and not tape.ready_,
 		"jars": jars.filter(func(x): return is_instance_valid(x)).map(func(x): return x.to_save()),
 		"safe_open": safe != null and is_instance_valid(safe) and safe.opened,
 		"storage": storage.contents.duplicate(true) if storage else [],
@@ -1307,6 +1309,8 @@ func load_state(d: Dictionary) -> void:
 		for a in d["chest_pos"]:
 			_chest(Vector3(float(a[0]), float(a[1]), float(a[2])), float(a[3]), [])
 	# кувшины и колбы из сейва: то же место, вид, размер и рисунок; разбитые — осколками
+	if tape:
+		tape.set_taken(bool(d.get("tape_taken", false)))
 	if d.has("jars"):
 		for jr in jars:
 			if is_instance_valid(jr):
