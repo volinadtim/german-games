@@ -112,6 +112,9 @@ func _process(_delta: float) -> void:
 		ui_open = true
 	if game and game.shop and game.shop.opened:
 		ui_open = true
+	# любое окно (лут, сундук, магазин, крутки автомата) — кнопки игры прячем, остаётся «закрыть»
+	if game and game.has_method("window_open") and game.window_open():
+		ui_open = true
 	# прочие окна прячут курсор обратно при закрытии; если захват на устройстве не работает — не смотрим на него
 	if capture_seen and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		ui_open = true

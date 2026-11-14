@@ -1220,7 +1220,8 @@ func _hunter_died(e: Node) -> void:
 
 
 ## Высыпать лут: монеты разбиваются на несколько монеток, разлетаются с разбросом spread.
-func spawn_loot(id: String, n: int, pos: Vector3, vel: Vector3, spread: float) -> void:
+## leave — не подбирать само, пока игрок не отойдёт (вещи, которые он не взял из окна лута).
+func spawn_loot(id: String, n: int, pos: Vector3, vel: Vector3, spread: float, leave := false) -> void:
 	var parts := 1
 	if id == "coin":
 		parts = clampi(n, 1, 6)
@@ -1229,7 +1230,7 @@ func spawn_loot(id: String, n: int, pos: Vector3, vel: Vector3, spread: float) -
 	for k in parts:
 		var cnt := per + (1 if k < rest else 0)
 		var v := vel + Vector3(randf_range(-1, 1), randf_range(0, 0.6), randf_range(-1, 1)) * spread
-		_make_pickup(id, cnt, pos + Vector3(randf_range(-0.1, 0.1), 0, randf_range(-0.1, 0.1)), v)
+		_make_pickup(id, cnt, pos + Vector3(randf_range(-0.1, 0.1), 0, randf_range(-0.1, 0.1)), v).need_leave = leave
 
 
 func _make_pickup(id: String, n: int, pos: Vector3, vel: Vector3) -> Pickup:

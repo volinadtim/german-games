@@ -51,16 +51,23 @@ static func apply(tree: SceneTree, v: Dictionary) -> void:
 	vp.scaling_3d_scale = clampf(_f(v, "g_scale") / 100.0, 0.5, 1.0)
 	var aa := _i(v, "g_aa")
 	vp.msaa_3d = Viewport.MSAA_2X if aa == 2 else Viewport.MSAA_DISABLED
-	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == 1 else Viewport.SCREEN_SPACE_AA_DISABLED
+	# FXAA есть только в Forward+/Mobile; на телефоне (Compatibility) вместо него MSAA 2×
+	var compat := RenderingServer.get_current_rendering_method() == "gl_compatibility"
+	if compat:
+		vp.msaa_3d = Viewport.MSAA_2X if aa >= 1 else Viewport.MSAA_DISABLED
+		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+	else:
+		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA if aa == 1 else Viewport.SCREEN_SPACE_AA_DISABLED
 	vp.texture_mipmap_bias = [1.5, 0.5, 0.0][clampi(_i(v, "g_textures"), 0, 2)]
 	vp.mesh_lod_threshold = [6.0, 2.5, 1.0][clampi(_i(v, "g_geometry"), 0, 2)]
 	# тени
 	var sr: int = [1024, 2048, 4096][clampi(_i(v, "g_shadow_res"), 0, 2)]
 	vp.positional_shadow_atlas_size = sr
 	RenderingServer.directional_shadow_atlas_set_size(sr, true)
-	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_LOW if _i(v, "g_shadow_res") < 2 else RenderingServer.ENV_SSAO_QUALITY_MEDIUM,
-		_i(v, "g_shadow_res") < 2, 0.5, 2, 50.0, 300.0)
-	RenderingServer.environment_set_volumetric_fog_filter_active(_b(v, "g_volfog"))
+	if full:   # SSAO и объёмного тумана в Compatibility (телефон) нет — там они просто выключены
+		RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_LOW if _i(v, "g_shadow_res") < 2 else RenderingServer.ENV_SSAO_QUALITY_MEDIUM,
+			_i(v, "g_shadow_res") < 2, 0.5, 2, 50.0, 300.0)
+		RenderingServer.environment_set_volumetric_fog_filter_active(_b(v, "g_volfog"))
 	# эффекты окружения
 	for we in tree.root.find_children("*", "WorldEnvironment", true, false):
 		var e: Environment = we.environment

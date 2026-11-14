@@ -1,8 +1,9 @@
 extends RigidBody3D
 ## Предмет на полу (тестовые механики): физическое тельце. Подбирается на E издалека (до ~2.8 м):
 ## game.gd ищет лежащий предмет под прицелом, подсказка «[E] Взять: …», предмет летит к игроку.
-## Монеты по-прежнему подбираются сами, когда игрок подходит ближе 1 м.
-## Выброшенные игроком монеты поднимаются сами только после того, как игрок отойдёт и вернётся.
+## И любые вещи подбираются сами, если встать на них / подойти ближе 1 м (промпт 18:44), не раньше чем через 1.5 с
+## после появления. Выброшенное игроком (и не взятое из окна лута) поднимается само только после того,
+## как игрок отойдёт и вернётся. Сумка полна — сообщение не чаще раза в 3 с (game.collect).
 
 const Items := preload("res://items.gd")
 const PickupMesh := preload("res://pickup_mesh.gd")
@@ -70,7 +71,7 @@ func _physics_process(delta: float) -> void:
 		if age > 0.3 and (slow_t > 0.25 or age > 4.0):
 			_settle()
 		_guard_fall()
-	if taken or game == null or not game.alive or age < 0.6 or id != "coin":
+	if taken or game == null or not game.alive or age < 1.5:
 		return
 	var pp: Vector3 = game.player.global_position
 	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()

@@ -34,7 +34,7 @@ class LootBag extends RefCounted:
 
 	func on_loot_closed() -> void:
 		for it in contents:
-			game.spawn_loot(String(it[0]), int(it[1]), pos + Vector3(0, 0.4, 0), Vector3(0, 2.0, 0), 0.8)
+			game.spawn_loot(String(it[0]), int(it[1]), pos + Vector3(0, 0.4, 0), Vector3(0, 2.0, 0), 0.8, true)
 		contents = []
 
 

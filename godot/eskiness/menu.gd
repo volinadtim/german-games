@@ -197,13 +197,17 @@ func _ready() -> void:
 	var btns := HBoxContainer.new()
 	btns.add_theme_constant_override("separation", 16)
 	btns.add_child(_button("Графика", func(): _show("gfx")))
-	btns.add_child(_button("Управление", func(): _show("controls")))
+	# на телефоне клавиш нет — страницу «Управление» не показываем (экранные кнопки: touch_controls.gd)
+	if not preload("res://touch_controls.gd").wanted():
+		btns.add_child(_button("Управление", func(): _show("controls")))
 	settings_box.add_child(btns)
-	var btns2 := HBoxContainer.new()
+	# на телефоне (без «Управления») — все кнопки в один ряд: по высоте экран 20:9 тесный
+	var btns2 := btns if preload("res://touch_controls.gd").wanted() else HBoxContainer.new()
 	btns2.add_theme_constant_override("separation", 16)
 	btns2.add_child(_button("По умолчанию", _reset))
 	btns2.add_child(_button("Назад", _close_settings))
-	settings_box.add_child(btns2)
+	if btns2 != btns:
+		settings_box.add_child(btns2)
 
 	# --- иконки в углу
 	var corner := HBoxContainer.new()
@@ -514,13 +518,20 @@ func _apply_preset(q: int) -> void:
 
 
 ## Размер интерфейса: 100% = прежний размер ×1.25, ползунок 80–120%.
-## Масштаб не даём сделать таким, чтобы большие окна (инвентарь ~1240×600) вылезли за экран.
+## Масштаб не даём сделать таким, чтобы большие окна (инвентарь ~1200×480, магазин ~760×650) вылезли за экран
+## (на телефоне 20:9 по высоте остаётся мало места — считаем по 660).
 func _apply_ui_scale() -> void:
 	var win := get_tree().root
 	var want := 1.25 * float(values.get("ui_scale", 100.0)) / 100.0
 	var sz := Vector2(win.size)
 	if sz.x > 0 and sz.y > 0:
-		want = minf(want, maxf(minf(sz.x / 1240.0, sz.y / 600.0), 0.8))
+		if win.content_scale_mode != Window.CONTENT_SCALE_MODE_DISABLED:
+			# телефон (stretch canvas_items + expand): экран уже растянут под базу 1280×720 —
+			# считаем в логических единицах: короткая сторона базы, длинная — по соотношению сторон
+			var base := Vector2(win.content_scale_size)
+			var ratio := sz.x / sz.y
+			sz = Vector2(base.y * ratio, base.y) if ratio >= base.x / base.y else Vector2(base.x, base.x / ratio)
+		want = minf(want, maxf(minf(sz.x / 1240.0, sz.y / 660.0), 0.8))
 	win.content_scale_factor = want
 
 
@@ -554,6 +565,12 @@ func _load() -> void:
 		var d := Graphics.preset(int(round(float(values["graphics"]))))
 		for k in d:
 			values[k] = d[k]
+	# телефон, первый запуск (в cfg ещё нет графики) — пресет «низкая»
+	if preload("res://touch_controls.gd").wanted() and not (ok and cf.has_section_key("settings", "graphics")):
+		values["graphics"] = 0.0
+		var lo := Graphics.preset(0)
+		for k in lo:
+			values[k] = lo[k]
 	binds.clear()
 	if ok and cf.has_section("controls"):
 		for a in cf.get_section_keys("controls"):
