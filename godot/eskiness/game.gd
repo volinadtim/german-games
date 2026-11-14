@@ -77,6 +77,7 @@ func setup(p: Player) -> void:
 	inv.unequip_requested.connect(func(slot_: String, to: int): unequip(slot_, to))
 	inv.drop_equipped_requested.connect(drop_equipped)
 	inv.craft_requested.connect(craft)
+	inv.repair_requested.connect(repair)
 	inv.message.connect(func(t: String): hud.toast(t))
 	hud.inv = inv
 	hud.set_hp(hp, MAX_HP)
@@ -654,6 +655,9 @@ func damage_player(amount: float, from: Vector3) -> void:
 		Fx.popup_text(self, player.global_position + Vector3(0, 1.4, 0) - player.global_transform.basis.z * 0.8, "БЛОК", Color(0.6, 0.85, 1.0))
 		return
 	amount *= buff_mult("resist") * (1.0 - gear_armor())
+	# одежда с защитой изнашивается от ударов (чинит ремкомплект одежды)
+	for sl in ["head", "body", "legs"]:
+		_wear(sl, 1.0)
 	hp = maxf(hp - amount, 0.0)
 	hud.set_hp(hp, MAX_HP)
 	hud.hurt_flash()
@@ -746,7 +750,9 @@ func use_item(idx: int) -> void:
 		return
 	var id: String = s["id"]
 	var def: Dictionary = Items.ITEMS[id]
-	if def.has("buff"):
+	if def.has("repair"):
+		repair(idx, _most_worn(String(def["repair"])))
+	elif def.has("buff"):
 		inv.take_at(idx, 1)
 		add_buff(id)
 		var what := "−%d%% урона" % int(float(def["power"]) * 100) if def["buff"] == "resist" else "+%d%% скорости" % int(float(def["power"]) * 100)
@@ -946,6 +952,64 @@ func hotbar_use(k: int) -> void:
 		hud.toast("Нет: %s" % Items.item_name(id))
 		return
 	use_item(i)
+
+
+# ---------- ремкомплекты (промпт 14.11 17:59) ----------
+
+const REPAIR_PART := 0.5    # один заряд — +50% прочности
+
+## Самая побитая вещь под этот комплект: надетое и сумка. null — чинить нечего.
+func _most_worn(kind: String):
+	var best = null
+	var best_fr := 1.0
+	var keys: Array = []
+	for k in inv.equip:
+		keys.append(k)
+	for i in inv.slots.size():
+		keys.append(i)
+	for k in keys:
+		var id: String = inv.equip[k] if k is String else (String(inv.slots[k]["id"]) if inv.slots[k] != null else "")
+		if Items.repairable(id) != kind:
+			continue
+		var fr: float = inv.get_dur(k) / Items.max_dur(id)
+		if fr < best_fr - 0.001:
+			best_fr = fr
+			best = k
+	return best
+
+
+## Починить вещь target (ячейка или слот) ремкомплектом из ячейки kit_idx: −1 заряд, на нуле комплект исчезает.
+func repair(kit_idx: int, target) -> void:
+	var kit = inv.slots[kit_idx]
+	if kit == null or not Items.ITEMS[kit["id"]].has("repair"):
+		return
+	var kind: String = Items.ITEMS[kit["id"]]["repair"]
+	if target == null:
+		hud.toast("Чинить нечего — всё целое")
+		return
+	var id: String = inv.equip[target] if target is String else (String(inv.slots[target]["id"]) if inv.slots[target] != null else "")
+	if Items.repairable(id) != kind:
+		hud.toast("%s этим не починить" % Items.item_name(id))
+		return
+	var mx := Items.max_dur(id)
+	var cur: float = inv.get_dur(target)
+	if cur >= mx - 0.01:
+		hud.toast("%s и так целое" % Items.item_name(id))
+		return
+	var nd := minf(cur + mx * REPAIR_PART, mx)
+	if target is String:
+		inv.equip_dur[target] = nd
+	else:
+		inv.slots[target]["dur"] = nd
+	var left: float = inv.get_dur(kit_idx) - 1.0
+	if left <= 0.0:
+		inv.slots[kit_idx] = null
+	else:
+		kit["dur"] = left
+	hud.toast("Починено: %s (%d%%)%s" % [Items.item_name(id), int(round(nd / mx * 100.0)),
+		"" if left > 0.0 else " — ремкомплект закончился"], Color(0.8, 0.9, 0.6))
+	play_ui("creak", -12.0, 1.4)
+	inv.notify()
 
 
 func craft(r: int) -> void:

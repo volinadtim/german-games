@@ -15,6 +15,7 @@ signal equip_requested(idx: int, slot: String)
 signal unequip_requested(slot: String, to_idx: int)
 signal drop_equipped_requested(slot: String)
 signal craft_requested(recipe: int)
+signal repair_requested(kit_idx: int, target)   # target — номер ячейки или слот экипировки
 signal message(text: String)
 
 const Items := preload("res://items.gd")
@@ -100,7 +101,12 @@ class Slot extends Control:
 			var fr := clampf(float(inv.get_dur(key)) / mx, 0.0, 1.0)
 			draw_rect(Rect2(6, size.y - 9, size.x - 12, 4), Color(0, 0, 0, 0.6))
 			draw_rect(Rect2(6, size.y - 9, (size.x - 12) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
-		if not is_eq:
+		if Items.ITEMS[id].has("repair"):
+			# ремкомплект: сколько зарядов осталось
+			var ch := "×%d" % int(ceil(inv.get_dur(key)))
+			draw_string_outline(f, Vector2(4, size.y - 12), ch, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 16, 4, Color(0, 0, 0, 0.8))
+			draw_string(f, Vector2(4, size.y - 12), ch, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 16, Color(0.95, 0.85, 0.55))
+		elif not is_eq:
 			var n: int = inv.slots[key]["n"]
 			if n > 1:
 				draw_string_outline(f, Vector2(4, size.y - 6), str(n), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 17, 4, Color(0, 0, 0, 0.8))
@@ -592,6 +598,16 @@ func _refresh() -> void:
 func move(from, to) -> void:
 	if typeof(from) == typeof(to) and from == to:
 		return
+	# ремкомплект перетащили на вещь — починить её
+	if from is int and slots[from] != null and Items.ITEMS[slots[from]["id"]].has("repair"):
+		var tid := ""
+		if to is String:
+			tid = equip[to]
+		elif slots[to] != null:
+			tid = slots[to]["id"]
+		if tid != "" and Items.repairable(tid) != "":
+			repair_requested.emit(from, to)
+			return
 	if from is int and to is int:
 		var a = slots[from]
 		var b = slots[to]

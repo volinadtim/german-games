@@ -26,16 +26,22 @@ const ITEMS := {
 	"knuckles": {"name": "Кастет", "desc": "Руки: удар кулаком ×1.5.", "stack": 1,
 		"icon": "knuckles", "color": Color(0.58, 0.58, 0.6), "equip": "hands", "fist": 1.5},
 	# одежда (магазин снаряжения): слот и небольшой эффект
-	"helmet": {"name": "Каска", "desc": "Голова: −10% урона.", "stack": 1,
-		"icon": "helmet", "color": Color(0.78, 0.6, 0.15), "equip": "head", "armor": 0.10},
-	"jacket": {"name": "Ватник", "desc": "Тело: −15% урона.", "stack": 1,
-		"icon": "jacket", "color": Color(0.24, 0.27, 0.21), "equip": "body", "armor": 0.15},
+	# каска, ватник, штаны изнашиваются от ударов по игроку (game.gd: damage_player), сапоги — от ходьбы и стекла
+	"helmet": {"name": "Каска", "desc": "Голова: −10% урона. Изнашивается от ударов.", "stack": 1,
+		"icon": "helmet", "color": Color(0.78, 0.6, 0.15), "equip": "head", "armor": 0.10, "dur": 60},
+	"jacket": {"name": "Ватник", "desc": "Тело: −15% урона. Изнашивается от ударов.", "stack": 1,
+		"icon": "jacket", "color": Color(0.24, 0.27, 0.21), "equip": "body", "armor": 0.15, "dur": 80},
 	"gloves": {"name": "Рабочие перчатки", "desc": "Руки: удар кулаком ×1.2.", "stack": 1,
 		"icon": "gloves", "color": Color(0.55, 0.48, 0.32), "equip": "hands", "fist": 1.2},
-	"pants": {"name": "Рабочие штаны", "desc": "Ноги: +8% к скорости.", "stack": 1,
-		"icon": "pants", "color": Color(0.2, 0.24, 0.32), "equip": "legs", "speed": 0.08},
-	"boots": {"name": "Кирзовые сапоги", "desc": "Обувь: стекло не ранит. Изнашиваются от ходьбы и стекла.", "stack": 1,
-		"icon": "boots", "color": Color(0.17, 0.13, 0.1), "equip": "feet", "glassproof": true, "dur": 100},
+	"pants": {"name": "Рабочие штаны", "desc": "Ноги: −10% урона. Изнашиваются от ударов.", "stack": 1,
+		"icon": "pants", "color": Color(0.2, 0.24, 0.32), "equip": "legs", "armor": 0.10, "dur": 80},
+	"boots": {"name": "Кирзовые сапоги", "desc": "Обувь: +15% к скорости, стекло не ранит. Изнашиваются от ходьбы и стекла.", "stack": 1,
+		"icon": "boots", "color": Color(0.17, 0.13, 0.1), "equip": "feet", "glassproof": true, "dur": 100, "speed": 0.15},
+	# ремкомплекты: dur — заряды (3), один заряд чинит 50% прочности вещи (game.gd: repair)
+	"repair_weapon": {"name": "Ремкомплект оружия", "desc": "3 заряда, каждый чинит оружие на 50%. Нажать — самое побитое оружие; или перетащить на нужное.", "stack": 1,
+		"icon": "repair_weapon", "color": Color(0.6, 0.2, 0.15), "repair": "weapon", "dur": 3},
+	"repair_gear": {"name": "Ремкомплект одежды", "desc": "3 заряда, каждый чинит одежду (каска, ватник, штаны, сапоги) на 50%. Нажать — самую потрёпанную; или перетащить на нужную.", "stack": 1,
+		"icon": "repair_gear", "color": Color(0.3, 0.42, 0.5), "repair": "gear", "dur": 3},
 	"backpack": {"name": "Рюкзак", "desc": "Спина: +5 ячеек сумки. Снимешь — вещи из него переложатся в свободные ячейки.", "stack": 1,
 		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": 5},
 	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 5,
@@ -103,6 +109,15 @@ static func fits(id: String, slot: String) -> bool:
 	if k == "hand":
 		return slot == "left" or slot == "right"
 	return k != "" and k == slot
+
+
+## Каким ремкомплектом чинится: "weapon", "gear" (одежда с прочностью) или "".
+static func repairable(id: String) -> String:
+	if not ITEMS.has(id) or max_dur(id) <= 0.0 or ITEMS[id].has("repair"):
+		return ""
+	if ITEMS[id].has("weapon"):
+		return "weapon"
+	return "gear" if ITEMS[id].has("equip") else ""
 
 
 ## Прочность предмета (0 — вечный): оружие ломается от ударов, сапоги — от ходьбы и стекла.
@@ -250,6 +265,21 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_line(c + Vector2(0, -s * 0.3), c + Vector2(0, s * 0.33), col.darkened(0.45), maxf(1.5, s * 0.03))
 			for k in 4:
 				ci.draw_line(c + Vector2(-s * 0.2, -s * 0.18 + k * s * 0.12), c + Vector2(s * 0.2, -s * 0.18 + k * s * 0.12), col.darkened(0.25), maxf(1.0, s * 0.02))
+		"repair_weapon", "repair_gear":
+			# чемоданчик с ручкой; на крышке — гаечный ключ (оружие) или катушка с иглой (одежда)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.1, -s * 0.3), Vector2(s * 0.2, s * 0.08)), dark)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.36, -s * 0.22), Vector2(s * 0.72, s * 0.5)), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.36, -s * 0.22), Vector2(s * 0.72, s * 0.08)), col.darkened(0.25))
+			var mark := Color(0.85, 0.83, 0.78)
+			if id == "repair_weapon":
+				ci.draw_line(c + Vector2(-s * 0.18, s * 0.18), c + Vector2(s * 0.12, -s * 0.06), mark, maxf(2.0, s * 0.07))
+				ci.draw_circle(c + Vector2(s * 0.15, -s * 0.09), s * 0.08, mark)
+				ci.draw_circle(c + Vector2(s * 0.19, -s * 0.13), s * 0.04, col)
+			else:
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.12, -s * 0.08), Vector2(s * 0.16, s * 0.26)), mark)
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.15, -s * 0.1), Vector2(s * 0.22, s * 0.04)), dark)
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.15, s * 0.16), Vector2(s * 0.22, s * 0.04)), dark)
+				ci.draw_line(c + Vector2(s * 0.12, -s * 0.1), c + Vector2(s * 0.22, s * 0.2), mark, maxf(1.0, s * 0.025))
 		"backpack":
 			# лямки, корпус, клапан с пряжкой, боковой карман
 			var strap := col.darkened(0.35)
@@ -401,6 +431,10 @@ static func make_mesh(id: String) -> Node3D:
 		"backpack":
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.28, 0.36, 0.14)
+			mi.mesh = bm
+		"repair_weapon", "repair_gear":
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.2, 0.08, 0.14)
 			mi.mesh = bm
 		"gloves":
 			var bm := BoxMesh.new()
