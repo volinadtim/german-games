@@ -85,6 +85,8 @@ const Fx := preload("res://fx.gd")
 var active := false
 ## Сетевая игра (net.gd): модель другого игрока — без камеры, ввода, звуков и урона; движется по данным из сети.
 var puppet := false
+var net_hit: Callable    # сеть: удар/пуля по этой модели чужого игрока → net.gd (огонь по своим)
+var net_push: Callable   # сеть: мягкое расталкивание с другими игроками (net.gd), до move_and_slide
 var net_pos := Vector3.ZERO
 var net_yaw := 0.0
 var net_pitch := 0.0
@@ -1254,6 +1256,12 @@ func _punch_sound() -> void:
 	_play(voice_player, exhales, -14.0)
 
 
+## Сеть: по модели другого игрока попали (удар или пуля) — урон уходит ему через хоста.
+func take_hit(dmg: float, dir: Vector3) -> void:
+	if puppet and visible and net_hit.is_valid():
+		net_hit.call(self, dmg, dir)
+
+
 func _check_hit(arm: int, kind := "straight") -> void:
 	if puppet:
 		return   # чужой игрок бьёт у себя; урон приходит по сети
@@ -1308,7 +1316,7 @@ func _hit_scan(from: Vector3, reach_len: float) -> Dictionary:
 	for k in dirs.size():
 		var q := PhysicsRayQueryParameters3D.create(from, from + dirs[k] * reach_len * (1.0 if k == 0 else 1.1))
 		q.exclude = [get_rid()]
-		q.collision_mask = 1
+		q.collision_mask = 1 | 512   # 512 — модели других игроков в сети
 		var h := space.intersect_ray(q)
 		if h.is_empty():
 			continue
@@ -1528,6 +1536,8 @@ func _physics_process(delta: float) -> void:
 		hv = hv.move_toward(target, decel * delta)
 	velocity.x = hv.x
 	velocity.z = hv.z
+	if net_push.is_valid():
+		net_push.call(self, delta)
 	move_and_slide()
 
 	if is_on_floor() and not was_on_floor and land_speed < -2.5:

@@ -117,7 +117,7 @@ func fire() -> void:
 	var dir := -cam.global_transform.basis.z
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * RANGE)
 	q.exclude = [p.get_rid()]
-	q.collision_mask = 1
+	q.collision_mask = 1 | 512   # 512 — другие игроки в сети (огонь по своим)
 	var hit: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q)
 	if not hit.is_empty():
 		if hit.collider.has_method("take_hit"):

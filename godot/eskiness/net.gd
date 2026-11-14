@@ -425,6 +425,9 @@ const PickupScript := preload("res://pickup.gd")
 const SEND_DT := 1.0 / 20.0
 const ENEMY_DT := 1.0 / 15.0
 const RESPAWN_T := 10.0
+const PUPPET_LAYER := 512   # слой моделей других игроков (лучи ударов и пистолета: маска 1 | 512)
+const PUSH_R := 0.62        # игроки касаются, когда центры ближе (капсулы по 0.3)
+const Fx := preload("res://fx.gd")
 
 var puppets := {}         # peer_id -> player.gd (модель другого игрока)
 var targets := {}         # хост: peer_id -> RemoteTarget (цель для врагов)
@@ -441,6 +444,8 @@ var es_t := 0.0
 var ui_t := 0.0
 var was_punching := false
 var dead_t := -1.0
+var killer := ""         # кто из игроков ударил последним (для «Вас убил …»)
+var killer_t := 0.0
 var ui: CanvasLayer
 var ping_l: Label
 var info_l: Label
@@ -527,6 +532,7 @@ func on_game_setup(g) -> void:
 	for id in ids:
 		if id != multiplayer.get_unique_id():
 			_make_puppet(id)
+	g.player.net_push = _soft_push
 	g.hud.toast("Сетевая игра: %d игр." % ids.size(), Color(0.75, 0.85, 0.65))
 	for c in early:
 		c.call()
@@ -598,7 +604,10 @@ func _make_puppet(id: int) -> void:
 	pp.net_yaw = -PI / 2.0
 	game.get_parent().add_child(pp)
 	pp.cam.current = false
-	pp.collision_layer = 0   # свой игрок сквозь чужого проходит, лучи врагов и ударов его не видят
+	pp.collision_layer = PUPPET_LAYER   # видят только удары и пули игроков (огонь по своим); враги и свой игрок — нет
+	pp.collision_mask = 0
+	pp.set_meta("peer", id)
+	pp.net_hit = _pvp_hit
 	var lb := Label3D.new()
 	lb.text = String(players.get(id, "?"))
 	lb.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -637,6 +646,10 @@ func _game_tick(delta: float) -> void:
 		if es_t <= 0.0:
 			es_t = ENEMY_DT
 			_send_enemies()
+	if killer_t > 0.0:
+		killer_t -= delta
+		if killer_t <= 0.0:
+			killer = ""
 	if dead_t > 0.0:
 		dead_t -= delta
 		info_l.text = "Вы погибли. Возрождение через %d с" % int(ceil(dead_t))
@@ -717,11 +730,14 @@ func pev(arm: int) -> void:
 @rpc("authority", "reliable")
 func net_damage(amount: float, from: Vector3) -> void:
 	if game and is_instance_valid(game):
+		killer = ""
 		game.damage_player(amount, from)
 
 
 func local_died() -> void:
 	dead_t = RESPAWN_T
+	if killer != "":
+		game.hud.toast("Вас убил %s" % killer, Color(1.0, 0.55, 0.45))
 	game.hud.hurt_flash()
 
 
@@ -1050,3 +1066,66 @@ func pshot(pos: Vector3) -> void:
 	tw.tween_callback(l.queue_free)
 	if hosting:
 		game.gun._alert(pos)
+
+
+# ---------- игроки друг с другом: толкание и огонь по своим ----------
+## Толкание (до move_and_slide своего игрока): в другого не войти — скорость «в него» гасится,
+## при перекрытии слегка расходимся, а если другой идёт на нас — нас чуть отпихивает (слабо, без рывков).
+## Каждый толкает только своего игрока, поэтому у обоих выходит симметрично.
+func _soft_push(p: CharacterBody3D, _delta: float) -> void:
+	for id in puppets:
+		var pp = puppets[id]
+		if not is_instance_valid(pp) or not pp.visible:
+			continue
+		var d: Vector3 = p.global_position - pp.global_position
+		if absf(d.y) > 1.6:
+			continue
+		d.y = 0.0
+		var dist := d.length()
+		if dist >= PUSH_R:
+			continue
+		var n := d / dist if dist > 0.01 else Vector3(1, 0, 0).rotated(Vector3.UP, float(id % 628) * 0.01)
+		var vn := p.velocity.dot(n)
+		var want := vn * 0.15 if vn < 0.0 else vn   # в другого почти не войти
+		want = maxf(want, minf((PUSH_R - dist) * 5.0, 1.2))   # при перекрытии мягко расходимся
+		var shove: float = -Vector3(pp.net_vel.x, 0, pp.net_vel.z).dot(n)
+		want = maxf(want, shove * 0.3)   # другой идёт на нас — слабый толчок
+		p.velocity += n * (want - vn)
+
+
+## Попали по модели другого игрока (удар, заряженный удар, пуля) — урон ему через хоста.
+func _pvp_hit(pp, dmg: float, dir: Vector3) -> void:
+	if game == null or not game.alive:
+		return
+	game.weapon_hit()
+	Fx.damage_number(pp.get_parent(), pp.global_position + Vector3(0, 2.0, 0), dmg, Color(1.0, 0.55, 0.45))
+	Fx.dust_burst(pp.get_parent(), pp.global_position + Vector3(0, 1.2, 0) - dir * 0.2)
+	var victim: int = pp.get_meta("peer", 0)
+	var from: Vector3 = game.player.global_position
+	if hosting:
+		_pvp_route(victim, dmg, from, multiplayer.get_unique_id())
+	else:
+		rpc_id(1, "rq_pvp", victim, dmg, from)
+
+
+@rpc("any_peer", "reliable")
+func rq_pvp(victim: int, dmg: float, from: Vector3) -> void:
+	if hosting:
+		_pvp_route(victim, clampf(dmg, 0.0, 120.0), from, multiplayer.get_remote_sender_id())
+
+
+func _pvp_route(victim: int, dmg: float, from: Vector3, attacker: int) -> void:
+	if victim == multiplayer.get_unique_id():
+		pvp_damage(dmg, from, attacker)
+	elif players.has(victim):
+		rpc_id(victim, "pvp_damage", dmg, from, attacker)
+
+
+@rpc("authority", "reliable")
+func pvp_damage(amount: float, from: Vector3, attacker: int) -> void:
+	if game == null or not is_instance_valid(game) or not game.alive:
+		return
+	killer = String(players.get(attacker, "?"))
+	killer_t = 3.0
+	game.damage_player(amount, from)
+
