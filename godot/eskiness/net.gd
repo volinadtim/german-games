@@ -655,13 +655,13 @@ func _make_ui() -> void:
 	ui = CanvasLayer.new()
 	ui.layer = 4
 	add_child(ui)
-	ping_l = Label.new()
-	ping_l.anchor_left = 1.0
-	ping_l.anchor_right = 1.0
-	ping_l.offset_left = -300
-	ping_l.offset_right = -14
-	ping_l.offset_top = 8
-	ping_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	ping_l = Label.new()   # сверху по центру: справа вверху на телефоне — экранные кнопки
+	ping_l.anchor_left = 0.5
+	ping_l.anchor_right = 0.5
+	ping_l.offset_left = -200
+	ping_l.offset_right = 200
+	ping_l.offset_top = 6
+	ping_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ping_l.add_theme_font_size_override("font_size", 16)
 	ping_l.add_theme_color_override("font_color", Color(0.8, 0.78, 0.7, 0.85))
 	ping_l.add_theme_color_override("font_outline_color", Color(0, 0, 0))

@@ -126,7 +126,9 @@ func _process(_delta: float) -> void:
 		gameplay = now
 		if not gameplay:
 			_release_all()
-	visible = not get_tree().paused
+	# сетевая игра: пауза не останавливает мир (menu.gd), а только выключает игрока — кнопки прячем так же
+	var net_pause: bool = game != null and game.get("net") != null and alive and player != null and not player.active
+	visible = not get_tree().paused and not net_pause
 	root.queue_redraw()
 
 
