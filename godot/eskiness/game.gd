@@ -477,12 +477,12 @@ func _aimed_pickup(from: Vector3, fwd: Vector3) -> Node:
 	for p in get_tree().get_nodes_in_group("pickup"):
 		if p.taken:
 			continue
-		var to: Vector3 = p.global_position + Vector3(0, 0.03, 0) - from
+		var to: Vector3 = p.global_position + Vector3(0, 0.06, 0) - from
 		var d := to.length()
 		if d > Pickup.REACH or d < 0.05:
 			continue
 		var a := fwd.angle_to(to)
-		if a > maxf(deg_to_rad(7.0), atan(0.2 / d)) or a >= best_a:
+		if a > maxf(deg_to_rad(8.0), atan(0.3 / d)) or a >= best_a:
 			continue
 		var q := PhysicsRayQueryParameters3D.create(from, from + to * 0.97)
 		q.collision_mask = 1

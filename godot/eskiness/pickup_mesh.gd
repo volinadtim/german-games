@@ -1,10 +1,15 @@
 extends RefCounted
 ## Модели лежащих предметов (pickup.gd): маленькие узнаваемые 3D-формы из нескольких деталей,
-## примерно в 1.4 раза крупнее прежних кубиков. Для предметов без своей модели — иконка-спрайт
+## примерно в 2.8 раза крупнее прежних кубиков. Для предметов без своей модели — иконка-спрайт
 ## (рисуется items.gd: draw_icon), оружие и снаряжение — модели weapons.gd, чуть крупнее.
 
 const Items := preload("res://items.gd")
-const SCALE := 1.4
+const SCALE := 2.8          # ×2 к прежним 1.4 (промпт 14.11 18:12)
+const WEAPON_SCALE := 1.875  # оружие и снаряжение — ×1.5 к прежним 1.25, чтобы не стали гигантскими
+## Визуал приподнят над низом коллизии, чтобы нижние грани не совпадали с полом (иначе мерцают, как было с кувшинами).
+const LIFT := 0.008
+const LIFT_FLAT := 0.014     # тонкие плоские вещи (монеты, фото, плитка…)
+const FLAT := ["coin", "photo", "choco", "glass", "wallet", "nut", "gear", "tape", "rusk"]
 
 ## Есть ли у предмета своя модель здесь.
 const MODELS := ["coin", "bandage", "pills", "canned", "water", "soda", "rusk", "choco", "battery",
@@ -19,12 +24,14 @@ static var _icon_cache := {}
 static func make(id: String) -> Array:
 	if id in WEAPON_LIKE:
 		var w := Items.make_mesh(id)
-		w.scale = Vector3.ONE * 1.25
-		var s := Vector3(0.7, 0.06, 0.06) * 1.25 if id in ["bat", "pipe", "crowbar", "machete", "knife"] else Vector3(0.25, 0.12, 0.25)
+		w.scale = Vector3.ONE * WEAPON_SCALE
+		var s := (Vector3(0.7, 0.06, 0.06) if id in ["bat", "pipe", "crowbar", "machete", "knife"] else Vector3(0.2, 0.1, 0.2)) * WEAPON_SCALE
+		w.position.y += LIFT
 		return [w, s]
 	if id in MODELS:
 		var root := Node3D.new()
 		var size: Vector3 = _build(root, id)
+		root.position.y = LIFT_FLAT if id in FLAT else LIFT
 		return [root, size]
 	return _sprite(id)
 
@@ -240,17 +247,17 @@ static func _build(root: Node3D, id: String) -> Vector3:
 static func _sprite(id: String) -> Array:
 	var spr := Sprite3D.new()
 	spr.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
-	spr.pixel_size = 0.26 / 128.0
+	spr.pixel_size = 0.52 / 128.0
 	spr.shaded = false
 	spr.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
 	spr.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-	spr.position.y = 0.13
+	spr.position.y = 0.26 + LIFT
 	spr.modulate = Color(0.85, 0.85, 0.85)
 	if _icon_cache.has(id):
 		spr.texture = _icon_cache[id]
 	else:
 		_render_icon.call_deferred(spr, id)
-	return [spr, Vector3(0.22, 0.26, 0.22)]
+	return [spr, Vector3(0.4, 0.52, 0.4)]
 
 
 ## Нарисовать иконку один раз во вьюпорте 128×128 и закэшировать текстуру.

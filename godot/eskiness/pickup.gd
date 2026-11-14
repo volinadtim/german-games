@@ -6,7 +6,7 @@ extends RigidBody3D
 
 const Items := preload("res://items.gd")
 const PickupMesh := preload("res://pickup_mesh.gd")
-const REACH := 2.8   # дальность подбора на E, м
+const REACH := 3.0   # дальность подбора на E, м
 
 var game  # game.gd
 var id := "coin"
