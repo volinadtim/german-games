@@ -717,20 +717,7 @@ func open_menu(key, at: Vector2) -> void:
 	acts.append(["Отмена", "cancel"])
 	var tl := _label(title, 15, Color(0.75, 0.7, 0.6))
 	menu_box.add_child(tl)
-	# «На хотбар → 1…5»
-	var hrow := HBoxContainer.new()
-	hrow.add_theme_constant_override("separation", 3)
-	hrow.add_child(_label("На хотбар", 16, Color(0.9, 0.85, 0.75)))
-	for hk in 5:
-		var hb := Button.new()
-		hb.text = str(hk + 1)
-		hb.focus_mode = Control.FOCUS_NONE
-		hb.custom_minimum_size = Vector2(26, 28)
-		hb.add_theme_font_size_override("font_size", 15)
-		hb.pressed.connect(func():
-			close_menu()
-			bind_hot(key, hk))
-		hrow.add_child(hb)
+	# пункта «На хотбар» нет (промпт 14.11 19:20) — на хотбар только перетаскиванием
 	for a in acts:
 		var b := Button.new()
 		b.text = a[0]
@@ -744,10 +731,6 @@ func open_menu(key, at: Vector2) -> void:
 			b.add_theme_color_override("font_color", Color(1.0, 0.6, 0.5))
 		b.pressed.connect(_menu_pick.bind(key, act))
 		menu_box.add_child(b)
-		if act == "cancel":
-			menu_box.move_child(b, -1)
-	menu_box.add_child(hrow)
-	menu_box.move_child(hrow, menu_box.get_child_count() - 2)
 	menu_key = key
 	menu_bg.visible = true
 	menu.reset_size()
