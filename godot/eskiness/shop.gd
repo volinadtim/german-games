@@ -392,10 +392,15 @@ func _build_ui() -> void:
 		tb.pressed.connect(_show_tab.bind(i))
 		tabs.add_child(tb)
 		tab_btns.append(tb)
+	# вкладка прокручивается, если не влезает (на «Улучшениях автомата» много строк)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(680, 420)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.add_child(scroll)
 	content = VBoxContainer.new()
-	content.custom_minimum_size = Vector2(640, 380)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 6)
-	box.add_child(content)
+	scroll.add_child(content)
 	info_l = _label("", 18, Color(0.8, 0.78, 0.7))
 	box.add_child(info_l)
 	# внизу: обновить все ящики уровня (сейф не трогаем) и закрыть
@@ -529,36 +534,71 @@ func _build_slot_tab() -> void:
 	up.pressed.connect(_buy_upgrade)
 	content.add_child(up)
 	content.add_child(_label(" ", 6, Color.WHITE))
-	content.add_child(_label("ГАРАНТИРОВАННЫЙ СИМВОЛ", 24, Color(1.0, 0.45, 0.3)))
-	content.add_child(_label("На N круток: после каждого прокрута этот символ встаёт в случайную открытую клетку, где его нет.", 14, Color(0.65, 0.63, 0.58)))
-	var grid := _grid()
+	var gmax: int = SM.GUAR_MAX[lv - 1]
+	content.add_child(_label("ГАРАНТИРОВАННЫЙ СИМВОЛ", 22, Color(1.0, 0.45, 0.3)))
+	content.add_child(_label("На N круток: после каждого прокрута ×1/×2/×3 таких символа встают в открытые клетки, где их нет (выигрыш не ломают). Сейчас можно до ×%d; ×2 — с окна 3×3, ×3 — на 3×5." % gmax, 13, Color(0.65, 0.63, 0.58)))
 	for sym in SM.LUCK:
 		var d: Array = SM.LUCK[sym]
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		var ic := Control.new()
-		ic.custom_minimum_size = Vector2(32, 32)
-		ic.draw.connect(func(): SymS.draw(ic, sym, Rect2(Vector2.ZERO, ic.size)))
-		row.add_child(ic)
-		var left := 0
-		if slot and slot.luck.has(sym):
-			left = int(slot.luck[sym])
-		var l := _label("%s — %d круток%s" % [SymS.NAMES[sym], int(d[0]), " (ещё %d)" % left if left > 0 else ""], 16, Color(0.88, 0.86, 0.8))
-		l.custom_minimum_size = Vector2(230, 0)
-		row.add_child(l)
-		var b := Button.new()
-		b.text = "%d" % game.marked_price(int(d[1]))
-		b.custom_minimum_size = Vector2(64, 32)
-		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_size_override("font_size", 17)
-		b.pressed.connect(_buy_luck.bind(sym, int(d[1])))
+		var row := _buff_row(sym, "%s — %d круток" % [SymS.NAMES[sym], int(d[0])], _luck_left(slot, sym))
 		var need: int = SM.sym_level(sym)
-		if lv < need:   # символа ещё нет в барабанах — не продаём
+		for k in range(1, 4):
+			var b := _buff_btn("×%d · %d" % [k, game.marked_price(int(d[k]))])
+			b.pressed.connect(_buy_luck.bind(sym, int(d[k]), k))
+			if lv < need:   # символа ещё нет в барабанах — не продаём
+				b.disabled = true
+				b.text = "с " + SM.level_name(need)
+			elif k > gmax:
+				b.disabled = true
+				b.text = "×%d с %s" % [k, SM.level_name(SM.GUAR_MAX.find(k) + 1)]
+			row.add_child(b)
+		content.add_child(row)
+	content.add_child(_label("ШАНС КОМБИНАЦИИ", 22, Color(1.0, 0.45, 0.3)))
+	content.add_child(_label("На N круток символ чаще «липнет» к такому же слева — 3 в ряд выпадают заметно чаще.", 13, Color(0.65, 0.63, 0.58)))
+	var grid := _grid()
+	grid.columns = 2
+	for sym in SM.BOOST:
+		var d: Array = SM.BOOST[sym]
+		var left := 0
+		if slot and slot.boost.has(sym):
+			left = int(slot.boost[sym])
+		var row := _buff_row(sym, "%s — %d кр." % [SymS.NAMES[sym], int(d[0])], left)
+		var b := _buff_btn("%d" % game.marked_price(int(d[1])))
+		b.pressed.connect(_buy_boost.bind(sym, int(d[1])))
+		var need: int = SM.sym_level(sym)
+		if lv < need:
 			b.disabled = true
 			b.text = "с " + SM.level_name(need)
-			b.custom_minimum_size.x = 74
 		row.add_child(b)
 		grid.add_child(row)
+
+
+func _luck_left(slot, sym: String) -> int:
+	if slot and slot.luck.has(sym):
+		return int(slot.luck[sym]["left"])
+	return 0
+
+
+func _buff_row(sym: String, text: String, left: int) -> HBoxContainer:
+	var SymS := preload("res://slot_symbols.gd")
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var ic := Control.new()
+	ic.custom_minimum_size = Vector2(28, 28)
+	ic.draw.connect(func(): SymS.draw(ic, sym, Rect2(Vector2.ZERO, ic.size)))
+	row.add_child(ic)
+	var l := _label(text + (" (ещё %d)" % left if left > 0 else ""), 15, Color(0.88, 0.86, 0.8))
+	l.custom_minimum_size = Vector2(200, 0)
+	row.add_child(l)
+	return row
+
+
+func _buff_btn(text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(92, 28)
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 15)
+	return b
 
 
 func _buy_upgrade() -> void:
@@ -610,7 +650,7 @@ func _refresh_chests() -> void:
 	_refresh()
 
 
-func _buy_luck(sym: String, price: int) -> void:
+func _buy_luck(sym: String, price: int, k := 1) -> void:
 	if game.slot == null:
 		return
 	price = game.marked_price(price)
@@ -619,9 +659,25 @@ func _buy_luck(sym: String, price: int) -> void:
 		game.play_ui("buzz", -14.0)
 		return
 	game.inv.remove("coin", price)
-	game.slot.add_luck(sym)
+	game.slot.add_luck(sym, k)
 	game.markup_used()
-	info_l.text = "Гарант: %s" % preload("res://slot_symbols.gd").NAMES[sym]
+	info_l.text = "Гарант: %s ×%d" % [preload("res://slot_symbols.gd").NAMES[sym], k]
+	game.play_ui("coin", -10.0)
+	_refresh()
+
+
+func _buy_boost(sym: String, price: int) -> void:
+	if game.slot == null:
+		return
+	price = game.marked_price(price)
+	if game.inv.count("coin") < price:
+		info_l.text = "Не хватает монет"
+		game.play_ui("buzz", -14.0)
+		return
+	game.inv.remove("coin", price)
+	game.slot.add_boost(sym)
+	game.markup_used()
+	info_l.text = "Шанс комбинации: %s" % preload("res://slot_symbols.gd").NAMES[sym]
 	game.play_ui("coin", -10.0)
 	_refresh()
 

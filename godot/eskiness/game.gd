@@ -131,6 +131,7 @@ func setup(p: Player) -> void:
 		# новая игра в той же сессии: автомат общий с меню — сбрасываем (загрузка сейва выставит своё)
 		slot.credits = 0
 		slot.luck = {}
+		slot.boost = {}
 		slot.set_level(1)
 		slot.set_tray(0)
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
@@ -1291,6 +1292,7 @@ func save_state() -> Dictionary:
 		"glass": glass_floor.to_save(),
 		"slot_credits": slot.credits if slot else 0,
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
+		"slot_boost": slot.boost.duplicate(true) if slot else {},
 		"slot_level": slot.level if slot else 1,
 		"cheat_count": cheat_count,
 		"markup_pending": markup_pending,
@@ -1402,12 +1404,7 @@ func load_state(d: Dictionary) -> void:
 		glass_floor.from_save(d["glass"])
 	if slot:
 		slot.credits = int(d.get("slot_credits", 0))
-		slot.luck = {}
-		var lk: Dictionary = d.get("slot_luck", {})
-		for k in lk:
-			if slot.LUCK.has(k):   # гарантированный символ: осталось круток (старые сейвы — [вес, круток])
-				var v = lk[k]
-				slot.luck[k] = int(v[1]) if v is Array else int(v)
+		slot.load_buffs(d.get("slot_luck", {}), d.get("slot_boost", {}))
 		slot.set_level(int(d.get("slot_level", 1)))
 		slot.set_tray(int(d.get("slot_tray", 0)))
 		slot.screen.text = ""

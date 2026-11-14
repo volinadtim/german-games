@@ -20,12 +20,13 @@ const WornMetal := preload("res://worn_metal.gdshader")
 const COST := 3                  # цена одной крутки в пакете «3 за 8» (для подписей)
 ## пакеты круток (промпт 23:57): [круток, монет]
 const PACKS := [[3, 8], [6, 15]]
-## гарантированный символ из магазина (промпт 14.11 17:18): символ -> [круток, цена].
-## Пока действует — после каждого прокрута этот символ ставится в случайную открытую клетку,
-## где его нет. Шестёрка не продаётся.
+## гарантированный символ из магазина (промпты 14.11 17:18, 18:08): символ -> [круток, цена ×1, ×2, ×3].
+## Пока действует — после каждого прокрута k штук этого символа встают в случайные открытые клетки,
+## где его нет (выигравшие линии не трогает). k за крутку не больше GUAR_MAX уровня окна.
+## Цены подобраны симуляцией: прибавка выигрыша за все крутки баффа меньше его цены. Шестёрка не продаётся.
 const LUCK := {
-	"cherry": [6, 4], "lemon": [6, 5], "plum": [6, 6],
-	"grape": [5, 7], "diamond": [4, 9], "seven": [3, 12],
+	"cherry": [6, 8, 12, 16], "lemon": [6, 9, 14, 17], "plum": [6, 11, 15, 18],
+	"grape": [5, 12, 16, 19], "diamond": [4, 13, 17, 20], "seven": [3, 15, 20, 24],
 }
 const REELS := 5
 const ROWS := 3
@@ -43,6 +44,15 @@ const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "d
 ## LEVEL_SYMS[ур-1] — сколько первых символов в игре. Шансы — WEIGHTS среди доступных.
 const SYM_ORDER := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"]
 const LEVEL_SYMS := [3, 4, 5, 5, 7]
+## гарантов одного символа за крутку максимум по уровню окна (промпт 14.11 18:08)
+const GUAR_MAX := [1, 1, 2, 2, 3]
+## шанс комбинации (промпт 14.11 18:08): символ -> [круток, цена]. Пока действует, этот символ
+## «липнет» к соседу слева с шансом STICK_BOOST вместо STICK — 3 в ряд выпадают заметно чаще.
+const BOOST := {
+	"cherry": [6, 8], "lemon": [6, 9], "plum": [6, 10],
+	"grape": [5, 11], "diamond": [4, 12], "seven": [3, 13],
+}
+const STICK_BOOST := 0.45
 ## шанс, что клетка повторит символ соседа слева по ряду (чаще собираются комбинации)
 const STICK := 0.15
 ## выплаты за линию на окне 1×3: символ -> {сколько одинаковых: монет}
@@ -85,7 +95,8 @@ const BOARD_M := Vector2(1.35, 1.47)
 var game  # game.gd (выставляет game.gd; в меню — null)
 var busy := false
 var credits := 0                 # оплаченные крутки
-var luck := {}                   # гарантированный символ -> осталось круток
+var luck := {}                   # гарантированный символ -> {"left": осталось круток, "k": сколько штук за крутку}
+var boost := {}                  # шанс комбинации: символ -> осталось круток (липкость STICK_BOOST)
 var level := MAX_LEVEL           # прокачка окна (1..MAX_LEVEL), хранится в сейве; в меню — всё открыто
 var shutters: Array = []         # заслонки закрытых клеток: [ряд][барабан]
 var pack_up: Button              # кнопка прокачки в окне покупки круток
@@ -463,7 +474,13 @@ static func lines_for(lv: int) -> Array:
 ## Гарантированный символ: ставим sym в случайную открытую клетку, где его нет.
 ## Клетки уже выигравших линий не трогаем (если есть другие) — гарант только добавляет шансы.
 ## Семёрку не ставим, если в окне их уже 3 (4 семёрки не бывает).
-static func _guarantee(g: Array, lv: int, sym: String) -> void:
+static func _guarantee(g: Array, lv: int, sym: String, k := 1) -> void:
+	k = mini(k, int(GUAR_MAX[clampi(lv, 1, MAX_LEVEL) - 1]))
+	for i in k:
+		_guarantee_one(g, lv, sym)
+
+
+static func _guarantee_one(g: Array, lv: int, sym: String) -> void:
 	if not syms_for(lv).has(sym):
 		return
 	if sym == "six" or (sym == "seven" and count_open(g, lv, "seven") >= 3):
@@ -490,7 +507,7 @@ static func _guarantee(g: Array, lv: int, sym: String) -> void:
 ## Розыгрыш окна 3×5: каждая клетка — по весам WEIGHTS, иногда повторяет соседа слева
 ## («липкость» STICK, шестёрки не липнут); затем гарантированные символы guar.
 ## 4+ семёрки или 4+ шестёрки в открытой области перебрасываем.
-static func roll_window(lv: int, guar: Array) -> Array:
+static func roll_window(lv: int, guar, boosted: Array = []) -> Array:
 	var g: Array = []
 	for attempt in 200:
 		g = []
@@ -500,12 +517,12 @@ static func roll_window(lv: int, guar: Array) -> Array:
 				var s := _weighted_symbol(lv)
 				if c > 0:
 					var left: String = row[c - 1]
-					if left != "six" and randf() < STICK:
+					if left != "six" and randf() < (STICK_BOOST if boosted.has(left) else STICK):
 						s = left
 				row.append(s)
 			g.append(row)
 		for sym in guar:
-			_guarantee(g, lv, String(sym))
+			_guarantee(g, lv, String(sym), int(guar[sym]) if guar is Dictionary else 1)
 		if count_open(g, lv, "seven") <= 3 and count_open(g, lv, "six") <= 3:
 			break
 	return g
@@ -513,6 +530,11 @@ static func roll_window(lv: int, guar: Array) -> Array:
 
 ## для симуляции баланса: если не пусто — вместо PAY_K
 static var pay_k_test: Array = []
+
+
+## Цена гаранта sym ×k (k штук за крутку на LUCK[sym][0] круток).
+static func guar_price(sym: String, k: int) -> int:
+	return int(LUCK[sym][clampi(k, 1, 3)])
 
 
 ## Множитель серии после streak побед подряд.
@@ -1255,7 +1277,7 @@ func _draw_board(ci: Control) -> void:
 			ci.draw_line(pa, pb, Color(1.0, 0.85, 0.4), 2.0)
 		_fit(ci, Vector2(gx, gy + 3 * cell + 20), "%d %s" % [li + 1, names[lines[li][1]]], 5 * cell + 6, 14, Color(0.85, 0.8, 0.7))
 	var ry := 146.0 + 5 * 100.0 + 14
-	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара (×2) — только центр.", "ряд на окнах в 3 столбца."]:
+	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара (×2) — только центр.", "ряд на окнах в 3 столбца.", "Гаранты и шансы — в магазине."]:
 		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 20, Color(0.9, 0.84, 0.72))
 		ry += 28.0
 
@@ -1282,7 +1304,9 @@ func interact(g) -> void:
 	credits -= 1
 	# гарантированный символ тратится с каждой круткой
 	for k in luck.keys():
-		luck[k] = int(luck[k]) - 1
+		luck[k]["left"] = int(luck[k]["left"]) - 1
+	for k in boost.keys():
+		boost[k] = int(boost[k]) - 1
 	busy = true
 	screen.text = "КРУТИТСЯ..."
 	if g.has_method("cheat_check"):
@@ -1291,8 +1315,11 @@ func interact(g) -> void:
 		g.save_now()      # крутка уже списана — перезагрузка не вернёт её
 	_roll_stops()
 	for k in luck.keys():
-		if int(luck[k]) <= 0:
+		if int(luck[k]["left"]) <= 0:
 			luck.erase(k)
+	for k in boost.keys():
+		if int(boost[k]) <= 0:
+			boost.erase(k)
 	hl_lines = []
 	hl_t = 0.0
 	for row in hl_cells:
@@ -1323,7 +1350,10 @@ func interact(g) -> void:
 ## вокруг новой остановки «впечатываем» выпавшие 3 символа (остальная лента — по весам).
 ## Ленты перерисовываются, когда барабаны уже разогнались.
 func _roll_stops() -> void:
-	var g := roll_window(level, luck.keys())
+	var guar := {}
+	for k in luck:
+		guar[k] = int(luck[k]["k"])
+	var g := roll_window(level, guar, boost.keys())
 	var n := STRIP.size()
 	for i in REELS:
 		if not col_open(level, i):
@@ -1467,7 +1497,7 @@ func _mult_str(m: float) -> String:
 
 ## Экран автомата между крутками: сколько круток осталось, множитель серии и гарантированные символы.
 func _update_screen_hint() -> void:
-	if credits <= 0 and luck.is_empty() and streak <= 0:
+	if credits <= 0 and luck.is_empty() and boost.is_empty() and streak <= 0:
 		return
 	var parts := PackedStringArray()
 	if streak > 0:
@@ -1475,7 +1505,9 @@ func _update_screen_hint() -> void:
 	if credits > 0:
 		parts.append("КРУТОК: %d" % credits)
 	for k in luck:
-		parts.append("%s ГАРАНТ (%d)" % [Sym.NAMES[k].to_upper(), int(luck[k])])
+		parts.append("%s ГАРАНТ ×%d (%d)" % [Sym.NAMES[k].to_upper(), int(luck[k]["k"]), int(luck[k]["left"])])
+	for k in boost:
+		parts.append("%s ЧАЩЕ (%d)" % [Sym.NAMES[k].to_upper(), int(boost[k])])
 	screen.text = (screen.text + "\n" if screen.text != "" else "") + " · ".join(parts)
 
 
@@ -1734,13 +1766,43 @@ func _build_shutters() -> void:
 	set_level(level)
 
 
-## Магазин: гарантированный символ. Повторная покупка того же символа добавляет крутки.
-func add_luck(sym: String) -> void:
+## Магазин: гарантированный символ ×k. Повторная покупка того же символа добавляет крутки,
+## число штук за крутку — большее из старого и нового (не больше GUAR_MAX уровня).
+func add_luck(sym: String, k := 1) -> void:
 	if not LUCK.has(sym):
 		return
-	luck[sym] = int(luck.get(sym, 0)) + int(LUCK[sym][0])
+	var cur: Dictionary = luck.get(sym, {"left": 0, "k": 1})
+	luck[sym] = {"left": int(cur["left"]) + int(LUCK[sym][0]), "k": maxi(int(cur["k"]), k)}
 	screen.text = ""
 	_update_screen_hint()
+
+
+## Магазин: шанс комбинации символа на BOOST[sym][0] круток.
+func add_boost(sym: String) -> void:
+	if not BOOST.has(sym):
+		return
+	boost[sym] = int(boost.get(sym, 0)) + int(BOOST[sym][0])
+	screen.text = ""
+	_update_screen_hint()
+
+
+## Сейв: гаранты и шансы. Старые сейвы: гарант — число круток или [вес, круток].
+func load_buffs(lk: Dictionary, bst: Dictionary) -> void:
+	luck = {}
+	for k in lk:
+		if not LUCK.has(k):
+			continue
+		var v = lk[k]
+		if v is Dictionary:
+			luck[k] = {"left": int(v.get("left", 0)), "k": int(v.get("k", 1))}
+		elif v is Array:
+			luck[k] = {"left": int(v[1]), "k": 1}
+		else:
+			luck[k] = {"left": int(v), "k": 1}
+	boost = {}
+	for k in bst:
+		if BOOST.has(k):
+			boost[k] = int(bst[k])
 
 
 # ---------- лоток с выигрышем ----------
