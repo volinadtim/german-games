@@ -503,6 +503,7 @@ func _build_slot_tab() -> void:
 		var nm: String = SM.level_name(i + 1)
 		steps.append("[%s]" % nm if i + 1 == lv else nm)
 	content.add_child(_label("  →  ".join(steps) + "   ·   больше клеток — больше линий", 15, Color(0.65, 0.63, 0.58)))
+	content.add_child(_label("С каждым уровнем в барабанах новый символ: арбуз на 2×3, алмаз на 3×3; семёрки (сейф) и шестёрки — только на 3×5.", 14, Color(0.65, 0.63, 0.58)))
 	var up := Button.new()
 	up.text = slot.upgrade_text() if slot else "Автомата нет"
 	up.disabled = slot == null or lv >= SM.MAX_LEVEL
@@ -535,6 +536,11 @@ func _build_slot_tab() -> void:
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 17)
 		b.pressed.connect(_buy_luck.bind(sym, int(d[1])))
+		var need: int = SM.sym_level(sym)
+		if lv < need:   # символа ещё нет в барабанах — не продаём
+			b.disabled = true
+			b.text = "с " + SM.level_name(need)
+			b.custom_minimum_size.x = 74
 		row.add_child(b)
 		grid.add_child(row)
 

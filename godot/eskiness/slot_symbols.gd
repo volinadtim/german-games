@@ -1,12 +1,13 @@
 extends RefCounted
-## Символы автомата KILLBOX: фрукты, алмаз, семёрка, шестёрка. Рисуются кодом в любой CanvasItem
+## Символы автомата KILLBOX: фрукты, алмаз, семёрка, шестёрка. Ключ "grape" — это арбуз
+## (виноград заменён арбузной долькой, промпт 14.11 17:40; ключ оставлен ради старых сейвов). Рисуются кодом в любой CanvasItem
 ## (лента барабана и доска выплат — через SubViewport).
 ## Стиль — «нарисовано тушью»: толстый тёмный контур, два-три плоских тона без градиентов, блик точкой,
 ## у вишни и семёрки — потёки, лимон с гнильцой, у шестёрки в петле тлеет красный глаз.
 
 const IDS := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"]
 const NAMES := {
-	"cherry": "Вишня", "lemon": "Лимон", "plum": "Слива", "grape": "Виноград",
+	"cherry": "Вишня", "lemon": "Лимон", "plum": "Слива", "grape": "Арбуз",
 	"diamond": "Алмаз", "seven": "Семёрка", "six": "Шестёрка",
 }
 const INK := Color(0.09, 0.05, 0.04)
@@ -45,21 +46,19 @@ static func draw(ci: CanvasItem, id: String, r: Rect2) -> void:
 			_ball(ci, p, s * 0.29, w, Color(0.42, 0.16, 0.46), Color(0.24, 0.07, 0.28))
 			ci.draw_arc(p + Vector2(s * 0.06, 0), s * 0.2, -1.1, 1.1, 10, Color(0.2, 0.05, 0.24), w * 0.6)
 			_leaf(ci, p + Vector2(s * 0.03, -s * 0.3), p + Vector2(-s * 0.24, -s * 0.38), s * 0.08, w, Color(0.3, 0.4, 0.14))
-		"grape":
-			var berries: Array[Vector2] = []
-			for k in 9:
-				var row: int = [0, 0, 0, 1, 1, 1, 2, 2, 3][k]
-				var col: int = [0, 1, 2, 0, 1, 2, 0, 1, 0][k]
-				var cnt: int = [3, 3, 3, 3, 3, 3, 2, 2, 1][k]
-				berries.append(c + Vector2((col - (cnt - 1) / 2.0) * s * 0.17, (row - 1.2) * s * 0.155))
-			_stroke(ci, [c + Vector2(0, -s * 0.3), c + Vector2(s * 0.05, -s * 0.43)], s * 0.045, w, Color(0.3, 0.22, 0.1))
-			# сначала все контуры, потом заливки — гроздь читается одним силуэтом
-			for p in berries:
-				ci.draw_circle(p, s * 0.095 + w, INK)
-			for p in berries:
-				ci.draw_circle(p, s * 0.095, Color(0.24, 0.32, 0.08))
-				ci.draw_circle(p + Vector2(-s * 0.018, -s * 0.018), s * 0.065, Color(0.45, 0.58, 0.16))
-			_leaf(ci, c + Vector2(s * 0.02, -s * 0.34), c + Vector2(s * 0.3, -s * 0.38), s * 0.09, w, Color(0.3, 0.4, 0.14))
+		"grape":   # арбузная долька: тёмно-зелёная корка, светлая полоска, красная мякоть, чёрные семечки
+			var o := c + Vector2(0, -s * 0.14)
+			var rad := s * 0.42
+			_poly(ci, _half(o, rad), w, Color(0.14, 0.34, 0.1))
+			for k in 5:   # тёмные полосы на корке
+				var a := lerpf(0.35, PI - 0.35, k / 4.0)
+				ci.draw_line(o + Vector2(cos(a), sin(a)) * rad * 0.9, o + Vector2(cos(a), sin(a)) * rad * 0.99, Color(0.07, 0.18, 0.05), w * 0.9)
+			ci.draw_colored_polygon(_half(o, rad * 0.86), Color(0.62, 0.78, 0.38))
+			ci.draw_colored_polygon(_half(o, rad * 0.78), Color(0.76, 0.1, 0.1))
+			ci.draw_colored_polygon(_half(o + Vector2(-s * 0.03, 0), rad * 0.5), Color(0.88, 0.22, 0.18))
+			ci.draw_line(o + Vector2(-rad * 0.78, w * 0.5), o + Vector2(rad * 0.78, w * 0.5), Color(1.0, 0.45, 0.38), w * 0.7)
+			for p in [Vector2(-0.2, 0.07), Vector2(0.0, 0.13), Vector2(0.2, 0.07), Vector2(-0.09, 0.22), Vector2(0.1, 0.22)]:
+				ci.draw_rect(Rect2(o + p * s - Vector2(s * 0.022, s * 0.03), Vector2(s * 0.045, s * 0.065)), INK)
 		"diamond":
 			var pts := PackedVector2Array([c + Vector2(-s * 0.36, -s * 0.1), c + Vector2(-s * 0.2, -s * 0.3),
 				c + Vector2(s * 0.2, -s * 0.3), c + Vector2(s * 0.36, -s * 0.1), c + Vector2(0, s * 0.38)])
@@ -100,6 +99,15 @@ static func _ball(ci: CanvasItem, p: Vector2, rad: float, w: float, fill: Color,
 	ci.draw_circle(p, rad, shade)
 	ci.draw_circle(p + Vector2(-rad * 0.16, -rad * 0.16), rad * 0.78, fill)
 	ci.draw_rect(Rect2(p + Vector2(-rad * 0.55, -rad * 0.55), Vector2(rad * 0.28, rad * 0.28)), fill.lightened(0.55))
+
+
+## Нижняя половина круга (долька): дуга от 0 до PI, плоская сторона сверху.
+static func _half(o: Vector2, rad: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for k in 19:
+		var a := PI * k / 18.0
+		pts.append(o + Vector2(cos(a), sin(a)) * rad)
+	return pts
 
 
 ## Многоугольник с тёмным контуром.

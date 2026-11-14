@@ -6,7 +6,8 @@ extends StaticBody3D
 ## вращаются и останавливаются по очереди. Линии строятся под открытую область (lines_for):
 ##   ряды (3+ одинаковых подряд), галочки (на 2×3), диагонали по 3 клетки, мостики по 4.
 ##   3 шестёрки где угодно в открытом окне — автомат забирает все монеты, оставляет 10.
-##   3 семёрки на линии — открывают сейф; если сейф уже открыт — 30 монет.
+##   3 семёрки на линии — открывают сейф; если сейф уже открыт — 30 монет. Семёрки и шестёрки
+##   есть в барабанах только на окне 3×5 (LEVEL_SYMS).
 ## 4+ семёрки или 4+ шестёрки в открытом окне не выпадают никогда (исключены при генерации).
 ## Справа от автомата на стене — доска выплат. Автомат стоит в тёмной комнате и мерцает.
 ## Вид: над вывеской — арка с черепом и венцом из шипов, по углам лампы в проволочных клетках,
@@ -37,6 +38,11 @@ const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "l
 ## Шанс символа в каждой клетке окна, %: чем ценнее, тем реже.
 ## Окно разыгрывается по этим весам, затем на ленты барабанов «впечатываются» выпавшие символы.
 const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "diamond": 13.0, "seven": 10.5, "six": 3.5}
+## символы по уровням окна (промпт 14.11 17:40): на ур.1 только вишня, лимон, слива; дальше по символу,
+## семёрки и шестёрки — только на последнем уровне (3×5). SYM_ORDER — порядок появления,
+## LEVEL_SYMS[ур-1] — сколько первых символов в игре. Шансы — WEIGHTS среди доступных.
+const SYM_ORDER := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"]
+const LEVEL_SYMS := [3, 4, 5, 5, 7]
 ## шанс, что клетка повторит символ соседа слева по ряду (чаще собираются комбинации)
 const STICK := 0.15
 ## выплаты за линию на окне 1×3: символ -> {сколько одинаковых: монет}
@@ -51,7 +57,7 @@ const PAY := {
 ## множитель выплат по уровню окна: чем больше линий, тем меньше платит каждая —
 ## иначе на 3×5 автомат отдавал бы больше, чем стоит крутка (подобрано симуляцией).
 ## Семёрки (сейф / 30 монет) не уменьшаются.
-const PAY_K := [1.0, 0.65, 0.6, 0.34, 0.22]
+const PAY_K := [0.8, 0.5, 0.52, 0.29, 0.22]
 const R := 0.19            # радиус барабана
 const RW := 0.125          # ширина барабана
 const REEL_Y := 0.98
@@ -72,7 +78,7 @@ var game  # game.gd (выставляет game.gd; в меню — null)
 var busy := false
 var credits := 0                 # оплаченные крутки
 var luck := {}                   # гарантированный символ -> осталось круток
-var level := 1                   # прокачка окна (1..MAX_LEVEL), хранится в сейве
+var level := MAX_LEVEL           # прокачка окна (1..MAX_LEVEL), хранится в сейве; в меню — всё открыто
 var shutters: Array = []         # заслонки закрытых клеток: [ряд][барабан]
 var pack_up: Button              # кнопка прокачки в окне покупки круток
 var board_sv: SubViewport        # доска выплат — перерисовывается при прокачке
@@ -213,7 +219,7 @@ func _build() -> void:
 	# барабаны: у каждого своя лента символов в SubViewport, натянутая на цилиндр
 	var reel_mats: Array = []
 	for ri in REELS:
-		strips.append(_random_strip())
+		strips.append(_random_strip(level))
 		var sv := SubViewport.new()
 		sv.size = Vector2i(TEX, TEX * STRIP.size())
 		sv.transparent_bg = false
@@ -342,22 +348,36 @@ func _draw_strip(art: Control, ri: int) -> void:
 	art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.08))
 
 
-static func _weighted_symbol() -> String:
+## Символы, которые есть в барабанах на уровне lv.
+static func syms_for(lv: int) -> Array:
+	return SYM_ORDER.slice(0, int(LEVEL_SYMS[clampi(lv, 1, MAX_LEVEL) - 1]))
+
+
+## С какого уровня окна символ появляется в барабанах.
+static func sym_level(sym: String) -> int:
+	for lv in range(1, MAX_LEVEL + 1):
+		if syms_for(lv).has(sym):
+			return lv
+	return MAX_LEVEL
+
+
+static func _weighted_symbol(lv: int) -> String:
+	var syms := syms_for(lv)
 	var total := 0.0
-	for k in WEIGHTS:
+	for k in syms:
 		total += float(WEIGHTS[k])
 	var r := randf() * total
-	for k in WEIGHTS:
+	for k in syms:
 		r -= float(WEIGHTS[k])
 		if r <= 0.0:
 			return k
 	return "cherry"
 
 
-static func _random_strip() -> Array:
+static func _random_strip(lv: int) -> Array:
 	var out: Array = []
 	for i in STRIP.size():
-		out.append(_weighted_symbol())
+		out.append(_weighted_symbol(lv))
 	return out
 
 
@@ -422,6 +442,8 @@ static func lines_for(lv: int) -> Array:
 ## Клетки уже выигравших линий не трогаем (если есть другие) — гарант только добавляет шансы.
 ## Семёрку не ставим, если в окне их уже 3 (4 семёрки не бывает).
 static func _guarantee(g: Array, lv: int, sym: String) -> void:
+	if not syms_for(lv).has(sym):
+		return
 	if sym == "six" or (sym == "seven" and count_open(g, lv, "seven") >= 3):
 		return
 	var keep: Array = []
@@ -453,7 +475,7 @@ static func roll_window(lv: int, guar: Array) -> Array:
 		for r in ROWS:
 			var row: Array = []
 			for c in REELS:
-				var s := _weighted_symbol()
+				var s := _weighted_symbol(lv)
 				if c > 0:
 					var left: String = row[c - 1]
 					if left != "six" and randf() < STICK:
@@ -1130,6 +1152,11 @@ func _draw_board(ci: Control) -> void:
 			ci.draw_rect(Rect2(pad - 8, y - 4, inner + 16, 92), Color(1, 1, 1, 0.04))
 		var pays: Dictionary = PAY[id]   # выплаты — для текущего окна (pay_for)
 		Sym.draw(ci, id, Rect2(pad, y, 84, 84))
+		if not syms_for(level).has(id):
+			ci.draw_rect(Rect2(pad - 8, y - 4, inner + 16, 92), Color(0.12, 0.05, 0.05, 0.75))
+			_fit(ci, Vector2(pad + 100, y + 54), "появится на окне %s" % level_name(sym_level(id)), inner - 160, 26, Color(0.7, 0.62, 0.52))
+			y += 100.0
+			continue
 		var parts := PackedStringArray()
 		for n in [5, 4, 3]:
 			if pays.has(n) and n <= int(LEVELS[level - 1][1]):
@@ -1150,6 +1177,10 @@ func _draw_board(ci: Control) -> void:
 	_fit(ci, Vector2(pad + 200, y + 28), "×3 где угодно в окне —", inner - 200, 24, Color(1.0, 0.3, 0.2))
 	_fit(ci, Vector2(pad + 200, y + 58), "автомат забирает всё, кроме 10", inner - 200, 22, Color(1.0, 0.3, 0.2))
 	y += 92.0
+	if not syms_for(level).has("seven"):
+		var top := y - 92.0 - 96.0 - 4.0
+		ci.draw_rect(Rect2(pad - 8, top, inner + 16, 188), Color(0.12, 0.05, 0.05, 0.72))
+		_fit(ci, Vector2(pad, top + 104), "семёрки и шестёрки — только на окне %s" % level_name(MAX_LEVEL), inner, 28, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
 	_fit(ci, Vector2(pad, y + 20), "чем больше окно, тем больше линий и меньше выплата каждой · 4 семёрки и 4 шестёрки не выпадают", inner, 19, Color(0.7, 0.62, 0.52), HORIZONTAL_ALIGNMENT_CENTER)
 	# правая колонка: линии открытого окна схемами 5×3 (закрытые клетки — тёмные)
 	var x0 := w
@@ -1239,7 +1270,7 @@ func _roll_stops() -> void:
 	var n := STRIP.size()
 	for i in REELS:
 		stops[i] = randi() % n
-		var strip := _random_strip()
+		var strip := _random_strip(level)
 		for r in ROWS:
 			strip[(stops[i] + r - 1 + n) % n] = g[r][i]
 		strips[i] = strip
@@ -1453,17 +1484,71 @@ func _build_packs() -> void:
 
 
 func _buy_pack(n: int, price: int) -> void:
+	if busy:
+		return
 	if not game.inv.remove("coin", price):
 		pack_info.text = "Не хватает монет (есть %d)" % game.inv.coins
 		game.play_ui("buzz", -14.0)
 		return
-	credits += n
-	game.play_ui("coin", -10.0)
-	game.hud.toast("KILLBOX: +%d круток" % n, Color(1.0, 0.8, 0.4))
-	screen.text = ""
-	_update_screen_hint()
-	game.save_now()
 	close_packs()
+	# монеты уже списаны — крутки зачисляем сразу в сейв, а на экране — после того, как 3 монетки
+	# залетят в монетоприёмник (промпт 14.11 17:40)
+	credits += n
+	game.save_now()
+	busy = true
+	screen.text = "ОПЛАТА..."
+	_coin_toss(3, func():
+		busy = false
+		game.hud.toast("KILLBOX: +%d круток" % n, Color(1.0, 0.8, 0.4))
+		screen.text = ""
+		_update_screen_hint())
+
+
+## Монетки из руки игрока по дуге в монетоприёмник, одна за другой, каждая со звоном; потом done.
+func _coin_toss(count: int, done: Callable) -> void:
+	var slot_pos := rig.global_transform * Vector3(0.3 + EX, 0.71, 0.33)
+	var from := slot_pos + global_transform.basis.z * 1.2 + Vector3(0, -0.3, 0)
+	if game and game.player and game.player.get("cam"):
+		var cam: Camera3D = game.player.cam
+		from = cam.global_position - cam.global_transform.basis.z * 0.45 + Vector3(0, -0.2, 0)
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.86, 0.66, 0.3)
+	m.metallic = 0.85
+	m.roughness = 0.35
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.022
+	cm.bottom_radius = 0.022
+	cm.height = 0.006
+	cm.radial_segments = 12
+	cm.rings = 1
+	var dur := 0.42
+	var gap := 0.28
+	for k in count:
+		var coin := MeshInstance3D.new()
+		coin.mesh = cm
+		coin.material_override = m
+		coin.visible = false
+		if get_tree().current_scene:
+			get_tree().current_scene.add_child(coin)
+		else:
+			add_child(coin)
+		coin.global_position = from
+		var a := from + Vector3(randf_range(-0.03, 0.03), 0, randf_range(-0.03, 0.03))
+		var mid := (a + slot_pos) / 2.0 + Vector3(0, 0.35, 0)
+		var tw := create_tween()
+		tw.tween_interval(k * gap)
+		tw.tween_callback(func(): coin.visible = true)
+		tw.tween_method(func(t: float):
+			var p := a.lerp(mid, t).lerp(mid.lerp(slot_pos, t), t)
+			coin.global_position = p
+			coin.rotation = Vector3(t * 9.0, 0.3, t * 4.0), 0.0, 1.0, dur)
+		var last := k == count - 1
+		tw.tween_callback(func():
+			if game:
+				game.play_at("coin", slot_pos, -8.0, 1.0 + 0.08 * k)
+			coin.queue_free()
+			if last:
+				done.call())
 
 
 
@@ -1522,6 +1607,11 @@ func buy_upgrade() -> bool:
 
 func set_level(lv: int) -> void:
 	level = clampi(lv, 1, MAX_LEVEL)
+	# ленты — только символами этого уровня
+	for i in strips.size():
+		strips[i] = _random_strip(level)
+	if not strip_views.is_empty():
+		_redraw_strips()
 	for r in shutters.size():
 		for c in shutters[r].size():
 			(shutters[r][c] as Node3D).visible = not is_open(level, r, c)
@@ -1530,13 +1620,12 @@ func set_level(lv: int) -> void:
 		board_sv.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
-## Заслонки закрытых клеток: стальная пластина в ржавчине, хромовые полосы крест-накрест,
-## заклёпки и навесной замок с красным огоньком — клетка «заколочена».
+## Заслонки закрытых клеток: серая стальная пластина, полосы крест-накрест, заклёпки и навесной замок —
+## клетка «заколочена» (промпт 14.11 17:40: серый металл, без цветных деталей).
 func _build_shutters() -> void:
-	var plate := _worn(Color(0.16, 0.13, 0.11), false, 0.35, 0.9, 0.7)
-	var trim := _worn(Color(0.62, 0.5, 0.26), true, 0.0, 0.6, 0.5)
-	var dark := _mat(Color(0.03, 0.02, 0.02))
-	var lamp := _emis(Color(1.0, 0.1, 0.04), 1.2)
+	var plate := _worn(Color(0.46, 0.47, 0.48), false, 0.15, 0.15, 0.35)
+	var trim := _worn(Color(0.62, 0.63, 0.64), true, 0.0, 0.15, 0.3)
+	var dark := _mat(Color(0.12, 0.12, 0.13))
 	var w := PITCH - 0.02
 	var h := 0.09
 	var diag := sqrt(w * w + h * h)
@@ -1558,7 +1647,6 @@ func _build_shutters() -> void:
 					_sphere(n, 0.005, Vector3(sx * (w / 2.0 - 0.009), sy * (h / 2.0 - 0.009), 0.006), trim, 6)
 			_box(n, Vector3(0.022, 0.018, 0.008), Vector3(0, -0.012, 0.014), trim)
 			_box(n, Vector3(0.012, 0.012, 0.004), Vector3(0, 0.002, 0.012), dark)
-			_sphere(n, 0.0035, Vector3(0, -0.012, 0.019), lamp, 6)
 			for mi in n.get_children():
 				(mi as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			row.append(n)
