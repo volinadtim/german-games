@@ -159,8 +159,9 @@ func _build() -> void:
 	screen_m.emission_energy_multiplier = 0.35
 	_box(Vector3(0.22, 0.08, 0.01), Vector3(px, 1.62, D / 2 + 0.005), screen_m)
 	var scr := Label3D.new()
-	scr.text = "ВЫБОР"
-	scr.font_size = 32
+	scr.text = "BUY"
+	scr.font = model_font()
+	scr.font_size = 34
 	scr.pixel_size = 0.0018
 	scr.modulate = Color(0.5, 1.0, 0.55)
 	scr.outline_size = 0
@@ -182,7 +183,7 @@ func _build() -> void:
 	_box(Vector3(W + 0.06, 0.02, 0.14), Vector3(0, H + 0.27, 0.12), steel)
 	var title := Label3D.new()
 	title.text = "Trinkets Market"
-	title.font = sign_font()
+	title.font = model_font()
 	title.font_size = 64
 	title.pixel_size = 0.00175
 	title.outline_size = 6
@@ -448,6 +449,17 @@ func _build_ui() -> void:
 
 ## Шрифт вывески «Trinkets Market» (промпт 14.11 17:19): узкий жирный «вывесочный» —
 ## Bahnschrift из Windows, если нет — Impact / Arial Black / Roboto Condensed.
+## Шрифт надписей на самой модели автомата-магазина (промпт 14.11 19:36): FONT_PICK — имя системного шрифта.
+const FONT_PICK := "Courier New"   # ретро «печатный»; на Android — monospace
+static var _model_font: SystemFont
+static func model_font() -> SystemFont:
+	if _model_font == null:
+		_model_font = SystemFont.new()
+		_model_font.font_names = PackedStringArray([FONT_PICK, "monospace"])
+		_model_font.font_weight = 800
+	return _model_font
+
+
 static var _sign_font: SystemFont
 static func sign_font() -> SystemFont:
 	if _sign_font == null:
