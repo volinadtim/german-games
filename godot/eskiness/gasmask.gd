@@ -4,8 +4,8 @@ extends CanvasLayer
 ## кончился — автоматически ставится следующий из инвентаря.
 ## Наверху без защиты копится «отравление» tox (0..1): замедление, искажения в глазах, быстрая потеря здоровья.
 ## Если быстро вернуться в бункер — выжить можно: в бункере эффекты спадают постепенно.
-## Промпт 14.11 18:03: новый вид изнутри (толстая резина, два круглых окуляра в металлических обоймах,
-## царапины, разводы, конденсат от дыхания), плавное надевание/снятие и плавные эффекты.
+## Промпт 14.11 18:03 / 18:30: панорамная маска (широкий обзор, линзы слиты без шва), царапины, разводы,
+## конденсат от дыхания, плавное надевание/снятие и плавные эффекты.
 
 const FILTER_TIME := 100.0
 const TOX_UP := 1.0 / 3.0      # до полного отравления ~3 с (дебаффы нарастают быстро)
@@ -63,9 +63,9 @@ func _ready() -> void:
 		InputMap.action_add_event("gasmask", ev)
 
 
-## Вид изнутри «Нюхича»: толстая чёрная резина почти на пол-экрана, два круглых окуляра в металлических
-## обоймах (с бликом и винтами), между ними и снизу — перемычка носа и клапан.
-## Стекло: к ободу темнеет и размывается, разводы и царапины, по краям — конденсат, который дышит вместе с тобой.
+## Вид изнутри «Нюхича» (промпт 14.11 18:30): две большие линзы плавно слиты в одну панорамную область
+## (~80% экрана), чёрная резина только по краям и в углах, у переносицы — мягкая тень сверху и снизу, без линии.
+## Стекло: к краю темнеет и размывается, разводы и царапины, по краям — конденсат, который дышит вместе с тобой.
 ## put — анимация надевания (рамка наезжает из-за краёв экрана, экран на миг темнеет), fog — запотевание.
 func _mask_shader() -> Shader:
 	var s := Shader.new()
@@ -74,10 +74,11 @@ uniform sampler2D scr : hint_screen_texture, filter_linear_mipmap;
 uniform float put = 1.0;     // 0..1 надевание
 uniform float fog = 0.0;     // 0..1 запотевание (фильтр садится)
 uniform float breath = 0.0;  // 0..1 выдох — конденсат по краям
-const float R = 0.285;       // радиус стекла (доля высоты экрана)
-const float RING = 0.05;     // металлическая обойма
-const float CX = 0.245;      // центры окуляров по горизонтали
-const float CY = -0.035;
+// две большие линзы, плавно слитые в одну панорамную (промпт 14.11 18:30: обзор шире, без линии по центру)
+const vec2 RAD = vec2(0.6, 0.53);   // полуоси линзы (доля высоты экрана)
+const float CX = 0.34;              // центры линз по горизонтали
+const float CY = -0.02;
+const float K = 0.35;               // мягкость слияния линз
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float hash1(float n) { return fract(sin(n) * 43758.5453); }
@@ -93,6 +94,11 @@ float fbm(vec2 p) {
 	for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.07; a *= 0.5; }
 	return v;
 }
+// гладкий минимум: две линзы сливаются без шва
+float smin(float a, float b, float k) {
+	float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+	return mix(b, a, h) - k * h * (1.0 - h);
+}
 
 void fragment() {
 	float a = smoothstep(0.0, 1.0, put);
@@ -100,90 +106,60 @@ void fragment() {
 	vec2 p = SCREEN_UV - 0.5;
 	p.x *= asp;
 	// надевание: маска «наезжает» на лицо — рамка приходит из-за краёв экрана
-	p /= mix(3.2, 1.0, a);
-	p.y += (1.0 - a) * 0.06;
+	p /= mix(2.6, 1.0, a);
+	p.y += (1.0 - a) * 0.05;
 	vec2 cl = vec2(-CX, CY);
 	vec2 cr = vec2(CX, CY);
-	float dl = length(p - cl);
-	float dr = length(p - cr);
-	vec2 c = dl < dr ? cl : cr;
-	float d = min(dl, dr);
-	vec2 q = p - c;
-	float side = c.x < 0.0 ? -1.0 : 1.0;
-	// перемычка носа и клапан снизу между окулярами
-	float nose = length((p - vec2(0.0, 0.47)) / vec2(0.13, 0.36));
-	float valve = length((p - vec2(0.0, 0.43)) / vec2(0.075, 0.075));
-	// резина: почти чёрная, с лёгкой фактурой и складками
+	float fl = length((p - cl) / RAD);
+	float fr = length((p - cr) / RAD);
+	float f = smin(fl, fr, K) + 0.08;         // <1 — стекло, к 1 — край линзы
+	// «центр» плавно переезжает от левой линзы к правой — без разрыва посередине
+	float w = smoothstep(-0.25, 0.25, p.x);
+	vec2 c = mix(cl, cr, w);
+	// у переносицы: мягкая тень сверху и снизу посередине (без жёсткой перемычки)
+	float nose = smoothstep(0.22, 0.0, abs(p.x)) * (smoothstep(0.22, 0.5, p.y) * 0.85 + smoothstep(-0.3, -0.5, p.y) * 0.5);
+	float glass = 1.0 - smoothstep(0.86, 1.04, f);   // 1 — стекло, 0 — резина, переход мягкий
+	// резина по краям: почти чёрная, с лёгкой фактурой
 	float tex = fbm(p * 38.0) * 0.5 + fbm(p * vec2(4.0, 14.0)) * 0.5;
-	vec3 rubber = vec3(0.012, 0.013, 0.012) + vec3(0.018, 0.019, 0.017) * tex;
-	vec3 col;
-	if (d > R + RING || nose < 1.0) {
-		col = rubber;
-		// складка резины вокруг обоймы — чуть светлее
-		float fold = smoothstep(0.03, 0.0, abs(d - (R + RING + 0.022))) * clamp(-q.y / R + 0.3, 0.0, 1.0);
-		col += vec3(0.022) * fold * step(1.0, nose);
-		if (valve < 1.0) {
-			// клапан выдоха: тёмная решётка
-			float grill = step(0.5, fract((p.x + 0.2) * 70.0));
-			col = mix(vec3(0.03, 0.032, 0.03), vec3(0.008), grill * step(valve, 0.8));
-			col += vec3(0.03) * smoothstep(0.85, 1.0, valve);
-		}
-	} else if (d > R) {
-		// металлическая обойма: тёмная сталь, скос внутрь, блик сверху, четыре винта
-		float k = (d - R) / RING;
-		float bevel = smoothstep(0.0, 0.35, k) * smoothstep(1.0, 0.6, k);
-		float top = clamp(-q.y / d, 0.0, 1.0);
-		col = vec3(0.045, 0.047, 0.045) + vec3(0.07, 0.072, 0.068) * bevel * pow(top, 2.0);
-		col += vec3(0.02) * noise(vec2(atan(q.y, q.x) * 40.0, k * 4.0));
-		col *= 0.65 + 0.35 * smoothstep(0.0, 0.25, k);
-		for (int i = 0; i < 4; i++) {
-			float ang = 0.785 + float(i) * 1.5708;
-			vec2 sp = c + vec2(cos(ang), sin(ang)) * (R + RING * 0.5);
-			float sd = length(p - sp);
-			col = mix(col, vec3(0.1, 0.1, 0.095) * (0.6 + 0.6 * clamp(-(p.y - sp.y) / 0.01, 0.0, 1.0)), smoothstep(0.009, 0.006, sd));
-		}
-	} else {
-		float e = smoothstep(R * 0.45, R, d);          // 0 в центре, 1 у обоймы
-		// конденсат: туманная кайма у краёв, дышит; при садящемся фильтре ползёт к центру
-		float cn = fbm(p * 9.0 + vec2(0.0, TIME * 0.02));
-		float cond = smoothstep(0.55 - 0.45 * fog - 0.12 * breath, 1.0, e + cn * 0.35) * (0.28 + 0.4 * breath + 0.55 * fog);
-		cond = clamp(cond, 0.0, 0.95);
-		vec2 cuv = vec2(c.x / asp, c.y) + 0.5;
-		vec2 uv = SCREEN_UV + (cuv - SCREEN_UV) * 0.05 * e * e;   // стягивание к центру окуляра
-		uv += (vec2(fbm(p * 22.0), fbm(p * 22.0 + 5.3)) - 0.5) * 0.006 * cond;
-		vec3 col0 = textureLod(scr, uv, 1.8 * e + 3.5 * cond).rgb;
-		// старое стекло: чуть зеленит и темнеет к ободу
-		col = col0 * mix(vec3(1.0), vec3(0.86, 0.92, 0.84), 0.6) * (1.0 - 0.45 * e * e);
-		// конденсат — молочная муть
-		col = mix(col, col * 0.6 + vec3(0.16, 0.17, 0.16), cond);
-		// разводы: большие мутные пятна от пальцев и высохших капель
-		float sm = smoothstep(0.55, 0.85, fbm(q * 7.0 + side * 3.7));
-		col = mix(col, col * 0.85 + vec3(0.06, 0.065, 0.06), sm * 0.35);
-		// следы капель: маленькие светлые кольца
-		for (int i = 0; i < 5; i++) {
-			float fi = float(i) + (side > 0.0 ? 10.0 : 0.0);
-			vec2 dp = c + (vec2(hash1(fi * 5.1), hash1(fi * 9.3)) - 0.5) * R * 1.4;
-			float rr = 0.006 + 0.01 * hash1(fi * 2.7);
-			col += vec3(0.05) * smoothstep(0.0025, 0.0, abs(length(p - dp) - rr));
-		}
-		// царапины: тонкие штрихи разной длины
-		for (int i = 0; i < 11; i++) {
-			float fi = float(i) + (side > 0.0 ? 20.0 : 0.0);
-			vec2 sa = c + (vec2(hash1(fi * 3.1), hash1(fi * 7.7)) - 0.5) * R * 1.5;
-			float ang = hash1(fi * 13.3) * 3.1416;
-			vec2 u = vec2(cos(ang), sin(ang));
-			float len = 0.015 + 0.06 * hash1(fi * 1.9);
-			float t = clamp(dot(p - sa, u), -len, len);
-			float dist = length(p - sa - u * t);
-			col += vec3(0.08) * smoothstep(0.0013, 0.0, dist) * (0.35 + 0.65 * hash1(fi));
-		}
-		// блик дугой сверху-снаружи
-		vec2 dir = q / max(d, 0.0001);
-		float arc = smoothstep(0.014, 0.0, abs(d - (R - 0.03))) * pow(clamp(-dir.y * 0.8 + side * dir.x * 0.4, 0.0, 1.0), 3.0);
-		col += vec3(0.09, 0.1, 0.09) * arc;
-		// тень от обоймы
-		col *= 1.0 - 0.6 * smoothstep(R - 0.025, R, d);
+	vec3 rubber = vec3(0.012, 0.013, 0.012) + vec3(0.016, 0.017, 0.015) * tex;
+	// стекло
+	float e = smoothstep(0.5, 1.0, f);            // 0 в середине, 1 у края
+	float cn = fbm(p * 9.0 + vec2(0.0, TIME * 0.02));
+	float cond = smoothstep(0.6 - 0.5 * fog - 0.1 * breath, 1.05, e + cn * 0.3) * (0.15 + 0.4 * breath + 0.6 * fog);
+	cond = clamp(cond, 0.0, 0.95);
+	vec2 cuv = vec2(c.x / asp, c.y) + 0.5;
+	vec2 uv = SCREEN_UV + (cuv - SCREEN_UV) * 0.035 * e * e;   // лёгкое стягивание к центрам линз
+	uv += (vec2(fbm(p * 22.0), fbm(p * 22.0 + 5.3)) - 0.5) * 0.006 * cond;
+	vec3 col = textureLod(scr, uv, 1.6 * e * e + 3.5 * cond).rgb;
+	col *= mix(vec3(1.0), vec3(0.88, 0.93, 0.86), 0.55) * (1.0 - 0.4 * e * e);
+	col = mix(col, col * 0.6 + vec3(0.16, 0.17, 0.16), cond);
+	// разводы: мутные пятна от пальцев и высохших капель
+	float sm = smoothstep(0.55, 0.85, fbm(p * 6.0 + 3.7));
+	col = mix(col, col * 0.85 + vec3(0.06, 0.065, 0.06), sm * 0.3);
+	// следы капель
+	for (int i = 0; i < 9; i++) {
+		float fi = float(i);
+		vec2 dp = (vec2(hash1(fi * 5.1), hash1(fi * 9.3)) - 0.5) * vec2(1.5, 0.85);
+		float rr = 0.006 + 0.01 * hash1(fi * 2.7);
+		col += vec3(0.045) * smoothstep(0.0025, 0.0, abs(length(p - dp) - rr));
 	}
+	// царапины: тонкие штрихи по всему стеклу
+	for (int i = 0; i < 18; i++) {
+		float fi = float(i);
+		vec2 sa = (vec2(hash1(fi * 3.1), hash1(fi * 7.7)) - 0.5) * vec2(1.6, 0.9);
+		float ang = hash1(fi * 13.3) * 3.1416;
+		vec2 u = vec2(cos(ang), sin(ang));
+		float len = 0.015 + 0.06 * hash1(fi * 1.9);
+		float t = clamp(dot(p - sa, u), -len, len);
+		float dist = length(p - sa - u * t);
+		col += vec3(0.075) * smoothstep(0.0013, 0.0, dist) * (0.35 + 0.65 * hash1(fi));
+	}
+	// мягкий блик сверху у края каждой линзы
+	float hl = smoothstep(0.1, 0.0, abs(fl - 0.88)) * smoothstep(0.0, -0.3, p.y - CY) * smoothstep(0.1, -0.35, p.x);
+	float hr = smoothstep(0.1, 0.0, abs(fr - 0.88)) * smoothstep(0.0, -0.3, p.y - CY) * smoothstep(-0.1, 0.35, p.x);
+	col += vec3(0.05, 0.055, 0.05) * max(hl, hr);
+	col *= 1.0 - 0.55 * nose;
+	col = mix(rubber, col, glass);
 	// на середине надевания экран темнеет (резина у глаз)
 	col *= 1.0 - 0.75 * sin(3.1416 * a);
 	COLOR = vec4(col, smoothstep(0.0, 0.12, put));
