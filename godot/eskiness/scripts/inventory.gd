@@ -23,6 +23,7 @@ signal repair_requested(kit_idx: int, target)   # target — номер ячей
 signal message(text: String)
 
 const Items := preload("res://scripts/items.gd")
+const Gun := preload("res://scripts/gun.gd")
 const BAG := 10                  # ячеек без рюкзака
 const BAG_MAX := 15              # с рюкзаком (items.gd: "bag" — сколько добавляет)
 const COLS := 5
@@ -109,11 +110,16 @@ class Slot extends Control:
 		var mx := Items.max_dur(id)
 		if mx > 0.0:
 			var fr := clampf(float(inv.get_dur(key)) / mx, 0.0, 1.0)
+			if id == "pistol":
+				fr = float(Gun.mag_rounds(inv.get_dur(key))) / Gun.CAP
 			draw_rect(Rect2(6, size.y - 9, size.x - 12, 4), Color(0, 0, 0, 0.6))
 			draw_rect(Rect2(6, size.y - 9, (size.x - 12) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
 		if Items.ITEMS[id].has("rounds"):
 			# пистолет / магазин: патронов внутри
 			var rt := "%d/%d" % [int(round(inv.get_dur(key))), int(mx)]
+			if id == "pistol":
+				var pd: float = inv.get_dur(key)
+				rt = "%d/%d" % [Gun.mag_rounds(pd), Gun.CAP] if Gun.has_mag(pd) else "без маг."
 			draw_string_outline(f, Vector2(4, size.y - 12), rt, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 15, 4, Color(0, 0, 0, 0.8))
 			draw_string(f, Vector2(4, size.y - 12), rt, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 15, Color(0.95, 0.85, 0.55))
 		elif Items.ITEMS[id].has("repair"):
@@ -768,6 +774,8 @@ func open_menu(key, at: Vector2) -> void:
 		if equip[key] == "":
 			return
 		title = Items.item_name(equip[key])
+		if equip[key] == "pistol" and Gun.has_mag(get_dur(key)):
+			acts.append(["Извлечь магазин", "eject"])
 		acts.append(["Снять", "unequip"])
 		acts.append(["Выбросить", "drop_eq"])
 	else:
@@ -782,6 +790,10 @@ func open_menu(key, at: Vector2) -> void:
 			acts.append([ul, "use"])
 		if id == "stone":
 			acts.append(["Бросить камень", "throw_stone"])
+		if id == "pistol" and Gun.has_mag(get_dur(key)):
+			acts.append(["Извлечь магазин", "eject"])
+		if id == "mag" and (equip["right"] == "pistol" or equip["left"] == "pistol"):
+			acts.append(["Вставить в пистолет", "insert_mag"])
 		if n > 1:
 			acts.append(["Разделить", "split"])
 		acts.append(["Выбросить 1", "drop1"])
@@ -836,6 +848,12 @@ func _menu_pick(key, act: String) -> void:
 				game.stone_throw.throw()
 		"split":
 			split(key)
+		"eject":
+			if game and game.gun:
+				game.gun.eject(key)
+		"insert_mag":
+			if game and game.gun and key is int:
+				game.gun.insert_mag(key, "right" if equip["right"] == "pistol" else "left")
 		"drop1":
 			if key is int and slots[key] != null:
 				drop_count_requested.emit(key, 1)
@@ -996,6 +1014,20 @@ func move(from, to) -> void:
 			tid = slots[to]["id"]
 		if tid != "" and Items.repairable(tid) != "":
 			repair_requested.emit(from, to)
+			return
+	# пистолет: магазин на пистолет — вставить; патроны на магазин — дозарядить (промпт 22:53)
+	if from is int and slots[from] != null and game and game.gun:
+		var fid: String = slots[from]["id"]
+		var tid2 := ""
+		if to is String:
+			tid2 = equip[to]
+		elif slots[to] != null:
+			tid2 = slots[to]["id"]
+		if fid == "mag" and tid2 == "pistol":
+			game.gun.insert_mag(from, to)
+			return
+		if fid == "ammo" and tid2 == "mag" and to is int:
+			game.gun.fill_mag(to)
 			return
 	if from is int and to is int:
 		var a = slots[from]

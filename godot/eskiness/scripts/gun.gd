@@ -1,8 +1,12 @@
 extends Node
 ## Пистолет (промпт 14.11 19:49): старый обшарпанный, лежит в сейфе вместе с магазином и патронами.
-## В правой руке: ПКМ (attack_right, player.gd: charge_begin) — выстрел сразу, без заряда; хитскан из камеры.
-## R (действие «reload») — перезарядка ~1.5 с: вставить самый полный магазин из сумки или дозарядить патронами.
-## Патроны в пистолете — это его прочность dur (0..8, полоска на иконке), в запасном магазине — тоже dur.
+## В правой руке (промпт 22:53): ЛКМ (attack_left, player_combat.gd: charge_begin) — выстрел; ПКМ держать — прицел
+## (пистолет к глазу, зум, точнее). Хитскан из камеры.
+## Магазин — отдельная вещь: вставленный пропадает из инвентаря. R — вставить самый полный магазин из сумки
+## (старый — в сумку); перетащить магазин на пистолет — то же; патроны на магазин — дозарядить его;
+## зажать Enter (действие «mag_eject») — извлечь магазин в сумку.
+## dur пистолета: 0 — магазина нет, 1 + n — вставлен магазин с n патронами (так dur всегда >= 0 и не теряется
+## при выбрасывании/сундуках/сейве). dur магазина — просто патроны в нём (0..CAP).
 ## Выстрел слышат враги вокруг и бегут на звук. Счётчик «в магазине / в сумке» — справа от хотбара.
 
 const Items := preload("res://scripts/items.gd")
@@ -13,6 +17,10 @@ const RANGE := 80.0
 const FIRE_CD := 0.28
 const RELOAD_T := 1.5
 const HEAR_R := 28.0             # радиус, в котором враги слышат выстрел
+const EJECT_T := 0.5             # столько держать Enter — извлечь магазин
+const AIM_FOV := 0.7             # множитель поля зрения в прицеле
+const SPREAD_HIP := 0.03         # разброс от бедра, рад
+const SPREAD_AIM := 0.004
 const RATE := 22050
 
 var game
@@ -25,6 +33,23 @@ var snd_mag: AudioStreamWAV
 var ui: CanvasLayer
 var count_l: Label
 var _empty_told := false
+var aiming := false
+var aim_k := 0.0                 # 0..1 — насколько пистолет поднят к глазу
+var eject_t := 0.0
+var _eject_lock := false         # Enter держат после извлечения — ждём отпускания
+
+
+## dur пистолета → патроны / есть ли магазин (см. шапку).
+static func has_mag(d: float) -> bool:
+	return d >= 0.5
+
+
+static func mag_rounds(d: float) -> int:
+	return maxi(int(round(d)) - 1, 0)
+
+
+static func pistol_dur(has: bool, n: int) -> float:
+	return float(n + 1) if has else 0.0
 
 
 func _ready() -> void:
@@ -58,17 +83,47 @@ func armed() -> bool:
 
 
 func rounds() -> int:
-	return int(round(game.inv.get_dur("right"))) if armed() else 0
+	return mag_rounds(game.inv.get_dur("right")) if armed() else 0
+
+
+func loaded() -> bool:
+	return armed() and has_mag(game.inv.get_dur("right"))
+
+
+func fov_mult() -> float:
+	return lerpf(1.0, AIM_FOV, aim_k)
 
 
 func _process(delta: float) -> void:
 	cd -= delta
 	if game == null:
 		return
+	var p = game.player
+	var can: bool = armed() and game.alive and p != null and p.active and not game.inv.open \
+			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+	aiming = can and not reloading and Input.is_action_pressed("attack_right")
+	aim_k = move_toward(aim_k, 1.0 if aiming else 0.0, delta * 6.0)
+	# зажать Enter — извлечь магазин
+	var ej: bool = InputMap.has_action("mag_eject") and Input.is_action_pressed("mag_eject")
+	if can and loaded() and not reloading and ej and not _eject_lock:
+		eject_t += delta
+		if eject_t >= EJECT_T:
+			eject_t = 0.0
+			_eject_lock = true
+			eject("right")
+	else:
+		eject_t = 0.0
+		if not ej:
+			_eject_lock = false
 	count_l.visible = armed() and game.alive
 	if count_l.visible:
 		var r := rounds()
-		count_l.text = "%s  %d / %d" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", r, game.inv.count("ammo")]
+		if not loaded():
+			count_l.text = "НЕТ МАГАЗИНА  (R)"
+		elif eject_t > 0.0:
+			count_l.text = "ИЗВЛЕЧЬ… %d%%" % int(eject_t / EJECT_T * 100.0)
+		else:
+			count_l.text = "%s  %d / %d" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", r, CAP]
 		count_l.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35) if r == 0 else Color(0.95, 0.88, 0.7))
 	_aim()
 
@@ -84,9 +139,14 @@ func _aim() -> void:
 		return
 	var cb: Basis = p.cam.global_transform.basis.orthonormalized()
 	var sc: Vector3 = (n as Node3D).global_transform.basis.get_scale()
-	var b := Basis(-cb.z, cb.y, cb.x).rotated(cb.x, -0.06).rotated(cb.y, 0.05)   # +X модели — вперёд, +Y — вверх
+	var tilt := 1.0 - aim_k
+	var b := Basis(-cb.z, cb.y, cb.x).rotated(cb.x, -0.06 * tilt).rotated(cb.y, 0.05 * tilt)   # +X модели — вперёд, +Y — вверх
 	var gt: Transform3D = (n as Node3D).global_transform
 	gt.basis = Basis(b.x * sc.x, b.y * sc.y, b.z * sc.z)
+	if aim_k > 0.0:
+		# прицел: мушка по центру экрана, чуть ниже глаза (ствол — 0.11 над рукоятью, см. _muzzle)
+		var eye: Vector3 = p.cam.global_position - cb.z * 0.36 - cb.y * (0.11 * sc.y + 0.035)
+		gt.origin = gt.origin.lerp(eye, aim_k)
 	(n as Node3D).global_transform = gt
 
 
@@ -107,14 +167,16 @@ func fire() -> void:
 		_play(snd_click, -6.0, 1.0)
 		if not _empty_told:
 			_empty_told = true
-			game.hud.toast("Пусто — R, перезарядка")
+			game.hud.toast("Нет магазина — R" if not loaded() else "Пусто — R, сменить магазин; Enter (держать) — вынуть")
 		return
 	_empty_told = false
-	game.inv.equip_dur["right"] = float(r - 1)
+	game.inv.equip_dur["right"] = pistol_dur(true, r - 1)
 	_play(snd_shot, -1.0, randf_range(0.95, 1.05))
 	var cam: Camera3D = p.cam
 	var from := cam.global_position
-	var dir := -cam.global_transform.basis.z
+	var spread := lerpf(SPREAD_HIP, SPREAD_AIM, aim_k)
+	var dir := (-cam.global_transform.basis.z).rotated(cam.global_transform.basis.x, randf_range(-spread, spread)) \
+			.rotated(cam.global_transform.basis.y, randf_range(-spread, spread))
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * RANGE)
 	q.exclude = [p.get_rid()]
 	q.collision_mask = 1 | 512   # 512 — другие игроки в сети (огонь по своим)
@@ -272,16 +334,14 @@ func _alert(at: Vector3) -> void:
 
 # ---------- перезарядка ----------
 
-## R: вставить самый полный магазин из сумки (старый — в сумку) или дозарядить пистолет патронами.
+## R: вставить самый полный магазин из сумки (старый — в сумку на его место). Россыпью в пистолет не заряжается.
 func reload() -> void:
 	if reloading or not armed():
 		return
 	var cur := rounds()
-	if cur >= CAP:
-		game.hud.toast("Магазин полон")
-		return
+	var had := loaded()
 	var best := -1
-	var best_n := cur
+	var best_n := cur if had else -1
 	for i in game.inv.slots.size():
 		var s = game.inv.slots[i]
 		if s != null and s["id"] == "mag":
@@ -289,9 +349,14 @@ func reload() -> void:
 			if n > best_n:
 				best_n = n
 				best = i
-	if best < 0 and game.inv.count("ammo") <= 0:
+	if best < 0:
 		_play(snd_click, -8.0, 0.8)
-		game.hud.toast("Нет патронов")
+		if had and cur >= CAP:
+			game.hud.toast("Магазин полон")
+		elif game.inv.count("mag") > 0:
+			game.hud.toast("Запасные магазины не полнее — набей их: перетащи патроны на магазин")
+		else:
+			game.hud.toast("Нет магазина" if game.inv.count("ammo") <= 0 else "Нет магазина — патроны заряжаются в магазин")
 		return
 	reloading = true
 	_play(snd_mag, -6.0, 0.8)
@@ -300,21 +365,67 @@ func reload() -> void:
 	reloading = false
 	if not armed():
 		return
-	cur = rounds()
-	var s2 = game.inv.slots[best] if best >= 0 and best < game.inv.slots.size() else null
-	if s2 != null and s2["id"] == "mag" and int(round(float(s2.get("dur", CAP)))) > cur:
-		var n2 := int(round(float(s2.get("dur", CAP))))
-		s2["dur"] = float(cur)            # старый магазин — в сумку, с тем, что в нём осталось
-		game.inv.equip_dur["right"] = float(n2)
-		game.hud.toast("Магазин заменён: %d патронов" % n2, Color(0.9, 0.85, 0.7))
-	else:
-		var take := mini(CAP - cur, game.inv.count("ammo"))
-		if take > 0:
-			game.inv.remove("ammo", take)
-			game.inv.equip_dur["right"] = float(cur + take)
-			game.hud.toast("Заряжено: %d" % (cur + take), Color(0.9, 0.85, 0.7))
+	if best >= game.inv.slots.size():
+		return
+	insert_mag(best, "right", false)
 	_play(snd_mag, -5.0, 1.25)
-	game.inv.notify()
+
+
+## Вставить магазин из ячейки mag_idx в пистолет (слот "right"/"left" или номер ячейки с пистолетом).
+## Магазин пропадает из сумки; если в пистолете был магазин — он ложится на место вставленного.
+func insert_mag(mag_idx: int, target, sound := true) -> bool:
+	var inv = game.inv
+	var ms = inv.slots[mag_idx]
+	if ms == null or ms["id"] != "mag":
+		return false
+	if target is String:
+		if inv.equip[target] != "pistol":
+			return false
+	else:
+		var ps = inv.slots[target]
+		if ps == null or ps["id"] != "pistol":
+			return false
+	var pd: float = inv.get_dur(target)
+	var n := int(round(float(ms.get("dur", CAP))))
+	if has_mag(pd):
+		inv.slots[mag_idx] = {"id": "mag", "n": 1, "dur": float(mag_rounds(pd))}
+	else:
+		inv.slots[mag_idx] = null
+	if target is String:
+		inv.equip_dur[target] = pistol_dur(true, n)
+	else:
+		inv.slots[target]["dur"] = pistol_dur(true, n)
+	if sound:
+		_play(snd_mag, -6.0, 1.2)
+	game.hud.toast("Магазин вставлен: %d / %d" % [n, CAP], Color(0.9, 0.85, 0.7))
+	inv.notify()
+	return true
+
+
+## Извлечь магазин из пистолета (слот или ячейка) в сумку; сумка полна — на пол.
+func eject(target) -> void:
+	var inv = game.inv
+	var pd: float = inv.get_dur(target)
+	if target is String:
+		if inv.equip[target] != "pistol" or not has_mag(pd):
+			return
+		inv.equip_dur[target] = 0.0
+	else:
+		if inv.slots[target] == null or inv.slots[target]["id"] != "pistol" or not has_mag(pd):
+			return
+		inv.slots[target]["dur"] = 0.0
+	var n := mag_rounds(pd)
+	_play(snd_mag, -6.0, 0.9)
+	if inv.add("mag", 1, float(n)) > 0:
+		var p = game.player
+		var fwd: Vector3 = -p.global_transform.basis.z
+		var pk = game._make_pickup("mag", 1, p.global_position + Vector3(0, 1.1, 0) + fwd * 0.4, fwd * 1.2 + Vector3(0, 0.6, 0))
+		pk.need_leave = true
+		pk.set_meta("dur", float(n))
+		game.hud.toast("Магазин извлечён — сумка полна, упал на пол")
+	else:
+		game.hud.toast("Магазин извлечён: %d / %d" % [n, CAP], Color(0.9, 0.85, 0.7))
+	inv.notify()
 
 
 ## Пистолет уходит вниз и поворачивается, потом возвращается.
@@ -331,7 +442,7 @@ func _reload_anim() -> void:
 	tw.tween_property(n, "transform", t0, 0.3).set_trans(Tween.TRANS_SINE)
 
 
-## ПКМ по магазину → «Снарядить»: набить патронами из сумки.
+## «Снарядить» в меню магазина или патроны, перетащенные на магазин: набить патронами из сумки.
 func fill_mag(idx: int) -> void:
 	var s = game.inv.slots[idx]
 	if s == null or s["id"] != "mag":

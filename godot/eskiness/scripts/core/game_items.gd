@@ -14,8 +14,8 @@ func weapon_hit() -> void:
 ## Снять прочность с надетой вещи; на нуле вещь ломается и пропадает.
 func _wear(slot_: String, amount: float) -> void:
 	var id: String = inv.equip[slot_]
-	if id == "" or Items.max_dur(id) <= 0.0:
-		return
+	if id == "" or Items.max_dur(id) <= 0.0 or Items.ITEMS[id].has("rounds"):
+		return   # у пистолета «прочность» — патроны, ударом рукоятью не тратятся
 	var d: float = float(inv.equip_dur.get(slot_, Items.max_dur(id))) - amount
 	inv.equip_dur[slot_] = d
 	if d <= 0.0:
