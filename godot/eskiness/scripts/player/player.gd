@@ -78,13 +78,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		# клик мимо кнопок инвентаря/лута/магазина не должен прятать курсор (баг 14.11 20:05)
 		if game == null or not game.window_open():
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	elif carrying and (event.is_action_pressed("fists") or event.is_action_pressed("fists_down") or event.is_action_pressed("attack_left") or event.is_action_pressed("attack_right")):
+	elif carrying and (event.is_action_pressed("fists") or event.is_action_pressed("attack_left") or event.is_action_pressed("attack_right")):
 		pass   # руки заняты (carry.gd)
 	elif captured and event.is_action_pressed("fists") and not event.is_echo():
-		toggle_fists()
-	elif captured and event.is_action_pressed("fists_down") and not event.is_echo():
 		charging = -1
-		toggle_fists()   # СКМ — второй переключатель стойки, как V (промпт 19:17)
+		toggle_fists()   # стойка — СКМ (промпт 16.11 02:15; V больше нет)
 	elif captured and event.is_action_pressed("attack_left") and not event.is_echo():
 		charge_begin(0)
 	elif captured and event.is_action_pressed("attack_right") and not event.is_echo():

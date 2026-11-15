@@ -268,6 +268,18 @@ func equip(idx: int, slot_: String) -> void:
 	var prev: String = inv.equip[slot_]
 	var prev_d: float = inv.equip_dur.get(slot_, Items.max_dur(prev))
 	var new_d: float = float(s.get("dur", Items.max_dur(id)))
+	if int(s.get("n", 1)) > 1:
+		# из стопки (камни) в руку берём один, остальные остаются в ячейке; прежнее из руки — в сумку
+		if prev != "" and inv.add(prev, 1, prev_d) > 0:
+			hud.toast("Сумка полна")
+			return
+		s["n"] = int(s["n"]) - 1
+		inv.equip[slot_] = id
+		inv.equip_dur[slot_] = new_d
+		_apply_equip(slot_)
+		inv.notify()
+		play_ui("click", -10.0, 0.8)
+		return
 	if prev != "":
 		inv.slots[idx] = {"id": prev, "n": 1, "dur": prev_d}
 	else:

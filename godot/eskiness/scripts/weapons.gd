@@ -13,7 +13,8 @@ const WEAPONS := {
 	"hammer": {"mult": 2.2, "reach": 1.3, "price": 0},     # камень + деревяшка + бечёвка; 6 ударов
 	"shiv": {"mult": 2.7, "reach": 1.25, "price": 0},      # молоток + металлолом ×2
 	"spiked_club": {"mult": 3.2, "reach": 1.5, "price": 0}, # молоток + деревяшка ×2 + гайки ×3
-	"pistol": {"mult": 1.6, "reach": 1.15, "price": 0},     # стреляет gun.gd; это — удар рукоятью (левой)
+	"pistol": {"mult": 1.6, "reach": 1.15, "price": 0},     # стреляет gun.gd; это — удар рукоятью
+	"stone": {"mult": 1.4, "reach": 1.05, "price": 0},      # камень в руке: бросок — stone_throw.gd, это — удар
 }
 
 # что продаёт магазин, по порядку
@@ -215,6 +216,19 @@ static func make(id: String) -> Node3D:
 			var f := _cyl(root, 0.034, 0.034, 0.07, 0.0, _m(Color(0.28, 0.3, 0.22), 0.5, 0.5))
 			f.position = Vector3(0.08, -0.22, -0.05)
 			_cyl(root, 0.02, 0.02, 0.012, 0.0, steel).position = Vector3(0.08, -0.18, -0.05)
+		"stone":
+			# булыжник в кулаке
+			var sm2 := SphereMesh.new()
+			sm2.radius = 0.06
+			sm2.height = 0.1
+			sm2.radial_segments = 7
+			sm2.rings = 4
+			var st2 := MeshInstance3D.new()
+			st2.mesh = sm2
+			st2.material_override = _m(Color(0.46, 0.45, 0.42), 0.0, 1.0)
+			st2.position = Vector3(0, 0.02, 0.02)
+			st2.scale = Vector3(1.0, 1.2, 0.85)
+			root.add_child(st2)
 		"filter":
 			_cyl(root, 0.035, 0.035, 0.06, 0.0, _m(Color(0.3, 0.32, 0.25), 0.4, 0.5))
 			_cyl(root, 0.02, 0.02, 0.015, 0.035, _m(Color(0.25, 0.25, 0.25), 0.6, 0.4))

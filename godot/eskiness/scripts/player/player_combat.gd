@@ -68,6 +68,16 @@ func charge_begin(arm: int) -> void:
 		if weapon_ids[0] == "pistol" and weapon_ids[1] == "pistol" and last_arm == 1:
 			arm = 0
 		whip = true
+	elif stone_throw and _has_stone() and active:
+		# камень в руке (промпт 16.11 02:13): ПКМ держать — замах с траекторией, ЛКМ при этом — бросок, без ПКМ — удар камнем
+		if arm == 1:
+			stone_throw.rmb_input(true)
+			return
+		if stone_throw.aiming:
+			stone_throw.throw()
+			return
+		arm = 1 if weapon_ids[1] == "stone" else 0
+		whip = true
 	if charging >= 0 or not active:
 		return
 	if not fists:
@@ -82,11 +92,17 @@ func _has_pistol() -> bool:
 	return weapon_ids[0] == "pistol" or weapon_ids[1] == "pistol"
 
 
+func _has_stone() -> bool:
+	return weapon_ids[0] == "stone" or weapon_ids[1] == "stone"
+
+
 ## Отпустил: удар этой рукой с накопленным зарядом (кулаки ещё поднимаются — ударит, как поднимутся).
 func charge_release(arm: int) -> void:
 	if arm == 1 and gun:
 		gun.rmb_input(false)
-	if gun and (_has_pistol() or _whip_lmb):
+	if arm == 1 and stone_throw:
+		stone_throw.rmb_input(false)
+	if _has_pistol() or _has_stone() or _whip_lmb:
 		if arm == 1 or not _whip_lmb:
 			return
 		_whip_lmb = false
@@ -241,6 +257,8 @@ func _weapon_swing(i: int, wid: String) -> void:
 		group = "knife"
 	elif wid == "pistol":
 		group = "pistol"
+	elif wid == "stone":
+		group = "knife"   # камнем — короткий тычок
 	var set_: Array = SWINGS[group]
 	var v := randi() % set_.size()
 	if v == last_swing[i] and randf() < 0.65:

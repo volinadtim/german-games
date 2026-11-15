@@ -81,7 +81,7 @@ const SWINGS := {
 }
 var WRIST_HIT := 1.1   # сгиб кисти в момент удара (рад)
 # конец оружия (по длинной оси +Y модели) — по нему тянется след
-const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28, "pistol": 0.12}
+const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28, "pistol": 0.12, "stone": 0.05}
 const Fx := preload("res://scripts/core/fx.gd")
 
 var active := false
@@ -226,6 +226,10 @@ var gun   # gun.gd (ставит game.gd)
 var gun_mode := 0
 var gun_hip_w := 0.0
 var gun_ads_w := 0.0
+var stone_throw   # stone_throw.gd (ставит game.gd)
+var throw_aim := false   # камень в руке, ПКМ держат — замах (своему ставит stone_throw.gd, чужому — сеть, флаг 32)
+var throw_w := 0.0
+var throw_flick := 0.0   # 1 → 0 после броска: рука выбрасывается вперёд
 var _whip_lmb := false   # ЛКМ с пистолетом без ПКМ — удар рукоятью рукой с пистолетом (player_combat.gd)
 var game   # game.gd (ставит game.gd): пока открыто окно — клик не захватывает мышь
 var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали

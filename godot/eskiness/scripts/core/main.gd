@@ -148,8 +148,8 @@ func _enter_game() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F10:
-		_toggle_ui()   # F10 — скрыть/показать весь интерфейс (кроме меню)
+	if event is InputEventKey and event.pressed and not event.echo and InputMap.has_action("hide_ui") and event.is_action_pressed("hide_ui"):
+		_toggle_ui()   # F10 (переназначается) — скрыть/показать весь интерфейс (кроме меню)
 		return
 	if event.is_action_pressed("toggle_fullscreen"):
 		if menu:

@@ -36,6 +36,9 @@ func setup(p: Player) -> void:
 	var con = preload("res://scripts/ui/console.gd").new()   # F1 — консоль (ui/console.gd)
 	con.game = self
 	add_child(con)
+	chat = preload("res://scripts/ui/chat.gd").new()   # T — чат (ui/chat.gd), в сети — всем
+	chat.game = self
+	add_child(chat)
 
 	if USE_FLASHLIGHT:
 		flashlight = Flashlight.new()
@@ -77,6 +80,7 @@ func setup(p: Player) -> void:
 	stone_throw = StoneThrow.new()
 	stone_throw.game = self
 	add_child(stone_throw)
+	player.stone_throw = stone_throw
 	gasmask = GasMask.new()
 	gasmask.game = self
 	add_child(gasmask)

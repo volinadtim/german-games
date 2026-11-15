@@ -180,7 +180,7 @@ func _game_tick(delta: float) -> void:
 	if send_t <= 0.0 and p and peer:
 		send_t = SEND_DT
 		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0) \
-				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0)   # позы с пистолетом
+				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0)   # позы с пистолетом
 		rpc("ps", p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1])
 	if p and p.punching and not was_punching and peer:
 		rpc("pev", p.last_arm)
@@ -213,8 +213,21 @@ func _game_tick(delta: float) -> void:
 		ping_l.text = txt
 
 
+## Чат (ui/chat.gd): сообщение всем остальным, ник — из players.
+func chat_send(text: String) -> void:
+	if peer:
+		rpc("chat_msg", text.substr(0, 200))
+
+
+@rpc("any_peer", "reliable", "call_remote")
+func chat_msg(text: String) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if game and game.get("chat"):
+		game.chat.add_msg(String(players.get(id, "Игрок")), text.substr(0, 200))
+
+
 func _unhandled_input(e: InputEvent) -> void:
-	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_QUOTELEFT:
+	if e is InputEventKey and e.pressed and not e.echo and InputMap.has_action("toggle_ping") and e.is_action_pressed("toggle_ping"):
 		ping_shown = not ping_shown
 		if ping_l and is_instance_valid(ping_l):
 			ping_l.visible = ping_shown
@@ -264,6 +277,7 @@ func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: St
 	pp.net_sprint = Vector2(vel.x, vel.z).length() > PlayerScript.WALK + 0.4
 	pp.net_crouch = flags & 2 != 0
 	pp.gun_mode = 2 if flags & 16 != 0 else (1 if flags & 8 != 0 else 0)
+	pp.throw_aim = flags & 32 != 0
 	var f := flags & 1 != 0
 	if f != pp.fists and not pp.punching:
 		pp.toggle_fists()

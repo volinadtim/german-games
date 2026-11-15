@@ -61,9 +61,10 @@ var ctl_groups: Array = []        # бинды каждого раздела (в
 ## Категория «Основное»; всё остальное из SETTINGS — в «Экран и графика».
 const GENERAL_KEYS := ["volume", "sensitivity", "fov", "ui_scale", "crosshair"]
 var net_box: Control              # страница «Сетевая игра» (net_lobby.gd, промпт 14.11 19:37)
-var ctl_rows := {}                # действие -> кнопка с клавишей
-var binds := {}                   # действие -> ["k:<physical_keycode>" | "m:<кнопка мыши>"] (только изменённые)
+var ctl_rows := {}                # действие -> [кнопка основной клавиши, кнопка альтернативной]
+var binds := {}                   # действие -> [основная, альтернативная]: "k:<physical_keycode>" | "m:<кнопка мыши>" | "" (только изменённые)
 var waiting_action := ""          # ждём клавишу для этого действия
+var waiting_idx := 0              # 0 — основная, 1 — альтернативная (промпт 16.11 02:15)
 
 ## Переназначаемые действия: [действие InputMap, подпись, клавиши по умолчанию].
 ## «k:N» — физическая клавиша, «m:N» — кнопка мыши. Действия создаются здесь заранее,
@@ -79,33 +80,34 @@ const CONTROLS := [
 	["crouch_toggle", "Присесть (переключить)", ["k:67"]],   # C
 	["attack_left", "Удар левой / выстрел", ["m:1"]],        # ЛКМ
 	["attack_right", "Удар правой / прицел", ["m:2"]],      # ПКМ
-	["fists", "Боевая стойка", ["k:86"]],          # V
-	["fists_down", "Стойка (альт.)", ["m:3"]],     # СКМ — тоже переключает стойку
+	["fists", "Боевая стойка", ["m:3"]],           # СКМ (V больше нет, промпт 16.11 02:15)
 	["interact", "Взаимодействие", ["k:69"]],      # E
 	["carry", "Взять в руки / поставить", ["k:66"]],   # B (world/carry.gd)
-	["inventory", "Инвентарь", ["k:4194306", "k:73"]],   # Tab, I
+	["inventory", "Инвентарь", ["k:4194306"]],     # Tab
 	["loot_all", "Забрать всё", ["k:82"]],         # R
 	["reload", "Перезарядка", ["k:82"]],           # R — в мире (в окне лута R — «забрать всё»)
 	["mag_eject", "Извлечь магазин (держать)", ["k:4194309"]],   # Enter (gun.gd)
 	["flashlight", "Фонарик", ["k:70"]],           # F
 	["quick_heal", "Быстрое лечение", ["k:81"]],   # Q
 	["gasmask", "Нюхич (противогаз)", ["k:71"]],           # G
-	["throw_stone", "Бросить камень", ["k:84"]],           # T
 	["hot_1", "Слот 1", ["k:49"]],
 	["hot_2", "Слот 2", ["k:50"]],
 	["hot_3", "Слот 3", ["k:51"]],
 	["hot_4", "Слот 4", ["k:52"]],
 	["hot_5", "Слот 5", ["k:53"]],
 	["toggle_fullscreen", "Полный экран", ["k:4194342"]],   # F11
+	["hide_ui", "Скрыть интерфейс", ["k:4194341"]],        # F10 (main.gd)
+	["toggle_ping", "Скрыть/показать пинг", ["k:96"]],     # ~ (net_world.gd)
+	["chat", "Чат", ["k:84"]],                             # T (ui/chat.gd)
 ]
 
 ## Разделы страницы «Управление» (промпт 22:53). Обзор стрелками (look_*) — не переназначается, ставит main.gd.
 const CTL_GROUPS := [
 	["Движение", ["move_forward", "move_back", "move_left", "move_right", "sprint", "jump", "crouch", "crouch_toggle"]],
-	["Бой", ["attack_left", "attack_right", "fists", "fists_down", "reload", "mag_eject", "throw_stone"]],
+	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject"]],
 	["Действия", ["interact", "carry", "loot_all", "flashlight", "quick_heal", "gasmask"]],
 	["Инвентарь", ["inventory", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
-	["Интерфейс", ["toggle_fullscreen"]],
+	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat"]],
 ]
 
 
@@ -302,11 +304,13 @@ func _input(event: InputEvent) -> void:
 		var k: int = event.physical_keycode if event.physical_keycode != 0 else event.keycode
 		if k == KEY_ESCAPE:
 			_stop_wait()
+		elif k == KEY_DELETE or k == KEY_BACKSPACE:
+			_assign(waiting_action, "", waiting_idx)   # Delete/Backspace — убрать клавишу
 		else:
-			_assign(waiting_action, "k:%d" % k)
+			_assign(waiting_action, "k:%d" % k, waiting_idx)
 	elif event is InputEventMouseButton and event.pressed:
 		get_viewport().set_input_as_handled()
-		_assign(waiting_action, "m:%d" % event.button_index)
+		_assign(waiting_action, "m:%d" % event.button_index, waiting_idx)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -737,11 +741,11 @@ func _load() -> void:
 		if not binds.has("attack_left"):
 			binds["attack_left"] = binds["attack"]
 		binds.erase("attack")
-	if binds.has("fists"):
-		for spec in binds["fists"]:
-			if String(spec).begins_with("m:"):
-				binds.erase("fists")
-				break
+	# стойка теперь на СКМ (промпт 16.11 02:15): сохранённая V и старые «fists_down»/«throw_stone» сбрасываются
+	if binds.has("fists") and "k:86" in binds["fists"]:
+		binds.erase("fists")
+	binds.erase("fists_down")
+	binds.erase("throw_stone")
 	for a in binds.keys():
 		if _default_binds(a).is_empty():
 			binds.erase(a)   # действия, которых больше нет
@@ -762,15 +766,20 @@ func _save() -> void:
 
 # ---------- управление ----------
 
+## По умолчанию — только основная клавиша, альтернативная пустая.
 func _default_binds(action: String) -> Array:
 	for c in CONTROLS:
 		if c[0] == action:
-			return c[2]
+			return [c[2][0] if not c[2].is_empty() else "", ""]
 	return []
 
 
+## Всегда два элемента: [основная, альтернативная] ("" — нет).
 func _binds_of(action: String) -> Array:
-	return binds.get(action, _default_binds(action))
+	var b: Array = binds.get(action, _default_binds(action)).duplicate()
+	while b.size() < 2:
+		b.append("")
+	return b.slice(0, 2)
 
 
 ## Создать все действия и выставить им клавиши (по умолчанию или сохранённые).
@@ -825,13 +834,12 @@ func _spec_name(spec: String) -> String:
 	return s if s != "" else "?"
 
 
-func _binds_text(action: String) -> String:
-	var names := PackedStringArray()
-	for spec in _binds_of(action):
-		names.append(_spec_name(spec))
-	return ", ".join(names) if not names.is_empty() else "—"
+func _bind_text(action: String, idx: int) -> String:
+	var spec: String = _binds_of(action)[idx]
+	return _spec_name(spec) if spec != "" else "—"
 
 
+## Строка: подпись, основная клавиша, альтернативная (клик — назначить, Delete — убрать, Esc — отмена).
 func _bind_row(action: String, label: String) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
@@ -841,47 +849,59 @@ func _bind_row(action: String, label: String) -> Control:
 	name_l.add_theme_font_size_override("font_size", 22)
 	name_l.add_theme_color_override("font_color", Color(0.82, 0.81, 0.77))
 	row.add_child(name_l)
-	var b := Button.new()
-	b.custom_minimum_size = Vector2(260, 34)
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_size_override("font_size", 20)
-	b.add_theme_color_override("font_color", Color(0.9, 0.86, 0.76))
-	b.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.82))
-	b.add_theme_stylebox_override("normal", _style(Color(0.06, 0.03, 0.03, 0.8), Color(0.45, 0.1, 0.07)))
-	b.add_theme_stylebox_override("hover", _style(Color(0.2, 0.05, 0.03, 0.85), Color(0.85, 0.18, 0.1)))
-	b.add_theme_stylebox_override("pressed", _style(Color(0.3, 0.05, 0.03, 0.9), Color(1.0, 0.3, 0.2)))
-	b.text = _binds_text(action)
-	b.pressed.connect(func(): _start_wait(action))
-	row.add_child(b)
-	ctl_rows[action] = b
+	var btns: Array = []
+	for idx in 2:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(200, 34)
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 20)
+		b.add_theme_color_override("font_color", Color(0.9, 0.86, 0.76) if idx == 0 else Color(0.75, 0.72, 0.66))
+		b.add_theme_color_override("font_hover_color", Color(1.0, 0.92, 0.82))
+		b.add_theme_stylebox_override("normal", _style(Color(0.06, 0.03, 0.03, 0.8), Color(0.45, 0.1, 0.07)))
+		b.add_theme_stylebox_override("hover", _style(Color(0.2, 0.05, 0.03, 0.85), Color(0.85, 0.18, 0.1)))
+		b.add_theme_stylebox_override("pressed", _style(Color(0.3, 0.05, 0.03, 0.9), Color(1.0, 0.3, 0.2)))
+		b.text = _bind_text(action, idx)
+		b.tooltip_text = "Основная клавиша" if idx == 0 else "Альтернативная клавиша (Delete — убрать)"
+		b.pressed.connect(func(): _start_wait(action, idx))
+		row.add_child(b)
+		btns.append(b)
+	ctl_rows[action] = btns
 	return row
 
 
-func _start_wait(action: String) -> void:
+func _start_wait(action: String, idx := 0) -> void:
 	_stop_wait()
 	waiting_action = action
-	ctl_rows[action].text = "нажмите клавишу…"
+	waiting_idx = idx
+	ctl_rows[action][idx].text = "нажмите клавишу…"
 
 
 func _stop_wait() -> void:
 	if waiting_action != "" and ctl_rows.has(waiting_action):
-		ctl_rows[waiting_action].text = _binds_text(waiting_action)
+		ctl_rows[waiting_action][waiting_idx].text = _bind_text(waiting_action, waiting_idx)
 	waiting_action = ""
 
 
-## Назначить клавишу. Если она уже у другого действия — меняем местами (та получает старую клавишу этого).
-func _assign(action: String, spec: String) -> void:
+## Назначить клавишу в ячейку idx ("" — убрать). Если она уже у другого действия — там она заменяется
+## старой клавишей этой ячейки (обмен), у этого же действия во второй ячейке — убирается.
+func _assign(action: String, spec: String, idx := 0) -> void:
 	waiting_action = ""
-	var old: Array = _binds_of(action)
-	for c in CONTROLS:
-		var other: String = c[0]
-		if other != action and spec in _binds_of(other):
-			var rest := _binds_of(other).duplicate()
-			rest.erase(spec)
-			if rest.is_empty() and not old.is_empty():
-				rest = [old[0]]
-			binds[other] = rest
-	binds[action] = [spec]
+	var mine := _binds_of(action)
+	var old: String = mine[idx]
+	if spec != "":
+		for c in CONTROLS:
+			var other: String = c[0]
+			if other == action:
+				continue
+			var ob := _binds_of(other)
+			var k := ob.find(spec)
+			if k >= 0:
+				ob[k] = old
+				binds[other] = ob
+		if mine[1 - idx] == spec:
+			mine[1 - idx] = ""
+	mine[idx] = spec
+	binds[action] = mine
 	_refresh_binds()
 
 
@@ -894,7 +914,8 @@ func _reset_binds() -> void:
 func _refresh_binds() -> void:
 	_apply_binds()
 	for a in ctl_rows:
-		ctl_rows[a].text = _binds_text(a)
+		for idx in 2:
+			ctl_rows[a][idx].text = _bind_text(a, idx)
 
 
 ## Переключить категорию настроек: показать её страницу, подсветить кнопку слева.

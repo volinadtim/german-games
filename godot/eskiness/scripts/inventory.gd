@@ -799,8 +799,6 @@ func open_menu(key, at: Vector2) -> void:
 		var ul := _use_label(id)
 		if ul != "":
 			acts.append([ul, "use"])
-		if id == "stone":
-			acts.append(["Бросить камень", "throw_stone"])
 		if id == "pistol" and Gun.has_mag(get_dur(key)):
 			acts.append(["Извлечь магазин", "eject"])
 		if id == "mag" and (equip["right"] == "pistol" or equip["left"] == "pistol"):
@@ -853,10 +851,6 @@ func _menu_pick(key, act: String) -> void:
 		"use":
 			if key is int and slots[key] != null:
 				use_requested.emit(key)
-		"throw_stone":
-			if game and game.stone_throw:
-				close()
-				game.stone_throw.throw()
 		"split":
 			split(key)
 		"eject":

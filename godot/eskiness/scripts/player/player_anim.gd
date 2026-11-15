@@ -191,11 +191,25 @@ func _gun_pose(delta: float) -> void:
 	var any: bool = has[0] or has[1]
 	gun_hip_w = move_toward(gun_hip_w, 1.0 if any and gun_mode == 1 else 0.0, delta * 6.0)
 	gun_ads_w = move_toward(gun_ads_w, 1.0 if any and gun_mode == 2 else 0.0, delta * 6.0)
-	if hands.size() < 2 or skel == null or (gun_hip_w <= 0.0 and gun_ads_w <= 0.0):
+	var sh_i := 1 if weapon_ids[1] == "stone" else (0 if weapon_ids[0] == "stone" else -1)
+	throw_w = move_toward(throw_w, 1.0 if throw_aim and sh_i >= 0 else 0.0, delta * 7.0)
+	throw_flick = move_toward(throw_flick, 0.0, delta * 5.0)
+	if hands.size() < 2 or skel == null:
 		return
 	var ct := global_transform.affine_inverse() * cam.global_transform
 	var cb := ct.basis.orthonormalized()
 	var eye := ct.origin
+	var tinv := Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw)).inverse()
+	if sh_i >= 0 and (throw_w > 0.0 or throw_flick > 0.0):
+		# камень (промпт 16.11 02:13): замах — рука отведена вверх-назад за плечо; бросок — выброс вперёд
+		var ss := _shoulder_pos(sh_i)
+		var sd := -1.0 if sh_i == 0 else 1.0
+		var cock := ss + cb.y * 0.2 + cb.z * 0.12 + cb.x * sd * 0.1
+		var out := ss - cb.z * 0.5 + cb.y * 0.05
+		var fk := smoothstep(0.0, 1.0, throw_flick)
+		_arm_ik(sh_i, cock.lerp(out, fk), ss, tinv, clampf(maxf(throw_w, fk), 0.0, 1.0))
+	if gun_hip_w <= 0.0 and gun_ads_w <= 0.0:
+		return
 	var aim_pt := eye - cb.z * 20.0
 	var two: bool = has[0] and has[1]
 	var tsum := gun_hip_w + gun_ads_w
