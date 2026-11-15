@@ -7,8 +7,8 @@ extends CanvasLayer
 ## Рыночная — цена в магазине (Weapons.SHOP, shop.gd: CONSUMABLES). У хлама, которого в магазине нет,
 ## рыночная = 2 × прежняя «цена скупки» (поле price в items.gd), так что за него дают те же 2/3/3/5.
 ## Монеты и квестовые вещи (car_key и всё с "quest") не продаются.
-## Продажа из сундука дома (промпт 15.11 23:10): show_window(chest) — слева содержимое сундука вместо сумки,
-## непроданное возвращается в сундук. Тогда окно само отпускает/забирает управление игроком.
+## Слева две колонки-источника (промпт 15.11 23:31): сумка и сундук дома (game.storage) — продавать можно из обоих;
+## непроданное возвращается туда, откуда взято.
 
 const Items := preload("res://scripts/items.gd")
 const Weapons := preload("res://scripts/weapons.gd")
@@ -20,10 +20,9 @@ const NO_SELL := ["coin", "car_key"]
 var game
 var shop                        # shop.gd — пересобрать его после продажи
 var open := false
-var pending: Array = []         # [[id, n, прочность или -1], ...]
-var src = null                  # сундук (chest.gd, kind storage) — продаём из него; null — из сумки
-var src_l: Label
+var pending: Array = []         # [[id, n, прочность или -1, откуда: "bag" | "chest"], ...]
 var bag_grid: GridContainer
+var chest_grid: GridContainer
 var sell_grid: GridContainer
 var total_l: Label
 var info_l: Label
@@ -106,10 +105,10 @@ class Cell extends Button:
 		return {"sw_side": side, "idx": idx}
 
 	func _can_drop_data(_at: Vector2, data: Variant) -> bool:
-		return data is Dictionary and data.has("sw_side") and data["sw_side"] != side
+		return data is Dictionary and data.has("sw_side") and (data["sw_side"] == "sell") != (side == "sell")
 
 	func _drop_data(_at: Vector2, data: Variant) -> void:
-		sw.click(data["sw_side"], data["idx"], false)
+		sw.click(data["sw_side"], data["idx"], false, side)
 
 
 class Pane extends PanelContainer:
@@ -117,10 +116,10 @@ class Pane extends PanelContainer:
 	var side := "bag"
 
 	func _can_drop_data(_at: Vector2, data: Variant) -> bool:
-		return data is Dictionary and data.has("sw_side") and data["sw_side"] != side
+		return data is Dictionary and data.has("sw_side") and (data["sw_side"] == "sell") != (side == "sell")
 
 	func _drop_data(_at: Vector2, data: Variant) -> void:
-		sw.click(data["sw_side"], data["idx"], false)
+		sw.click(data["sw_side"], data["idx"], false, side)
 
 
 func _ready() -> void:
@@ -155,13 +154,14 @@ func _ready() -> void:
 	v.add_child(cols)
 	var bc := VBoxContainer.new()
 	cols.add_child(bc)
-	src_l = _label("СУМКА", 24, Color(0.86, 0.85, 0.8))
-	bc.add_child(src_l)
-	bag_grid = _pane(bc, "bag")
+	bc.add_child(_label("СУМКА", 22, Color(0.86, 0.85, 0.8)))
+	bag_grid = _pane(bc, "bag", 2)
+	bc.add_child(_label("СУНДУК ДОМА", 22, Color(0.8, 0.72, 0.55)))
+	chest_grid = _pane(bc, "chest", 2)
 	var sc := VBoxContainer.new()
 	cols.add_child(sc)
 	sc.add_child(_label("НА ПРОДАЖУ", 24, Color(1.0, 0.82, 0.4)))
-	sell_grid = _pane(sc, "sell")
+	sell_grid = _pane(sc, "sell", 5)
 	total_l = _label("", 22, Color(0.92, 0.8, 0.5))
 	v.add_child(total_l)
 	info_l = _label("Клик — переложить стопку, Shift+клик — одну штуку, можно перетаскивать.", 15, Color(0.7, 0.68, 0.62))
@@ -184,7 +184,7 @@ func _button(t: String, cb: Callable) -> Button:
 	return b
 
 
-func _pane(parent: Control, side: String) -> GridContainer:
+func _pane(parent: Control, side: String, rows := 3) -> GridContainer:
 	var p := Pane.new()
 	p.sw = self
 	p.side = side
@@ -192,7 +192,7 @@ func _pane(parent: Control, side: String) -> GridContainer:
 	st.bg_color = Color(0, 0, 0, 0.3)
 	st.set_content_margin_all(6)
 	p.add_theme_stylebox_override("panel", st)
-	p.custom_minimum_size = Vector2(5 * 76 + 14, 3 * 76)   # фиксированно: больше — прокрутка (промпт 14.11 19:28)
+	p.custom_minimum_size = Vector2(5 * 76 + 14, rows * 76 + (rows - 2) * 30)   # фиксированно: больше — прокрутка (промпт 14.11 19:28)
 	parent.add_child(p)
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -217,69 +217,65 @@ func _label(t: String, size: int, col: Color) -> Label:
 	return l
 
 
-func show_window(from = null) -> void:
-	src = from
+func show_window() -> void:
 	open = true
 	visible = true
 	pending = []
-	src_l.text = "СУНДУК" if src else "СУМКА"
-	if src and game.player:
-		game.player.active = false
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_rebuild()
 
 
-## Ячейки левой колонки: сумка или сундук — [{id, n, dur} или null].
-func _src_items() -> Array:
+## Ячейки источника side ("bag" — сумка, "chest" — сундук дома): [{id, n, dur} или null].
+func _src_items(side: String) -> Array:
 	var out: Array = []
-	if src:
-		for it in src.contents:
-			out.append({"id": String(it[0]), "n": int(it[1]), "dur": float(it[2]) if it.size() > 2 else -1.0})
+	if side == "chest":
+		if game.storage:
+			for it in game.storage.contents:
+				out.append({"id": String(it[0]), "n": int(it[1]), "dur": float(it[2]) if it.size() > 2 else -1.0})
 		return out
 	for s in game.inv.slots:
 		out.append(null if s == null else {"id": String(s["id"]), "n": int(s["n"]), "dur": float(s.get("dur", -1.0))})
 	return out
 
 
-## Забрать n штук из ячейки idx левой колонки. Возвращает, сколько взято.
-func _take_src(idx: int, n: int) -> int:
-	if src:
-		if idx >= src.contents.size():
+## Забрать n штук из ячейки idx источника. Возвращает, сколько взято.
+func _take_src(side: String, idx: int, n: int) -> int:
+	if side == "chest":
+		if game.storage == null or idx >= game.storage.contents.size():
 			return 0
-		var it: Array = src.contents[idx]
+		var it: Array = game.storage.contents[idx]
 		var k := mini(n, int(it[1]))
 		it[1] = int(it[1]) - k
 		if int(it[1]) <= 0:
-			src.contents.remove_at(idx)
+			game.storage.contents.remove_at(idx)
 		return k
 	var got: Array = game.inv.take_at(idx, n)
 	return int(got[1])
 
 
-## Вернуть в левую колонку. Возвращает, сколько не влезло (в сундук влезает всё).
-func _give_src(id: String, n: int, dur: float) -> int:
-	if src:
+## Вернуть в источник. Возвращает, сколько не влезло (в сундук влезает всё).
+func _give_src(side: String, id: String, n: int, dur: float) -> int:
+	if side == "chest" and game.storage:
 		if dur < 0.0:
-			for it in src.contents:
+			for it in game.storage.contents:
 				if String(it[0]) == id and it.size() <= 2:
 					it[1] = int(it[1]) + n
 					return 0
 		var e: Array = [id, n]
 		if dur >= 0.0:
 			e.append(dur)
-		src.contents.append(e)
+		game.storage.contents.append(e)
 		return 0
 	return game.inv.add(id, n, dur)
 
 
-## Закрыть: что не продано — обратно в сумку, не влезло — на пол.
+## Закрыть: что не продано — обратно, откуда взято; не влезло в сумку — на пол.
 func close() -> void:
 	if not open:
 		return
 	open = false
 	visible = false
 	for it in pending:
-		var left: int = _give_src(String(it[0]), int(it[1]), float(it[2]))
+		var left: int = _give_src(String(it[3]), String(it[0]), int(it[1]), float(it[2]))
 		if left > 0:
 			var fwd: Vector3 = -game.player.global_transform.basis.z
 			var p = game._make_pickup(String(it[0]), left, game.player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5, fwd * 2.0 + Vector3(0, 1.0, 0))
@@ -288,11 +284,6 @@ func close() -> void:
 				p.set_meta("dur", float(it[2]))
 			game.hud.toast("Сумка полна — %s на полу" % Items.item_name(String(it[0])))
 	pending = []
-	if src:
-		src = null
-		if game and game.player and game.alive:
-			game.player.active = true
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if shop:
 		shop._refresh()
 
@@ -305,9 +296,9 @@ func _total() -> int:
 
 
 ## Переложить из колонки side (ячейка idx): вся стопка или одна штука.
-func click(side: String, idx: int, one: bool) -> void:
-	if side == "bag":
-		var items := _src_items()
+func click(side: String, idx: int, one: bool, to := "") -> void:
+	if side != "sell":
+		var items := _src_items(side)
 		var s = items[idx] if idx < items.size() else null
 		if s == null:
 			return
@@ -317,16 +308,17 @@ func click(side: String, idx: int, one: bool) -> void:
 			game.play_ui("buzz", -14.0)
 			return
 		var dur := float(s["dur"])
-		var got := _take_src(idx, 1 if one else int(s["n"]))
+		var got := _take_src(side, idx, 1 if one else int(s["n"]))
 		if got <= 0:
 			return
-		_add_pending(id, got, dur)
+		_add_pending(id, got, dur, side)
 	else:
 		if idx >= pending.size():
 			return
 		var it: Array = pending[idx]
+		var dest: String = to if to == "bag" or to == "chest" else String(it[3])
 		var want := 1 if one else int(it[1])
-		var left: int = _give_src(String(it[0]), want, float(it[2]))
+		var left: int = _give_src(dest, String(it[0]), want, float(it[2]))
 		var moved := want - left
 		if moved <= 0:
 			info_l.text = "Сумка полна"
@@ -338,17 +330,17 @@ func click(side: String, idx: int, one: bool) -> void:
 	_rebuild()
 
 
-func _add_pending(id: String, n: int, dur: float) -> void:
+func _add_pending(id: String, n: int, dur: float, from: String) -> void:
 	if dur < 0.0:
 		var mx: int = Items.ITEMS[id]["stack"]
 		for it in pending:
-			if it[0] == id and float(it[2]) < 0.0 and int(it[1]) < mx:
+			if it[0] == id and float(it[2]) < 0.0 and int(it[1]) < mx and it[3] == from:
 				var take := mini(n, mx - int(it[1]))
 				it[1] = int(it[1]) + take
 				n -= take
 				if n <= 0:
 					return
-	pending.append([id, n, dur])
+	pending.append([id, n, dur, from])
 
 
 func sell_all() -> void:
@@ -369,23 +361,24 @@ func sell_all() -> void:
 
 
 func _rebuild() -> void:
-	for g in [bag_grid, sell_grid]:
+	for g in [bag_grid, chest_grid, sell_grid]:
 		for c in g.get_children():
 			g.remove_child(c)
 			c.queue_free()
-	var items := _src_items()
-	for i in maxi(items.size(), 10):
-		var c := Cell.new()
-		c.sw = self
-		c.side = "bag"
-		c.idx = i
-		var s = items[i] if i < items.size() else null
-		if s != null:
-			c.id = String(s["id"])
-			c.n = int(s["n"])
-			c.dur = float(s["dur"])
-			c.dim = market(c.id) <= 0
-		bag_grid.add_child(c)
+	for side in ["bag", "chest"]:
+		var items := _src_items(side)
+		for i in maxi(items.size(), 10):
+			var c := Cell.new()
+			c.sw = self
+			c.side = side
+			c.idx = i
+			var s = items[i] if i < items.size() else null
+			if s != null:
+				c.id = String(s["id"])
+				c.n = int(s["n"])
+				c.dur = float(s["dur"])
+				c.dim = market(c.id) <= 0
+			(bag_grid if side == "bag" else chest_grid).add_child(c)
 	for i in maxi(pending.size(), 10):
 		var c := Cell.new()
 		c.sw = self
