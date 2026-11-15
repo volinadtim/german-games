@@ -90,6 +90,7 @@ const CONTROLS := [
 	["flashlight", "Фонарик", ["k:70"]],           # F
 	["quick_heal", "Быстрое лечение", ["k:81"]],   # Q
 	["gasmask", "Нюхич (противогаз)", ["k:71"]],           # G
+	["inv_use", "Использовать (навести в инвентаре)", ["k:70"]],   # F (inventory.gd, промпт 02:19)
 	["hot_1", "Слот 1", ["k:49"]],
 	["hot_2", "Слот 2", ["k:50"]],
 	["hot_3", "Слот 3", ["k:51"]],
@@ -106,7 +107,7 @@ const CTL_GROUPS := [
 	["Движение", ["move_forward", "move_back", "move_left", "move_right", "sprint", "jump", "crouch", "crouch_toggle"]],
 	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject"]],
 	["Действия", ["interact", "carry", "loot_all", "flashlight", "quick_heal", "gasmask"]],
-	["Инвентарь", ["inventory", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
+	["Инвентарь", ["inventory", "inv_use", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
 	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat"]],
 ]
 

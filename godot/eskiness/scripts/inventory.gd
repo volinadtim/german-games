@@ -425,7 +425,7 @@ func _build_ui() -> void:
 	info_desc.custom_minimum_size = Vector2(COLS * (SLOT + 6), 3 * 27)
 	info_desc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	vb.add_child(info_desc)
-	var hint_text := "ЛКМ — использовать    ПКМ — действия    Tab — закрыть\nShift+ПКМ — выбросить 1 (держать — всю стопку)\nЗа окно — выбросить    На ячейки 1–5 внизу — хотбар"
+	var hint_text := "F (навести) — использовать    ЛКМ — перетащить    ПКМ — действия    Tab — закрыть\nShift+ПКМ — выбросить 1 (держать — всю стопку)\nЗа окно — выбросить    На ячейки 1–5 внизу — хотбар"
 	if preload("res://scripts/ui/touch_controls.gd").wanted():
 		hint_text = "Нажать — использовать    Подержать — действия
 Перетащить — переложить    Коснулся предмета + ячейка 1–5 внизу — хотбар"
@@ -650,8 +650,19 @@ func _input(e: InputEvent) -> void:
 			var hk = _slot_at()
 			if not _same(hk, hover):
 				set_hover(hk)
-		# ЛКМ (нажал и отпустил на той же ячейке, без перетаскивания) — использовать / снять
-		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not dlg.visible:
+		# F (inv_use, переназначается) на предмете под курсором — использовать / снять (промпт 02:19)
+		if InputMap.has_action("inv_use") and e.is_action_pressed("inv_use") and not e.is_echo() and not dlg.visible:
+			var uk = _slot_at()
+			if uk == null:
+				uk = hover
+			if uk is int and slots[uk] != null:
+				use_requested.emit(uk)
+			elif uk is String and equip[uk] != "":
+				unequip_requested.emit(uk, -1)
+			get_viewport().set_input_as_handled()
+		# ЛКМ мышью — только перетаскивание; касание пальцем (эмуляция мыши) по-прежнему использует
+		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not dlg.visible \
+				and e.device == InputEvent.DEVICE_ID_EMULATION:
 			var at = _slot_at()
 			if e.pressed:
 				_press_key = at
@@ -994,10 +1005,26 @@ func set_hover(k) -> void:
 	if id != "":
 		info_name.text = "%s  ×%d" % [Items.item_name(id), n] if n > 1 else Items.item_name(id)
 		info_desc.text = Items.ITEMS[id]["desc"]
+		# подсказка при наведении: «F — использовать» (клавиша — из управления)
+		if k is String:
+			info_name.text += "    [%s — снять]" % _use_key()
+		elif _use_label(id) != "":
+			info_name.text += "    [%s — использовать]" % _use_key()
 	else:
 		info_name.text = " "
 		info_desc.text = " "
 	_refresh()
+
+
+## Название клавиши действия inv_use (по умолчанию F).
+func _use_key() -> String:
+	if InputMap.has_action("inv_use"):
+		for ev in InputMap.action_get_events("inv_use"):
+			if ev is InputEventKey:
+				return OS.get_keycode_string(ev.physical_keycode if ev.physical_keycode != 0 else ev.keycode)
+			if ev is InputEventMouseButton:
+				return "Кнопка мыши %d" % ev.button_index
+	return "F"
 
 
 func _refresh() -> void:
