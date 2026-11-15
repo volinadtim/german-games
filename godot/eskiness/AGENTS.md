@@ -30,6 +30,7 @@
 | Меню, управление, подбор, модели лута, графика | `ui/menu.gd`, `ui/touch_controls.gd`, `ui/icon_button.gd`, `world/pickup.gd`, `world/pickup_mesh.gd`, `core/graphics.gd` |
 | Сеть | `network/net.gd` ← `net_session.gd` ← `net_world.gd` ← `net_objects.gd` ← `net_base.gd`, `network/net_lobby.gd` |
 | Уровень, свет, атмосфера, поляна | `level/level.gd` ← `level_decor.gd` ← `level_geometry.gd`; `level/atmosphere.gd` ← `atmosphere_assets.gd`; `level/surface.gd` ← `surface_build.gd`; `level/flicker_light.gd`, `level/glass_floor.gd`, `level/tape_spot.gd` |
-| Машина | `car/car.gd` ← `car_model.gd` |
+| Машина (кат-сцена, места, двери, вождение, бензин) | `car/car.gd` ← `car_drive.gd` ← `car_model.gd` |
+| Деревня — 2-я локация (дорога, дома, подвал, задание), автомат ФОРТУНА, мутанты, сеть машины/деревни | `village/village.gd` ← `village_build.gd`; `village/bonus_slot.gd`; `village/mutant.gd` ← `mutant_base.gd`; `village/village_net.gd` (/root/VillageNet) |
 | Мир: ящики, кувшины, манекен, дом (чертежи) | `world/chest.gd`, `world/jar.gd` ← `jar_model.gd`, `world/dummy.gd`, `world/bunker_home.gd`, `world/carry.gd` (перенос на B) |
 | Общие (правки осторожно) | `core/game.gd` ← `game_save.gd` ← `game_items.gd` ← `game_world.gd` ← `game_base.gd`; `core/main.gd`, `core/sfx.gd`, `core/sfx_extra.gd`, `core/fx.gd`, `core/ambience.gd`, `systems/save.gd` |
