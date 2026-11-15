@@ -49,6 +49,7 @@ func _process(delta: float) -> void:
 		return
 	var k := _outside(cam.global_position)
 	out_k = lerpf(out_k, k, 1.0 - exp(-3.0 * delta))
+	_day_tick()
 	_apply_env(out_k)
 	_feed_wind()
 

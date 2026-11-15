@@ -16,7 +16,7 @@ const SETTINGS := {
 	"brightness": ["Яркость", 0.5, 1.6, 0.01, 1.0],
 	"gamma": ["Гамма", 0.6, 1.8, 0.01, 1.0],
 	"contrast": ["Контраст", 0.6, 1.6, 0.01, 1.0],
-	"posterize": ["Постеризация", 0.0, 100.0, 1.0, 70.0],
+	"posterize": ["Постеризация", 0.0, 100.0, 1.0, 20.0],   # по умолчанию 20 (промпт 00:20 16.11)
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
 	"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],   # градусы; 75 — прежний FOV камеры игрока
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
@@ -48,6 +48,8 @@ var slots_box: VBoxContainer      # выбор слота сохранения (
 var settings_box: VBoxContainer
 var gfx_box: VBoxContainer        # страница «Графика»
 var settings_from := "main"
+var setup_box: Control            # первая настройка картинки (first_setup.gd, промпт 00:20 16.11)
+var blur_rect: ColorRect
 var ctl_box: VBoxContainer        # страница «Управление»
 var gen_box: VBoxContainer        # страница «Основное»
 var cat := "general"              # открытая категория настроек
@@ -109,6 +111,8 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().root.size_changed.connect(_apply_ui_scale)
 	_load()
+	if not preload("res://scripts/ui/first_setup.gd").done():
+		values["posterize"] = SETTINGS["posterize"][4]   # мастер первой настройки начинает с 20
 	_apply_binds()
 
 	var root := Control.new()
@@ -123,6 +127,7 @@ func _ready() -> void:
 	sm.shader = preload("res://shaders/blur.gdshader")
 	blur.material = sm
 	root.add_child(blur)
+	blur_rect = blur
 
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -270,7 +275,11 @@ func _ready() -> void:
 	corner.add_child(scr)
 	icons = [snd, scr]
 
-	_show("main")
+	# первый запуск — сначала настройка картинки по шагам, потом главное меню
+	var FirstSetup := preload("res://scripts/ui/first_setup.gd")
+	setup_box = FirstSetup.new(self)
+	root.add_child(setup_box)
+	_show("main" if FirstSetup.done() else "setup")
 	apply_settings()
 	# вышли из сетевой игры (хост отключился и т.п.) — сразу на страницу сети с сообщением
 	var nt := get_tree().root.get_node_or_null("Net")
@@ -360,6 +369,13 @@ func _open_settings(from: String) -> void:
 	_show("settings")
 
 
+## Первая настройка картинки закончена (first_setup.gd) — в главное меню.
+func setup_finished() -> void:
+	for k in ["posterize", "gamma", "brightness"]:
+		_set_widget(k)
+	_show("main")
+
+
 func _close_settings() -> void:
 	_save()
 	_show(settings_from)
@@ -371,6 +387,11 @@ func _show(which: String) -> void:
 	slots_box.visible = which == "slots"
 	settings_box.visible = which == "settings"
 	net_box.visible = which == "net"
+	if setup_box:
+		setup_box.visible = which == "setup"
+	blur_rect.visible = which != "setup"   # превью настройки картинки — без размытия
+	for i in icons:
+		i.visible = which != "setup"
 	if which != "settings":
 		_stop_wait()
 

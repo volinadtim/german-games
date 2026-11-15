@@ -35,6 +35,9 @@ var w_lp := 0.0
 var w_lp2 := 0.0
 var w_t := 0.0
 var out_k := 0.0
+var sky_mat: ShaderMaterial
+var day_t := 0.5          # время суток 0..1: 0 полночь, 0.25 рассвет, 0.5 полдень, 0.75 закат
+var day_e := 0.0          # высота солнца -1..1
 var rng := RandomNumberGenerator.new()
 var hn := FastNoiseLite.new()
 var hn2 := FastNoiseLite.new()
@@ -45,6 +48,17 @@ const IN_AMB := Color(0.62, 0.55, 0.46)
 const OUT_AMB := Color(0.5, 0.46, 0.38)
 const IN_FOG := Color(0.04, 0.04, 0.045)
 const OUT_FOG := Color(0.15, 0.08, 0.065)
+
+# смена дня и ночи (промпт 00:20 16.11). Время берётся из часов системы — у всех игроков в сети совпадает.
+const DAY_LEN := 720.0    # полные сутки, секунд (12 минут)
+## палитры неба: [верх, горизонт, земля, тёмные облака, светлые облака, туман, рассеянный свет]
+const SKY_NIGHT := [Color(0.012, 0.014, 0.03), Color(0.035, 0.035, 0.055), Color(0.02, 0.02, 0.025),
+	Color(0.01, 0.01, 0.018), Color(0.06, 0.06, 0.08), Color(0.025, 0.025, 0.04), Color(0.22, 0.25, 0.38)]
+const SKY_DUSK := [Color(0.07, 0.03, 0.03), Color(0.27, 0.09, 0.07), Color(0.1, 0.05, 0.04),
+	Color(0.05, 0.025, 0.025), Color(0.34, 0.12, 0.08), Color(0.15, 0.08, 0.065), Color(0.5, 0.42, 0.36)]
+## самое светлое время — блёкло-оранжевый горизонт, жёлто-голубоватый верх, почти без красноты
+const SKY_NOON := [Color(0.34, 0.39, 0.42), Color(0.66, 0.56, 0.4), Color(0.26, 0.22, 0.16),
+	Color(0.3, 0.29, 0.27), Color(0.74, 0.66, 0.5), Color(0.42, 0.38, 0.3), Color(0.62, 0.6, 0.52)]
 
 
 static func in_hut(p: Vector3, margin := 0.0) -> bool:
@@ -313,6 +327,7 @@ func _sky_and_sun() -> void:
 	var sm := ShaderMaterial.new()
 	sm.shader = SkyShader
 	sm.set_shader_parameter("clouds", ct)
+	sky_mat = sm
 	var sky := Sky.new()
 	sky.sky_material = sm
 	sky.radiance_size = Sky.RADIANCE_SIZE_32
@@ -326,22 +341,54 @@ func _sky_and_sun() -> void:
 	sun.visible = false
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 60.0
-	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
-	sun.rotation = Vector3(-0.32, 2.4, 0)    # низкое солнце с юго-запада, сквозь мглу
+	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_AND_SKY   # диск солнца/луны рисует sky.gdshader
+	sun.rotation = Vector3(-0.32, 2.4, 0)
 	add_child(sun)
+	_day_tick()
 	_apply_env(0.0)
 
 
+## Палитра неба по высоте солнца: ночь → красный рассвет/закат → блёклый день.
+func _sky_pal(i: int) -> Color:
+	var c: Color = (SKY_NIGHT[i] as Color).lerp(SKY_DUSK[i], smoothstep(-0.28, 0.02, day_e))
+	return c.lerp(SKY_NOON[i], smoothstep(0.12, 0.75, day_e))
+
+
+## Время суток: небо, положение и цвет солнца (ночью тот же свет — тусклая голубая луна).
+func _day_tick() -> void:
+	if Engine.is_editor_hint():
+		day_t = 0.3
+	else:
+		day_t = fmod(Time.get_unix_time_from_system() / DAY_LEN, 1.0)
+	day_e = -cos(day_t * TAU)
+	if sky_mat:
+		var keys := ["top_color", "horizon_color", "ground_color", "cloud_dark", "cloud_lit"]
+		for i in keys.size():
+			sky_mat.set_shader_parameter(keys[i], _sky_pal(i))
+		sky_mat.set_shader_parameter("stars", 1.0 - smoothstep(-0.3, 0.0, day_e))
+	if sun:
+		var night := day_e < -0.05
+		var elev := asin(clampf(absf(day_e), 0.0, 1.0)) * 0.85 + 0.06
+		var yaw := 1.0 + fmod(day_t + (0.5 if night else 0.0), 1.0) * TAU   # с востока на запад
+		sun.rotation = Vector3(-elev, yaw, 0)
+		var warm := Color(1.0, 0.55, 0.38).lerp(Color(1.0, 0.9, 0.74), smoothstep(0.1, 0.6, day_e))
+		sun.light_color = Color(0.55, 0.62, 0.85) if night else warm
+
+
 func _apply_env(k: float) -> void:
-	env.ambient_light_color = IN_AMB.lerp(OUT_AMB, k)
-	env.ambient_light_energy = lerpf(0.18, 0.5, k)
-	env.fog_light_color = IN_FOG.lerp(OUT_FOG, k)
+	var day := smoothstep(-0.25, 0.6, day_e)   # 0 ночь .. 1 полдень
+	env.ambient_light_color = IN_AMB.lerp(_sky_pal(6), k)
+	env.ambient_light_energy = lerpf(0.18, lerpf(0.22, 0.75, day), k)
+	env.fog_light_color = IN_FOG.lerp(_sky_pal(5), k)
 	env.fog_density = lerpf(0.02, 0.013, k)
 	env.fog_height_density = lerpf(0.5, 0.0, k)
 	env.volumetric_fog_density = lerpf(0.008, 0.012, k)
 	env.volumetric_fog_albedo = Color(0.8, 0.8, 0.8).lerp(Color(0.75, 0.55, 0.48), k)
 	if sun:
-		sun.light_energy = 0.6 * k
+		# днём солнце ярче, на рассвете/закате — у горизонта; ночью — слабая луна
+		var se := lerpf(0.6, 1.1, smoothstep(0.1, 0.7, day_e)) * smoothstep(-0.05, 0.08, day_e)
+		se = maxf(se, 0.12 * smoothstep(-0.02, -0.25, day_e))
+		sun.light_energy = se * k
 		sun.visible = k > 0.01
 	if wind:
 		wind.volume_db = lerpf(-60.0, -20.0, k)

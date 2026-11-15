@@ -8,12 +8,24 @@ uniform vec3 horizon_color : source_color = vec3(0.27, 0.09, 0.07);
 uniform vec3 ground_color : source_color = vec3(0.1, 0.05, 0.04);
 uniform vec3 cloud_dark : source_color = vec3(0.05, 0.025, 0.025);
 uniform vec3 cloud_lit : source_color = vec3(0.34, 0.12, 0.08);
+uniform float stars = 0.0;   // ночью — редкие звёзды (surface_build.gd: _day_tick)
 
 void sky() {
 	vec3 d = EYEDIR;
 	float y = d.y;
 	vec3 c = mix(horizon_color, top_color, smoothstep(-0.02, 0.55, y));
 	c = mix(c, ground_color, smoothstep(0.0, -0.15, y));
+	if (stars > 0.0 && y > 0.0) {
+		vec3 q = floor(d * 260.0);
+		float h = fract(sin(dot(q, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+		c += vec3(0.55, 0.58, 0.7) * step(0.9975, h) * stars * smoothstep(0.0, 0.25, y);
+	}
+	// диск солнца (днём) или луны (ночью) с мутным ореолом, ступеньками
+	if (LIGHT0_ENABLED) {
+		float sd = dot(d, LIGHT0_DIRECTION);
+		float halo = floor(pow(max(sd, 0.0), 24.0) * 4.0) / 4.0;
+		c += LIGHT0_COLOR * (halo * 0.18 + step(0.9985, sd) * 0.9) * min(LIGHT0_ENERGY * 1.5, 1.0);
+	}
 	if (y > -0.02) {
 		vec2 uv = d.xz / (max(y, 0.0) + 0.12) * 0.05 + vec2(TIME * 0.0015, TIME * 0.0006);
 		float n = texture(clouds, uv).r;
