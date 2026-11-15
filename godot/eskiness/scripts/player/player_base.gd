@@ -202,6 +202,7 @@ var phase := 0.0
 var bob := 0.0
 var last_step := -1
 var was_on_floor := true
+var air_t := 0.0   # сколько секунд не на полу: у стены is_on_floor мигает — короткие «отрывы» не считаем полётом (промпт 23:34)
 var land_speed := 0.0
 
 var steps: Array[AudioStreamWAV] = []

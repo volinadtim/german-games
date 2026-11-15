@@ -31,6 +31,7 @@ func _ready() -> void:
 	cs.shape = cap
 	cs.position.y = 0.9
 	add_child(cs)
+	wall_min_slide_angle = 0.0   # в стену почти в лоб — скользим вдоль, а не застреваем (по умолчанию 15°)
 	col_shape = cs
 	col_cap = cap
 	_add_crouch_keys()
@@ -46,6 +47,15 @@ func _ready() -> void:
 	_build_body()
 	if USE_MODEL:
 		_build_model()
+
+
+## Окно потеряло фокус (Alt+Tab, окно «залипания» Shift, смена раскладки) — отпускания клавиш
+## могут не дойти, и бег/шаг «залипали» (промпт 23:34). Отпускаем все действия сами.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		for a in InputMap.get_actions():
+			if Input.is_action_pressed(a):
+				Input.action_release(a)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -172,8 +182,14 @@ func _physics_process(delta: float) -> void:
 
 	var target := dir * (SPRINT if sprinting else WALK) * speed_mult * lerpf(1.0, CROUCH_SPEED, crouch)
 	var hv := Vector3(velocity.x, 0, velocity.z)
-	var air := 1.0 if on_floor else 0.25
-	if moving and target.length() > hv.length() + 0.01:
+	# у стены is_on_floor мигает: из-за этого управление падало до «воздушного» (×0.25),
+	# игрок неохотно отходил от стены и проезжал вдоль неё после отпускания WASD (промпт 23:34)
+	air_t = 0.0 if on_floor else air_t + delta
+	var air := 1.0 if (on_floor or (air_t < 0.15 and velocity.y <= 0.0)) else 0.25
+	if moving and hv.length() > 0.5 and hv.normalized().dot(target.normalized()) < 0.5:
+		# резкая смена направления (в т.ч. «оттолкнуться» от стены) — сразу к цели, без плавного поворота
+		hv = hv.move_toward(target, (ACCEL_WALK + DECEL_TURN) * air * delta)
+	elif moving and target.length() > hv.length() + 0.01:
 		# разгон: с места до шага ~0.2 с, с шага до бега ~0.2 с
 		var accel := ACCEL_SPRINT if hv.length() > WALK - 0.2 else ACCEL_WALK
 		var spd := move_toward(hv.length(), target.length(), accel * air * delta)
