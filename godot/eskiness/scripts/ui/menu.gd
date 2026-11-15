@@ -78,6 +78,7 @@ const CONTROLS := [
 	["fists", "Боевая стойка", ["k:86"]],          # V
 	["fists_down", "Стойка (альт.)", ["m:3"]],     # СКМ — тоже переключает стойку
 	["interact", "Взаимодействие", ["k:69"]],      # E
+	["carry", "Взять в руки / поставить", ["k:66"]],   # B (world/carry.gd)
 	["inventory", "Инвентарь", ["k:4194306", "k:73"]],   # Tab, I
 	["loot_all", "Забрать всё", ["k:82"]],         # R
 	["reload", "Перезарядка", ["k:82"]],           # R — в мире (в окне лута R — «забрать всё»)
@@ -98,7 +99,7 @@ const CONTROLS := [
 const CTL_GROUPS := [
 	["Движение", ["move_forward", "move_back", "move_left", "move_right", "sprint", "jump", "crouch", "crouch_toggle"]],
 	["Бой", ["attack_left", "attack_right", "fists", "fists_down", "reload", "mag_eject", "throw_stone"]],
-	["Действия", ["interact", "loot_all", "flashlight", "quick_heal", "gasmask"]],
+	["Действия", ["interact", "carry", "loot_all", "flashlight", "quick_heal", "gasmask"]],
 	["Инвентарь", ["inventory", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
 	["Интерфейс", ["toggle_fullscreen"]],
 ]

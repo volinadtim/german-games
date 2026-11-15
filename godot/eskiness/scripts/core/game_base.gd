@@ -150,6 +150,7 @@ func _add_keys(action: String, keys: Array) -> void:
 var loot_window: LootWindow   # окно лута ящиков и сейфа
 var storage: Chest            # сундук-хранилище
 var home                      # world/bunker_home.gd — постройки по чертежам
+var carry                     # world/carry.gd — перенос объектов в руках (B)
 var glass_floor: GlassFloor   # кучки стекла (glass_floor.gd), случайные каждую новую игру
 const BLEED_TIME := 10.0
 const BLEED_DPS := 3.0

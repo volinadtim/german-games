@@ -114,6 +114,9 @@ func setup(p: Player) -> void:
 	home = preload("res://scripts/world/bunker_home.gd").new()
 	home.game = self
 	add_child(home)
+	carry = preload("res://scripts/world/carry.gd").new()
+	carry.game = self
+	add_child(carry)
 	glass_floor = GlassFloor.new()
 	add_child(glass_floor)
 	_collect_obstacles()
@@ -184,6 +187,10 @@ func _physics_process(delta: float) -> void:
 		if pk != null and from.distance_to(pk.global_position) < hit_d:
 			focus = pk
 			text = pk.get_prompt(self)
+	if carry and alive:
+		var ch: String = carry.hint(focus)
+		if ch != "":
+			text = ch if text == "" or carry.held else text + "   " + ch
 	hud.prompt(text)
 
 

@@ -68,6 +68,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		# клик мимо кнопок инвентаря/лута/магазина не должен прятать курсор (баг 14.11 20:05)
 		if game == null or not game.window_open():
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif carrying and (event.is_action_pressed("fists") or event.is_action_pressed("fists_down") or event.is_action_pressed("attack_left") or event.is_action_pressed("attack_right")):
+		pass   # руки заняты (carry.gd)
 	elif captured and event.is_action_pressed("fists") and not event.is_echo():
 		toggle_fists()
 	elif captured and event.is_action_pressed("fists_down") and not event.is_echo():
@@ -140,7 +142,7 @@ func _physics_process(delta: float) -> void:
 	_key_look(delta)
 	var on_floor := is_on_floor()
 	# прыжок из приседа сначала поднимает игрока
-	var jump_now := active and Input.is_action_just_pressed("jump")
+	var jump_now := active and not carrying and Input.is_action_just_pressed("jump")
 	if jump_now and crouched:
 		_stand_request()
 		jump_now = false
@@ -155,7 +157,7 @@ func _physics_process(delta: float) -> void:
 		inp = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := transform.basis * Vector3(inp.x, 0, inp.y)
 	var moving := dir.length() > 0.01
-	var sprinting := active and moving and inp.y < -0.1 and Input.is_action_pressed("sprint")
+	var sprinting := active and not carrying and moving and inp.y < -0.1 and Input.is_action_pressed("sprint")
 	# бег из приседа сначала поднимает игрока
 	if sprinting and crouched:
 		_stand_request()

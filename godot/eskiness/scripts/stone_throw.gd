@@ -28,7 +28,7 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e.is_action_pressed("throw_stone") and not e.is_echo() and game.alive and game.player.active and not game.window_open():
+	if e.is_action_pressed("throw_stone") and not e.is_echo() and game.alive and game.player.active and not game.player.carrying and not game.window_open():
 		throw()
 
 

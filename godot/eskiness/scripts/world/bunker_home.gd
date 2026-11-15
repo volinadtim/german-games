@@ -290,7 +290,7 @@ func _panel(parent: Node3D, pos: Vector3, size: Vector3, m: Material) -> void:
 
 ## Ковёр посреди комнаты: бордовый с каймой и ромбом.
 func _rug() -> Node3D:
-	var root := Node3D.new()
+	var root := StaticBody3D.new()   # тонкое тело — чтобы ковёр можно было взять в руки (carry.gd)
 	root.position = Vector3(-6.0, 0.0, -5.3)
 	add_child(root)
 	var img := Image.create(48, 32, false, Image.FORMAT_RGBA8)
@@ -318,6 +318,7 @@ func _rug() -> Node3D:
 	mi.material_override = m
 	mi.position = Vector3(0, 0.006, 0)
 	root.add_child(mi)
+	_collide(root, Vector3(3.0, 0.012, 2.0), Vector3(0, 0.006, 0))
 	return root
 
 

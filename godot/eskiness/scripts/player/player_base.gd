@@ -79,6 +79,7 @@ const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52
 const Fx := preload("res://scripts/core/fx.gd")
 
 var active := false
+var carrying := false   # несёт объект в руках (world/carry.gd): без ударов, бега и прыжков
 ## Сетевая игра (net.gd): модель другого игрока — без камеры, ввода, звуков и урона; движется по данным из сети.
 var puppet := false
 var net_hit: Callable    # сеть: удар/пуля по этой модели чужого игрока → net.gd (огонь по своим)
