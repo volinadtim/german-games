@@ -9,6 +9,7 @@ const Items := preload("res://scripts/items.gd")
 
 ## прицел-точка в центре (меню «Настройки» → «Прицел»)
 static var show_crosshair := true
+static var gun_cross := false   # пистолет в руке — прицел рисует gun.gd
 var hp := 100.0
 var hp_max := 100.0
 var hp_lag := 100.0          # «догоняющая» светлая полоска
@@ -317,7 +318,7 @@ func _paint() -> void:
 	var sz := paint.size
 	var f := ThemeDB.fallback_font
 	# прицел — едва заметная точка
-	if show_crosshair:
+	if show_crosshair and not gun_cross:
 		paint.draw_circle(sz / 2.0, 2.0, Color(1, 1, 1, 0.35))
 
 	# здоровье

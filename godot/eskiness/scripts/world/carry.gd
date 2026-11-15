@@ -98,7 +98,7 @@ func _pick() -> void:
 		(held as CollisionObject3D).collision_mask = 0
 	yaw_off = held.global_rotation.y - game.player.global_rotation.y
 	game.player.carrying = true
-	game.play_ui("thud", -14.0, 1.3)
+	game.play_ui("pickup", -17.0, 0.8)   # мягкий шорох, без гула (промпт 16.11 00:20)
 	game.hud.toast("Несёшь: B — поставить", Color(0.85, 0.85, 0.75))
 
 
@@ -142,7 +142,7 @@ func _drop() -> void:
 	held.global_position = Vector3(p.x, y, p.z)
 	var key := key_of(held)
 	moved[key] = [held.global_position.x, held.global_position.y, held.global_position.z, held.global_rotation.y]
-	game.play_ui("thud", -10.0, 0.9)
+	game.play_ui("thud", -23.0, 1.8)    # тихий высокий стук — низкий гул давил на уши
 	_release()
 
 

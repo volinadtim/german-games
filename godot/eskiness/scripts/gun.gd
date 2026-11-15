@@ -1,7 +1,9 @@
 extends Node
 ## Пистолет (промпт 14.11 19:49): старый обшарпанный, лежит в сейфе вместе с магазином и патронами.
-## В правой руке (промпт 22:53): ЛКМ (attack_left, player_combat.gd: charge_begin) — выстрел; ПКМ держать — прицел
-## (пистолет к глазу, зум, точнее). Хитскан из камеры.
+## В правой руке (промпт 22:53, режимы — 16.11 00:22): просто так не стреляет. ПКМ держать — от бедра (ЛКМ стреляет,
+## пока держишь, разброс больше); ПКМ клик — прицел по мушке (переключатель: пистолет к глазу, зум, точнее), в нём ЛКМ стреляет.
+## Шаги качают ствол: прицел на экране и точка попадания смещаются (sway). Прицел рисуем сами (hud.gd: gun_cross).
+## Хитскан из камеры.
 ## Магазин — отдельная вещь: вставленный пропадает из инвентаря. R — вставить самый полный магазин из сумки
 ## (старый — в сумку); перетащить магазин на пистолет — то же; патроны на магазин — дозарядить его;
 ## зажать Enter (действие «mag_eject») — извлечь магазин в сумку.
@@ -11,6 +13,7 @@ extends Node
 
 const Items := preload("res://scripts/items.gd")
 const Fx := preload("res://scripts/core/fx.gd")
+const Hud := preload("res://scripts/hud.gd")
 const CAP := 8                   # патронов в магазине
 const DMG := 40.0                # по бетоннику (95 HP) — 3 попадания
 const RANGE := 80.0
@@ -21,6 +24,7 @@ const EJECT_T := 0.5             # столько держать Enter — из�
 const AIM_FOV := 0.7             # множитель поля зрения в прицеле
 const SPREAD_HIP := 0.03         # разброс от бедра, рад
 const SPREAD_AIM := 0.004
+const TAP_T := 0.22              # ПКМ короче — клик (переключить прицел), дольше — держать (от бедра)
 const RATE := 22050
 
 var game
@@ -37,6 +41,14 @@ var aiming := false
 var aim_k := 0.0                 # 0..1 — насколько пистолет поднят к глазу
 var eject_t := 0.0
 var _eject_lock := false         # Enter держат после извлечения — ждём отпускания
+var rmb := false                 # ПКМ нажата (player_combat.gd: charge_begin/charge_release, и мышь, и тач)
+var rmb_t := 0.0
+var ads := false                 # прицел по мушке (клик ПКМ)
+var hip := false                 # от бедра (ПКМ держат)
+var sway := Vector2.ZERO         # качание ствола от шагов и дыхания: (рысканье, тангаж), рад
+var sway_t := 0.0
+var cross: Control
+var _ready_told := false
 
 
 ## dur пистолета → патроны / есть ли магазин (см. шапку).
@@ -76,6 +88,11 @@ func _ready() -> void:
 	count_l.add_theme_constant_override("outline_size", 6)
 	count_l.visible = false
 	ui.add_child(count_l)
+	cross = Control.new()
+	cross.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cross.draw.connect(_draw_cross)
+	ui.add_child(cross)
 
 
 func armed() -> bool:
@@ -101,8 +118,16 @@ func _process(delta: float) -> void:
 	var p = game.player
 	var can: bool = armed() and game.alive and p != null and p.active and not game.inv.open \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
-	aiming = can and not reloading and Input.is_action_pressed("attack_right")
+	if not can:
+		ads = false
+		hip = false
+		rmb = false
+	elif rmb:
+		rmb_t += delta
+		hip = rmb_t >= TAP_T and not ads
+	aiming = can and not reloading and ads
 	aim_k = move_toward(aim_k, 1.0 if aiming else 0.0, delta * 6.0)
+	_update_sway(delta)
 	# зажать Enter — извлечь магазин
 	var ej: bool = InputMap.has_action("mag_eject") and Input.is_action_pressed("mag_eject")
 	if can and loaded() and not reloading and ej and not _eject_lock:
@@ -126,6 +151,72 @@ func _process(delta: float) -> void:
 			count_l.text = "%s  %d / %d" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", r, CAP]
 		count_l.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35) if r == 0 else Color(0.95, 0.88, 0.7))
 	_aim()
+	Hud.gun_cross = armed() and game.alive
+	cross.queue_redraw()
+
+
+## ПКМ нажата/отпущена (из player_combat.gd). Короткий клик — переключить прицел, долгое удержание — от бедра.
+func rmb_input(down: bool) -> void:
+	if down:
+		rmb = true
+		rmb_t = 0.0
+		return
+	if not rmb:
+		return
+	rmb = false
+	if rmb_t < TAP_T and armed() and not reloading:
+		ads = not ads
+	hip = false
+
+
+## Готов к стрельбе: прицел по мушке или ПКМ держат (от бедра).
+func ready_to_fire() -> bool:
+	return ads or hip
+
+
+## Качание ствола: на ходу — восьмёркой в такт шагам (сильнее от бедра), стоя — лёгкое дыхание.
+func _update_sway(delta: float) -> void:
+	var p = game.player
+	if p == null:
+		return
+	sway_t += delta
+	var walk: float = clampf(p.bob, 0.0, 1.5)
+	var g: float = p.gait * TAU
+	var k: float = lerpf(1.0, 0.4, aim_k) * (1.0 - 0.45 * p.crouch)
+	var want: Vector2 = Vector2(sin(g) * 0.022, (0.5 - absf(cos(g))) * 0.03) * walk * k
+	want += Vector2(sin(sway_t * 0.7) * 0.0025, sin(sway_t * 1.13 + 0.6) * 0.003) * k
+	sway = sway.lerp(want, 1.0 - exp(-14.0 * delta))
+
+
+## Куда смотрит ствол (камера + качание).
+func aim_dir() -> Vector3:
+	var cb: Basis = game.player.cam.global_transform.basis.orthonormalized()
+	return (-cb.z).rotated(cb.y, -sway.x).rotated(cb.x, sway.y).normalized()
+
+
+## Прицел: от бедра — крестик с зазором по разбросу, в прицеле — ничего (целимся мушкой),
+## опущен — тусклое кольцо. Центр — туда, куда смотрит ствол (с качанием).
+func _draw_cross() -> void:
+	if not armed() or not game.alive or game.player == null or game.inv.open:
+		return
+	var cam: Camera3D = game.player.cam
+	var c: Vector2 = cross.size / 2.0
+	var pt := cam.global_position + aim_dir() * 20.0
+	if not cam.is_position_behind(pt):
+		c = cam.unproject_position(pt) * cross.size / Vector2(cross.get_viewport_rect().size)
+	if aim_k > 0.6:
+		return
+	var col := Color(1, 1, 1, 0.8)
+	var sh := Color(0, 0, 0, 0.5)
+	if hip and not reloading:
+		var px := tan(SPREAD_HIP * 1.4) / tan(deg_to_rad(cam.fov) * 0.5) * cross.size.y * 0.5
+		var gap := maxf(px, 6.0)
+		for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+			cross.draw_line(c + d * gap, c + d * (gap + 9.0), sh, 4.0)
+			cross.draw_line(c + d * gap, c + d * (gap + 9.0), col, 2.0)
+		cross.draw_circle(c, 1.5, col)
+	else:
+		cross.draw_arc(c, 7.0, 0.0, TAU, 20, Color(1, 1, 1, 0.3), 1.5)
 
 
 ## Пистолет в кулаке смотрит стволом туда же, куда камера (хват из костей кисти рассчитан на биту/нож).
@@ -141,6 +232,7 @@ func _aim() -> void:
 	var sc: Vector3 = (n as Node3D).global_transform.basis.get_scale()
 	var tilt := 1.0 - aim_k
 	var b := Basis(-cb.z, cb.y, cb.x).rotated(cb.x, -0.06 * tilt).rotated(cb.y, 0.05 * tilt)   # +X модели — вперёд, +Y — вверх
+	b = b.rotated(cb.y, -sway.x).rotated(cb.x, sway.y)   # ствол качается с шагами — туда же уходит пуля
 	var gt: Transform3D = (n as Node3D).global_transform
 	gt.basis = Basis(b.x * sc.x, b.y * sc.y, b.z * sc.z)
 	if aim_k > 0.0:
@@ -160,6 +252,11 @@ func _unhandled_input(e: InputEvent) -> void:
 func fire() -> void:
 	var p = game.player
 	if not armed() or reloading or cd > 0.0 or not game.alive:
+		return
+	if not ready_to_fire():
+		if not _ready_told:
+			_ready_told = true
+			game.hud.toast("Стрелять: ПКМ держать — от бедра, ПКМ клик — прицел", Color(0.9, 0.85, 0.7))
 		return
 	cd = FIRE_CD
 	var r := rounds()

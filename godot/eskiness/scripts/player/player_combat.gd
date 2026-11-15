@@ -57,7 +57,9 @@ func charge_frac() -> float:
 func charge_begin(arm: int) -> void:
 	if gun and weapon_ids[1] == "pistol" and active:
 		if arm == 0:
-			gun.fire()   # пистолет в правой: ЛКМ — выстрел, ПКМ — прицел (держать, gun.gd) — промпт 22:53
+			gun.fire()   # пистолет в правой: ЛКМ — выстрел (только с ПКМ: держать — от бедра, клик — прицел; gun.gd)
+		else:
+			gun.rmb_input(true)
 		return
 	if charging >= 0 or not active:
 		return
@@ -70,6 +72,8 @@ func charge_begin(arm: int) -> void:
 
 ## Отпустил: удар этой рукой с накопленным зарядом (кулаки ещё поднимаются — ударит, как поднимутся).
 func charge_release(arm: int) -> void:
+	if arm == 1 and gun:
+		gun.rmb_input(false)
 	if charging != arm:
 		return
 	charging = -1

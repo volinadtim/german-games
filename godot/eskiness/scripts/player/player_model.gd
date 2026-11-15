@@ -200,6 +200,7 @@ func _build_model() -> void:
 	skel = model.find_children("*", "Skeleton3D", true, false)[0]
 	var rel := global_transform.affine_inverse() * skel.global_transform
 	rig_rel = rel.basis.orthonormalized()
+	skel_m = rel.basis.get_scale().x
 	var rest := func(bone: String) -> Transform3D:
 		var t := rel * skel.get_bone_global_rest(skel.find_bone(bone))
 		return Transform3D(t.basis.orthonormalized(), t.origin)
@@ -250,7 +251,8 @@ func _build_model() -> void:
 		var fx := fist_fx[i]
 		fx.get_parent().remove_child(fx)
 		att.add_child(fx)
-		fx.transform = Transform3D(Basis.from_scale(Vector3.ONE * 0.01), Vector3(0, 0.0008, 0))
+		# масштаб скелета берём из модели (у новой модели он другой, чем у BaseHuman ×100): fist_fx — в метрах, 8 см по кисти
+		fx.transform = Transform3D(Basis.from_scale(Vector3.ONE / skel_m), Vector3(0, 0.08 / skel_m, 0))
 	spine_bone = skel.find_bone("spine03")
 	for n in ["spine01", "spine02", "spine03"]:
 		spine_bones.append(skel.find_bone(n))
@@ -547,7 +549,7 @@ func _grip(arm: int, id: String) -> Transform3D:
 	var hr := skel.get_bone_global_rest(hb)
 	hr.basis = hr.basis.orthonormalized()
 	var hinv := hr.affine_inverse()
-	var to_m := 100.0                                 # единицы скелета -> метры (узел модели ×100)
+	var to_m := skel_m                                # единицы скелета -> метры (из модели)
 	var lp := func(bone: String) -> Vector3: return hinv * skel.get_bone_global_rest(skel.find_bone(bone + s)).origin * to_m
 	var idx: Vector3 = lp.call("index01")
 	var pnk: Vector3 = lp.call("pinky01")
