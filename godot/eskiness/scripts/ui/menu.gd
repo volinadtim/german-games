@@ -485,11 +485,66 @@ func _delete_slot(i: int) -> void:
 
 # ---------- настройки ----------
 
-## Строка настройки: дискретные режимы (вкл/выкл, низкая/средняя/высокая, режим экрана) — селектор «‹ значение ›»,
-## непрерывные величины — ползунок (промпт 16.11 02:26).
+## Строка настройки: вкл/выкл — галочка, 3 режима (низкая/средняя/высокая, режим экрана…) — селектор «‹ значение ›»,
+## непрерывные величины — ползунок (промпты 16.11 02:26, 02:32).
 func setting_row(key: String) -> Control:
 	var d: Array = SETTINGS[key]
+	if d[3] >= 1.0 and d[2] - d[1] <= 1.0:
+		return _check_row(key)
 	return _select_row(key) if d[3] >= 1.0 and d[2] - d[1] <= 2.0 else _slider_row(key)
+
+
+## Строка-галочка (вкл/выкл): значение хранится как 1.0 / 0.0, как у ползунков.
+func _check_row(key: String) -> Control:
+	var d: Array = SETTINGS[key]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	var name_l := Label.new()
+	name_l.text = d[0]
+	name_l.custom_minimum_size = Vector2(200, 0)
+	name_l.add_theme_font_size_override("font_size", 24)
+	name_l.add_theme_color_override("font_color", Color(0.82, 0.81, 0.77))
+	row.add_child(name_l)
+	var cb := CheckBox.new()
+	cb.name = key
+	cb.focus_mode = Control.FOCUS_NONE
+	cb.button_pressed = values[key] > 0.5
+	cb.add_theme_icon_override("checked", _check_icon(true))
+	cb.add_theme_icon_override("unchecked", _check_icon(false))
+	cb.add_theme_icon_override("checked_disabled", _check_icon(true))
+	cb.add_theme_icon_override("unchecked_disabled", _check_icon(false))
+	cb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cb.toggled.connect(func(on: bool) -> void:
+		values[key] = 1.0 if on else 0.0
+		apply_settings())
+	row.add_child(cb)
+	return row
+
+
+## Квадратик галочки в цветах меню: тёмная ячейка с красной рамкой, внутри светлая «птичка».
+func _check_icon(on: bool) -> ImageTexture:
+	const S := 30
+	var img := Image.create(S, S, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.06, 0.03, 0.03, 0.9))
+	var frame := Color(0.6, 0.14, 0.1)
+	for i in S:
+		for k in 2:
+			img.set_pixel(i, k, frame)
+			img.set_pixel(i, S - 1 - k, frame)
+			img.set_pixel(k, i, frame)
+			img.set_pixel(S - 1 - k, i, frame)
+	if on:
+		var col := Color(0.9, 0.86, 0.76)
+		var pts := [Vector2(7, 15), Vector2(12, 21), Vector2(23, 8)]
+		for seg in 2:
+			var a: Vector2 = pts[seg]
+			var b: Vector2 = pts[seg + 1]
+			for j in 40:
+				var p := a.lerp(b, j / 39.0)
+				for dx in range(-1, 2):
+					for dy in range(-1, 2):
+						img.set_pixel(int(p.x) + dx, int(p.y) + dy, col)
+	return ImageTexture.create_from_image(img)
 
 
 func _row_name(text: String) -> Label:
@@ -643,6 +698,8 @@ func _set_widget(key: String) -> void:
 		var s: Node = box.find_child(key, true, false)
 		if s is HSlider:
 			s.value = values[key]
+		elif s is CheckBox:
+			s.button_pressed = values[key] > 0.5
 		elif s and s.has_meta("val_button"):
 			s.get_meta("val_button").text = _fmt(key, values[key]).to_upper()
 
