@@ -324,11 +324,21 @@ func _tray_target_count(n: int) -> int:
 
 ## Сразу показать горку под сумму (загрузка сейва).
 func set_tray(n: int) -> void:
+	_stop_pour()
 	tray_coins = maxi(n, 0)
 	tray_shown = _tray_target_count(tray_coins)
 	for k in tray_meshes.size():
 		tray_meshes[k].visible = k < tray_shown
 		tray_meshes[k].position = tray_pos[k]
+
+
+## Оборвать анимацию высыпания (сбор во время россыпи забирает всю сумму сразу — промпт 02:34).
+func _stop_pour() -> void:
+	for tw in pour_tweens:
+		if tw and tw.is_valid():
+			tw.kill()
+	pour_tweens.clear()
+	pour_gen += 1
 
 
 ## Высыпать win монет в лоток (промпт 14.11 19:18): монетки вылетают из пасти почти разом
@@ -354,6 +364,7 @@ func _pour(win: int) -> void:
 			randf_range(1.0, 2.5) * TAU * (1 if randf() < 0.5 else -1))
 		var roll := Vector3(randf_range(-0.012, 0.012), 0, randf_range(-0.01, 0.01))   # прокатится после удара
 		var tw := create_tween()
+		pour_tweens.append(tw)
 		tw.tween_interval(delay)
 		tw.tween_callback(func():
 			c.position = start
@@ -371,12 +382,14 @@ func _pour(win: int) -> void:
 			c.rotation = rest + wob * (1.0 - ts) * cos(ts * 9.0), 0.0, 1.0, 0.26)
 		delay += randf_range(0.02, 0.05)
 	# звон россыпью: несколько наложенных «coin» к моменту приземления
+	pour_tweens = pour_tweens.filter(func(x): return x and x.is_valid())
+	var gen := pour_gen
 	if game:
 		var rings := clampi(want - k0, 1, 5)
 		for r in rings:
 			var at := 0.5 + r * randf_range(0.05, 0.11)
 			get_tree().create_timer(at).timeout.connect(func():
-				if game:
+				if game and gen == pour_gen:
 					game.play_at("coin", tray_target.global_position, -12.0 - r, randf_range(0.9, 1.3)))
 
 
@@ -396,6 +409,7 @@ func take_tray() -> void:
 func eat_tray() -> void:
 	if tray_coins <= 0:
 		return
+	_stop_pour()
 	var n := tray_coins
 	tray_coins = 0
 	eating = true
