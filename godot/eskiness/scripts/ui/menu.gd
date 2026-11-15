@@ -16,7 +16,7 @@ const SETTINGS := {
 	"brightness": ["Яркость", 0.5, 1.6, 0.01, 1.0],
 	"gamma": ["Гамма", 0.6, 1.8, 0.01, 1.0],
 	"contrast": ["Контраст", 0.6, 1.6, 0.01, 1.0],
-	"posterize": ["Постеризация", 0.0, 100.0, 1.0, 20.0],   # по умолчанию 20 (промпт 00:20 16.11)
+	"posterize": ["Постеризация", 0.0, 1.0, 1.0, 1.0],   # галочка: вкл — 50%, выкл — 0 (промпт 00:30 16.11)
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
 	"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],   # градусы; 75 — прежний FOV камеры игрока
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
@@ -50,6 +50,8 @@ var gfx_box: VBoxContainer        # страница «Графика»
 var settings_from := "main"
 var setup_box: Control            # первая настройка картинки (first_setup.gd, промпт 00:20 16.11)
 var blur_rect: ColorRect
+var pending_slot := 0             # слот, выбранный до первой настройки картинки
+const FirstSetup := preload("res://scripts/ui/first_setup.gd")
 var ctl_box: VBoxContainer        # страница «Управление»
 var gen_box: VBoxContainer        # страница «Основное»
 var cat := "general"              # открытая категория настроек
@@ -111,8 +113,6 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().root.size_changed.connect(_apply_ui_scale)
 	_load()
-	if not preload("res://scripts/ui/first_setup.gd").done():
-		values["posterize"] = SETTINGS["posterize"][4]   # мастер первой настройки начинает с 20
 	_apply_binds()
 
 	var root := Control.new()
@@ -204,7 +204,7 @@ func _ready() -> void:
 			continue   # на телефоне окна нет
 		if key == "graphics":
 			rows.add_child(_gap(6))
-		var is_check: bool = key.begins_with("g_") and SETTINGS[key][1] == 0.0 and SETTINGS[key][2] == 1.0
+		var is_check: bool = key == "posterize" or key.begins_with("g_") and SETTINGS[key][1] == 0.0 and SETTINGS[key][2] == 1.0
 		rows.add_child(_check_row(key) if is_check else _slider_row(key))
 
 	# «Управление»: строка = действие и его клавиша; клик — назначить новую; подразделы CTL_GROUPS
@@ -275,11 +275,10 @@ func _ready() -> void:
 	corner.add_child(scr)
 	icons = [snd, scr]
 
-	# первый запуск — сначала настройка картинки по шагам, потом главное меню
-	var FirstSetup := preload("res://scripts/ui/first_setup.gd")
+	# настройка картинки по шагам — когда игрок впервые выбирает слот (_pick_slot)
 	setup_box = FirstSetup.new(self)
 	root.add_child(setup_box)
-	_show("main" if FirstSetup.done() else "setup")
+	_show("main")
 	apply_settings()
 	# вышли из сетевой игры (хост отключился и т.п.) — сразу на страницу сети с сообщением
 	var nt := get_tree().root.get_node_or_null("Net")
@@ -373,7 +372,12 @@ func _open_settings(from: String) -> void:
 func setup_finished() -> void:
 	for k in ["posterize", "gamma", "brightness"]:
 		_set_widget(k)
-	_show("main")
+	if pending_slot > 0:
+		var i := pending_slot
+		pending_slot = 0
+		_pick_slot(i)
+	else:
+		_show("main")
 
 
 func _close_settings() -> void:
@@ -459,6 +463,10 @@ func _open_net() -> void:
 
 
 func _pick_slot(i: int) -> void:
+	if not FirstSetup.done():
+		pending_slot = i
+		_show("setup")
+		return
 	Engine.set_meta("eskiness_slot", i)
 	Engine.set_meta("eskiness_load", Save.exists(i))
 	play_pressed.emit()
@@ -576,7 +584,7 @@ func _fmt(key: String, v: float) -> String:
 		return "вкл" if v > 0.5 else "выкл"
 	if key == "g_scale" or key == "g_grass" or key == "g_particles":
 		return "%d%%" % int(v)
-	if key == "volume" or key == "posterize" or key == "ui_scale":
+	if key == "volume" or key == "ui_scale":
 		return "%d%%" % int(v)
 	return "%.2f" % v
 
@@ -642,8 +650,8 @@ func apply_settings() -> void:
 		post_mat.set_shader_parameter("brightness", values["brightness"])
 		post_mat.set_shader_parameter("gamma", values["gamma"])
 		post_mat.set_shader_parameter("contrast", values["contrast"])
-		# 0% — постеризации почти нет (64 уровня), 100% — сильная (4 уровня)
-		post_mat.set_shader_parameter("levels", lerpf(64.0, 4.0, values["posterize"] / 100.0))
+		# галочка: вкл — всегда 50% (34 уровня), выкл — 0% (64 уровня, постеризации почти нет)
+		post_mat.set_shader_parameter("levels", lerpf(64.0, 4.0, 0.5) if values["posterize"] > 0.5 else 64.0)
 
 
 static func _mobile() -> bool:
@@ -704,6 +712,7 @@ func _load() -> void:
 	var ok := cf.load(CFG) == OK
 	for key in SETTINGS:
 		values[key] = cf.get_value("settings", key, SETTINGS[key][4]) if ok else SETTINGS[key][4]
+	values["posterize"] = 1.0 if float(values["posterize"]) > 0.5 else 0.0   # был ползунок 0..100
 	# старые настройки без отдельных g_* — берём их из сохранённого пресета
 	if ok and cf.has_section_key("settings", "graphics") and not cf.has_section_key("settings", "g_shadows"):
 		var d := Graphics.preset(int(round(float(values["graphics"]))))
