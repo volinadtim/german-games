@@ -203,4 +203,9 @@ func _v3(v: Vector3) -> Array:
 
 
 func _to_v3(a) -> Vector3:
-	return Vector3(float(a[0]), float(a[1]), float(a[2])) if a is Array and a.size() == 3 else Vector3.ZERO
+	if not (a is Array and a.size() == 3):
+		return Vector3.ZERO
+	var v := Vector3(float(a[0]), float(a[1]), float(a[2]))
+	if v.z > 430.0:   # старые сейвы: деревня была на 360 м дальше (промпт 16.11 02:16)
+		v.z -= 360.0
+	return v

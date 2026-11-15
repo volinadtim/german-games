@@ -153,7 +153,7 @@ func get_prompt(_g) -> String:
 	if opened:
 		return "[E] Обыскать (%d)" % contents.size() if not contents.is_empty() else ""
 	if locked:
-		return "Сейф заперт  (откроют три семёрки на KILLBOX)"
+		return "Сейф заперт  ???"
 	if kind == "safe":
 		return "[E] Открыть сейф"
 	return "[E] Открыть ящик"
@@ -174,7 +174,7 @@ func interact(g) -> void:
 			g.open_loot(self)
 		return
 	if locked:
-		g.hud.toast("Заперто. Сейф откроют три семёрки на автомате KILLBOX.")
+		g.hud.toast("Заперто. ???")
 		g.play_at("buzz", global_position, -14.0)
 		var shake := create_tween()
 		shake.tween_property(hinge, "rotation:y", -0.03, 0.05)

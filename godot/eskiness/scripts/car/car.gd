@@ -116,7 +116,7 @@ func escape(o := [1, 0, 0, 0]) -> void:
 	cam.current = true
 	starter = AudioStreamPlayer.new()
 	starter.stream = Sfx2.starter()
-	starter.volume_db = -3.0
+	starter.volume_db = -10.0
 	add_child(starter)
 	engine = AudioStreamPlayer.new()
 	engine.stream = Sfx2.engine_loop()
@@ -182,7 +182,7 @@ func _process(delta: float) -> void:
 		rig.rotation.z = randf_range(-1, 1) * vib * 0.5
 		for m in worn_mats:
 			m.set_shader_parameter("origin_shift", position - start_pos)
-		engine.volume_db = lerpf(engine.volume_db, -4.0, 1.0 - exp(-4.0 * delta))
+		engine.volume_db = lerpf(engine.volume_db, -12.0, 1.0 - exp(-4.0 * delta))
 		engine.pitch_scale = 0.85 + speed * 0.09
 		# камера едет следом с отставанием — машина понемногу отрывается
 		cam.global_position = cam.global_position.lerp(_cam_want(CAM_OFF), 1.0 - exp(-1.2 * delta))

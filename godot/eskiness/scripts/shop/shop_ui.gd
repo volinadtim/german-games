@@ -300,6 +300,19 @@ func _item_cell(grid: GridContainer, id: String, price: int) -> void:
 		Items.item_name(id), Items.ITEMS[id]["desc"], reason, func(): _buy(id, price))
 
 
+## Замочек на закрытом товаре.
+func _draw_lock(ci: Control, r: Rect2) -> void:
+	var c := r.get_center()
+	var col := Color(0.75, 0.62, 0.35)
+	var dark := Color(0.2, 0.13, 0.07)
+	ci.draw_arc(c + Vector2(0, -4), 9.0, PI, TAU, 16, col, 3.0)
+	ci.draw_line(c + Vector2(-9, -4), c + Vector2(-9, 2), col, 3.0)
+	ci.draw_line(c + Vector2(9, -4), c + Vector2(9, 2), col, 3.0)
+	ci.draw_rect(Rect2(c + Vector2(-13, 2), Vector2(26, 18)), col)
+	ci.draw_circle(c + Vector2(0, 9), 3.0, dark)
+	ci.draw_rect(Rect2(c + Vector2(-1, 10), Vector2(2, 6)), dark)
+
+
 ## Ячейка товара. draw_fn(ci, rect) рисует иконку; price < 0 — без цены (подпись в desc).
 func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, desc: String,
 		reason: String, on_buy: Callable, price_text := "") -> void:
@@ -331,7 +344,9 @@ func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, de
 	if reason != "":
 		b.modulate = Color(0.5, 0.5, 0.5)
 	var tip := "[b]%s[/b]\n%s" % [title, desc]
-	if reason != "":
+	if title == "":
+		tip = ""   # закрытый товар — без подсказки
+	elif reason != "":
 		tip += "\n[color=#ff8a70]%s[/color]" % reason
 	b.mouse_entered.connect(func(): _set_tip(tip))
 	b.mouse_exited.connect(func(): _set_tip(""))
@@ -403,9 +418,13 @@ func _build_slot_tab() -> void:
 	_section("ЗАЩИТА ОТ 666")
 	var ga := _grid()
 	var ap: int = SM.APPLE_PRICE
-	_cell(ga, func(ci: Control, r: Rect2): Items.draw_icon(ci, "rot_apple", r), ap,
-		"Гнилое яблоко", "Купи и скорми KILLBOX (E, глядя в пасть). При следующих «666» автомат ничего не заберёт; защита сгорает. Можно держать до 2. Шестёрки бывают только на окне 3×5. Сейчас защит: %d." % slot.shield,
-		"" if _can_pay(ap) else "Не хватает монет.", func(): _buy("rot_apple", ap))
+	if not SM.syms_for(lv).has("six"):
+		# до шестёрок — замочек без подсказки (промпт 16.11 02:18)
+		_cell(ga, _draw_lock, -1, "", "", "Закрыто.", func(): pass)
+	else:
+		_cell(ga, func(ci: Control, r: Rect2): Items.draw_icon(ci, "rot_apple", r), ap,
+			"Гнилое яблоко", "Защищает от шестёрок. Его надо скормить KILLBOX.",
+			"" if _can_pay(ap) else "Не хватает монет.", func(): _buy("rot_apple", ap))
 	var gmax: int = SM.GUAR_MAX[lv - 1]
 	_section("ГАРАНТИРОВАННЫЙ СИМВОЛ ×1 / ×2 / ×3")
 	var g2 := _grid()

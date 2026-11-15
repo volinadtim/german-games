@@ -36,8 +36,8 @@ var hidden_nodes: Array = []
 
 ## Где бродят мутанты деревни: [точка, вид]
 const MUT_SPOTS := [
-	[Vector3(27.0, G, 700.0), "spitter"], [Vector3(35.0, G, 712.0), "charger"], [Vector3(26.0, G, 728.0), "stalker"],
-	[Vector3(36.0, G, 740.0), "spitter"], [Vector3(30.0, G, 684.0), "stalker"], [Vector3(33.0, G, 722.0), "charger"],
+	[Vector3(27.0, G, 340.0), "spitter"], [Vector3(35.0, G, 352.0), "charger"], [Vector3(26.0, G, 368.0), "stalker"],
+	[Vector3(36.0, G, 380.0), "spitter"], [Vector3(30.0, G, 324.0), "stalker"], [Vector3(33.0, G, 362.0), "charger"],
 ]
 const MUT_RESPAWN := 70.0
 
@@ -153,7 +153,7 @@ func stall_sequence(seat: int) -> void:
 	card_bg.visible = true
 	card_bg.color.a = 0.0
 	card_l.modulate.a = 0.0
-	card_l.text = "Через пару километров мотор чихнул, кашлянул — и заглох.\nБак пуст.\n\nВокруг — брошенная деревня. Воздух снаружи всё такой же.\nНадо что-то делать."
+	card_l.text = "Через пару сотен метров мотор чихнул, кашлянул — и заглох.\nБак пуст.\n\nВокруг — брошенная деревня. Воздух снаружи всё такой же.\nНадо что-то делать."
 	var tw := create_tween()
 	tw.tween_property(card_bg, "color:a", 1.0, 1.6)
 	tw.tween_callback(func(): _relocate(seat))
@@ -275,11 +275,13 @@ func _process(delta: float) -> void:
 func _can_reveal() -> bool:
 	if car and (car.state != "idle" or car.escaped):
 		return true
-	return game.inv.count("car_key") > 0 or game.player.global_position.z > VZ0 - 160.0
+	# до первой посадки в машину о деревне ни слова (промпт 16.11 02:18); пешком — видна вблизи
+	return game.player.global_position.z > VZ0 - 160.0
 
 
 func reveal() -> void:
 	revealed = true
+	_sign()
 	for n in hidden_nodes:
 		if is_instance_valid(n):
 			n.visible = true

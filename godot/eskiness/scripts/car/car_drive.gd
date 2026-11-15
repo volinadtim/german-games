@@ -103,7 +103,7 @@ func _engine(on: bool) -> void:
 		engine.stream = Sfx2.engine_loop()
 		add_child(engine)
 	if on:
-		engine.volume_db = -14.0
+		engine.volume_db = -22.0
 		engine.pitch_scale = 0.8
 		engine.play()
 		smoke.emitting = true
@@ -271,7 +271,7 @@ func _drive_tick(delta: float) -> void:
 	for i in 2:
 		wheels[i].rotation.y = steer * 0.45
 	if engine_on and engine:
-		engine.volume_db = lerpf(engine.volume_db, -12.0 + absf(speed) * 0.6, 1.0 - exp(-4.0 * delta))
+		engine.volume_db = lerpf(engine.volume_db, minf(-20.0 + absf(speed) * 0.5, -10.0), 1.0 - exp(-4.0 * delta))
 		engine.pitch_scale = 0.8 + absf(speed) * 0.07
 		var vib := 0.004 + absf(speed) * 0.0008
 		rig.position = Vector3(0, randf_range(-1, 1) * vib, 0)
@@ -429,7 +429,10 @@ func from_save(d: Dictionary) -> void:
 	if not bool(d.get("escaped", false)):
 		return
 	var a: Array = d.get("pos", [position.x, position.y, position.z])
-	park_at(Vector3(float(a[0]), float(a[1]), float(a[2])), float(d.get("yaw", 0.0)))
+	var pz := float(a[2])
+	if pz > 430.0:   # старые сейвы: деревня была на 360 м дальше
+		pz -= 360.0
+	park_at(Vector3(float(a[0]), float(a[1]), pz), float(d.get("yaw", 0.0)))
 	fuel = float(d.get("fuel", 0.0))
 	var s := int(d.get("seat", -1))
 	if s >= 0 and s < 4:
