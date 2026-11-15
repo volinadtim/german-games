@@ -10,6 +10,7 @@ extends "res://scripts/village/village_build.gd"
 const Pickup := preload("res://scripts/world/pickup.gd")
 const BonusSlot := preload("res://scripts/village/bonus_slot.gd")
 const Mutant := preload("res://scripts/village/mutant.gd")
+const VillageShop := preload("res://scripts/village/village_shop.gd")
 
 var game                             # game.gd
 var car                              # car.gd
@@ -27,6 +28,11 @@ var marker: Label3D
 var poll_t := 0.0
 var mutants: Array = []
 var mut_seq := 0
+var shop                             # village_shop.gd — второй Trinkets Market в подвале
+## Деревню не видно, пока туда нельзя уехать (промпт 16.11 00:17): дома, подвал, автомат, мутанты спрятаны
+## до ключа от машины / отъезда / подхода к деревне пешком. Земля и дорога видны всегда.
+var revealed := false
+var hidden_nodes: Array = []
 
 ## Где бродят мутанты деревни: [точка, вид]
 const MUT_SPOTS := [
@@ -48,6 +54,7 @@ func _ready() -> void:
 	_materials()
 	_ground()
 	_road()
+	var first := get_child_count()
 	_basement_house()
 	for h in HOUSES:
 		var r := Rect2(float(h[0]) - float(h[2]) / 2.0, float(h[1]) - float(h[3]) / 2.0, float(h[2]), float(h[3]))
@@ -57,12 +64,23 @@ func _ready() -> void:
 	bonus_slot.position = SLOT_POS
 	bonus_slot.rotation.y = PI
 	add_child(bonus_slot)
+	shop = VillageShop.new()
+	shop.name = "VillageShop"
+	shop.position = SHOP_POS
+	shop.rotation.y = PI
+	add_child(shop)
+	for k in range(first, get_child_count()):
+		var n := get_child(k)
+		if n is Node3D:
+			n.visible = false
+			hidden_nodes.append(n)
 	_make_ui()
 
 
 func setup_game(g) -> void:
 	game = g
 	bonus_slot.game = g
+	shop.game = g
 	if g.net == null or g.net.is_host():
 		for s in MUT_SPOTS:
 			_spawn_mutant(s[0], s[1])
@@ -156,6 +174,8 @@ func _relocate(seat: int) -> void:
 		# мест не хватило — стоит рядом с машиной
 		game.player.global_position = STALL + Vector3(2.5, 0.1, -2.0 - 0.8 * randf())
 		game.player.active = true
+		if game.player.model_root:
+			game.player.model_root.visible = true
 
 
 func _after_card() -> void:
@@ -199,12 +219,12 @@ func set_stage(s: int) -> void:
 		1:
 			_quest("Дойди до дома с меткой и спрячься в подвале")
 		2:
-			_quest("Найди бензин в деревне (канистра в одном из домов)\nМашина довезёт к бункеру за минуту")
+			_quest("Найди бензин в деревне (канистра в одном из домов)\nМожете поехать, но если нет бензина, можете и пешком попробовать...")
 			game.hud.toast("Здесь воздух чистый — Нюхич можно снять (G)", Color(0.7, 0.85, 0.6))
 		3:
 			_quest("Залей бензин в машину (E у машины)")
 		4:
-			_quest("Машина на ходу: за руль — W/S газ и тормоз, A/D руль\nДорога на юг ведёт к бункеру (~1 мин). Пешком ~3 мин — нужны фильтры")
+			_quest("Машина на ходу: за руль — W/S газ и тормоз, A/D руль\nМожете поехать, но если нет бензина, можете и пешком попробовать...")
 		_:
 			_quest("")
 
@@ -237,6 +257,8 @@ func _process(delta: float) -> void:
 	poll_t -= delta
 	if poll_t <= 0.0:
 		poll_t = 0.4
+		if not revealed and _can_reveal():
+			reveal()
 		_poll()
 	# метка: над дверью дома с подвалом или над машиной
 	var mp := Vector3.INF
@@ -248,6 +270,22 @@ func _process(delta: float) -> void:
 	if marker.visible:
 		marker.global_position = mp
 		marker.text = "▼\n%d м" % int(game.player.global_position.distance_to(mp))
+
+
+func _can_reveal() -> bool:
+	if car and (car.state != "idle" or car.escaped):
+		return true
+	return game.inv.count("car_key") > 0 or game.player.global_position.z > VZ0 - 160.0
+
+
+func reveal() -> void:
+	revealed = true
+	for n in hidden_nodes:
+		if is_instance_valid(n):
+			n.visible = true
+	for m in mutants:
+		if is_instance_valid(m):
+			m.visible = true
 
 
 func _poll() -> void:
@@ -358,6 +396,7 @@ func _spawn_mutant(pos: Vector3, kind: String) -> void:
 	m.position = pos + Vector3(0, 0.1, 0)
 	m.rotation.y = randf() * TAU
 	m.home = pos
+	m.visible = revealed
 	m.set_meta("nid", mut_seq)
 	mut_seq += 1
 	game.add_child(m)
@@ -415,6 +454,7 @@ func net_mutants(arr: Array) -> void:
 			m.game = game
 			m.kind = String(a[1])
 			m.net_puppet = true
+			m.visible = revealed
 			m.position = a[2]
 			m.rotation.y = a[3]
 			m.net_pos = a[2]

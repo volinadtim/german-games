@@ -68,9 +68,13 @@ func seat_local(i: int, instant := false) -> void:
 	p.process_mode = Node.PROCESS_MODE_DISABLED
 	p.col_shape.disabled = true
 	seat_from = p.cam.global_position
+	_body_visible(false)
 	if instant:
 		seat_dir = 0
 		seat_anim = 1.0
+		# сразу лицом вперёд по машине, взгляд чуть вниз — на руль и дорогу
+		p.rotation.y = yaw + PI
+		p.head.rotation.x = -0.12
 		_place_player(seat_eye_world(i))
 	else:
 		seat_dir = 1
@@ -151,6 +155,9 @@ func _seat_tick(delta: float) -> void:
 	if seat_dir == 1:
 		seat_anim = minf(seat_anim + delta / 0.8, 1.0)
 		var k := smoothstep(0.0, 1.0, seat_anim)
+		# садясь, поворачиваемся лицом вперёд по машине
+		p.rotation.y = lerp_angle(p.rotation.y, yaw + PI, 1.0 - exp(-7.0 * delta))
+		p.head.rotation.x = lerpf(p.head.rotation.x, -0.12, 1.0 - exp(-5.0 * delta))
 		_place_player(seat_from.lerp(seat_eye_world(my_seat), k) + Vector3(0, sin(k * PI) * 0.05, 0))
 		if seat_anim >= 1.0:
 			seat_dir = 0
@@ -168,6 +175,13 @@ func _seat_tick(delta: float) -> void:
 		_place_player(seat_eye_world(my_seat))
 
 
+## Своё тело в салоне прячем: оно стоит в позе «стоя» и торчало бы сквозь пол и крышу перед камерой.
+func _body_visible(on: bool) -> void:
+	var p = game.player
+	if p.model_root:
+		p.model_root.visible = on
+
+
 func _stand_up() -> void:
 	var p = game.player
 	var i := my_seat
@@ -176,6 +190,7 @@ func _stand_up() -> void:
 	p.process_mode = Node.PROCESS_MODE_INHERIT
 	p.col_shape.disabled = false
 	p.active = true
+	_body_visible(true)
 	seats[i] = 0
 	my_seat = -1
 	seat_dir = 0
@@ -217,6 +232,7 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _drive_tick(delta: float) -> void:
 	bump_cd -= delta
+	var yaw0 := yaw
 	if my_seat == 0 and seat_dir == 0 and game.alive and not game.window_open():
 		var thr := Input.get_axis("move_back", "move_forward")
 		var st_in := Input.get_axis("move_right", "move_left")
@@ -263,16 +279,22 @@ func _drive_tick(delta: float) -> void:
 
 
 func _move(delta: float) -> void:
+	var old_yaw := yaw
 	yaw += steer * TURN * clampf(speed / 6.0, -1.0, 1.0) * delta
 	var fwd := Vector3(sin(yaw), 0, cos(yaw))
 	var np := position + fwd * speed * delta
-	var target := _fit(np, yaw, false)
-	# крутой склон — дальше не едет
-	var dh := target.origin.y - position.y
-	if dh / maxf(absf(speed) * delta, 0.001) > 0.75:
+	# крутой склон впереди — дальше не едет. Уклон меряем по земле на 1.2 м вперёд по ходу (раньше делили
+	# разницу высот на шаг кадра — на старте шаг ~1 мм, и любая неровность/осевший угол «бампали» машину: не ехала)
+	var dir := fwd * signf(speed)
+	var h0: float = surface.height(position.x, position.z)
+	var h1: float = surface.height(position.x + dir.x * 1.2, position.z + dir.z * 1.2)
+	if (h1 - h0) / 1.2 > 0.75:
+		yaw = old_yaw
 		_bump()
 		return
+	var target := _fit(np, yaw, true)
 	if _blocked(target):
+		yaw = old_yaw
 		_bump()
 		return
 	if carried.is_empty() and absf(speed) > 0.3:
@@ -294,9 +316,10 @@ func _bump() -> void:
 func _blocked(xf: Transform3D) -> bool:
 	var q := PhysicsShapeQueryParameters3D.new()
 	var bs := BoxShape3D.new()
-	bs.size = Vector3(1.55, 0.6, 4.0)
+	bs.size = Vector3(1.5, 0.6, 3.7)
 	q.shape = bs
-	q.transform = xf * Transform3D(Basis(), Vector3(0, 0.95, 0))
+	# коробка сдвинута по ходу: то, во что машина уже упёрлась сзади, не держит её на месте
+	q.transform = xf * Transform3D(Basis(), Vector3(0, 0.95, 0.3 * signf(speed)))
 	q.collision_mask = 1
 	var ex: Array[RID] = [get_rid(), game.player.get_rid()]
 	q.exclude = ex
@@ -358,8 +381,10 @@ func park_at(p: Vector3, a: float) -> void:
 	transform = _fit(p, a, true)
 	rig.position = Vector3.ZERO
 	rig.rotation = Vector3.ZERO
-	for f in figures:
-		f.visible = false
+	for i in figures.size():
+		if figures[i] != null and is_instance_valid(figures[i]):
+			figures[i].queue_free()
+		figures[i] = null
 	driver.visible = false
 	if cam:
 		cam.current = false

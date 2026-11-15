@@ -10,7 +10,10 @@ extends "res://scripts/car/car_drive.gd"
 ## Дальше машина — обычная: двери, места, бензин, вождение (car_drive.gd); положение — в сейве (village).
 ## Перед машины — +Z, водительская сторона — +X. Интерфейс взаимодействия: get_prompt(game), interact(game).
 
-const BOARD_T := 2.6            # посадка: подойти, открыть дверь, сесть, захлопнуть
+const BOARD_T := 3.2            # посадка: подойти, открыть дверь, сесть, захлопнуть
+const Figure := preload("res://scripts/car/car_figure.gd")
+const FIG_S := 0.8              # люди в кат-сцене чуть меньше: салон машины низкий (крыша на 1.37)
+const FIG_HIP := 0.55           # где таз сидящего (оси машины): ноги — внутри кузова, голова — под крышей
 var order := [0, 0, 0, 0]       # кто на каком месте в кат-сцене (id игроков, 0 — пусто)
 
 
@@ -23,8 +26,7 @@ func _ready() -> void:
 	add_child(rig)
 	_build()
 	_hollow_collision()
-	for i in 4:
-		figures.append(_figure())
+	figures.resize(4)
 
 
 # ---------- взаимодействие ----------
@@ -90,12 +92,20 @@ func escape(o := [1, 0, 0, 0]) -> void:
 	fuel = 0.0
 	if game:
 		game.begin_escape()
+	# люди — модель игрока (car_figure.gd): каждый подходит к своей двери
 	for i in 4:
-		var f := figures[i]
-		f.visible = int(order[i]) != 0
-		f.position = EXIT[i] + Vector3(0, 0.8, 0)
-		f.rotation.y = PI / 2.0 * -float(DOORS[i][0])   # лицом к машине
-		f.get_node("Legs").rotation.x = 0.0
+		if int(order[i]) == 0:
+			continue
+		var f := Figure.new()
+		rig.add_child(f)
+		f.scale = Vector3.ONE * FIG_S
+		f.position = _approach(i)
+		f.rotation.y = PI / 2.0 * float(DOORS[i][0])   # лицом к машине
+		f.wheel = i == 0
+		figures[i] = f
+	# своё тело (стоит, где нажал E) в кат-сцене не показываем — вместо него идёт фигура
+	if game and game.player and game.player.model_root:
+		game.player.model_root.visible = false
 	# камера сзади-слева и сверху — так её не загораживают враги на поляне
 	cam = Camera3D.new()
 	cam.fov = 60.0
@@ -187,30 +197,51 @@ func _process(delta: float) -> void:
 			engine.volume_db -= delta * 14.0
 
 
-## Посадка: люди стоят у дверей, двери открываются, они садятся (ноги — вперёд), двери хлопают.
+## Посадка: люди подходят к дверям, двери открываются, они садятся (ноги — вперёд), двери хлопают.
 func _board(delta: float) -> void:
 	cam.global_position = cam.global_position.lerp(_cam_want(CAM_OFF * 0.75), 1.0 - exp(-0.5 * delta))
 	cam.look_at(_cam_look())
 	for i in 4:
-		if int(order[i]) == 0:
+		var f = figures[i]
+		if f == null:
 			continue
-		var f := figures[i]
-		if t > 0.35 and t < 0.5:
+		var side := float(DOORS[i][0])
+		var outside := _ground_local(EXIT[i] + Vector3(-0.2 * side, 0, 0))
+		if t < 1.0:
+			# подходит к двери (походка — сама, по скорости)
+			f.position = _approach(i).lerp(outside, smoothstep(0.0, 1.0, t / 1.0))
+			f.rotation.y = lerp_angle(f.rotation.y, PI / 2.0 * side, 1.0 - exp(-8.0 * delta))
+		if t > 0.75 and t < 0.9:
 			open_door(i, true, false)
-		var k := smoothstep(0.85, 1.85, t)
-		var outside: Vector3 = EXIT[i] + Vector3(-0.25 * float(DOORS[i][0]), 0.8, 0)
-		# сначала шаг к проёму, потом внутрь и вниз на сиденье
-		var mid: Vector3 = Vector3(0.95 * float(DOORS[i][0]), 0.95, SEAT_HIP[i].z)
-		f.position = outside.lerp(mid, smoothstep(0.0, 0.5, k)).lerp(SEAT_HIP[i], smoothstep(0.5, 1.0, k))
-		f.rotation.y = lerp_angle(PI / 2.0 * -float(DOORS[i][0]), 0.0, smoothstep(0.4, 1.0, k))
-		f.get_node("Legs").rotation.x = -PI / 2.0 * smoothstep(0.45, 1.0, k)
-		if t > 2.0:
+		var k := smoothstep(1.1, 2.4, t)
+		if k > 0.0:
+			# шаг в проём, разворот вперёд и вниз на сиденье
+			var seat := Vector3(SEAT_HIP[i].x, FIG_HIP - f.HIP_Y * FIG_S, SEAT_HIP[i].z + 0.06)
+			var mid := Vector3(0.95 * side, lerpf(outside.y, seat.y, 0.3), SEAT_HIP[i].z + 0.1)
+			f.position = outside.lerp(mid, smoothstep(0.0, 0.45, k)).lerp(seat, smoothstep(0.45, 1.0, k))
+			f.rotation.y = lerp_angle(PI / 2.0 * side, PI, smoothstep(0.15, 0.7, k))
+			f.sit = smoothstep(0.3, 0.95, k)
+		if t > 2.6:
 			open_door(i, false, false)
 	if t >= BOARD_T:
 		state = "start"
 		t = 0.0
 		if game:
 			game.play_at("clunk", global_position + global_transform.basis * Vector3(0.8, 0.8, 0.2), -4.0, 0.8)
+
+
+## Откуда человек подходит к двери i: сзади-сбоку от машины, на земле (оси машины).
+func _approach(i: int) -> Vector3:
+	var side := float(DOORS[i][0])
+	return _ground_local(EXIT[i] + Vector3(0.9 * side, 0, -1.4))
+
+
+## Точка на земле под p (p — в осях машины), тоже в осях машины.
+func _ground_local(p: Vector3) -> Vector3:
+	var w: Vector3 = global_transform * p
+	if surface:
+		w.y = surface.height(w.x, w.z)
+	return Vector3(p.x, (global_transform.affine_inverse() * w).y, p.z)
 
 
 ## Где должна стоять камера: смещение в осях машины (без наклона), не ниже земли.

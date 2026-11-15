@@ -69,6 +69,8 @@ static func make(id: String) -> Array:
 		var w := Items.make_mesh(id)
 		w.scale = Vector3.ONE * WEAPON_SCALE
 		var s := (Vector3(0.7, 0.06, 0.06) if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "shiv", "spiked_club"] else Vector3(0.2, 0.1, 0.2)) * WEAPON_SCALE
+		if id == "pistol":
+			s = Vector3(0.2, 0.035, 0.15) * WEAPON_SCALE   # лежит на боку (items.gd: make_mesh)
 		w.position.y += LIFT
 		return [w, s]
 	if id in MODELS:

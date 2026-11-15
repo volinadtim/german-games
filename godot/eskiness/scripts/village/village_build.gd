@@ -33,6 +33,8 @@ const ST_LEN := 4.8
 const ROOM := Rect2(35.5, 700.3, 11.5, 10.7)   # подвал: x 35.5..47, z 700.3..711
 ## Где стоит автомат-«бонусник» в подвале (передом на юг, к лестнице)
 const SLOT_POS := Vector3(41.2, B, 710.35)
+## Второй Trinkets Market — справа от автомата (как в бункере)
+const SHOP_POS := Vector3(43.25, B, 710.55)
 
 ## Остальные дома: [центр x, центр z, ширина (X), глубина (Z), сторона двери (+1 — дверь на +X)]
 const HOUSES := [
@@ -267,7 +269,7 @@ func _road() -> void:
 	_box(Vector3(sx - 0.05, sy - 0.2, 25.95), Vector3(sx + 0.05, sy + 2.0, 26.05), wood_dark, true)
 	_box(Vector3(sx - 0.7, sy + 1.55, 25.98), Vector3(sx + 0.7, sy + 1.95, 26.02), wood_mat, false)
 	var lb := Label3D.new()
-	lb.text = "ЗАРЕЧЬЕ  0,7 км ↑"
+	lb.text = "ЗАРЕЧЬЕ  ↑"
 	lb.font_size = 40
 	lb.pixel_size = 0.006
 	lb.modulate = Color(0.85, 0.82, 0.72)

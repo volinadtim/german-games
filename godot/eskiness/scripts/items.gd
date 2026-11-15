@@ -532,6 +532,10 @@ static func make_mesh(id: String) -> Node3D:
 		var w := Weapons.make(id)
 		if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "shiv", "spiked_club"]:
 			w.rotation.z = PI / 2   # на полу оружие лежит
+		elif id == "pistol":
+			# пистолет лежит на боку (модель — в плоскости XY): плоская сторона вниз, по центру коробки
+			w.rotation.x = -PI / 2
+			w.position = Vector3(-0.065, 0.014, 0.065)
 		return w
 	var col: Color = ITEMS[id]["color"] if ITEMS.has(id) else Color.WHITE
 	var mi := MeshInstance3D.new()
