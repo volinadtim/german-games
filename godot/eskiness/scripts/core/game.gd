@@ -45,10 +45,10 @@ func setup(p: Player) -> void:
 	inv.add("bandage", 2)
 
 	if USE_DUMMY:
-		# манекен — в левой комнате, ближайшей к старту (северо-западная)
+		# манекен — в комнате с KILLBOX (юго-западная), у левой стены (промпт 15.11 23:10)
 		var d := Dummy.new()
 		d.game = self
-		d.position = Vector3(-8.0, 0.0, -3.6)
+		d.position = Vector3(-9.9, 0.0, 6.0)
 		add_child(d)
 	if USE_ENEMIES and (net == null or net.is_host()):   # в сети враги — у хоста, клиенту приходят копии
 		for s in ENEMY_SPOTS:

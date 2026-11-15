@@ -13,7 +13,7 @@ var glint_mat: StandardMaterial3D
 ## места, где кучки не ставим (старт, автоматы, сейф, ящики, манекен)
 const AVOID := [Vector3(-10.5, 0, 0), Vector3(-6.0, 0, 8.5), Vector3(-4.0, 0, 8.4), Vector3(11.5, 0, 7.0),
 	Vector3(-3.0, 0, -8.5), Vector3(9.0, 0, -8.5), Vector3(-11.5, 0, 3.2), Vector3(2.2, 0, -2.15),
-	Vector3(2.2, 0, 2.15), Vector3(-8.0, 0, -3.6), Vector3(-7.0, 0, 8.7)]
+	Vector3(2.2, 0, 2.15), Vector3(-9.9, 0, 6.0), Vector3(-7.0, 0, 8.7)]
 
 
 func _ready() -> void:
