@@ -5,7 +5,7 @@ const Player := preload("res://scripts/player/player.gd")
 const Menu := preload("res://scripts/ui/menu.gd")
 const Ambience := preload("res://scripts/ambience.gd")
 const Game := preload("res://scripts/game.gd")   # тестовые механики (боёвка, лут, инвентарь, автомат…)
-const SlotMachine := preload("res://scripts/slot_machine.gd")
+const SlotMachine := preload("res://scripts/slot/slot_machine.gd")
 const TouchControls := preload("res://scripts/touch_controls.gd")   # экранное управление (телефон)
 
 ## Меню: неподвижная камера под углом к игровому автомату KILLBOX (он стоит в юго-западной комнате).
@@ -47,7 +47,7 @@ func _ready() -> void:
 		slot_board.rotation.y = 0.0
 		slot_board.position.z = SlotMachine.BOARD_POS.z - 0.072
 	# магазин оружия — слева от автомата (если смотреть на автомат)
-	var shop := preload("res://scripts/shop.gd").new()
+	var shop := preload("res://scripts/shop/shop.gd").new()
 	shop.name = "Shop"
 	shop.position = SLOT_POS + Vector3(1.95, 0.0, 0.0)
 	shop.rotation.y = PI

@@ -254,19 +254,11 @@ func _hide_body() -> void:
 ## от 35% у самого маленького кувшина до 80% у самого большого — в больших лута заметно больше.
 func _roll(r: RandomNumberGenerator) -> Array:
 	var out: Array = []
-<<<<<<< Updated upstream:godot/eskiness/scripts/jar.gd
 	if r.randf() < 0.5:
 		out.append(["coin", r.randi_range(3, 6)])
 	if r.randf() < 0.2:   # бечёвка (промпт 14.11 19:22)
 		out.append(["twine", 1])
 	var pool: Array = []
-=======
-	var roll := r.randf()
-	var n := 2 if roll < 0.22 else (3 if roll < 0.8 else 4)
-	if size > 1.25:
-		n += 1
-	var total := 0
->>>>>>> Stashed changes:godot/eskiness/jar.gd
 	for row in Chest.LOOT:
 		if row[0] != "coin":
 			pool.append(row)

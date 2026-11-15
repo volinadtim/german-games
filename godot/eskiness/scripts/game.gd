@@ -22,8 +22,8 @@ const Dummy := preload("res://scripts/dummy.gd")
 const Chest := preload("res://scripts/chest.gd")
 const Jar := preload("res://scripts/jar.gd")
 const Surface := preload("res://scripts/surface.gd")
-const SlotMachine := preload("res://scripts/slot_machine.gd")
-const Shop := preload("res://scripts/shop.gd")
+const SlotMachine := preload("res://scripts/slot/slot_machine.gd")
+const Shop := preload("res://scripts/shop/shop.gd")
 const GasMask := preload("res://scripts/gasmask.gd")
 const Gun := preload("res://scripts/gun.gd")
 var gun   # gun.gd — пистолет
@@ -122,14 +122,9 @@ func setup(p: Player) -> void:
 		safe.kind = "safe"
 		safe.locked = true
 		safe.random_loot = false
-<<<<<<< Updated upstream:godot/eskiness/scripts/game.gd
 		# пистолет без патронов, полный магазин и россыпь патронов (промпт 14.11 19:49)
 		safe.extra = [["pistol", 1, 0.0], ["mag", 1, 8.0], ["ammo", randi_range(12, 16)], ["car_key", 1], ["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
 		safe.position = Vector3(11.54, 0.0, 7.0)   # задняя стенка вплотную к стене
-=======
-		safe.extra = [["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
-		safe.position = Vector3(11.5, 0.0, 7.0)
->>>>>>> Stashed changes:godot/eskiness/game.gd
 		safe.rotation.y = -PI / 2.0
 		add_child(safe)
 	# противогаз и отравленный воздух наверху (G)

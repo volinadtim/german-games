@@ -189,7 +189,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 		return
 	match String(ITEMS[id]["icon"]):
 		"rot_apple":
-			preload("res://scripts/slot_symbols.gd").draw(ci, "rot_apple", r)
+			preload("res://scripts/slot/slot_symbols.gd").draw(ci, "rot_apple", r)
 		"coin":
 			ci.draw_circle(c, s * 0.34, dark)
 			ci.draw_circle(c, s * 0.29, col)

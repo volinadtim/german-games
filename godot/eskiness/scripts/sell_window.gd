@@ -33,7 +33,7 @@ static func market(id: String) -> int:
 	for e in Weapons.SHOP:
 		if e[0] == id:
 			return int(e[1])
-	for e in preload("res://scripts/shop.gd").CONSUMABLES:
+	for e in preload("res://scripts/shop/shop.gd").CONSUMABLES:
 		if e[0] == id:
 			return int(e[1])
 	if Items.ITEMS[id].has("price"):
