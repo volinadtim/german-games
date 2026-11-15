@@ -5,9 +5,9 @@ extends CanvasLayer
 
 signal play_pressed
 
-const IconButton := preload("res://scripts/icon_button.gd")
+const IconButton := preload("res://scripts/ui/icon_button.gd")
 const CFG := "user://settings.cfg"
-const Graphics := preload("res://scripts/graphics.gd")
+const Graphics := preload("res://scripts/core/graphics.gd")
 const PlayerScript := preload("res://scripts/player/player.gd")
 
 # имя -> [подпись, мин, макс, шаг, по умолчанию]
@@ -233,11 +233,11 @@ func _ready() -> void:
 	btns.add_theme_constant_override("separation", 16)
 	btns.add_child(_button("Графика", func(): _show("gfx")))
 	# на телефоне клавиш нет — страницу «Управление» не показываем (экранные кнопки: touch_controls.gd)
-	if not preload("res://scripts/touch_controls.gd").wanted():
+	if not preload("res://scripts/ui/touch_controls.gd").wanted():
 		btns.add_child(_button("Управление", func(): _show("controls")))
 	settings_box.add_child(btns)
 	# на телефоне (без «Управления») — все кнопки в один ряд: по высоте экран 20:9 тесный
-	var btns2 := btns if preload("res://scripts/touch_controls.gd").wanted() else HBoxContainer.new()
+	var btns2 := btns if preload("res://scripts/ui/touch_controls.gd").wanted() else HBoxContainer.new()
 	btns2.add_theme_constant_override("separation", 16)
 	btns2.add_child(_button("По умолчанию", _reset))
 	btns2.add_child(_button("Назад", _close_settings))
@@ -625,7 +625,7 @@ func apply_settings() -> void:
 
 
 static func _mobile() -> bool:
-	return OS.has_feature("mobile") or preload("res://scripts/touch_controls.gd").wanted()
+	return OS.has_feature("mobile") or preload("res://scripts/ui/touch_controls.gd").wanted()
 
 
 var _win_applied := -1
@@ -687,7 +687,7 @@ func _load() -> void:
 		for k in d:
 			values[k] = d[k]
 	# телефон, первый запуск (в cfg ещё нет графики) — пресет «низкая»
-	if preload("res://scripts/touch_controls.gd").wanted() and not (ok and cf.has_section_key("settings", "graphics")):
+	if preload("res://scripts/ui/touch_controls.gd").wanted() and not (ok and cf.has_section_key("settings", "graphics")):
 		values["graphics"] = 0.0
 		var lo := Graphics.preset(0)
 		for k in lo:

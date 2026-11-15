@@ -3,7 +3,7 @@ extends StaticBody3D
 ## лут вылетает наружу и подбирается, когда подойдёшь. Лут — случайный из таблицы LOOT + гарантированный extra.
 ## Интерфейс взаимодействия (его дёргает game.gd): get_prompt(game) -> String, interact(game).
 
-const Fx := preload("res://scripts/fx.gd")
+const Fx := preload("res://scripts/core/fx.gd")
 
 ## [предмет, вес, мин, макс]
 const LOOT := [

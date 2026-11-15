@@ -1,8 +1,8 @@
 extends StaticBody3D
 # Часть car.gd: константы, состояние, 3D-модель машины, материалы и примитивы, дым.
-const Surface := preload("res://scripts/surface.gd")
+const Surface := preload("res://scripts/level/surface.gd")
 const WornMetal := preload("res://shaders/worn_metal.gdshader")
-const Sfx2 := preload("res://scripts/sfx_extra.gd")
+const Sfx2 := preload("res://scripts/core/sfx_extra.gd")
 
 const WHEEL_R := 0.29
 const WHEELS := [Vector3(0.69, WHEEL_R, 1.22), Vector3(-0.69, WHEEL_R, 1.22), Vector3(0.69, WHEEL_R, -1.22), Vector3(-0.69, WHEEL_R, -1.22)]

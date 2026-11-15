@@ -2,7 +2,7 @@ extends RefCounted
 ## Процедурные звуки тестовых механик (без файлов): монета, скрип крышки, щелчок фонарика,
 ## тик барабана, мелодия выигрыша, отказ, рык врага, падение тела, подбор предмета.
 
-const Sfx := preload("res://scripts/sfx.gd")
+const Sfx := preload("res://scripts/core/sfx.gd")
 const RATE := 44100
 
 

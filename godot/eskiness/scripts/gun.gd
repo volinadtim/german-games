@@ -6,7 +6,7 @@ extends Node
 ## Выстрел слышат враги вокруг и бегут на звук. Счётчик «в магазине / в сумке» — справа от хотбара.
 
 const Items := preload("res://scripts/items.gd")
-const Fx := preload("res://scripts/fx.gd")
+const Fx := preload("res://scripts/core/fx.gd")
 const CAP := 8                   # патронов в магазине
 const DMG := 40.0                # по бетоннику (95 HP) — 3 попадания
 const RANGE := 80.0

@@ -295,7 +295,7 @@ func begin_escape() -> void:
 	if gasmask:
 		gasmask.visible = false
 	for n in get_parent().get_children():
-		if n.get_script() == preload("res://scripts/touch_controls.gd"):
+		if n.get_script() == preload("res://scripts/ui/touch_controls.gd"):
 			n.visible = false
 
 

@@ -2,7 +2,7 @@ extends StaticBody3D
 ## Тренировочный манекен (боёвка): мешок на столбе. Не умирает, качается от ударов,
 ## показывает урон каждого удара и сумму за серию (сбрасывается через 3 с без ударов).
 
-const Fx := preload("res://scripts/fx.gd")
+const Fx := preload("res://scripts/core/fx.gd")
 
 var sway: Node3D
 var ang := Vector2.ZERO       # наклон (x — вперёд/назад, y — вбок)

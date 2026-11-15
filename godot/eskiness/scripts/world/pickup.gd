@@ -7,7 +7,7 @@ extends RigidBody3D
 ## Сумка полна — сообщение не чаще раза в 3 с (game.collect).
 
 const Items := preload("res://scripts/items.gd")
-const PickupMesh := preload("res://scripts/pickup_mesh.gd")
+const PickupMesh := preload("res://scripts/world/pickup_mesh.gd")
 const REACH := 3.0   # дальность подбора на E, м
 
 var game  # game.gd

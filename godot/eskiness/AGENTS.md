@@ -19,11 +19,17 @@
 - Ответ основной сессии — **1–2 строки**: хеш коммита и что не проверено. Без пересказа.
 
 ## Кто за что отвечает (файлы)
+Пути от `scripts/`. Крупные скрипты разбиты цепочкой наследования: `x.gd extends "x_часть.gd" extends …` — главный файл (`x.gd`, его грузят preload/сцены) наследует части; переменные/константы — в самой нижней части. Новую функцию кладём в часть по смыслу; часть может вызывать только свои и нижележащие функции.
 | Зона | Файлы |
 |---|---|
-| Автомат KILLBOX, доска выплат, лоток, баланс, магазин | `slot_machine.gd`, `slot_symbols.gd`, `shop.gd` |
-| Инвентарь, предметы, крафт, продажа, Нюхич, пистолет | `inventory.gd`, `items.gd`, `loot_window.gd`, `sell_window.gd`, `hud.gd`, `gasmask.gd`, `gun.gd`, `stone_pile.gd` |
-| Игрок, бой, враги, управление, меню, подбор, модели лута | `player.gd`, `enemy.gd`, `menu.gd`, `touch_controls.gd`, `pickup.gd`, `pickup_mesh.gd`, `graphics.gd` |
-| Сеть | `net.gd`, `net_lobby.gd` |
-| Уровень, свет, атмосфера, поляна, машина | `level.gd`, `atmosphere.gd`, `surface.gd`, `flicker_light.gd`, `car.gd` |
-| Общие (правки осторожно) | `game.gd`, `main.gd`, `jar.gd`, `sfx*.gd`, `fx.gd`, `save.gd` |
+| Автомат KILLBOX, доска выплат, лоток, баланс | `slot/slot_machine.gd` ← `slot_machine_board.gd` ← `slot_machine_model.gd` ← `slot_machine_base.gd`, `slot/slot_symbols.gd` |
+| Магазин | `shop/shop.gd` ← `shop_ui.gd` ← `shop_model.gd` |
+| Инвентарь, предметы, крафт, продажа, Нюхич, пистолет | `inventory.gd`, `items.gd`, `weapons.gd`, `loot_window.gd`, `sell_window.gd`, `hud.gd`, `gun.gd`, `stone_pile.gd`, `stone_throw.gd`, `player/gasmask.gd`, `player/flashlight.gd` |
+| Игрок, бой | `player/player.gd` ← `player_combat.gd` ← `player_anim.gd` ← `player_model.gd` ← `player_base.gd` |
+| Враги | `enemy/enemy.gd` ← `enemy_combat.gd` ← `enemy_nav.gd` ← `enemy_model.gd` ← `enemy_base.gd` |
+| Меню, управление, подбор, модели лута, графика | `ui/menu.gd`, `ui/touch_controls.gd`, `ui/icon_button.gd`, `world/pickup.gd`, `world/pickup_mesh.gd`, `core/graphics.gd` |
+| Сеть | `network/net.gd` ← `net_session.gd` ← `net_world.gd` ← `net_objects.gd` ← `net_base.gd`, `network/net_lobby.gd` |
+| Уровень, свет, атмосфера, поляна | `level/level.gd` ← `level_decor.gd` ← `level_geometry.gd`; `level/atmosphere.gd` ← `atmosphere_assets.gd`; `level/surface.gd` ← `surface_build.gd`; `level/flicker_light.gd`, `level/glass_floor.gd`, `level/tape_spot.gd` |
+| Машина | `car/car.gd` ← `car_model.gd` |
+| Мир: ящики, кувшины, манекен | `world/chest.gd`, `world/jar.gd` ← `jar_model.gd`, `world/dummy.gd` |
+| Общие (правки осторожно) | `core/game.gd` ← `game_save.gd` ← `game_items.gd` ← `game_world.gd` ← `game_base.gd`; `core/main.gd`, `core/sfx.gd`, `core/sfx_extra.gd`, `core/fx.gd`, `core/ambience.gd`, `systems/save.gd` |

@@ -1,7 +1,7 @@
 extends StaticBody3D
 # Часть slot_machine.gd: константы, состояние, математика барабанов и выплат (static), процедурные звуки, примитивы мешей.
 const Sym := preload("res://scripts/slot/slot_symbols.gd")
-const PickupMesh := preload("res://scripts/pickup_mesh.gd")
+const PickupMesh := preload("res://scripts/world/pickup_mesh.gd")
 const WornMetal := preload("res://shaders/worn_metal.gdshader")
 
 const COST := 3                  # цена одной крутки в пакете «3 за 8» (для подписей)

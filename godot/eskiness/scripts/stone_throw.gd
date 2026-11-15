@@ -5,7 +5,7 @@ extends Node
 ## и стоят там пару секунд (enemy.gd: hear_stone) — отвлечь. Попал во врага — малый урон, враг агрится — привлечь.
 ## После падения камень лежит на земле обычным предметом (pickup.gd) — его можно подобрать снова.
 
-const Fx := preload("res://scripts/fx.gd")
+const Fx := preload("res://scripts/core/fx.gd")
 const HEAR_R := 15.0
 const DMG := 6.0
 const SPEED := 15.0

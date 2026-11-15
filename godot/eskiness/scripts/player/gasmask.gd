@@ -54,7 +54,7 @@ func _ready() -> void:
 	add_child(status_l)
 	voice = AudioStreamPlayer.new()
 	add_child(voice)
-	var Sfx := preload("res://scripts/sfx.gd")
+	var Sfx := preload("res://scripts/core/sfx.gd")
 	breaths = [Sfx.inhale(), Sfx.inhale(true)]
 	if not InputMap.has_action("gasmask"):
 		InputMap.add_action("gasmask")

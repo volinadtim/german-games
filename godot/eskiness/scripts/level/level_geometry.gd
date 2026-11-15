@@ -1,9 +1,9 @@
 @tool
 extends Node3D
 # Часть level.gd: константы, стены (CSG, сколы, проёмы), колонны, балки, бетонные материалы, процедурные текстуры.
-const FlickerLight := preload("res://scripts/flicker_light.gd")
-const Surface := preload("res://scripts/surface.gd")
-const Atmosphere := preload("res://scripts/atmosphere.gd")
+const FlickerLight := preload("res://scripts/level/flicker_light.gd")
+const Surface := preload("res://scripts/level/surface.gd")
+const Atmosphere := preload("res://scripts/level/atmosphere.gd")
 const ConcreteShader := preload("res://shaders/concrete.gdshader")
 
 const H := 3.2        # высота потолка

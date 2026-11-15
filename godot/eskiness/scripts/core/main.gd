@@ -3,10 +3,10 @@ extends Node3D
 
 const Player := preload("res://scripts/player/player.gd")
 const Menu := preload("res://scripts/ui/menu.gd")
-const Ambience := preload("res://scripts/ambience.gd")
+const Ambience := preload("res://scripts/core/ambience.gd")
 const Game := preload("res://scripts/core/game.gd")   # тестовые механики (боёвка, лут, инвентарь, автомат…)
 const SlotMachine := preload("res://scripts/slot/slot_machine.gd")
-const TouchControls := preload("res://scripts/touch_controls.gd")   # экранное управление (телефон)
+const TouchControls := preload("res://scripts/ui/touch_controls.gd")   # экранное управление (телефон)
 
 ## Меню: неподвижная камера под углом к игровому автомату KILLBOX (он стоит в юго-западной комнате).
 const SLOT_POS := Vector3(-6.0, 0.0, 8.5)

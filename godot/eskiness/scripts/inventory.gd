@@ -410,7 +410,7 @@ func _build_ui() -> void:
 	info_desc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	vb.add_child(info_desc)
 	var hint_text := "ЛКМ — использовать    ПКМ — действия    Tab — закрыть\nShift+ПКМ — выбросить 1 (держать — всю стопку)\nЗа окно — выбросить    На ячейки 1–5 внизу — хотбар"
-	if preload("res://scripts/touch_controls.gd").wanted():
+	if preload("res://scripts/ui/touch_controls.gd").wanted():
 		hint_text = "Нажать — использовать    Подержать — действия
 Перетащить — переложить    Коснулся предмета + ячейка 1–5 внизу — хотбар"
 	var hint := _label(hint_text, 14, Color(0.55, 0.55, 0.52))

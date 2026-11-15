@@ -1,6 +1,6 @@
 extends CharacterBody3D
 # Часть player.gd: константы, состояние, звук шагов, материалы.
-const Sfx := preload("res://scripts/sfx.gd")
+const Sfx := preload("res://scripts/core/sfx.gd")
 ## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы; по траве — step_grass.
 const STEP_DB := -23.0      # громкость шага относительно ходьбы (-10 дБ)
 
@@ -76,7 +76,7 @@ const SWINGS := {
 var WRIST_HIT := 1.1   # сгиб кисти в момент удара (рад)
 # конец оружия (по длинной оси +Y модели) — по нему тянется след
 const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28}
-const Fx := preload("res://scripts/fx.gd")
+const Fx := preload("res://scripts/core/fx.gd")
 
 var active := false
 ## Сетевая игра (net.gd): модель другого игрока — без камеры, ввода, звуков и урона; движется по данным из сети.
