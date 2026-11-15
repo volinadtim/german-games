@@ -11,13 +11,16 @@ config_version=5
 [application]
 
 config/name="eskiNess"
-run/main_scene="res://main.tscn"
+run/main_scene="uid://0xqylsct450j"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [display]
 
-window/size/viewport_width=1280
-window/size/viewport_height=720
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/mode=4
+window/size/resizable=false
+window/size/borderless=true
 window/handheld/orientation=4
 window/stretch/mode.mobile="canvas_items"
 window/stretch/aspect.mobile="expand"
