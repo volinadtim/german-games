@@ -5,7 +5,7 @@ extends "res://scripts/slot/slot_machine_board.gd"
 ##   и в выигрыше не участвуют. Барабаны — настоящие цилиндры с отпечатанной лентой символов,
 ## вращаются и останавливаются по очереди. Линии строятся под открытую область (lines_for):
 ##   ряды (3+ одинаковых подряд), галочки (на 2×3), диагонали по 3 клетки, мостики по 4.
-##   3 шестёрки где угодно в открытом окне — автомат забирает все монеты, оставляет 10.
+##   3 шестёрки где угодно в открытом окне — автомат забирает одну вещь, купленную в магазине (промпт 15.11 23:03).
 ##   3 семёрки на линии — открывают сейф; если сейф уже открыт — 30 монет. Семёрки и шестёрки
 ##   есть в барабанах только на окне 3×5 (LEVEL_SYMS).
 ## 4+ семёрки или 4+ шестёрки в открытом окне не выпадают никогда (исключены при генерации).
@@ -184,23 +184,22 @@ func _payout() -> void:
 		# яблоко спасло: монеты не трогаем, защита сгорает
 		shield -= 1
 		_update_apples()
-		screen.text = "666 — ЯБЛОКО СПАСЛО МОНЕТЫ"
-		game.hud.toast("Три шестёрки! Гнилое яблоко спасло твои монеты", Color(0.7, 1.0, 0.5))
+		screen.text = "666 — ЯБЛОКО СПАСЛО"
+		game.hud.toast("Три шестёрки! Гнилое яблоко спасло твою экипировку", Color(0.7, 1.0, 0.5))
 		game.play_at("buzz", global_position, -10.0, 0.9)
 		game.call_deferred("save_now")
 		streak = 0
 		_update_screen_hint()
 		return
 	if res["six"]:
-		var have: int = game.inv.count("coin")
-		var lost := maxi(have - 10, 0)
-		if lost > 0:
-			game.inv.remove("coin", lost)
-		if tray_coins > 0:
-			lost += tray_coins
-			eat_tray()
-		screen.text = "666 — KILLBOX ЗАБРАЛ %d" % lost
-		game.hud.toast("Три шестёрки! Автомат забрал %d монет" % lost, Color(1.0, 0.35, 0.25))
+		var took := _take_bought()
+		if took != "":
+			var nm: String = preload("res://scripts/items.gd").item_name(took)
+			screen.text = "666 — KILLBOX ЗАБРАЛ: %s" % nm.to_upper()
+			game.hud.toast("Три шестёрки! Автомат забрал: %s" % nm, Color(1.0, 0.35, 0.25))
+		else:
+			screen.text = "666 — НЕЧЕГО ЗАБРАТЬ"
+			game.hud.toast("Три шестёрки! Но купленной экипировки у тебя нет", Color(1.0, 0.6, 0.35))
 		game.play_at("buzz", global_position, -6.0, 0.7)
 		game.hud.hurt_flash(0.5)
 		game.call_deferred("save_now")
@@ -245,6 +244,31 @@ func _payout() -> void:
 	if game.has_method("save_now"):
 		game.call_deferred("save_now")
 	_update_screen_hint()
+
+
+## Наказание 666: забрать одну случайную экипировку, купленную в Trinkets Market (game.shop_bought).
+## Сначала ищем в сумке, потом — надетое (кроме рюкзака). Возвращает id или "".
+func _take_bought() -> String:
+	var Items := preload("res://scripts/items.gd")
+	var bought: Array = game.get("shop_bought") if game.get("shop_bought") != null else []
+	var cand: Array = []
+	for id in bought:
+		var d: Dictionary = Items.ITEMS.get(id, {})
+		if (d.has("equip") or d.get("weapon", false)) and game.inv.count(id) > 0 and not cand.has(id):
+			cand.append(id)
+	if cand.is_empty():
+		return ""
+	var id: String = cand[randi() % cand.size()]
+	bought.erase(id)
+	if game.inv.remove(id, 1):
+		return id
+	for k in game.inv.equip:
+		if game.inv.equip[k] == id and id != "backpack":
+			game.inv.equip[k] = ""
+			game.inv.equip_dur.erase(k)
+			game.inv.notify()
+			return id
+	return ""
 
 
 func _input(e: InputEvent) -> void:
@@ -432,7 +456,7 @@ func feed_apple() -> void:
 		screen.text = "НЯМ. ЗАЩИТА ОТ 666 ×%d" % shield
 		_update_screen_hint())
 	if game:
-		game.hud.toast("KILLBOX съел гнилое яблоко: при следующих «666» монеты останутся (%d/%d)" % [shield, SHIELD_MAX], Color(0.7, 1.0, 0.5))
+		game.hud.toast("KILLBOX съел гнилое яблоко: при следующих «666» вещи останутся (%d/%d)" % [shield, SHIELD_MAX], Color(0.7, 1.0, 0.5))
 		if game.has_method("save_now"):
 			game.call_deferred("save_now")
 

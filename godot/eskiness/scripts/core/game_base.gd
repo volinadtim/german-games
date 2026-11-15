@@ -178,6 +178,8 @@ var stone_piles: Array = []
 
 
 var chests: Array = []
+## что куплено в Trinkets Market (id, по штуке) — «666» забирает одну такую экипировку (slot_machine.gd)
+var shop_bought: Array = []
 
 
 # ---------- сохранения (промпт 23:39) ----------

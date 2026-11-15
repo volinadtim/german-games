@@ -18,19 +18,22 @@ const LUCK := {
 const REELS := 5
 const ROWS := 3
 ## прокачка окна: LEVELS[ур-1] = [рядов, барабанов, цена перехода на этот уровень]
-const LEVELS := [[1, 3, 0], [2, 3, 40], [3, 3, 80], [3, 4, 130], [3, 5, 200]]
+## упрощено (промпт 15.11 23:03): переходы дешевле — первая локация проходится быстрее
+const LEVELS := [[1, 3, 0], [2, 3, 25], [3, 3, 50], [3, 4, 80], [3, 5, 120]]
 const MAX_LEVEL := 5
 ## лента барабана (одна на все барабаны, у каждого свой сдвиг): семёрки далеко друг от друга,
 ## поэтому в окне одного барабана больше одной семёрки не бывает
 const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
 ## Шанс символа в каждой клетке окна, %: чем ценнее, тем реже.
 ## Окно разыгрывается по этим весам, затем на ленты барабанов «впечатываются» выпавшие символы.
-const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "diamond": 13.0, "seven": 10.5, "six": 2.0}
+## семёрки и шестёрки чаще (промпт 15.11 23:03)
+const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "diamond": 13.0, "seven": 15.0, "six": 3.5}
 ## символы по уровням окна (промпт 14.11 17:40): на ур.1 только вишня, лимон, слива; дальше по символу,
 ## семёрки и шестёрки — только на последнем уровне (3×5). SYM_ORDER — порядок появления,
 ## LEVEL_SYMS[ур-1] — сколько первых символов в игре. Шансы — WEIGHTS среди доступных.
 const SYM_ORDER := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"]
-const LEVEL_SYMS := [3, 4, 5, 5, 7]
+## алмазы — с 4-го уровня (3×4), промпт 15.11 22:53
+const LEVEL_SYMS := [3, 4, 4, 5, 7]
 ## гарантов одного символа за крутку максимум по уровню окна (промпт 14.11 18:08)
 const GUAR_MAX := [1, 1, 2, 2, 3]
 ## шанс комбинации (промпт 14.11 18:08): символ -> [круток, цена]. Пока действует, этот символ
@@ -41,25 +44,20 @@ const BOOST := {
 }
 const STICK_BOOST := 0.45
 ## шанс, что клетка повторит символ соседа слева по ряду (чаще собираются комбинации)
-const STICK := 0.15
-## на начальных окнах тройки чуть реже (промпт 14.11 18:33): своя липкость по уровню
-const STICK_LV := [0.06, 0.1, 0.15, 0.15, 0.15]
-## выплаты за линию на окне 1×3: символ -> {сколько одинаковых: монет}
+const STICK := 0.12
+## выплаты за линию: символ -> {сколько одинаковых: монет}. Простая таблица (промпт 15.11 22:53):
+## одна на все уровни, без множителей по уровню.
 const PAY := {
-	"cherry": {3: 4, 4: 10, 5: 15},
-	"lemon": {3: 8, 4: 15, 5: 25},
-	"plum": {3: 10, 4: 20, 5: 35},
-	"grape": {3: 15, 4: 30, 5: 60},
-	"diamond": {3: 25, 4: 50, 5: 120},
+	"cherry": {3: 8, 4: 12, 5: 18},
+	"lemon": {3: 15, 4: 22, 5: 32},
+	"plum": {3: 20, 4: 30, 5: 45},
+	"grape": {3: 25, 4: 40, 5: 60},
+	"diamond": {3: 35, 4: 60, 5: 100},
 	"seven": {3: 50},
 }
-## пара одинаковых соседних в ряду — только на окнах 1×3 и 2×3 (промпты 14.11 18:01, 18:33), без множителя PAY_K
-const PAIR_MAX_LEVEL := 2
-const PAY2 := {"cherry": 1, "lemon": 2, "plum": 2, "grape": 3, "diamond": 2}
-## множитель выплат по уровню окна: чем больше линий, тем меньше платит каждая. Подобрано симуляцией
-## сессий (промпт 14.11 17:56): отдача ~91–99% цены крутки с учётом пар и множителя серии.
-## Семёрки (сейф / 30 монет) не уменьшаются.
-const PAY_K := [2.1, 0.58, 0.71, 0.295, 0.165]
+## пара одинаковых соседних в ряду — только на 1-м уровне (1×3): любая, кроме вишни, +2 (промпт 15.11 22:53)
+const PAIR_MAX_LEVEL := 1
+const PAY2 := {"lemon": 2, "plum": 2, "grape": 2, "diamond": 2}
 ## множитель за серию (промпт 14.11 17:56): CHAIN[побед подряд перед этой круткой] — множитель выплаты.
 ## Проигрыш (и 666) сбрасывает серию; она живёт, пока крутишь: уход от автомата дальше CHAIN_DIST м
 ## или CHAIN_IDLE с без крутки — сброс.
@@ -346,7 +344,7 @@ static func roll_window(lv: int, guar, boosted: Array = []) -> Array:
 				var s := _weighted_symbol(lv)
 				if c > 0:
 					var left: String = row[c - 1]
-					if left != "six" and randf() < (STICK_BOOST if boosted.has(left) else float(STICK_LV[clampi(lv, 1, MAX_LEVEL) - 1])):
+					if left != "six" and randf() < (STICK_BOOST if boosted.has(left) else STICK):
 						s = left
 				row.append(s)
 			g.append(row)
@@ -355,10 +353,6 @@ static func roll_window(lv: int, guar, boosted: Array = []) -> Array:
 		if count_open(g, lv, "seven") <= 3 and count_open(g, lv, "six") <= 3:
 			break
 	return g
-
-
-## для симуляции баланса: если не пусто — вместо PAY_K
-static var pay_k_test: Array = []
 
 
 ## Цена гаранта sym ×k (k штук за крутку на LUCK[sym][0] круток).
@@ -372,13 +366,10 @@ static func chain_mult(streak_: int) -> float:
 
 
 ## Выплата за n символов sym на линии при уровне окна lv (0 — не платит).
-static func pay_for(sym: String, n: int, lv: int) -> int:
+static func pay_for(sym: String, n: int, _lv := 0) -> int:
 	if not PAY.has(sym) or not PAY[sym].has(n):
 		return 0
-	if sym == "seven":
-		return int(PAY[sym][n])
-	var ks: Array = pay_k_test if not pay_k_test.is_empty() else PAY_K
-	return maxi(1, roundi(float(PAY[sym][n]) * float(ks[clampi(lv, 1, MAX_LEVEL) - 1])))
+	return int(PAY[sym][n])
 
 
 ## Итог крутки: {"six": забирает ли автомат, "win": монет, "sevens": 3 семёрки на линии,
@@ -416,7 +407,7 @@ static func evaluate(g: Array, lv: int, lines: Array) -> Dictionary:
 			if same:
 				sym = syms[0]
 				cells = line
-		# окна до 3×3 (1×3 и 2×3): пара одинаковых соседних в любом ряду — маленькая награда PAY2
+		# на 1×3: пара одинаковых соседних (не вишни) — маленькая награда PAY2
 		# (промпт 14.11 18:33; серию не продлевает). На галочках пар нет: там они были бы почти каждую крутку.
 		if sym == "" and kind == "row" and lv <= PAIR_MAX_LEVEL:
 			for k in syms.size() - 1:

@@ -56,6 +56,7 @@ func save_state() -> Dictionary:
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
 		"slot_boost": slot.boost.duplicate(true) if slot else {},
 		"slot_level": slot.level if slot else 1,
+		"shop_bought": shop_bought.duplicate(),
 		"slot_tray": slot.tray_coins if slot else 0,
 		"slot_shield": slot.shield if slot else 0,
 		"slot_reveal": slot.reveal_pending if slot else false,
@@ -179,6 +180,7 @@ func load_state(d: Dictionary) -> void:
 			safe.contents.append(["car_key", 1])
 	if d.has("glass"):
 		glass_floor.from_save(d["glass"])
+	shop_bought = Array(d.get("shop_bought", [])).map(func(x): return String(x))
 	if slot:
 		slot.credits = int(d.get("slot_credits", 0))
 		slot.load_buffs(d.get("slot_luck", {}), d.get("slot_boost", {}))

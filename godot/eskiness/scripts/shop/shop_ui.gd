@@ -324,13 +324,13 @@ func _build_slot_tab() -> void:
 		up_reason = "Не хватает монет."
 	_cell(g1, func(ci: Control, r: Rect2): _draw_window(ci, r, nxt, lv), up_price if lv < SM.MAX_LEVEL else -1,
 		"Окно %s → %s" % [SM.level_name(lv), SM.level_name(nxt)] if lv < SM.MAX_LEVEL else "Окно %s" % SM.level_name(lv),
-		"Больше клеток — больше линий. С каждым окном в барабанах новый символ: арбуз на 2×3, алмаз на 3×3; семёрки (сейф) и шестёрки — только на 3×5.",
+		"Больше клеток — больше линий. С каждым окном в барабанах новый символ: арбуз на 2×3, алмаз на 3×4; семёрки (сейф) и шестёрки — только на 3×5.",
 		up_reason, _buy_upgrade, "максимум" if lv >= SM.MAX_LEVEL else "")
 	_section("ЗАЩИТА ОТ 666")
 	var ga := _grid()
 	var ap: int = SM.APPLE_PRICE
 	_cell(ga, func(ci: Control, r: Rect2): Items.draw_icon(ci, "rot_apple", r), ap,
-		"Гнилое яблоко", "Купи и скорми KILLBOX (E, глядя в пасть). При следующих «666» автомат не заберёт монеты — ни из кармана, ни из лотка; защита сгорает. Можно держать до 2. Шестёрки бывают только на окне 3×5. Сейчас защит: %d." % slot.shield,
+		"Гнилое яблоко", "Купи и скорми KILLBOX (E, глядя в пасть). При следующих «666» автомат ничего не заберёт; защита сгорает. Можно держать до 2. Шестёрки бывают только на окне 3×5. Сейчас защит: %d." % slot.shield,
 		"" if _can_pay(ap) else "Не хватает монет.", func(): _buy("rot_apple", ap))
 	var gmax: int = SM.GUAR_MAX[lv - 1]
 	_section("ГАРАНТИРОВАННЫЙ СИМВОЛ ×1 / ×2 / ×3")
@@ -474,6 +474,8 @@ func _buy(id: String, price: int) -> void:
 		info_l.text = "Инвентарь полон"
 		return
 	info_l.text = "Куплено: %s" % Items.item_name(id)
+	if Items.ITEMS[id].has("equip") or Items.ITEMS[id].get("weapon", false):
+		game.shop_bought.append(id)
 	_vend(id)
 	if id == "gasmask" and game.gasmask:
 		game.gasmask.on_bought()
