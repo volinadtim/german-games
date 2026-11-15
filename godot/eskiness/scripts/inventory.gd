@@ -627,15 +627,40 @@ func _input(e: InputEvent) -> void:
 			if e.is_action_pressed("hot_%d" % (k + 1)):
 				_bind_hover(k)
 				get_viewport().set_input_as_handled()
+		# ячейку под курсором считаем по геометрии, а не по mouse_entered: после перетаскивания Godot
+		# не шлёт mouse_entered, наведение «залипало» на старой ячейке и клики уходили не туда (промпт 22:53)
+		if e is InputEventMouseMotion and not dlg.visible:
+			var hk = _slot_at()
+			if not _same(hk, hover):
+				set_hover(hk)
 		# ЛКМ (нажал и отпустил на той же ячейке, без перетаскивания) — использовать / снять
-		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not dlg.visible:
+			var at = _slot_at()
 			if e.pressed:
-				_press_key = hover
-			elif hover != null and typeof(_press_key) == typeof(hover) and _press_key == hover and not get_viewport().gui_is_dragging():
-				if hover is int and slots[hover] != null:
-					use_requested.emit(hover)
-				elif hover is String and equip[hover] != "":
-					unequip_requested.emit(hover, -1)
+				_press_key = at
+				if not _same(at, hover):
+					set_hover(at)
+			else:
+				var pk = _press_key
+				_press_key = null
+				if at != null and _same(pk, at) and not get_viewport().gui_is_dragging():
+					if at is int and slots[at] != null:
+						use_requested.emit(at)
+					elif at is String and equip[at] != "":
+						unequip_requested.emit(at, -1)
+
+
+## Ячейка (номер или слот экипировки) под курсором; null — мимо.
+func _slot_at():
+	for n in slot_nodes:
+		var c: Control = n
+		if c.is_visible_in_tree() and Rect2(Vector2.ZERO, c.size).has_point(c.get_local_mouse_position()):
+			return c.key
+	return null
+
+
+static func _same(a, b) -> bool:
+	return typeof(a) == typeof(b) and a == b
 
 
 ## Shift+ПКМ: отпустил быстро — выбросить 1 шт.; продержал HOLD_TIME — всю стопку.
@@ -996,6 +1021,33 @@ func move(from, to) -> void:
 		equip_requested.emit(from, to)
 	elif from is String and to is int:
 		unequip_requested.emit(from, to)
+	elif from is String and to is String:
+		_swap_equip(from, to)
+
+
+## Слот экипировки → другой слот (левая рука ↔ правая): меняем местами вместе с прочностью.
+func _swap_equip(a: String, b: String) -> void:
+	var ia: String = equip[a]
+	var ib: String = equip[b]
+	if ia == "":
+		return
+	if not Items.fits(ia, b) or (ib != "" and not Items.fits(ib, a)):
+		message.emit("%s сюда не надеть" % Items.item_name(ia))
+		return
+	var da = equip_dur.get(a)
+	var db = equip_dur.get(b)
+	equip[a] = ib
+	equip[b] = ia
+	equip_dur.erase(a)
+	equip_dur.erase(b)
+	if db != null and ib != "":
+		equip_dur[a] = db
+	if da != null:
+		equip_dur[b] = da
+	if game:
+		game._apply_equip(a)
+		game._apply_equip(b)
+	_after_change()
 
 
 # ---------- данные ----------
