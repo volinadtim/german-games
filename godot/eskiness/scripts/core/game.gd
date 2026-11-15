@@ -41,7 +41,7 @@ func setup(p: Player) -> void:
 		flashlight.attach(player.cam)
 
 	# стартовый набор (крутка автомата — 10 монет). Фонарика нет — он в магазине снаряжения.
-	inv.add("coin", 5000)
+	inv.add("coin", 50)
 	inv.add("bandage", 2)
 
 	if USE_DUMMY:
