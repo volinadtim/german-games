@@ -170,9 +170,11 @@ func _ready() -> void:
 	# --- сетевая игра
 	net_box = preload("res://scripts/network/net_lobby.gd").new(self)
 	center.add_child(net_box)
+	preload("res://scripts/ui/ui_fit.gd").attach(net_box)   # окно в рамках экрана (промпт 00:32)
 
 	# --- настройки (промпт 23:26): слева категории «Основное» / «Экран и графика» / «Управление», справа — их страница
 	settings_box = _vbox(center)
+	preload("res://scripts/ui/ui_fit.gd").attach(settings_box)   # окно в рамках экрана (промпт 00:32)
 	settings_box.add_child(_title("НАСТРОЙКИ", 60))
 	settings_box.add_child(_gap(4))
 	var body := HBoxContainer.new()

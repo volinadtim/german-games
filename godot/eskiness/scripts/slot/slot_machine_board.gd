@@ -237,6 +237,7 @@ func _build_packs() -> void:
 	sb.set_content_margin_all(22)
 	panel.add_theme_stylebox_override("panel", sb)
 	cc.add_child(panel)
+	preload("res://scripts/ui/ui_fit.gd").attach(panel)   # окно в рамках экрана (промпт 00:32)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	panel.add_child(v)

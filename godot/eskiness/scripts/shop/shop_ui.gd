@@ -47,6 +47,7 @@ func _build_ui() -> void:
 	psb.shadow_size = 12
 	panel.add_theme_stylebox_override("panel", psb)
 	center.add_child(panel)
+	preload("res://scripts/ui/ui_fit.gd").attach(panel)   # окно в рамках экрана (промпт 00:32)
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 0)
 	panel.add_child(root)
