@@ -28,7 +28,10 @@ var stone_throw   # stone_throw.gd — бросок камня (T)
 const Sfx := preload("res://scripts/core/sfx.gd")
 const Sfx2 := preload("res://scripts/core/sfx_extra.gd")
 const Car := preload("res://scripts/car/car.gd")
-var car   # старая машина на поляне (car.gd): ключ в сейфе, уехать = победа
+var car   # старая машина (car.gd): ключ в сейфе; уехать — в деревню, дальше на ней можно ездить
+const Village := preload("res://scripts/village/village.gd")
+const VillageNet := preload("res://scripts/village/village_net.gd")
+var village   # вторая локация — деревня (village.gd)
 var play_time := 0.0   # сколько играл (для экрана победы, в сейве)
 var won := false
 

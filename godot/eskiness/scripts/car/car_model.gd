@@ -27,13 +27,50 @@ var starter: AudioStreamPlayer
 var engine: AudioStreamPlayer
 var _noise_tex: NoiseTexture2D
 
-var state := "idle"             # idle → start → drive → done
+var state := "idle"             # idle → board → start → drive → done; после деревни — parked (car_drive.gd)
 var t := 0.0
 var speed := 0.0
 var start_pos := Vector3.ZERO
 var yaw := 0.0
 var caught := false
 var win_called := false
+
+# ---------- двери, места, вождение (промпт 15.11 23:01) ----------
+## места: 0 — водитель (+X спереди), 1 — переднее пассажирское, 2 — сзади слева (+X), 3 — сзади справа
+const SEAT_EYE := [Vector3(0.36, 1.24, -0.1), Vector3(-0.36, 1.24, -0.1), Vector3(0.36, 1.22, -0.8), Vector3(-0.36, 1.22, -0.8)]
+const SEAT_HIP := [Vector3(0.36, 0.86, -0.12), Vector3(-0.36, 0.86, -0.12), Vector3(0.36, 0.86, -0.8), Vector3(-0.36, 0.86, -0.8)]
+## двери: [сторона, петля z, длина]; дверь i — у места i
+const DOORS := [[1.0, 0.86, 1.08], [-1.0, 0.86, 1.08], [1.0, -0.24, 0.86], [-1.0, -0.24, 0.86]]
+const EXIT := [Vector3(1.45, 0, 0.25), Vector3(-1.45, 0, 0.25), Vector3(1.45, 0, -0.7), Vector3(-1.45, 0, -0.7)]
+const DOOR_OPEN := 1.15         # на сколько радиан открывается дверь
+const MAX_F := 13.0             # скорость вперёд, м/с
+const MAX_R := 4.0              # назад
+const ACC := 4.2
+const BRAKE := 9.0
+const ROLL := 1.6
+const TURN := 1.25
+const FUEL_USE := 1.0 / 150.0   # полный бак — ~2.5 мин газа
+var doors: Array[Node3D] = []
+var door_gaps: Array[Node3D] = []
+var door_k := [0.0, 0.0, 0.0, 0.0]   # 0 — закрыта, 1 — открыта
+var door_want := [0.0, 0.0, 0.0, 0.0]
+var figures: Array[Node3D] = []      # силуэты людей для кат-сцены посадки
+var seats := [0, 0, 0, 0]            # кто сидит: id игрока (в одиночной — 1), 0 — пусто
+var my_seat := -1                    # где сидит свой игрок (-1 — снаружи)
+var seat_anim := 0.0                 # 0..1: посадка/выход (камера едет между местом и улицей)
+var seat_dir := 0                    # 1 — садится, -1 — выходит, 0 — сидит/снаружи
+var seat_from := Vector3.ZERO        # откуда едет камера при посадке (мир)
+var fuel := 0.0                      # бак 0..1 (кат-сцена: последний бензин)
+var escaped := false                 # уже уезжала с поляны (в сейве)
+var engine_on := false
+var steer := 0.0
+var carried: Array = []              # предметы в салоне едут вместе с машиной: [pickup, локальный transform]
+var net_t := 0.0
+var net_pos := Vector3.ZERO          # сеть: машину ведёт другой игрок
+var net_yaw := 0.0
+var net_drive := false
+var bump_cd := 0.0
+var village                          # village.gd
 
 
 ## Положение машины на неровной земле: высота — средняя по колёсам, наклон — по разнице спереди/сзади
@@ -262,6 +299,7 @@ func _build() -> void:
 	head_l.shadow_enabled = true
 	rig.add_child(head_l)
 
+	_build_doors(paint, primer, chrome, dark)
 	# осколки водительского стекла в траве у двери
 	for k in 6:
 		var pm := PrismMesh.new()
@@ -283,6 +321,64 @@ func _plate(pos: Vector3, rear := false) -> void:
 	for k in xs.size():
 		var tall := k >= 1 and k <= 4
 		_box(Vector3(0.035, 0.07 if tall else 0.05, 0.004), pos + Vector3(float(xs[k]) * z, -0.005 if not tall else 0.0, 0.008 * z), ink)
+
+
+## Четыре двери на петлях: панель с ручкой поверх борта; когда дверь открыта — в борту тёмный проём.
+func _build_doors(paint: Material, primer: Material, chrome: Material, dark: Material) -> void:
+	for i in 4:
+		var side: float = DOORS[i][0]
+		var hz: float = DOORS[i][1]
+		var ln: float = DOORS[i][2]
+		var gap := _box(Vector3(0.012, 0.44, ln - 0.04), Vector3(0.806 * side, 0.65, hz - ln / 2.0), dark)
+		gap.visible = false
+		door_gaps.append(gap)
+		var pv := Node3D.new()
+		pv.position = Vector3(0.818 * side, 0.43, hz)
+		rig.add_child(pv)
+		doors.append(pv)
+		var m := primer if i == 1 else paint
+		_box(Vector3(0.026, 0.45, ln - 0.02), Vector3(0, 0.225, -ln / 2.0), m, Vector3.ZERO, pv)
+		_box(Vector3(0.022, 0.03, ln - 0.1), Vector3(-0.08 * side, 0.92, -ln / 2.0 - 0.02), m, Vector3.ZERO, pv)   # рамка окна
+		_box(Vector3(0.022, 0.42, 0.03), Vector3(-0.07 * side, 0.7, -ln + 0.03), m, Vector3.ZERO, pv)
+		_box(Vector3(0.02, 0.03, 0.12), Vector3(0.012 * side, 0.37, -ln + 0.16), chrome, Vector3.ZERO, pv)
+
+
+## Силуэт человека для кат-сцены (тёмная фигура): начало координат — таз; legs — ноги (сидя — вперёд).
+func _figure() -> Node3D:
+	var who := _mat(Color(0.06, 0.055, 0.05), 0.0, 0.9)
+	var f := Node3D.new()
+	f.visible = false
+	rig.add_child(f)
+	_box(Vector3(0.4, 0.34, 0.22), Vector3(0, 0.17, 0), who, Vector3.ZERO, f)
+	var hs := SphereMesh.new()
+	hs.radius = 0.1
+	hs.height = 0.22
+	var head := MeshInstance3D.new()
+	head.mesh = hs
+	head.material_override = who
+	head.position = Vector3(0, 0.42, 0.02)
+	f.add_child(head)
+	var legs := Node3D.new()
+	legs.name = "Legs"
+	f.add_child(legs)
+	for sx in [-0.1, 0.1]:
+		_box(Vector3(0.13, 0.78, 0.14), Vector3(sx, -0.39, 0), who, Vector3.ZERO, legs)
+	return f
+
+
+## Столкновения «коробкой с дыркой»: низ кузова, сиденья, торпедо, крыша, борта — внутри салона
+## можно сидеть, и вещи лежат на сиденьях.
+func _hollow_collision() -> void:
+	_collide(Vector3(1.64, 0.62, 4.12), Vector3(0, 0.57, 0))
+	_collide(Vector3(0.52, 0.1, 0.5), Vector3(0.36, 0.92, -0.02))
+	_collide(Vector3(0.52, 0.1, 0.5), Vector3(-0.36, 0.92, -0.02))
+	_collide(Vector3(1.24, 0.1, 0.5), Vector3(0, 0.92, -0.78))
+	_collide(Vector3(1.38, 0.14, 0.26), Vector3(0, 0.94, 0.68))
+	_collide(Vector3(1.42, 0.08, 1.52), Vector3(0, 1.37, -0.22))
+	for sx in [1.0, -1.0]:
+		_collide(Vector3(0.06, 0.48, 2.0), Vector3(0.72 * sx, 1.12, -0.13))
+	_collide(Vector3(1.42, 0.48, 0.06), Vector3(0, 1.12, 0.74))
+	_collide(Vector3(1.42, 0.48, 0.06), Vector3(0, 1.12, -1.06))
 
 
 # ---------- помощники ----------

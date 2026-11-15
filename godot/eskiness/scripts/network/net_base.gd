@@ -6,7 +6,7 @@ signal status(text: String, bad: bool)   # статус подключения �
 
 const PORT := 24680
 const DISCOVERY_PORT := 24681
-const MAX_PEERS := 7
+const MAX_PEERS := 3   # до 4 игроков в комнате (хост + 3): в машине 4 места (промпт 15.11 23:20)
 const VERSION := 1
 const CODE_ABC := "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"   # 32 знака: без 0/O и 1/I
 const CFG := "user://settings.cfg"

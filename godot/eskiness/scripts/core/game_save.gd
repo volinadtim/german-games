@@ -63,6 +63,7 @@ func save_state() -> Dictionary:
 		"slot_shield": slot.shield if slot else 0,
 		"slot_reveal": slot.reveal_pending if slot else false,
 		"play_time": play_time,
+		"village": village.to_save() if village else {},
 	}
 
 
@@ -196,6 +197,8 @@ func load_state(d: Dictionary) -> void:
 		slot.set_reveal_pending(bool(d.get("slot_reveal", false)))
 		slot.screen.text = ""
 		slot._update_screen_hint()
+	if village:
+		village.from_save(d.get("village", {}))
 	inv.notify()
 	loading = false
 	if net == null:

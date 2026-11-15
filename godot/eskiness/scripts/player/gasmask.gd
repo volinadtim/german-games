@@ -198,6 +198,8 @@ func set_worn(on: bool, instant := false) -> void:
 
 
 func _outside() -> float:
+	if game.car and game.car.my_seat >= 0:
+		return 0.0   # в салоне машины можно без маски (car_drive.gd)
 	if surface == null:
 		var level: Node = game.get_parent().get_node_or_null("Level")
 		if level:

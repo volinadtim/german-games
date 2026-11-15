@@ -127,6 +127,9 @@ const ITEMS := {
 	# ключ от ржавой машины на поляне (car.gd) — лежит в сейфе; завести машину и уехать = победа
 	"car_key": {"name": "Ключ от машины", "desc": "От старой легковушки на поляне. Подойди к ней — [E] завести и уехать.", "stack": 1,
 		"icon": "car_key", "color": Color(0.7, 0.55, 0.25), "quest": true},
+	# бензин для машины — в деревне (village.gd); E у машины — залить, полный бак
+	"fuel": {"name": "Канистра бензина", "desc": "Помятая канистра с бензином. Подойди к машине — [E] залить, полный бак.", "stack": 2,
+		"icon": "fuel", "color": Color(0.62, 0.12, 0.08)},
 }
 
 
@@ -188,6 +191,14 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
+		"fuel":
+			var body := Rect2(c - Vector2(s * 0.28, s * 0.3), Vector2(s * 0.56, s * 0.66))
+			ci.draw_rect(body, dark)
+			ci.draw_rect(body.grow(-s * 0.03), col)
+			ci.draw_line(c + Vector2(-s * 0.2, -s * 0.2), c + Vector2(s * 0.2, s * 0.3), dark, maxf(1.5, s * 0.04))
+			ci.draw_line(c + Vector2(s * 0.2, -s * 0.2), c + Vector2(-s * 0.2, s * 0.3), dark, maxf(1.5, s * 0.04))
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.18, -s * 0.42), Vector2(s * 0.24, s * 0.1)), dark)
+			ci.draw_rect(Rect2(c + Vector2(s * 0.12, -s * 0.4), Vector2(s * 0.1, s * 0.12)), Color(0.3, 0.3, 0.28))
 		"rot_apple":
 			preload("res://scripts/slot/slot_symbols.gd").draw(ci, "rot_apple", r)
 		"coin":

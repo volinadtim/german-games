@@ -135,6 +135,8 @@ func _hut() -> void:
 func height(x: float, z: float) -> float:
 	var r := Vector2(x - CENTER.x, z - CENTER.z).length()
 	var hill := smoothstep(MEADOW_R + 3.0, MEADOW_R + 16.0, r) * (7.0 + 5.0 * hn.get_noise_2d(x, z))
+	# долина дороги на север, в деревню (village.gd): холмы расступаются
+	hill *= 1.0 - (1.0 - smoothstep(7.0, 13.0, absf(x - CENTER.x))) * smoothstep(10.0, 20.0, z)
 	var d_hut := _rect_dist(x, z)
 	var bump := (hn2.get_noise_2d(x, z) * 0.3 + hn.get_noise_2d(x * 2.0, z * 2.0) * 0.25) * smoothstep(1.5, 6.0, d_hut)
 	return G + hill + bump

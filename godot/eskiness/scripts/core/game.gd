@@ -126,12 +126,24 @@ func setup(p: Player) -> void:
 	# старая машина на поляне — до кувшинов, чтобы они её обходили
 	var surf_node: Node = get_parent().get_node_or_null("Level/Surface")
 	if surf_node:
+		# вторая локация — деревня в конце дороги (village.gd), стоит всегда; машина ездит по её высотам
+		village = Village.new()
+		village.level = get_parent().get_node_or_null("Level")
+		village.surface = surf_node
+		add_child(village)
 		car = Car.new()
 		car.game = self
-		car.surface = surf_node
+		car.surface = village
+		car.village = village
 		car.position = Surface.CAR_POS
 		car.rotation.y = Surface.CAR_YAW
 		add_child(car)
+		village.car = car
+		village.setup_game(self)
+		if net:
+			VillageNet.ensure(self)
+		if net == null or net.is_host():
+			village.spawn_village_loot()
 	if USE_CHESTS:
 		_random_jars()
 	shop = get_parent().get_node_or_null("Shop") as Shop
@@ -308,6 +320,19 @@ func begin_escape() -> void:
 	for n in get_parent().get_children():
 		if n.get_script() == preload("res://scripts/ui/touch_controls.gd"):
 			n.visible = false
+
+
+## Кат-сцена кончилась (village.gd): снова игра — игрок уже сидит в машине.
+func end_cinematic() -> void:
+	alive = true
+	inv.enabled = true
+	hud.set_cinematic(false)
+	if gasmask:
+		gasmask.visible = true
+	for n in get_parent().get_children():
+		if n.get_script() == preload("res://scripts/ui/touch_controls.gd"):
+			n.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 ## Машина уехала: экран победы со статистикой.
