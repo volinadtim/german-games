@@ -4,7 +4,7 @@ extends Node3D
 const Player := preload("res://scripts/player/player.gd")
 const Menu := preload("res://scripts/ui/menu.gd")
 const Ambience := preload("res://scripts/ambience.gd")
-const Game := preload("res://scripts/game.gd")   # тестовые механики (боёвка, лут, инвентарь, автомат…)
+const Game := preload("res://scripts/core/game.gd")   # тестовые механики (боёвка, лут, инвентарь, автомат…)
 const SlotMachine := preload("res://scripts/slot/slot_machine.gd")
 const TouchControls := preload("res://scripts/touch_controls.gd")   # экранное управление (телефон)
 
