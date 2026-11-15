@@ -3,7 +3,8 @@ extends Node
 ## В правой руке (промпт 22:53, режимы — 16.11 00:22): просто так не стреляет. ПКМ держать — от бедра (ЛКМ стреляет,
 ## пока держишь, разброс больше); ПКМ клик — прицел по мушке (переключатель: пистолет к глазу, зум, точнее), в нём ЛКМ стреляет.
 ## Шаги качают ствол: прицел на экране и точка попадания смещаются (sway). Прицел рисуем сами (hud.gd: gun_cross).
-## Хитскан из камеры.
+## Хитскан из камеры. Два пистолета (обе руки) — стреляют по очереди, свой магазин у каждого.
+## Без ПКМ ЛКМ — удар рукоятью (player_combat.gd). Позы рук — player_anim.gd: _gun_pose.
 ## Магазин — отдельная вещь: вставленный пропадает из инвентаря. R — вставить самый полный магазин из сумки
 ## (старый — в сумку); перетащить магазин на пистолет — то же; патроны на магазин — дозарядить его;
 ## зажать Enter (действие «mag_eject») — извлечь магазин в сумку.
@@ -49,6 +50,12 @@ var sway := Vector2.ZERO         # качание ствола от шагов �
 var sway_t := 0.0
 var cross: Control
 var _ready_told := false
+## Два пистолета (промпт 16.11 02:04): управление то же, стреляют по очереди, у каждого свой магазин.
+## Рука h: 0 — левая, 1 — правая (как player.weapon_nodes).
+const SLOTS := ["left", "right"]
+var next_hand := 1
+var _hand := 1                   # из какого стреляли последним (вспышка, гильза)
+var _reload_h := 1               # какой перезаряжается
 
 
 ## dur пистолета → патроны / есть ли магазин (см. шапку).
@@ -96,15 +103,53 @@ func _ready() -> void:
 
 
 func armed() -> bool:
-	return game != null and game.inv.equip["right"] == "pistol"
+	return game != null and (game.inv.equip["right"] == "pistol" or game.inv.equip["left"] == "pistol")
+
+
+## Руки с пистолетом (правая первой).
+func hands() -> Array[int]:
+	var r: Array[int] = []
+	if game == null:
+		return r
+	for h in [1, 0]:
+		if game.inv.equip[SLOTS[h]] == "pistol":
+			r.append(h)
+	return r
+
+
+func dual() -> bool:
+	return hands().size() == 2
+
+
+func rounds_in(h: int) -> int:
+	return mag_rounds(game.inv.get_dur(SLOTS[h])) if game.inv.equip[SLOTS[h]] == "pistol" else 0
+
+
+func loaded_in(h: int) -> bool:
+	return game.inv.equip[SLOTS[h]] == "pistol" and has_mag(game.inv.get_dur(SLOTS[h]))
 
 
 func rounds() -> int:
-	return mag_rounds(game.inv.get_dur("right")) if armed() else 0
+	var n := 0
+	for h in hands():
+		n += rounds_in(h)
+	return n
 
 
 func loaded() -> bool:
-	return armed() and has_mag(game.inv.get_dur("right"))
+	for h in hands():
+		if loaded_in(h):
+			return true
+	return false
+
+
+## Где пистолет в режиме прицела (eye/cb — камера): один — мушка по центру чуть ниже глаза
+## (ствол — 0.11 над рукоятью, см. _muzzle); два — обе руки вытянуты вперёд, пистолеты по бокам.
+static func ads_point(eye: Vector3, cb: Basis, h: int, two: bool, scy := 1.0) -> Vector3:
+	if two:
+		var side := -1.0 if h == 0 else 1.0
+		return eye - cb.z * 0.5 - cb.y * 0.17 + cb.x * side * 0.12
+	return eye - cb.z * 0.36 - cb.y * (0.11 * scy + 0.035)
 
 
 func fov_mult() -> float:
@@ -127,15 +172,17 @@ func _process(delta: float) -> void:
 		hip = rmb_t >= TAP_T and not ads
 	aiming = can and not reloading and ads
 	aim_k = move_toward(aim_k, 1.0 if aiming else 0.0, delta * 6.0)
+	if p != null:
+		p.gun_mode = (2 if ads else (1 if hip else 0)) if can else 0   # поза рук (player_anim.gd: _gun_pose), уходит в сеть
 	_update_sway(delta)
-	# зажать Enter — извлечь магазин
+	# зажать Enter — извлечь магазин (с двумя — сначала из правого)
 	var ej: bool = InputMap.has_action("mag_eject") and Input.is_action_pressed("mag_eject")
 	if can and loaded() and not reloading and ej and not _eject_lock:
 		eject_t += delta
 		if eject_t >= EJECT_T:
 			eject_t = 0.0
 			_eject_lock = true
-			eject("right")
+			eject(SLOTS[1] if loaded_in(1) else SLOTS[0])
 	else:
 		eject_t = 0.0
 		if not ej:
@@ -147,6 +194,9 @@ func _process(delta: float) -> void:
 			count_l.text = "НЕТ МАГАЗИНА  (R)"
 		elif eject_t > 0.0:
 			count_l.text = "ИЗВЛЕЧЬ… %d%%" % int(eject_t / EJECT_T * 100.0)
+		elif dual():
+			var pr := func(h: int) -> String: return str(rounds_in(h)) if loaded_in(h) else "—"
+			count_l.text = "%s  Л %s · П %s" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", pr.call(0), pr.call(1)]
 		else:
 			count_l.text = "%s  %d / %d" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", r, CAP]
 		count_l.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35) if r == 0 else Color(0.95, 0.88, 0.7))
@@ -205,6 +255,9 @@ func _draw_cross() -> void:
 	if not cam.is_position_behind(pt):
 		c = cam.unproject_position(pt) * cross.size / Vector2(cross.get_viewport_rect().size)
 	if aim_k > 0.6:
+		if dual():
+			cross.draw_circle(c, 2.0, Color(0, 0, 0, 0.5))   # с двумя мушки не видно — точка
+			cross.draw_circle(c, 1.3, Color(1, 1, 1, 0.85))
 		return
 	var col := Color(1, 1, 1, 0.8)
 	var sh := Color(0, 0, 0, 0.5)
@@ -221,25 +274,33 @@ func _draw_cross() -> void:
 
 ## Пистолет в кулаке смотрит стволом туда же, куда камера (хват из костей кисти рассчитан на биту/нож).
 ## Положение — от руки, поворот — от камеры, с лёгким наклоном; во время перезарядки — её анимация.
+## Пистолет опущен (без ПКМ) — обычный хват (им же бьют рукоятью); поднят — плавно доворачивается к камере (вес позы рук).
 func _aim() -> void:
-	if not armed() or reloading:
+	if not armed():
 		return
 	var p = game.player
-	var n = p.weapon_nodes[1]
-	if n == null or not is_instance_valid(n):
+	var w: float = maxf(clampf(p.gun_hip_w + p.gun_ads_w, 0.0, 1.0), aim_k)
+	if w <= 0.0:
 		return
+	var two := dual()
 	var cb: Basis = p.cam.global_transform.basis.orthonormalized()
-	var sc: Vector3 = (n as Node3D).global_transform.basis.get_scale()
-	var tilt := 1.0 - aim_k
-	var b := Basis(-cb.z, cb.y, cb.x).rotated(cb.x, -0.06 * tilt).rotated(cb.y, 0.05 * tilt)   # +X модели — вперёд, +Y — вверх
-	b = b.rotated(cb.y, -sway.x).rotated(cb.x, sway.y)   # ствол качается с шагами — туда же уходит пуля
-	var gt: Transform3D = (n as Node3D).global_transform
-	gt.basis = Basis(b.x * sc.x, b.y * sc.y, b.z * sc.z)
-	if aim_k > 0.0:
-		# прицел: мушка по центру экрана, чуть ниже глаза (ствол — 0.11 над рукоятью, см. _muzzle)
-		var eye: Vector3 = p.cam.global_position - cb.z * 0.36 - cb.y * (0.11 * sc.y + 0.035)
-		gt.origin = gt.origin.lerp(eye, aim_k)
-	(n as Node3D).global_transform = gt
+	for h in hands():
+		if reloading and h == _reload_h:
+			continue
+		var n = p.weapon_nodes[h]
+		if n == null or not is_instance_valid(n) or not (n as Node3D).is_inside_tree():
+			continue
+		var sc: Vector3 = (n as Node3D).global_transform.basis.get_scale()
+		var tilt := 1.0 - aim_k
+		var side := -1.0 if h == 0 else 1.0
+		var b := Basis(-cb.z, cb.y, cb.x).rotated(cb.x, -0.06 * tilt).rotated(cb.y, 0.05 * tilt * side)   # +X модели — вперёд, +Y — вверх
+		b = b.rotated(cb.y, -sway.x).rotated(cb.x, sway.y)   # ствол качается с шагами — туда же уходит пуля
+		var gt: Transform3D = (n as Node3D).global_transform
+		b = gt.basis.orthonormalized().slerp(b, w)
+		gt.basis = Basis(b.x * sc.x, b.y * sc.y, b.z * sc.z)
+		if aim_k > 0.0:
+			gt.origin = gt.origin.lerp(ads_point(p.cam.global_position, cb, h, two, sc.y), aim_k)
+		(n as Node3D).global_transform = gt
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -259,7 +320,16 @@ func fire() -> void:
 			game.hud.toast("Стрелять: ПКМ держать — от бедра, ПКМ клик — прицел", Color(0.9, 0.85, 0.7))
 		return
 	cd = FIRE_CD
-	var r := rounds()
+	# два пистолета — по очереди (пустой пропускаем)
+	var hs := hands()
+	var h: int = hs[0]
+	if hs.size() == 2:
+		cd = FIRE_CD * 0.6
+		h = next_hand
+		if rounds_in(h) <= 0 and rounds_in(1 - h) > 0:
+			h = 1 - h
+		next_hand = 1 - h
+	var r := rounds_in(h)
 	if r <= 0:
 		_play(snd_click, -6.0, 1.0)
 		if not _empty_told:
@@ -267,7 +337,8 @@ func fire() -> void:
 			game.hud.toast("Нет магазина — R" if not loaded() else "Пусто — R, сменить магазин; Enter (держать) — вынуть")
 		return
 	_empty_told = false
-	game.inv.equip_dur["right"] = pistol_dur(true, r - 1)
+	_hand = h
+	game.inv.equip_dur[SLOTS[h]] = pistol_dur(true, r - 1)
 	_play(snd_shot, -1.0, randf_range(0.95, 1.05))
 	var cam: Camera3D = p.cam
 	var from := cam.global_position
@@ -313,7 +384,7 @@ func _recoil() -> void:
 
 func _muzzle() -> Vector3:
 	var p = game.player
-	var n = p.weapon_nodes[1]
+	var n = p.weapon_nodes[_hand]
 	if n and is_instance_valid(n):
 		return (n as Node3D).global_transform * Vector3(0.15, 0.11, 0.0)
 	return p.cam.global_position - p.cam.global_transform.basis.z * 0.6 - p.cam.global_transform.basis.y * 0.15
@@ -435,8 +506,17 @@ func _alert(at: Vector3) -> void:
 func reload() -> void:
 	if reloading or not armed():
 		return
-	var cur := rounds()
-	var had := loaded()
+	# два пистолета — перезаряжаем тот, где меньше (без магазина — первым)
+	var hs := hands()
+	var rh: int = hs[0]
+	for h in hs:
+		var sc_h: int = rounds_in(h) if loaded_in(h) else -1
+		var sc_r: int = rounds_in(rh) if loaded_in(rh) else -1
+		if sc_h < sc_r:
+			rh = h
+	var slot: String = SLOTS[rh]
+	var cur := rounds_in(rh)
+	var had := loaded_in(rh)
 	var best := -1
 	var best_n := cur if had else -1
 	for i in game.inv.slots.size():
@@ -456,15 +536,16 @@ func reload() -> void:
 			game.hud.toast("Нет магазина" if game.inv.count("ammo") <= 0 else "Нет магазина — патроны заряжаются в магазин")
 		return
 	reloading = true
+	_reload_h = rh
 	_play(snd_mag, -6.0, 0.8)
-	_reload_anim()
+	_reload_anim(rh)
 	await get_tree().create_timer(RELOAD_T).timeout
 	reloading = false
-	if not armed():
+	if game.inv.equip[slot] != "pistol":
 		return
 	if best >= game.inv.slots.size():
 		return
-	insert_mag(best, "right", false)
+	insert_mag(best, slot, false)
 	_play(snd_mag, -5.0, 1.25)
 
 
@@ -526,8 +607,8 @@ func eject(target) -> void:
 
 
 ## Пистолет уходит вниз и поворачивается, потом возвращается.
-func _reload_anim() -> void:
-	var n = game.player.weapon_nodes[1]
+func _reload_anim(h := 1) -> void:
+	var n = game.player.weapon_nodes[h]
 	if n == null or not is_instance_valid(n):
 		return
 	var t0: Transform3D = n.transform

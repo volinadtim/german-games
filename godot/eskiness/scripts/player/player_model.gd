@@ -442,6 +442,9 @@ func _apply_bones() -> void:
 			# в позе кулака поверх пальцев — при полном раскрытии он проходил сквозь них (его поза покоя — вдоль пальцев)
 			if not finger_thumb[n]:
 				b *= 1.0 - 0.35 * smoothstep(0.0, 1.0, charge_vis)
+		# поднятый пистолет — пальцы сжаты на рукояти
+		if n < finger_arm.size() and weapon_ids[finger_arm[n]] == "pistol":
+			b = maxf(b, clampf(gun_hip_w + gun_ads_w, 0.0, 1.0))
 		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], b))
 	_flex_weapons()
 

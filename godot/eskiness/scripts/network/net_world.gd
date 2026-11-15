@@ -179,7 +179,8 @@ func _game_tick(delta: float) -> void:
 	send_t -= delta
 	if send_t <= 0.0 and p and peer:
 		send_t = SEND_DT
-		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0)
+		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0) \
+				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0)   # позы с пистолетом
 		rpc("ps", p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1])
 	if p and p.punching and not was_punching and peer:
 		rpc("pev", p.last_arm)
@@ -262,6 +263,7 @@ func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: St
 	pp.net_vel = vel
 	pp.net_sprint = Vector2(vel.x, vel.z).length() > PlayerScript.WALK + 0.4
 	pp.net_crouch = flags & 2 != 0
+	pp.gun_mode = 2 if flags & 16 != 0 else (1 if flags & 8 != 0 else 0)
 	var f := flags & 1 != 0
 	if f != pp.fists and not pp.punching:
 		pp.toggle_fists()

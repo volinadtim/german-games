@@ -55,12 +55,19 @@ func charge_frac() -> float:
 ## Нажал кнопку удара. Кулаки опущены — только поднимаем их, без удара и заряда (промпт 19:08);
 ## следующее нажатие, уже в стойке, копит заряд.
 func charge_begin(arm: int) -> void:
-	if gun and weapon_ids[1] == "pistol" and active:
-		if arm == 0:
-			gun.fire()   # пистолет в правой: ЛКМ — выстрел (только с ПКМ: держать — от бедра, клик — прицел; gun.gd)
-		else:
-			gun.rmb_input(true)
-		return
+	var whip := false
+	if gun and _has_pistol() and active:
+		if arm == 1:
+			gun.rmb_input(true)   # ПКМ: держать — от бедра, клик — прицел (gun.gd)
+			return
+		if gun.ready_to_fire():
+			gun.fire()   # ЛКМ с ПКМ — выстрел
+			return
+		# ЛКМ без ПКМ — удар рукоятью рукой с пистолетом (с двумя — по очереди)
+		arm = 1 if weapon_ids[1] == "pistol" else 0
+		if weapon_ids[0] == "pistol" and weapon_ids[1] == "pistol" and last_arm == 1:
+			arm = 0
+		whip = true
 	if charging >= 0 or not active:
 		return
 	if not fists:
@@ -68,12 +75,22 @@ func charge_begin(arm: int) -> void:
 		return
 	charging = arm
 	charge_t = 0.0
+	_whip_lmb = whip
+
+
+func _has_pistol() -> bool:
+	return weapon_ids[0] == "pistol" or weapon_ids[1] == "pistol"
 
 
 ## Отпустил: удар этой рукой с накопленным зарядом (кулаки ещё поднимаются — ударит, как поднимутся).
 func charge_release(arm: int) -> void:
 	if arm == 1 and gun:
 		gun.rmb_input(false)
+	if gun and (_has_pistol() or _whip_lmb):
+		if arm == 1 or not _whip_lmb:
+			return
+		_whip_lmb = false
+		arm = charging   # ЛКМ отпустили — бьёт рука с пистолетом
 	if charging != arm:
 		return
 	charging = -1
@@ -222,6 +239,8 @@ func _weapon_swing(i: int, wid: String) -> void:
 		group = wid
 	elif wid == "shiv":
 		group = "knife"
+	elif wid == "pistol":
+		group = "pistol"
 	var set_: Array = SWINGS[group]
 	var v := randi() % set_.size()
 	if v == last_swing[i] and randf() < 0.65:

@@ -231,7 +231,8 @@ func use_item(idx: int) -> void:
 		hud.toast("Фонарик заряжен", Color(0.9, 0.85, 0.55))
 		play_ui("click", -12.0)
 	elif id == "pistol":
-		equip(idx, "right")   # стреляет только правая рука (ПКМ)
+		# второй пистолет — в свободную левую (стреляют по очереди, gun.gd)
+		equip(idx, "left" if inv.equip["right"] == "pistol" and inv.equip["left"] == "" else "right")
 	elif id == "mag":
 		gun.fill_mag(idx)
 	elif Items.equip_slot(id) == "hand":

@@ -66,6 +66,12 @@ const SWINGS := {
 		{"wind": Vector4(80, -36, 16, 46), "hit": Vector4(82, 30, 0, 30), "thru": Vector4(80, 50, 0, 40),
 			"tw": [-0.25, 0.15, 0.25], "t": [0.06, 0.055, 0.05, 0.17], "rc": [-0.01, 0.05], "blur": "hook"},
 	],
+	"pistol": [   # удар рукоятью (промпт 16.11 02:04): короткий рубящий сверху или тычок вперёд
+		{"wind": Vector4(128, -8, 22, 112), "hit": Vector4(70, 10, 0, 22), "thru": Vector4(50, 26, 0, 34),
+			"tw": [-0.25, 0.2, 0.3], "t": [0.11, 0.07, 0.07, 0.22], "rc": [-0.02, 0.07], "wf": [-0.4, 0.9, 1.0], "blur": "upper"},
+		{"wind": Vector4(56, 10, 0, 104), "hit": Vector4(94, 8, 0, 8), "thru": Vector4(96, 8, 0, 6),
+			"tw": [-0.12, 0.2, 0.22], "t": [0.07, 0.06, 0.05, 0.2], "rc": [-0.04, 0.15], "wf": [0.0, 0.5, 0.55], "blur": "straight"},
+	],
 	"shield": [   # толчок щитом или удар краем
 		{"wind": Vector4(60, 12, 4, 115), "hit": Vector4(92, 10, 0, 26), "thru": Vector4(95, 10, 0, 20),
 			"tw": [-0.2, 0.25, 0.28], "t": [0.12, 0.08, 0.06, 0.26], "rc": [-0.05, 0.2], "blur": "straight"},
@@ -75,7 +81,7 @@ const SWINGS := {
 }
 var WRIST_HIT := 1.1   # сгиб кисти в момент удара (рад)
 # конец оружия (по длинной оси +Y модели) — по нему тянется след
-const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28}
+const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28, "pistol": 0.12}
 const Fx := preload("res://scripts/core/fx.gd")
 
 var active := false
@@ -215,6 +221,12 @@ var inhale_snd: AudioStreamWAV
 var exhale_out_snd: AudioStreamWAV   # опускание рук — тот же вдох задом наперёд
 var last_arm := -1
 var gun   # gun.gd (ставит game.gd)
+# позы с пистолетом (промпт 16.11 02:02, player_anim.gd: _gun_pose): 0 — опущен, 1 — от бедра (ПКМ держат), 2 — прицел.
+# Своему ставит gun.gd, чужому — сеть (net_world.gd, флаги 8/16).
+var gun_mode := 0
+var gun_hip_w := 0.0
+var gun_ads_w := 0.0
+var _whip_lmb := false   # ЛКМ с пистолетом без ПКМ — удар рукоятью рукой с пистолетом (player_combat.gd)
 var game   # game.gd (ставит game.gd): пока открыто окно — клик не захватывает мышь
 var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали
 var head_bone := -1

@@ -1,5 +1,6 @@
 extends "res://scripts/player/player_model.gd"
 # Часть player.gd: анимация тела и ног, повороты, idle, IK, следы ударов, копия игрока в сети.
+const GunS := preload("res://scripts/gun.gd")
 
 
 func _update_crouch(delta: float) -> void:
@@ -158,6 +159,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		elbows[i].rotation.x = deg_to_rad(p.w) + relax_el
 		if not USE_MODEL:
 			shoulders[i].position.z = 0.13 - reach[i]
+	_gun_pose(delta)
 	bob = lerpf(bob, amt, 1.0 - exp(-8.0 * delta))
 	land_dip = move_toward(land_dip, 0.0, delta * 0.35)
 	# голова ниже всего в момент постановки стопы (дважды за цикл)
@@ -177,6 +179,100 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	var want_fov: float = fov_base * (gun.fov_mult() if gun else 1.0) + (7.0 if sprinting else 0.0)   # прицел — gun.gd
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 	_apply_bones()
+	if puppet:
+		_puppet_gun_aim()
+
+
+## Позы с пистолетом (промпт 16.11 02:02/02:04): ПКМ держать — рука с пистолетом поднята и смотрит туда, куда летит пуля
+## (с двумя — обе); прицел (клик ПКМ) — один пистолет двумя руками у глаза (мушка по центру), два — обе руки вытянуты вперёд.
+## Двухзвенный IK на узлах-драйверах плеча и локтя поверх обычной позы, с плавным весом. У чужих игроков — gun_mode из сети.
+func _gun_pose(delta: float) -> void:
+	var has := [weapon_ids[0] == "pistol", weapon_ids[1] == "pistol"]
+	var any: bool = has[0] or has[1]
+	gun_hip_w = move_toward(gun_hip_w, 1.0 if any and gun_mode == 1 else 0.0, delta * 6.0)
+	gun_ads_w = move_toward(gun_ads_w, 1.0 if any and gun_mode == 2 else 0.0, delta * 6.0)
+	if hands.size() < 2 or skel == null or (gun_hip_w <= 0.0 and gun_ads_w <= 0.0):
+		return
+	var ct := global_transform.affine_inverse() * cam.global_transform
+	var cb := ct.basis.orthonormalized()
+	var eye := ct.origin
+	var aim_pt := eye - cb.z * 20.0
+	var two: bool = has[0] and has[1]
+	var tsum := gun_hip_w + gun_ads_w
+	var k_ads := gun_ads_w / tsum
+	var w_all := clampf(tsum, 0.0, 1.0)
+	var torso_inv := Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw)).inverse()
+	var main := 1 if has[1] else 0
+	var main_t := Vector3.ZERO
+	for i in [main, 1 - main]:
+		var sh := _shoulder_pos(i)
+		var reach_len := elbows[i].position.length() + hands[i].position.length()
+		if has[i]:
+			var hip_t := sh + (aim_pt - sh).normalized() * reach_len * 0.92
+			var g := GunS.ads_point(eye, cb, i, two)
+			var ads_t := g - (g - sh).normalized() * 0.08   # gun.gd держит пистолет в 8 см от кисти (fist_fx)
+			var t := hip_t.lerp(ads_t, k_ads)
+			if i == main:
+				main_t = t
+			_arm_ik(i, t, sh, torso_inv, w_all)
+		elif i != main and weapon_ids[i] == "" and gun_ads_w > 0.0:
+			# прицел с одним пистолетом: вторая рука поддерживает снизу-сбоку
+			var side := -1.0 if i == 0 else 1.0
+			_arm_ik(i, main_t + cb.x * side * 0.05 - cb.y * 0.035 + cb.z * 0.01, sh, torso_inv, gun_ads_w)
+
+
+## Плечо руки i в осях игрока (по кости модели, с наклоном корпуса и приседом).
+func _shoulder_pos(i: int) -> Vector3:
+	var b := skel.find_bone(["upperarm_L", "upperarm_R"][i])
+	if b == -1:
+		return shoulders[i].position
+	return to_local(skel.global_transform * skel.get_bone_global_pose(b).origin)
+
+
+## Двухзвенный IK руки i: кисть в точку t (оси игрока), локоть вниз и наружу; смешивается с текущей позой на w.
+## Драйвер плеча висит вдоль -Y, локоть сгибается вокруг X вперёд (-Z); кости повторяют драйвер, повёрнутый на корпус.
+func _arm_ik(i: int, t: Vector3, sh: Vector3, torso_inv: Basis, w: float) -> void:
+	var side := -1.0 if i == 0 else 1.0
+	var lu: float = elbows[i].position.length()
+	var lf: float = hands[i].position.length()
+	var v := torso_inv * (t - sh)
+	if v.length() < 0.01:
+		return
+	var d := clampf(v.length(), absf(lu - lf) + 0.02, (lu + lf) * 0.995)
+	var ca := clampf((lu * lu + lf * lf - d * d) / (2.0 * lu * lf), -1.0, 1.0)
+	var bend := PI - acos(ca)
+	var h_l := Vector3(0, -lu - lf * cos(bend), -lf * sin(bend)).normalized()
+	var n_l := Vector3.RIGHT
+	var h_w := v.normalized()
+	var e := Vector3(0.45 * side, -1.0, 0.2)
+	e = e - h_w * e.dot(h_w)
+	if e.length() < 0.01:
+		e = Vector3(side, 0, 0) - h_w * h_w.x * side
+	e = e.normalized()
+	var n_w := e.cross(h_w).normalized()
+	var lb := Basis(h_l, n_l, h_l.cross(n_l))
+	var wb := Basis(h_w, n_w, h_w.cross(n_w))
+	var q := Quaternion((wb * lb.transposed()).orthonormalized())
+	shoulders[i].quaternion = shoulders[i].quaternion.slerp(q, w)
+	elbows[i].rotation.x = lerpf(elbows[i].rotation.x, bend, w)
+
+
+## Чужой игрок: пистолет в поднятой руке доворачивается стволом по взгляду (своему это делает gun.gd).
+func _puppet_gun_aim() -> void:
+	var w := clampf(gun_hip_w + gun_ads_w, 0.0, 1.0)
+	if w <= 0.0:
+		return
+	var cb := cam.global_transform.basis.orthonormalized()
+	var b := Basis(-cb.z, cb.y, cb.x)
+	for i in 2:
+		var n = weapon_nodes[i]
+		if weapon_ids[i] != "pistol" or n == null or not is_instance_valid(n) or not (n as Node3D).is_inside_tree():
+			continue
+		var gt: Transform3D = (n as Node3D).global_transform
+		var sc := gt.basis.get_scale()
+		var r := gt.basis.orthonormalized().slerp(b, w)
+		gt.basis = Basis(r.x * sc.x, r.y * sc.y, r.z * sc.z)
+		(n as Node3D).global_transform = gt
 
 
 ## Процедурная походка: для каждой стопы считаем точку (опора — стопа едет назад по полу,
