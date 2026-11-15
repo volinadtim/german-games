@@ -253,7 +253,7 @@ void fragment() {
 	_sticker(Vector3(0.24 + EX, 0.16, 0.302), Vector2(0.11, 0.11), -0.25, Color(0.82, 0.8, 0.74), 2, 0.0)
 	_sticker(Vector3(0.405 + EX, 0.45, 0.05), Vector2(0.14, 0.09), 0.15, Color(0.7, 0.72, 0.6), 3, PI / 2.0)
 	# следы скотча: полупрозрачные пожелтевшие полоски
-	for t in [[Vector3(0.27 + EX, 1.14, 0.306), 0.6], [Vector3(-0.3 - EX, 0.84, 0.306), -0.5], [Vector3(-0.36 - EX, 0.2, 0.302), 0.1]]:
+	for tpos in [[Vector3(0.27 + EX, 1.14, 0.306), 0.6], [Vector3(-0.3 - EX, 0.84, 0.306), -0.5], [Vector3(-0.36 - EX, 0.2, 0.302), 0.1]]:
 		var tm := StandardMaterial3D.new()
 		tm.albedo_color = Color(0.72, 0.64, 0.45, 0.55)
 		tm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -263,8 +263,8 @@ void fragment() {
 		var tp := MeshInstance3D.new()
 		tp.mesh = tq
 		tp.material_override = tm
-		tp.position = t[0]
-		tp.rotation.z = t[1]
+		tp.position = tpos[0]
+		tp.rotation.z = tpos[1]
 		tp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		rig.add_child(tp)
 	# вмятины: мягкие тёмные пятна (тень в углублении)
@@ -375,6 +375,7 @@ func _build_extras(body: Material, trim: Material, black: Material) -> void:
 		spots.append(Vector3(-0.27 + k * 0.09, 1.86, 0.235))
 	for i in (spots.size() if USE_LEDS else 0):
 		var m := StandardMaterial3D.new()
+		@warning_ignore("integer_division")
 		var col: Color = palette[(i / 2) % palette.size()]
 		m.albedo_color = col.darkened(0.6)
 		m.emission_enabled = true
@@ -575,6 +576,7 @@ func _hazard_bands() -> void:
 	r.seed = 5
 	for y in 8:
 		for x in 64:
+			@warning_ignore("integer_division")
 			var on := ((x + y) / 4) % 2 == 0
 			var c := Color(0.62, 0.48, 0.1) if on else Color(0.06, 0.05, 0.04)
 			if r.randf() < 0.18:
@@ -702,9 +704,11 @@ func _build_tray() -> void:
 
 
 func _tray_spot(k: int, rng: RandomNumberGenerator) -> Vector3:
+	@warning_ignore("integer_division")
 	var layer := k / 12
 	var cell := (k * 5 + layer * 7) % 12   # перемешанный порядок ячеек
 	var cx := cell % 4
+	@warning_ignore("integer_division")
 	var cz := cell / 4
 	var w := TRAY_X * 2.0 / 4.0
 	var d := (TRAY_Z1 - TRAY_Z0) / 3.0

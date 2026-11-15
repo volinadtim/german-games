@@ -150,6 +150,7 @@ func _draw_board(ci: Control) -> void:
 	var lines := lines_for(level)
 	for li in lines.size():
 		var gx := x0 + 10 + (li % 3) * 88.0
+		@warning_ignore("integer_division")
 		var gy := 146.0 + (li / 3) * 100.0
 		var line: Array = lines[li][0]
 		for c in REELS:
@@ -239,11 +240,11 @@ func _build_packs() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	panel.add_child(v)
-	var t := Label.new()
-	t.text = "KILLBOX — КРУТКИ"
-	t.add_theme_font_size_override("font_size", 30)
-	t.add_theme_color_override("font_color", Color(1.0, 0.4, 0.25))
-	v.add_child(t)
+	var lbl := Label.new()
+	lbl.text = "KILLBOX — КРУТКИ"
+	lbl.add_theme_font_size_override("font_size", 30)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.4, 0.25))
+	v.add_child(lbl)
 	# окно фиксированного размера при любом тексте (промпт 14.11 19:28)
 	panel.custom_minimum_size = Vector2(460, 0)
 	pack_info = Label.new()
@@ -332,10 +333,10 @@ func _coin_toss(count: int, done: Callable) -> void:
 		var tw := create_tween()
 		tw.tween_interval(k * gap)
 		tw.tween_callback(func(): coin.visible = true)
-		tw.tween_method(func(t: float):
-			var p := a.lerp(mid, t).lerp(mid.lerp(slot_pos, t), t)
+		tw.tween_method(func(ts: float):
+			var p := a.lerp(mid, ts).lerp(mid.lerp(slot_pos, ts), ts)
 			coin.global_position = p
-			coin.rotation = Vector3(t * 9.0, 0.3, t * 4.0), 0.0, 1.0, dur)
+			coin.rotation = Vector3(ts * 9.0, 0.3, ts * 4.0), 0.0, 1.0, dur)
 		var last := k == count - 1
 		tw.tween_callback(func():
 			if game:

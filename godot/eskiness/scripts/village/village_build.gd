@@ -126,6 +126,7 @@ func _planks_tex(base: Color, seed_: int) -> ImageTexture:
 	for b in 8:
 		bands.append(r.randf_range(0.75, 1.15))
 	for y in S:
+		@warning_ignore("integer_division")
 		var band := y / 8
 		for x in S:
 			var k: float = bands[band] * (0.9 + 0.12 * sin(x * 0.4 + band * 3.0) + r.randf_range(-0.06, 0.06))
@@ -433,13 +434,13 @@ func _house(r: Rect2, door_side: float, hole_floor := Rect2()) -> Array:
 		var n := 1 if not (holed and s > 0) else 2
 		for k in n:
 			var len_z := (z1 - z0 + 0.6) if n == 1 else (z1 - z0 + 0.6) * 0.38
-			var cz := 0.0 if n == 1 else (-1.0 if k == 0 else 1.0) * (z1 - z0 + 0.6) * 0.31
+			var oz := 0.0 if n == 1 else (-1.0 if k == 0 else 1.0) * (z1 - z0 + 0.6) * 0.31
 			var mi := MeshInstance3D.new()
 			var bm := BoxMesh.new()
 			bm.size = Vector3(slope, 0.07, len_z)
 			mi.mesh = bm
 			mi.material_override = roof_mat
-			mi.position.z = cz
+			mi.position.z = oz
 			sk.add_child(mi)
 	# фронтоны
 	for gz in [z0, z1]:

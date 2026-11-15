@@ -248,6 +248,7 @@ func _wallpaper() -> Node3D:
 	var stripe := Color(0.52, 0.47, 0.36)
 	for y in 64:
 		for x in 64:
+			@warning_ignore("integer_division")
 			var c := stripe if (x / 8) % 2 == 0 else base
 			c = c.darkened(randf() * 0.06)
 			img.set_pixel(x, y, c)

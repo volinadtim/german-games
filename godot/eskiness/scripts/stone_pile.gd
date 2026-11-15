@@ -81,9 +81,9 @@ func interact(g) -> void:
 ## Сколько камней осталось; видно столько же булыжников (последний — вся кучка), пустая кучка пропадает.
 func set_left(n: int) -> void:
 	left = maxi(n, 0)
-	var show := mini(left, rocks.size())
+	var shown := mini(left, rocks.size())
 	for k in rocks.size():
-		rocks[k].visible = k >= rocks.size() - show
+		rocks[k].visible = k >= rocks.size() - shown
 	if shape:
 		shape.set_deferred("disabled", left <= 0)
 

@@ -21,7 +21,6 @@ var held := {}               # кнопки, которые сейчас заж�
 var capture_seen := false    # захват мыши на этом устройстве вообще работает
 var gameplay := false
 var inv_open := false
-var _pressed_moves := {}
 
 
 ## Нужно ли экранное управление на этом устройстве.
@@ -164,10 +163,10 @@ func _input(e: InputEvent) -> void:
 
 func _role_at(p: Vector2) -> String:
 	var bs := _buttons()
-	for name in bs:
-		var b: Array = bs[name]
+	for bname in bs:
+		var b: Array = bs[bname]
 		if _shown(b) and p.distance_to(b[0]) <= b[1] + 10.0:
-			return name
+			return bname
 	# хотбар: в игре — использовать, в инвентаре — привязать выбранный предмет
 	if gameplay or inv_open:
 		for k in 5:
@@ -262,25 +261,25 @@ func _axis(pos: String, neg: String, v: float) -> void:
 func _draw_ui() -> void:
 	var f := ThemeDB.fallback_font
 	var bs := _buttons()
-	for name in bs:
-		var b: Array = bs[name]
+	for bname in bs:
+		var b: Array = bs[bname]
 		if not _shown(b):
 			continue
 		var c: Vector2 = b[0]
 		var r: float = b[1]
-		var on := held.has(name)
+		var on := held.has(bname)
 		root.draw_circle(c, r, Color(1, 1, 1, 0.22) if on else Color(0, 0, 0, 0.32))
 		root.draw_arc(c, r, 0, TAU, 40, Color(1, 0.85, 0.55, 0.75) if on else Color(1, 1, 1, 0.35), 2.0, true)
 		var fs := 22 if r > 60 else (16 if r > 40 else 13)
 		var label: String = b[2]
-		if name == "ui_cancel" and not gameplay:
+		if bname == "ui_cancel" and not gameplay:
 			# в окнах эта кнопка закрывает окно — рисуем крестик
 			var k := r * 0.38
 			var cc := Color(1, 1, 1, 0.85)
 			root.draw_line(c + Vector2(-k, -k), c + Vector2(k, k), cc, 3.0, true)
 			root.draw_line(c + Vector2(-k, k), c + Vector2(k, -k), cc, 3.0, true)
 			continue
-		if name == "fists" and player and player.fists:
+		if bname == "fists" and player and player.fists:
 			label = "ОПУСТИТЬ"
 			fs = 12
 		var w := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x

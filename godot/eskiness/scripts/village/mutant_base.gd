@@ -1,5 +1,6 @@
 extends CharacterBody3D
 # Часть mutant.gd: константы, состояние, модели трёх видов, полоска здоровья, плевок.
+@warning_ignore("unused_signal")
 signal died(m: Node)
 
 const Fx := preload("res://scripts/core/fx.gd")

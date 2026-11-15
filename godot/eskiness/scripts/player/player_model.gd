@@ -291,7 +291,7 @@ func _build_model() -> void:
 ## каждая фаланга сгибается вокруг оси «палец × нормаль». Большой палец нацеливается на уже сжатые
 ## средние фаланги указательного и среднего и ложится поперёк них снаружи.
 func _build_fist_pose(s: String) -> void:
-	var gr := func(n: String) -> Transform3D: return skel.get_bone_global_rest(skel.find_bone(n + s))
+	var gr := func(bn: String) -> Transform3D: return skel.get_bone_global_rest(skel.find_bone(bn + s))
 	var h: Vector3 = gr.call("hand").origin
 	var across: Vector3 = (gr.call("index01").origin - gr.call("pinky01").origin).normalized()
 	var along: Vector3 = (gr.call("middle01").origin - h).normalized()
@@ -421,7 +421,7 @@ func _apply_bones() -> void:
 	var torso_rot := Basis(Vector3.UP, torso_off)
 	for e in bone_map:
 		var d: Node3D = e[1]
-		var basis := (leg_rot if e[5] else torso_rot) * inv * d.global_basis.orthonormalized()
+		var bas := (leg_rot if e[5] else torso_rot) * inv * d.global_basis.orthonormalized()
 		var arm: int = e[3]
 		if arm >= 0:
 			# кисть поворачивается тыльной стороной вверх в стойке (у предплечья — половина)
@@ -429,8 +429,8 @@ func _apply_bones() -> void:
 			# с оружием (кроме щита) кисть остаётся большим пальцем вверх — молотковый хват, оружие стоит вертикально
 			var armed_k := ARMED_TWIST if weapon_ids[arm] != "" and weapon_ids[arm] != "shield" else 1.0
 			var tw := deg_to_rad(90.0) * side * (0.1 + 0.6 * fist_blend * armed_k) * (1.0 if e[4] else 0.5)
-			basis = basis * Basis(Vector3.UP, tw)
-		_set_global_rot(e[0], rr * basis * e[2])
+			bas = bas * Basis(Vector3.UP, tw)
+		_set_global_rot(e[0], rr * bas * e[2])
 	var wig := fk * idle_amt * (1.0 - fist_blend) if fidget == "fingers" else 0.0
 	for n in finger_bones.size():
 		var f: Array = finger_bones[n]
@@ -539,11 +539,11 @@ func _grip(arm: int, id: String) -> Transform3D:
 	var unit := 1.0 / maxf(fx.global_transform.basis.get_scale().x, 0.0001)   # локальных единиц в метре
 	if id == "shield":
 		# лицо щита — вперёд (в стойке), верх — вдоль предплечья; висит на предплечье ниже кисти
-		var n := (palm * 0.6 + fwd * 0.5 - up * 0.4).normalized()
-		var y_ax := (fwd - n * fwd.dot(n)).normalized()
-		var x_ax := y_ax.cross(n).normalized()
-		var o := h - y_ax * 0.17 * unit + n * 0.06 * unit
-		return Transform3D(Basis(x_ax * unit, y_ax * unit, n * unit), o)
+		var nrm := (palm * 0.6 + fwd * 0.5 - up * 0.4).normalized()
+		var y_ax := (fwd - nrm * fwd.dot(nrm)).normalized()
+		var x_ax := y_ax.cross(nrm).normalized()
+		var o := h - y_ax * 0.17 * unit + nrm * 0.06 * unit
+		return Transform3D(Basis(x_ax * unit, y_ax * unit, nrm * unit), o)
 	# рукоять — в «тоннеле» сжатых пальцев: ось от мизинца к указательному, наклон к костяшкам на GRIP_TILT.
 	# Считаем в осях кости кисти (fist_fx лежит в них же, в метрах, на 8 см дальше по кисти).
 	var hr := skel.get_bone_global_rest(hb)

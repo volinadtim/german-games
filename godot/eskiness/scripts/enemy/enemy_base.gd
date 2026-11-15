@@ -1,5 +1,6 @@
 extends CharacterBody3D
 # Часть enemy.gd: константы, состояние, звуки, примитивы мешей.
+@warning_ignore("unused_signal")
 signal died(enemy: Node)
 
 const Fx := preload("res://scripts/core/fx.gd")
@@ -30,6 +31,7 @@ const WAYPOINTS := [
 	Vector3(-0.9, 0, 5.5), Vector3(0.9, 0, 5.5),
 	Vector3(-6, 0, -5.3), Vector3(6, 0, -5.3), Vector3(-6, 0, 5.3), Vector3(6, 0, 5.3),
 ]
+@warning_ignore("unused_private_class_variable")
 static var _wp_links: Array = []    # для каждой точки — индексы видимых соседей (считаются один раз)
 
 var game  # game.gd
@@ -68,7 +70,9 @@ var in_door := false       # сейчас проходит проём (_through_
 var throw_vel := Vector3.ZERO
 var probe := Vector3.ZERO  # камень игрока упал здесь — идёт проверить (hear_stone)
 var probe_wait := 0.0
+@warning_ignore("unused_private_class_variable")
 static var _screech_cache: Array = []
+@warning_ignore("unused_private_class_variable")
 static var _front_id := 0   # кто из врагов сейчас атакует игрока спереди (окружение)
 var home := Vector3.ZERO
 var hunter := false   # всегда гонится, спускается в бункер
@@ -137,7 +141,9 @@ func _set_state(s: String) -> void:
 
 
 ## Шаги врага (промпт 14.11 17:26): тяжёлые, ниже по тону, чем у игрока; шаг — каждые ~0.7 м пройденного пути.
+@warning_ignore("unused_private_class_variable")
 var _step_dist := 0.0
+@warning_ignore("unused_private_class_variable")
 var _last_ph_step := 0
 
 

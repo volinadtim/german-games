@@ -295,6 +295,7 @@ static var look_sens := 1.0
 const KEY_TURN := 2.4
 
 
+@warning_ignore("unused_private_class_variable")
 var _queued_arm := -1
 
 # ---------- заряженный удар (промпт 14.11 19:06) ----------

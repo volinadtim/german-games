@@ -125,6 +125,7 @@ func _build() -> void:
 	for e in Weapons.SHOP:
 		goods.append(e[0])
 	for i in mini(goods.size(), 16):
+		@warning_ignore("integer_division")
 		var row := i / 4
 		var col := i % 4
 		var x := WIN_X0 + 0.08 + col * 0.16
@@ -277,6 +278,7 @@ func _vend_thud() -> void:
 		game.play_at("thud", global_transform * Vector3(0, TRAY_Y, D / 2), -12.0, 1.8)
 
 
+@warning_ignore("unused_private_class_variable")
 var _last_toggle := -10000   # защита от «закликивания» E: окно не переключается чаще раза в 0.35 с
 
 

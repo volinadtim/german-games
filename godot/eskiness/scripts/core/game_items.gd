@@ -267,7 +267,10 @@ func equip(idx: int, slot_: String) -> void:
 	var prev: String = inv.equip[slot_]
 	var prev_d: float = inv.equip_dur.get(slot_, Items.max_dur(prev))
 	var new_d: float = float(s.get("dur", Items.max_dur(id)))
-	inv.slots[idx] = {"id": prev, "n": 1, "dur": prev_d} if prev != "" else null
+	if prev != "":
+		inv.slots[idx] = {"id": prev, "n": 1, "dur": prev_d}
+	else:
+		inv.slots[idx] = null
 	inv.equip[slot_] = id
 	inv.equip_dur[slot_] = new_d
 	_apply_equip(slot_)
@@ -520,6 +523,7 @@ func drop_coins(n: int) -> void:
 	var pos := player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5
 	var parts := clampi(n, 1, 6)
 	for k in parts:
+		@warning_ignore("integer_division")
 		var cnt := n / parts + (1 if k < n % parts else 0)
 		var p := _make_pickup("coin", cnt, pos, fwd * 2.0 + Vector3(randf_range(-0.6, 0.6), 1.0, randf_range(-0.6, 0.6)))
 		p.need_leave = true

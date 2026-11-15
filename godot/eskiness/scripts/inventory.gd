@@ -584,15 +584,15 @@ func _rebuild_craft() -> void:
 			var tid: String = rec["tool"]
 			var have_t := count(tid) > 0
 			ok = ok and have_t
-			var tr := HBoxContainer.new()
-			tr.add_theme_constant_override("separation", 6)
+			var trow := HBoxContainer.new()
+			trow.add_theme_constant_override("separation", 6)
 			var ti := Icon.new()
 			ti.id = tid
 			ti.dim = not have_t
 			ti.custom_minimum_size = Vector2(30, 30)
-			tr.add_child(ti)
-			tr.add_child(_label("%s (−%d прочности)" % [Items.item_name(tid), int(rec.get("wear", 1))], 15, Color(0.7, 0.85, 0.6) if have_t else Color(0.85, 0.5, 0.4)))
-			craft_box.add_child(tr)
+			trow.add_child(ti)
+			trow.add_child(_label("%s (−%d прочности)" % [Items.item_name(tid), int(rec.get("wear", 1))], 15, Color(0.7, 0.85, 0.6) if have_t else Color(0.85, 0.5, 0.4)))
+			craft_box.add_child(trow)
 		var b := Button.new()
 		b.text = "Скрафтить"
 		b.focus_mode = Control.FOCUS_NONE
@@ -875,6 +875,7 @@ func split(idx: int) -> void:
 	if j < 0:
 		message.emit("Нет свободной ячейки")
 		return
+	@warning_ignore("integer_division")
 	var half := int(s["n"]) / 2
 	s["n"] = int(s["n"]) - half
 	slots[j] = {"id": s["id"], "n": half}

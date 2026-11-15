@@ -89,6 +89,7 @@ var jars: Array = []
 ## не ближе 6 м к игроку (чтобы не возникал на глазах). Старые разбитые снаружи убираем (осколки), держим ≤ 6.
 const OUT_JARS_MAX := 5
 const OUT_JAR_EVERY := 25.0
+@warning_ignore("unused_private_class_variable")
 var _out_jar_t := OUT_JAR_EVERY
 
 

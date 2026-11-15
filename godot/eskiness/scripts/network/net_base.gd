@@ -1,7 +1,10 @@
 extends Node
 # Часть net.gd: константы, состояние, коды комнат и адреса (static), имя игрока.
+@warning_ignore("unused_signal")
 signal lobby_changed                     # игроки / состояние комнаты
+@warning_ignore("unused_signal")
 signal rooms_changed                     # найденные в локалке комнаты
+@warning_ignore("unused_signal")
 signal status(text: String, bad: bool)   # статус подключения для лобби
 
 const PORT := 24680

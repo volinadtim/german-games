@@ -237,7 +237,7 @@ func _weapon_swing(i: int, wid: String) -> void:
 	var rs := _reach_setter(i)
 	# хлёст кистью: в замахе оружие взведено вверх, к удару кисть «выстреливает» и оружие продолжает руку
 	var fl: Array = sw.get("wf", [-0.25, WRIST_HIT, WRIST_HIT * 1.1] if group != "shield" else [0.0, 0.0, 0.0])
-	var fs := func(v: float) -> void: wrist_flex[i] = v
+	var fs := func(fv: float) -> void: wrist_flex[i] = fv
 	var tw := create_tween()
 	# замах — с разгоном и торможением в верхней точке
 	tw.tween_method(ps, arm_pose[i], sw["wind"], t[0]).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -319,7 +319,7 @@ func take_hit(dmg: float, dir: Vector3) -> void:
 		net_hit.call(self, dmg, dir)
 
 
-func _check_hit(arm: int, kind := "straight") -> void:
+func _check_hit(arm: int, _kind := "straight") -> void:
 	if puppet:
 		return   # чужой игрок бьёт у себя; урон приходит по сети
 	var from := cam.global_position

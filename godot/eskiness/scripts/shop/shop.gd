@@ -75,11 +75,11 @@ func _process(delta: float) -> void:
 
 
 func _refresh_chests() -> void:
-	var opened := 0
+	var n_open := 0
 	for c in game.chests:
 		if is_instance_valid(c) and c.opened:
-			opened += 1
-	if opened == 0:
+			n_open += 1
+	if n_open == 0:
 		info_l.text = "Все ящики и так закрыты"
 		return
 	if game.inv.count("coin") < CHEST_REFRESH:
@@ -88,7 +88,7 @@ func _refresh_chests() -> void:
 		return
 	game.inv.remove("coin", CHEST_REFRESH)
 	game.refresh_chests()
-	info_l.text = "Ящики обновлены: %d" % opened
+	info_l.text = "Ящики обновлены: %d" % n_open
 	game.hud.toast("Ящики на уровне снова полны", Color(0.9, 0.8, 0.55))
 	game.play_ui("creak", -10.0, 0.8)
 	_refresh()

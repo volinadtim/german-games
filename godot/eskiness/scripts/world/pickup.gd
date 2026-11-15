@@ -190,8 +190,9 @@ func _fly_to(g, to: Node3D = null) -> void:
 	var tw := create_tween().set_parallel()
 	if to == null:
 		to = g.player   # в сети — может лететь к другому игроку (net.gd)
-	var target: Vector3 = to.global_position + Vector3(0, 1.1, 0)
+	var start_target: Vector3 = to.global_position + Vector3(0, 1.1, 0)
 	tw.tween_method(func(k: float) -> void:
+		var target := start_target
 		if is_instance_valid(to):
 			target = to.global_position + Vector3(0, 1.1, 0)
 		global_position = global_position.lerp(target, k), 0.0, 1.0, 0.22).set_ease(Tween.EASE_IN)

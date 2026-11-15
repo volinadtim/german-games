@@ -141,6 +141,7 @@ func _process(delta: float) -> void:
 		bulbs[k].emission_energy_multiplier = 1.6 if on else 0.15
 	# цветные огни: волна снизу вверх, при выигрыше — вспышки
 	for i in leds.size():
+		@warning_ignore("integer_division")
 		var w := sin(t * 5.0 - float(i / 2) * 0.6)
 		if party > 0.0:
 			leds[i].emission_energy_multiplier = 2.2 if (int(t * 12.0) + i) % 3 == 0 else 0.3
@@ -358,16 +359,16 @@ func _pour(win: int) -> void:
 			c.position = start
 			c.rotation = rest + spin
 			c.visible = true)
-		tw.tween_method(func(t: float):
-			var e := t * t * (3.0 - 2.0 * t)   # плавный разгон и торможение
-			c.position = start.lerp(end - roll, e) + Vector3(0, sin(PI * t) * 0.03, 0)
-			var sp := 1.0 - t
+		tw.tween_method(func(ts: float):
+			var e := ts * ts * (3.0 - 2.0 * ts)   # плавный разгон и торможение
+			c.position = start.lerp(end - roll, e) + Vector3(0, sin(PI * ts) * 0.03, 0)
+			var sp := 1.0 - ts
 			c.rotation = rest + spin * sp * sp, 0.0, 1.0, randf_range(0.55, 0.68))
 		# удар о дно: подскок с кувырком, прокатывание и укладка плашмя
 		var wob := Vector3(randf_range(-0.9, 0.9), randf_range(-0.6, 0.6), randf_range(-0.9, 0.9))
-		tw.tween_method(func(t: float):
-			c.position = (end - roll).lerp(end, t) + Vector3(0, sin(PI * t) * 0.012, 0)
-			c.rotation = rest + wob * (1.0 - t) * cos(t * 9.0), 0.0, 1.0, 0.26)
+		tw.tween_method(func(ts: float):
+			c.position = (end - roll).lerp(end, ts) + Vector3(0, sin(PI * ts) * 0.012, 0)
+			c.rotation = rest + wob * (1.0 - ts) * cos(ts * 9.0), 0.0, 1.0, 0.26)
 		delay += randf_range(0.02, 0.05)
 	# звон россыпью: несколько наложенных «coin» к моменту приземления
 	if game:
@@ -438,9 +439,9 @@ func feed_apple() -> void:
 	var to := Vector3(0, 0.45, 0.31)
 	a.position = from
 	var tw := create_tween()
-	tw.tween_method(func(t: float):
-		a.position = from.lerp(to, t) + Vector3(0, sin(PI * t) * 0.12, 0)
-		a.rotation = Vector3(t * 6.0, t * 3.0, 0), 0.0, 1.0, 0.45).set_trans(Tween.TRANS_QUAD)
+	tw.tween_method(func(ts: float):
+		a.position = from.lerp(to, ts) + Vector3(0, sin(PI * ts) * 0.12, 0)
+		a.rotation = Vector3(ts * 6.0, ts * 3.0, 0), 0.0, 1.0, 0.45).set_trans(Tween.TRANS_QUAD)
 	tw.tween_property(a, "scale", Vector3.ONE * 0.2, 0.15)
 	tw.tween_callback(func():
 		a.queue_free()
@@ -482,25 +483,25 @@ func _cutscene(delta: float) -> void:
 			_start_cut()
 		return
 	cut_t += delta
-	var t := cut_t
+	var ct := cut_t
 	# камера: к доске 0–0.9 с, обратно 3.4–4.3 с (плавно)
 	var a := 0.0
-	if t < 0.9:
-		a = _smooth(t / 0.9)
-	elif t < 3.4:
+	if ct < 0.9:
+		a = _smooth(ct / 0.9)
+	elif ct < 3.4:
 		a = 1.0
 	else:
-		a = 1.0 - _smooth((t - 3.4) / 0.9)
+		a = 1.0 - _smooth((ct - 3.4) / 0.9)
 	cut_cam.global_transform = cut_from.interpolate_with(cut_to, a)
-	rev7 = clampf((t - 0.95) / 0.9, 0.0, 1.0)
-	dark6 = clampf(1.0 - absf(t - 2.05) / 0.25, 0.0, 1.0) * 0.6
-	rev6 = clampf((t - 2.1) / 1.0, 0.0, 1.0)
-	if t >= 0.9 and t - delta < 0.9:
+	rev7 = clampf((ct - 0.95) / 0.9, 0.0, 1.0)
+	dark6 = clampf(1.0 - absf(ct - 2.05) / 0.25, 0.0, 1.0) * 0.6
+	rev6 = clampf((ct - 2.1) / 1.0, 0.0, 1.0)
+	if ct >= 0.9 and ct - delta < 0.9:
 		_play_cut(_chime())
-	if t >= 2.0 and t - delta < 2.0:
+	if ct >= 2.0 and ct - delta < 2.0:
 		_play_cut(_dread())
 	board_art.queue_redraw()
-	if t >= CUT_LEN:
+	if ct >= CUT_LEN:
 		_end_cut()
 
 

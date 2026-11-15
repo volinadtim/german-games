@@ -120,7 +120,7 @@ func setup(p: Player) -> void:
 	glass_floor = GlassFloor.new()
 	add_child(glass_floor)
 	_collect_obstacles()
-	glass_floor.generate(func(p: Vector3, r: float) -> bool: return not _on_object(p, r))
+	glass_floor.generate(func(gp: Vector3, r: float) -> bool: return not _on_object(gp, r))
 	for sp in glass_floor.spots:
 		_make_pickup("glass", 1, (sp[0] as Vector3) + Vector3(0.2, 0.1, 0.2), Vector3.ZERO)
 	# старая машина на поляне — до кувшинов, чтобы они её обходили
@@ -338,6 +338,7 @@ func end_cinematic() -> void:
 ## Машина уехала: экран победы со статистикой.
 func win() -> void:
 	var s := int(play_time)
+	@warning_ignore("integer_division")
 	hud.show_win("Время: %d:%02d   ·   Монет: %d" % [s / 60, s % 60, inv.coins])
 
 

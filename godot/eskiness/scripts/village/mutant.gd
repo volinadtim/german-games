@@ -345,7 +345,7 @@ func apply_hit(dmg: float, dir: Vector3) -> void:
 		_set_state("stagger")
 
 
-func _die(dir: Vector3) -> void:
+func _die(_dir: Vector3) -> void:
 	_set_state("dead")
 	collision_layer = 0
 	bar.visible = false

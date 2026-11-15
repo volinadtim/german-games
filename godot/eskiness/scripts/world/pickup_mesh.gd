@@ -198,9 +198,9 @@ static func _build(root: Node3D, id: String) -> Vector3:
 			size = Vector3(0.11, 0.028, 0.075)
 		"choco":
 			# шоколадка: обёртка и надорванный конец с дольками, кусочек фольги
-			var wrap := _mat(Color(0.5, 0.1, 0.08), 0.0, 0.5, 0.22)
+			var wrap_m := _mat(Color(0.5, 0.1, 0.08), 0.0, 0.5, 0.22)
 			var ch := _mat(col, 0.0, 0.55, 0.15)
-			_add(root, _box(Vector3(0.075, 0.014, 0.06)), wrap, Vector3(-0.022, 0, 0))
+			_add(root, _box(Vector3(0.075, 0.014, 0.06)), wrap_m, Vector3(-0.022, 0, 0))
 			_add(root, _box(Vector3(0.076, 0.0145, 0.012)), _mat(Color(0.9, 0.8, 0.4), 0.2, 0.5, 0.25), Vector3(-0.022, 0, 0))   # полоса на обёртке
 			_add(root, _box(Vector3(0.008, 0.015, 0.06)), _mat(Color(0.8, 0.8, 0.82), 0.9, 0.25, 0.2), Vector3(0.019, 0, 0))   # фольга
 			_add(root, _box(Vector3(0.04, 0.009, 0.058)), ch, Vector3(0.042, -0.002, 0))

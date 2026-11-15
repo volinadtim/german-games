@@ -289,10 +289,10 @@ func _centered(c: Control) -> Control:
 	return r
 
 
-func _label(t: String, size: int, col: Color, w: float) -> Label:
+func _label(t: String, fsize: int, col: Color, w: float) -> Label:
 	var l := Label.new()
 	l.text = t
-	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_size_override("font_size", fsize)
 	l.add_theme_color_override("font_color", col)
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	if w > 0:

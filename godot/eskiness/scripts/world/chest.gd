@@ -145,7 +145,7 @@ func _build_safe() -> void:
 	_collide(Vector3(w, h, d + 0.06), Vector3(0, h / 2, 0.03))
 
 
-func get_prompt(game) -> String:
+func get_prompt(_g) -> String:
 	if kind == "storage":
 		return "[E] Сундук (%d)" % contents.size() if not contents.is_empty() else "[E] Сундук"
 	if broken:
@@ -159,30 +159,30 @@ func get_prompt(game) -> String:
 	return "[E] Открыть ящик"
 
 
-func interact(game) -> void:
+func interact(g) -> void:
 	if kind == "storage":
 		if not opened:
 			opened = true
-			snd.stream = game.snd["creak"][randi() % 2]
+			snd.stream = g.snd["creak"][randi() % 2]
 			snd.volume_db = -16.0
 			snd.play()
 			create_tween().tween_property(hinge, "rotation:x", -1.95, 0.6).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		game.open_loot(self)
+		g.open_loot(self)
 		return
 	if opened:
-		if not contents.is_empty() and game.has_method("open_loot"):
-			game.open_loot(self)
+		if not contents.is_empty() and g.has_method("open_loot"):
+			g.open_loot(self)
 		return
 	if locked:
-		game.hud.toast("Заперто. Сейф откроют три семёрки на автомате KILLBOX.")
-		game.play_at("buzz", global_position, -14.0)
-		var tw := create_tween()
-		tw.tween_property(hinge, "rotation:y", -0.03, 0.05)
-		tw.tween_property(hinge, "rotation:y", 0.0, 0.08)
+		g.hud.toast("Заперто. Сейф откроют три семёрки на автомате KILLBOX.")
+		g.play_at("buzz", global_position, -14.0)
+		var shake := create_tween()
+		shake.tween_property(hinge, "rotation:y", -0.03, 0.05)
+		shake.tween_property(hinge, "rotation:y", 0.0, 0.08)
 		return
 	opened = true
 	collision_layer = 1
-	snd.stream = game.snd["creak"][randi() % 2]
+	snd.stream = g.snd["creak"][randi() % 2]
 	snd.volume_db = -15.0
 	snd.pitch_scale = randf_range(0.9, 1.1) * (0.8 if kind == "safe" else 1.0)
 	snd.play()
@@ -192,8 +192,8 @@ func interact(game) -> void:
 	else:
 		tw.tween_property(hinge, "rotation:x", -1.95, 0.7).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_fill()
-	if not silent_open and game.has_method("open_loot"):
-		get_tree().create_timer(0.35).timeout.connect(game.open_loot.bind(self))
+	if not silent_open and g.has_method("open_loot"):
+		get_tree().create_timer(0.35).timeout.connect(g.open_loot.bind(self))
 
 
 var silent_open := false
@@ -211,10 +211,10 @@ func _fill() -> void:
 
 
 ## Открыть без проверки замка (три семёрки на автомате): дверца открывается, лут ждёт внутри.
-func force_open(game) -> void:
+func force_open(g) -> void:
 	locked = false
 	silent_open = true
-	interact(game)
+	interact(g)
 	silent_open = false
 
 
@@ -311,13 +311,13 @@ func _break() -> void:
 	opened = true
 
 
-func _spill(game) -> void:
+func _spill(g) -> void:
 	var items: Array = contents
 	var fwd := global_transform.basis.z
 	var pos := global_transform * Vector3(0, 0.45 if kind == "safe" else 0.35, 0.1)
 	for it in items:
 		var vel := fwd * randf_range(1.2, 2.0) + Vector3(0, randf_range(2.5, 3.5), 0)
-		game.spawn_loot(it[0], it[1], pos, vel, 0.8)
+		g.spawn_loot(it[0], it[1], pos, vel, 0.8)
 
 
 ## За раз из ящика — 3–5 разных позиций (монеты всегда одна из них), в каждой немного штук:

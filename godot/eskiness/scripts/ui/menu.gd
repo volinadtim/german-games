@@ -678,6 +678,7 @@ func _apply_window() -> void:
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, false)
 			var ws := Vector2i(Vector2(ss) * 0.75)
 			DisplayServer.window_set_size(ws)
+			@warning_ignore("integer_division")
 			DisplayServer.window_set_position(sp + (ss - ws) / 2)
 
 
@@ -1005,6 +1006,7 @@ func _title(text: String, size: int) -> Label:
 	t.add_theme_font_size_override("font_size", size)
 	t.add_theme_color_override("font_color", Color(0.88, 0.84, 0.76))
 	t.add_theme_color_override("font_outline_color", OUTLINE)
+	@warning_ignore("integer_division")
 	t.add_theme_constant_override("outline_size", clampi(size / 9, 6, 12))
 	# лёгкая тёмно-красная тень — характер без шума
 	t.add_theme_color_override("font_shadow_color", Color(0.45, 0.04, 0.02, 0.6))

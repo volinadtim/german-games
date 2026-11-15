@@ -256,6 +256,7 @@ static func starter() -> AudioStreamWAV:
 static func engine_loop() -> AudioStreamWAV:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 4343
+	@warning_ignore("integer_division")
 	var period := RATE / 30     # 30 вспышек в секунду: за 2 с ровно 60, петля сходится
 	var total := RATE * 3
 	var exh := Sfx.Svf.new(240.0, 1.1)

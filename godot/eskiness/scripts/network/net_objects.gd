@@ -62,10 +62,10 @@ func _send_pickup(p) -> void:
 
 
 @rpc("any_peer", "reliable")
-func pk_spawn(nid: String, id: String, n: int, pos: Vector3, vel: Vector3, leave: bool, dur: float, dropped: bool) -> void:
+func pk_spawn(nid: String, id: String, n: int, pos: Vector3, vel: Vector3, leave_after: bool, dur: float, dropped: bool) -> void:
 	if game == null:
 		if in_game:
-			early.append(pk_spawn.bind(nid, id, n, pos, vel, leave, dur, dropped))
+			early.append(pk_spawn.bind(nid, id, n, pos, vel, leave_after, dur, dropped))
 		return
 	if pickups.has(nid) or not Items.ITEMS.has(id):
 		return
@@ -73,7 +73,7 @@ func pk_spawn(nid: String, id: String, n: int, pos: Vector3, vel: Vector3, leave
 	var p = game._make_pickup(id, n, pos, vel)
 	suppress = false
 	p.set_meta("nid", nid)
-	p.need_leave = leave
+	p.need_leave = leave_after
 	if dur >= 0.0:
 		p.set_meta("dur", dur)
 	if dropped:

@@ -465,6 +465,7 @@ func _sphere(parent: Node3D, r: float, pos: Vector3, m: Material, seg := 10) -> 
 	sm.radius = r
 	sm.height = r * 2.0
 	sm.radial_segments = seg
+	@warning_ignore("integer_division")
 	sm.rings = seg / 2
 	var mi := MeshInstance3D.new()
 	mi.mesh = sm
@@ -585,10 +586,10 @@ static func _crunch() -> AudioStreamWAV:
 	var lp2 := 0.0
 	var bites := [0.0, 0.24, 0.5, 0.78]
 	for i in n:
-		var t := float(i) / rate
+		var ts := float(i) / rate
 		var v := 0.0
 		for b in bites:
-			var dt: float = t - b
+			var dt: float = ts - b
 			if dt < 0.0 or dt > 0.22:
 				continue
 			# треск: редкие острые щелчки + шум, затухание
@@ -647,9 +648,9 @@ static func _chime() -> AudioStreamWAV:
 		var start := int(rate * 0.09 * k)
 		var f: float = notes[k]
 		for i in range(start, buf.size()):
-			var t := float(i - start) / rate
-			var env := exp(-t * 2.6) * minf(1.0, t * 200.0)
-			buf[i] += (sin(TAU * f * t) + 0.35 * sin(TAU * f * 2.01 * t) * exp(-t * 6.0) + 0.15 * sin(TAU * f * 3.0 * t)) * env
+			var ts := float(i - start) / rate
+			var env := exp(-ts * 2.6) * minf(1.0, ts * 200.0)
+			buf[i] += (sin(TAU * f * ts) + 0.35 * sin(TAU * f * 2.01 * ts) * exp(-ts * 6.0) + 0.15 * sin(TAU * f * 3.0 * ts)) * env
 	return _wav(buf)
 
 
@@ -664,13 +665,13 @@ static func _dread() -> AudioStreamWAV:
 	var lp := 0.0
 	var bp := 0.0
 	for i in n:
-		var t := float(i) / rate
-		var env := minf(1.0, t * 3.0) * exp(-maxf(0.0, t - 0.9) * 2.5)
-		var hum := sin(TAU * 41.0 * t) + 0.7 * sin(TAU * 43.3 * t) + 0.3 * sin(TAU * 82.0 * t + sin(TAU * 0.7 * t))
+		var ts := float(i) / rate
+		var env := minf(1.0, ts * 3.0) * exp(-maxf(0.0, ts - 0.9) * 2.5)
+		var hum := sin(TAU * 41.0 * ts) + 0.7 * sin(TAU * 43.3 * ts) + 0.3 * sin(TAU * 82.0 * ts + sin(TAU * 0.7 * ts))
 		var nz := rng.randf() * 2.0 - 1.0
 		lp += (nz - lp) * 0.08
 		bp += (lp - bp) * 0.5
-		var whisper := (lp - bp) * 2.5 * (0.5 + 0.5 * sin(TAU * 5.0 * t)) * minf(1.0, t * 1.5)
-		var hit := sin(TAU * 55.0 * t) * exp(-t * 9.0) * 1.5
+		var whisper := (lp - bp) * 2.5 * (0.5 + 0.5 * sin(TAU * 5.0 * ts)) * minf(1.0, ts * 1.5)
+		var hit := sin(TAU * 55.0 * ts) * exp(-ts * 9.0) * 1.5
 		buf[i] = hum * env * 0.6 + whisper * env + hit
 	return _wav(buf)

@@ -325,6 +325,7 @@ func spawn_loot(id: String, n: int, pos: Vector3, vel: Vector3, spread: float, l
 	var parts := 1
 	if id == "coin":
 		parts = clampi(n, 1, 6)
+	@warning_ignore("integer_division")
 	var per := n / parts
 	var rest := n - per * parts
 	for k in parts:

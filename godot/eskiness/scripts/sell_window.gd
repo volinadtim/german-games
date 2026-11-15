@@ -233,7 +233,10 @@ func _src_items(side: String) -> Array:
 				out.append({"id": String(it[0]), "n": int(it[1]), "dur": float(it[2]) if it.size() > 2 else -1.0})
 		return out
 	for s in game.inv.slots:
-		out.append(null if s == null else {"id": String(s["id"]), "n": int(s["n"]), "dur": float(s.get("dur", -1.0))})
+		if s == null:
+			out.append(null)
+		else:
+			out.append({"id": String(s["id"]), "n": int(s["n"]), "dur": float(s.get("dur", -1.0))})
 	return out
 
 
