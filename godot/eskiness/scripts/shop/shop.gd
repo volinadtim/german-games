@@ -14,6 +14,17 @@ func get_prompt(_game) -> String:
 	return "[E] Trinkets Market"
 
 
+## Открыть магазин сразу на вкладке i (верстак дома открывает «Чертежи»).
+func open_tab(g, i: int) -> void:
+	game = g
+	if opened:
+		return
+	_last_toggle = Time.get_ticks_msec()
+	tab = i
+	_open()
+	_show_tab(i)
+
+
 func interact(g) -> void:
 	game = g
 	if Time.get_ticks_msec() - _last_toggle < 350:

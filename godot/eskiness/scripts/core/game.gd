@@ -111,6 +111,9 @@ func setup(p: Player) -> void:
 	storage.position = Vector3(-11.55, 0.0, -2.7)   # вплотную к стене (был зазор 11 см)
 	storage.rotation.y = PI / 2.0
 	add_child(storage)
+	home = preload("res://scripts/world/bunker_home.gd").new()
+	home.game = self
+	add_child(home)
 	glass_floor = GlassFloor.new()
 	add_child(glass_floor)
 	_collect_obstacles()

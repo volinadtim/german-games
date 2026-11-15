@@ -149,6 +149,7 @@ func _add_keys(action: String, keys: Array) -> void:
 ## и кровотечение 10 с по 3 в секунду. Повторный наступ обновляет таймер. Снимает бинт или аптечка.
 var loot_window: LootWindow   # окно лута ящиков и сейфа
 var storage: Chest            # сундук-хранилище
+var home                      # world/bunker_home.gd — постройки по чертежам
 var glass_floor: GlassFloor   # кучки стекла (glass_floor.gd), случайные каждую новую игру
 const BLEED_TIME := 10.0
 const BLEED_DPS := 3.0
