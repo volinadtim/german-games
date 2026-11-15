@@ -148,11 +148,32 @@ func _enter_game() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F10:
+		_toggle_ui()   # F10 — скрыть/показать весь интерфейс (кроме меню)
+		return
 	if event.is_action_pressed("toggle_fullscreen"):
 		if menu:
 			menu.toggle_fullscreen()   # режим экрана хранится в настройках меню
 		else:
 			toggle_fullscreen()
+
+
+var ui_hidden := false
+
+
+func _toggle_ui() -> void:
+	ui_hidden = not ui_hidden
+	var stack: Array[Node] = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		if n is CanvasLayer and n != menu:
+			if ui_hidden:
+				n.set_meta("f10_vis", n.visible)
+				n.visible = false
+			else:
+				n.visible = bool(n.get_meta("f10_vis", true))
+			continue
+		stack.append_array(n.get_children())
 
 
 static func toggle_fullscreen() -> void:

@@ -189,6 +189,7 @@ var killer := ""         # кто из игроков ударил послед�
 var killer_t := 0.0
 var ui: CanvasLayer
 var ping_l: Label
+var ping_shown := true   # ~ переключает
 var info_l: Label
 
 

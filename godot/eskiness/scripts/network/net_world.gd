@@ -212,23 +212,27 @@ func _game_tick(delta: float) -> void:
 		ping_l.text = txt
 
 
+func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_QUOTELEFT:
+		ping_shown = not ping_shown
+		if ping_l and is_instance_valid(ping_l):
+			ping_l.visible = ping_shown
+
+
 func _make_ui() -> void:
 	if ui and is_instance_valid(ui):
 		ui.queue_free()
 	ui = CanvasLayer.new()
 	ui.layer = 4
 	add_child(ui)
-	ping_l = Label.new()   # сверху по центру: справа вверху на телефоне — экранные кнопки
-	ping_l.anchor_left = 0.5
-	ping_l.anchor_right = 0.5
-	ping_l.offset_left = -200
-	ping_l.offset_right = 200
-	ping_l.offset_top = 6
-	ping_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ping_l.add_theme_font_size_override("font_size", 16)
-	ping_l.add_theme_color_override("font_color", Color(0.8, 0.78, 0.7, 0.85))
+	ping_l = Label.new()   # левый верхний угол, мелко и зелёным; ~ — показать/скрыть
+	ping_l.offset_left = 8
+	ping_l.offset_top = 4
+	ping_l.add_theme_font_size_override("font_size", 12)
+	ping_l.add_theme_color_override("font_color", Color(0.35, 1.0, 0.4, 0.9))
 	ping_l.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	ping_l.add_theme_constant_override("outline_size", 4)
+	ping_l.add_theme_constant_override("outline_size", 3)
+	ping_l.visible = ping_shown
 	ui.add_child(ping_l)
 	info_l = Label.new()
 	info_l.set_anchors_preset(Control.PRESET_CENTER)
