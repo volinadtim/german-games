@@ -196,7 +196,7 @@ func _ready() -> void:
 	pages.add_child(gen_box)
 	var grows := _page_rows(gen_box, 360)
 	for key in GENERAL_KEYS:
-		grows.add_child(_check_row(key) if key == "crosshair" else _slider_row(key))
+		grows.add_child(setting_row(key))
 
 	# «Экран и графика»: режим экрана, яркость/гамма/контраст/постеризация, пресет и каждый эффект
 	gfx_box = VBoxContainer.new()
@@ -209,8 +209,7 @@ func _ready() -> void:
 			continue   # на телефоне окна нет
 		if key == "graphics":
 			rows.add_child(_gap(6))
-		var is_check: bool = key == "posterize" or key.begins_with("g_") and SETTINGS[key][1] == 0.0 and SETTINGS[key][2] == 1.0
-		rows.add_child(_check_row(key) if is_check else _slider_row(key))
+		rows.add_child(setting_row(key))
 
 	# «Управление»: строка = действие и его клавиша; клик — назначить новую; подразделы CTL_GROUPS
 	ctl_box = VBoxContainer.new()
@@ -486,94 +485,129 @@ func _delete_slot(i: int) -> void:
 
 # ---------- настройки ----------
 
-## Строка-галочка (вкл/выкл): значение хранится как 1.0 / 0.0, как у ползунков.
-func _check_row(key: String) -> Control:
+## Строка настройки: дискретные режимы (вкл/выкл, низкая/средняя/высокая, режим экрана) — селектор «‹ значение ›»,
+## непрерывные величины — ползунок (промпт 16.11 02:26).
+func setting_row(key: String) -> Control:
 	var d: Array = SETTINGS[key]
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
+	return _select_row(key) if d[3] >= 1.0 and d[2] - d[1] <= 2.0 else _slider_row(key)
+
+
+func _row_name(text: String) -> Label:
 	var name_l := Label.new()
-	name_l.text = d[0]
+	name_l.text = text
 	name_l.custom_minimum_size = Vector2(200, 0)
 	name_l.add_theme_font_size_override("font_size", 24)
 	name_l.add_theme_color_override("font_color", Color(0.82, 0.81, 0.77))
-	row.add_child(name_l)
-	var cb := CheckBox.new()
-	cb.name = key
-	cb.focus_mode = Control.FOCUS_NONE
-	cb.button_pressed = values[key] > 0.5
-	cb.add_theme_icon_override("checked", _check_icon(true))
-	cb.add_theme_icon_override("unchecked", _check_icon(false))
-	cb.add_theme_icon_override("checked_disabled", _check_icon(true))
-	cb.add_theme_icon_override("unchecked_disabled", _check_icon(false))
-	cb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	cb.toggled.connect(func(on: bool) -> void:
-		values[key] = 1.0 if on else 0.0
-		apply_settings())
-	row.add_child(cb)
+	return name_l
+
+
+## Изменилась настройка key: пресет графики раскладывается на g_*, остальное — просто применяем.
+func _changed(key: String, v: float) -> void:
+	values[key] = v
+	if key == "graphics":
+		_apply_preset(int(round(v)))
+	else:
+		apply_settings()
+
+
+## Селектор со стрелками: ‹ значение › — по кругу; клик по самому значению — следующее.
+func _select_row(key: String) -> Control:
+	var d: Array = SETTINGS[key]
+	var row := HBoxContainer.new()
+	row.name = key
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(_row_name(d[0]))
+	var lo := int(d[1])
+	var n := int(d[2]) - lo + 1
+	var val_b := Button.new()
+	var step_by := func(dir: int) -> void:
+		var i := posmod(int(round(float(values[key]))) - lo + dir, n) + lo
+		val_b.text = _fmt(key, i).to_upper()
+		_changed(key, float(i))
+	row.add_child(_arrow_button("‹", func(): step_by.call(-1)))
+	val_b.text = _fmt(key, values[key]).to_upper()
+	val_b.focus_mode = Control.FOCUS_NONE
+	val_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	val_b.custom_minimum_size = Vector2(0, 40)
+	val_b.add_theme_font_size_override("font_size", 22)
+	val_b.add_theme_color_override("font_color", Color(0.95, 0.88, 0.78))
+	val_b.add_theme_color_override("font_hover_color", Color(1.0, 0.95, 0.88))
+	val_b.add_theme_color_override("font_pressed_color", Color(1.0, 0.95, 0.88))
+	val_b.add_theme_color_override("font_hover_pressed_color", Color(1.0, 0.95, 0.88))
+	var vs := _style(Color(0.08, 0.03, 0.03, 0.8), Color(0.35, 0.08, 0.06, 0.9))
+	var vh := _style(Color(0.16, 0.05, 0.03, 0.85), Color(0.7, 0.16, 0.1))
+	for st in ["normal", "pressed", "disabled"]:
+		val_b.add_theme_stylebox_override(st, vs)
+	val_b.add_theme_stylebox_override("hover", vh)
+	val_b.add_theme_stylebox_override("hover_pressed", vh)
+	val_b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	val_b.pressed.connect(func(): step_by.call(1))
+	row.add_child(val_b)
+	row.add_child(_arrow_button("›", func(): step_by.call(1)))
+	row.set_meta("val_button", val_b)
 	return row
 
 
-## Квадратик галочки в цветах меню: тёмная ячейка с красной рамкой, внутри светлая «птичка».
-func _check_icon(on: bool) -> ImageTexture:
-	const S := 30
-	var img := Image.create(S, S, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0.06, 0.03, 0.03, 0.9))
-	var frame := Color(0.6, 0.14, 0.1)
-	for i in S:
-		for k in 2:
-			img.set_pixel(i, k, frame)
-			img.set_pixel(i, S - 1 - k, frame)
-			img.set_pixel(k, i, frame)
-			img.set_pixel(S - 1 - k, i, frame)
-	if on:
-		var col := Color(0.9, 0.86, 0.76)
-		var pts := [Vector2(7, 15), Vector2(12, 21), Vector2(23, 8)]
-		for seg in 2:
-			var a: Vector2 = pts[seg]
-			var b: Vector2 = pts[seg + 1]
-			for j in 40:
-				var p := a.lerp(b, j / 39.0)
-				for dx in range(-1, 2):
-					for dy in range(-1, 2):
-						img.set_pixel(int(p.x) + dx, int(p.y) + dy, col)
-	return ImageTexture.create_from_image(img)
+func _arrow_button(text: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(44, 40)
+	b.add_theme_font_size_override("font_size", 30)
+	b.add_theme_color_override("font_color", Color(0.85, 0.3, 0.2))
+	b.add_theme_color_override("font_hover_color", Color(1.0, 0.55, 0.4))
+	b.add_theme_color_override("font_pressed_color", Color(1.0, 0.85, 0.75))
+	b.add_theme_stylebox_override("normal", _style(Color(0.05, 0.02, 0.02, 0.6), Color(0.3, 0.07, 0.05, 0.8)))
+	b.add_theme_stylebox_override("hover", _style(Color(0.2, 0.05, 0.03, 0.75), Color(0.85, 0.18, 0.1)))
+	b.add_theme_stylebox_override("pressed", _style(Color(0.3, 0.06, 0.04, 0.8), Color(1.0, 0.3, 0.2)))
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.pressed.connect(cb)
+	return b
 
 
 func _slider_row(key: String) -> Control:
 	var d: Array = SETTINGS[key]
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 14)
-	var name_l := Label.new()
-	name_l.text = d[0]
-	name_l.custom_minimum_size = Vector2(200, 0)
-	name_l.add_theme_font_size_override("font_size", 24)
-	name_l.add_theme_color_override("font_color", Color(0.82, 0.81, 0.77))
-	row.add_child(name_l)
-	var s := HSlider.new()
-	s.min_value = d[1]
-	s.max_value = d[2]
-	s.step = d[3]
-	s.value = values[key]
-	s.custom_minimum_size = Vector2(300, 32)
-	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	s.focus_mode = Control.FOCUS_NONE
-	s.scrollable = false   # колесо мыши не меняет значение — только прокручивает список (промпт 23:26)
+	row.add_child(_row_name(d[0]))
+	var s := make_slider(d[1], d[2], d[3], values[key])
 	s.name = key
 	row.add_child(s)
-	var val_l := Label.new()
-	val_l.custom_minimum_size = Vector2(70, 0)
-	val_l.add_theme_font_size_override("font_size", 22)
-	val_l.add_theme_color_override("font_color", Color(0.7, 0.7, 0.66))
+	var val_l := value_label()
 	val_l.text = _fmt(key, s.value)
 	row.add_child(val_l)
 	s.value_changed.connect(func(v: float) -> void:
-		values[key] = v
 		val_l.text = _fmt(key, v)
-		if key == "graphics":
-			_apply_preset(int(round(v)))
-		else:
-			apply_settings())
+		_changed(key, v))
 	return row
+
+
+## Ползунок в теме меню (трек, заливка, ручка — _menu_theme), растягивается на всю строку.
+func make_slider(lo: float, hi: float, st: float, v: float) -> HSlider:
+	var s := HSlider.new()
+	s.min_value = lo
+	s.max_value = hi
+	s.step = st
+	s.value = v
+	s.custom_minimum_size = Vector2(260, 36)
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	s.focus_mode = Control.FOCUS_NONE
+	s.scrollable = false   # колесо мыши не меняет значение — только прокручивает список (промпт 23:26)
+	return s
+
+
+## Значение рядом с ползунком — в маленькой плашке.
+func value_label() -> Label:
+	var l := Label.new()
+	l.custom_minimum_size = Vector2(84, 34)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	l.add_theme_font_size_override("font_size", 21)
+	l.add_theme_color_override("font_color", Color(0.95, 0.88, 0.78))
+	l.add_theme_stylebox_override("normal", _style(Color(0.08, 0.03, 0.03, 0.8), Color(0.35, 0.08, 0.06, 0.9)))
+	return l
 
 
 func _fmt(key: String, v: float) -> String:
@@ -609,8 +643,8 @@ func _set_widget(key: String) -> void:
 		var s: Node = box.find_child(key, true, false)
 		if s is HSlider:
 			s.value = values[key]
-		elif s is CheckBox:
-			s.button_pressed = values[key] > 0.5
+		elif s and s.has_meta("val_button"):
+			s.get_meta("val_button").text = _fmt(key, values[key]).to_upper()
 
 
 ## Пресет графики выставляет все отдельные настройки g_*.
@@ -1028,7 +1062,35 @@ func _menu_theme() -> Theme:
 	for type in ["Label", "Button", "CheckBox"]:
 		th.set_color("font_outline_color", type, OUTLINE)
 		th.set_constant("outline_size", type, 5)
+	# ползунки (промпт 16.11 02:26): тёмный трек, красная заливка до ручки, светлая ручка-планка
+	var track := _style(Color(0.06, 0.03, 0.03, 0.9), Color(0.3, 0.07, 0.05, 0.9))
+	track.content_margin_top = 4
+	track.content_margin_bottom = 4
+	th.set_stylebox("slider", "HSlider", track)
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.62, 0.12, 0.07)
+	fill.set_corner_radius_all(3)
+	fill.content_margin_top = 4
+	fill.content_margin_bottom = 4
+	th.set_stylebox("grabber_area", "HSlider", fill)
+	var fill_hi := fill.duplicate() as StyleBoxFlat
+	fill_hi.bg_color = Color(0.85, 0.2, 0.1)
+	th.set_stylebox("grabber_area_highlight", "HSlider", fill_hi)
+	th.set_icon("grabber", "HSlider", _grabber_icon(false))
+	th.set_icon("grabber_highlight", "HSlider", _grabber_icon(true))
+	th.set_icon("grabber_disabled", "HSlider", _grabber_icon(false))
 	return th
+
+
+## Ручка ползунка: светлая вертикальная планка с тёмной обводкой и красной серединкой.
+func _grabber_icon(hi: bool) -> ImageTexture:
+	const W := 16
+	const H := 30
+	var img := Image.create(W, H, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.02, 0.01, 0.01, 0.95))
+	img.fill_rect(Rect2i(2, 2, W - 4, H - 4), Color(1.0, 0.93, 0.84) if hi else Color(0.86, 0.8, 0.7))
+	img.fill_rect(Rect2i(7, 7, 2, H - 14), Color(0.85, 0.2, 0.1) if hi else Color(0.55, 0.12, 0.07))
+	return ImageTexture.create_from_image(img)
 
 
 func _title(text: String, size: int) -> Label:
