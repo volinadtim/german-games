@@ -33,6 +33,9 @@ func setup(p: Player) -> void:
 	hud.set_hp(hp, MAX_HP)
 	hud.restart_pressed.connect(restart)
 	hud.menu_pressed.connect(to_main_menu)
+	var con = preload("res://scripts/ui/console.gd").new()   # F1 — консоль (ui/console.gd)
+	con.game = self
+	add_child(con)
 
 	if USE_FLASHLIGHT:
 		flashlight = Flashlight.new()
