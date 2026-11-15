@@ -21,6 +21,7 @@ const SETTINGS := {
 	"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],   # градусы; 75 — прежний FOV камеры игрока
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
 	"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],      # галочка: 0 — выкл, 1 — вкл
+	"window_mode": ["Режим экрана", 0.0, 2.0, 1.0, 2.0],   # 0 оконный, 1 оконный без рамок, 2 полноэкранный (промпт 22:53)
 	# --- графика (отдельная страница, graphics.gd): пресет и каждый эффект отдельно (промпт 14.11 17:36)
 	"graphics": ["Пресет", 0.0, 2.0, 1.0, 1.0],       # 0 низкая, 1 средняя, 2 высокая — выставляет все g_*
 	"g_shadows": ["Тени ламп", 0.0, 1.0, 1.0, 1.0],
@@ -65,14 +66,15 @@ const CONTROLS := [
 	["jump", "Прыжок", ["k:32"]],                  # Пробел
 	["crouch", "Присесть (держать)", ["k:4194326"]],     # Ctrl
 	["crouch_toggle", "Присесть (переключить)", ["k:67"]],   # C
-	["attack_left", "Удар левой", ["m:1"]],        # ЛКМ
-	["attack_right", "Удар правой", ["m:2"]],      # ПКМ
+	["attack_left", "Удар левой / выстрел", ["m:1"]],        # ЛКМ
+	["attack_right", "Удар правой / прицел", ["m:2"]],      # ПКМ
 	["fists", "Боевая стойка", ["k:86"]],          # V
 	["fists_down", "Стойка (альт.)", ["m:3"]],     # СКМ — тоже переключает стойку
 	["interact", "Взаимодействие", ["k:69"]],      # E
 	["inventory", "Инвентарь", ["k:4194306", "k:73"]],   # Tab, I
 	["loot_all", "Забрать всё", ["k:82"]],         # R
 	["reload", "Перезарядка", ["k:82"]],           # R — в мире (в окне лута R — «забрать всё»)
+	["mag_eject", "Извлечь магазин (держать)", ["k:4194309"]],   # Enter (gun.gd)
 	["flashlight", "Фонарик", ["k:70"]],           # F
 	["quick_heal", "Быстрое лечение", ["k:81"]],   # Q
 	["gasmask", "Нюхич (противогаз)", ["k:71"]],           # G
@@ -82,11 +84,16 @@ const CONTROLS := [
 	["hot_3", "Слот 3", ["k:51"]],
 	["hot_4", "Слот 4", ["k:52"]],
 	["hot_5", "Слот 5", ["k:53"]],
-	["look_left", "Обзор влево", ["k:4194319"]],
-	["look_right", "Обзор вправо", ["k:4194321"]],
-	["look_up", "Обзор вверх", ["k:4194320"]],
-	["look_down", "Обзор вниз", ["k:4194322"]],
 	["toggle_fullscreen", "Полный экран", ["k:4194342"]],   # F11
+]
+
+## Разделы страницы «Управление» (промпт 22:53). Обзор стрелками (look_*) — не переназначается, ставит main.gd.
+const CTL_GROUPS := [
+	["Движение", ["move_forward", "move_back", "move_left", "move_right", "sprint", "jump", "crouch", "crouch_toggle"]],
+	["Бой", ["attack_left", "attack_right", "fists", "fists_down", "reload", "mag_eject", "throw_stone"]],
+	["Действия", ["interact", "loot_all", "flashlight", "quick_heal", "gasmask"]],
+	["Инвентарь", ["inventory", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
+	["Интерфейс", ["toggle_fullscreen"]],
 ]
 
 
@@ -158,6 +165,8 @@ func _ready() -> void:
 	for key in SETTINGS:
 		if key == "graphics" or key.begins_with("g_"):
 			continue
+		if key == "window_mode" and _mobile():
+			continue   # на телефоне окна нет
 		settings_box.add_child(_check_row(key) if key == "crosshair" else _slider_row(key))
 	settings_box.add_child(_gap(6))
 
@@ -195,8 +204,23 @@ func _ready() -> void:
 	crows.add_theme_constant_override("separation", 4)
 	crows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	csc.add_child(crows)
+	var shown := {}
+	for g in CTL_GROUPS:
+		var gl := Label.new()
+		gl.text = g[0].to_upper()
+		gl.add_theme_font_size_override("font_size", 24)
+		gl.add_theme_color_override("font_color", Color(0.9, 0.35, 0.25))
+		if not shown.is_empty():
+			crows.add_child(_gap(8))
+		crows.add_child(gl)
+		for a in g[1]:
+			for c in CONTROLS:
+				if c[0] == a:
+					crows.add_child(_bind_row(c[0], c[1]))
+					shown[a] = true
 	for c in CONTROLS:
-		crows.add_child(_bind_row(c[0], c[1]))
+		if not shown.has(c[0]):
+			crows.add_child(_bind_row(c[0], c[1]))   # действие без раздела — в конце, чтобы не потерялось
 	ctl_box.add_child(_gap(4))
 	var cbtns := HBoxContainer.new()
 	cbtns.add_theme_constant_override("separation", 16)
@@ -235,7 +259,7 @@ func _ready() -> void:
 	snd.pressed.connect(func(): AudioServer.set_bus_mute(0, not AudioServer.is_bus_mute(0)))
 	corner.add_child(snd)
 	var scr: Button = IconButton.new("screen")
-	scr.pressed.connect(func(): get_parent().toggle_fullscreen())
+	scr.pressed.connect(toggle_fullscreen)
 	corner.add_child(scr)
 	icons = [snd, scr]
 
@@ -520,6 +544,8 @@ func _fmt(key: String, v: float) -> String:
 		return "вкл" if v > 0.5 else "выкл"
 	if key == "fov":
 		return "%d°" % int(v)
+	if key == "window_mode":
+		return ["окно", "без рамок", "полный"][clampi(int(round(v)), 0, 2)]
 	if key == "graphics" or key == "g_shadow_res" or key == "g_textures" or key == "g_geometry":
 		return Graphics.NAMES[clampi(int(round(v)), 0, 2)]
 	if key == "g_aa":
@@ -578,6 +604,7 @@ func _apply_ui_scale() -> void:
 
 
 func apply_settings() -> void:
+	_apply_window()
 	_apply_ui_scale()
 	Graphics.apply(get_tree(), values)
 	PlayerScript.look_sens = values["sensitivity"]
@@ -595,6 +622,58 @@ func apply_settings() -> void:
 		post_mat.set_shader_parameter("contrast", values["contrast"])
 		# 0% — постеризации почти нет (64 уровня), 100% — сильная (4 уровня)
 		post_mat.set_shader_parameter("levels", lerpf(64.0, 4.0, values["posterize"] / 100.0))
+
+
+static func _mobile() -> bool:
+	return OS.has_feature("mobile") or preload("res://scripts/touch_controls.gd").wanted()
+
+
+var _win_applied := -1
+
+## Режим экрана: 0 — окно с рамкой (≈75% экрана, по центру), 1 — окно без рамок во весь экран, 2 — полноэкранный.
+func _apply_window() -> void:
+	if _mobile() or DisplayServer.get_name() == "headless":
+		return
+	var m := clampi(int(round(float(values.get("window_mode", 2.0)))), 0, 2)
+	if m == _win_applied:
+		return
+	_win_applied = m
+	var scr := DisplayServer.window_get_current_screen()
+	var ss := DisplayServer.screen_get_size(scr)
+	var sp := DisplayServer.screen_get_position(scr)
+	match m:
+		2:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+		1:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, true)
+			DisplayServer.window_set_size(ss)
+			DisplayServer.window_set_position(sp)
+		_:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, false)
+			var ws := Vector2i(Vector2(ss) * 0.75)
+			DisplayServer.window_set_size(ws)
+			DisplayServer.window_set_position(sp + (ss - ws) / 2)
+
+
+## F11 и значок в углу: полноэкранный ↔ оконный (без рамок, если он был выбран), сохраняется в настройки.
+var _last_windowed := 0.0
+
+func toggle_fullscreen() -> void:
+	if _mobile():
+		return
+	var cur := float(values.get("window_mode", 2.0))
+	if cur >= 1.5:
+		values["window_mode"] = _last_windowed
+	else:
+		_last_windowed = cur
+		values["window_mode"] = 2.0
+	_set_widget("window_mode")
+	apply_settings()
+	_save()
 
 
 func _load() -> void:

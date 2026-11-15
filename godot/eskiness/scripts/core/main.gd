@@ -149,7 +149,10 @@ func _enter_game() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_fullscreen"):
-		toggle_fullscreen()
+		if menu:
+			menu.toggle_fullscreen()   # режим экрана хранится в настройках меню
+		else:
+			toggle_fullscreen()
 
 
 static func toggle_fullscreen() -> void:
