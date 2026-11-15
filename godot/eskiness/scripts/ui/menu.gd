@@ -49,6 +49,13 @@ var settings_box: VBoxContainer
 var gfx_box: VBoxContainer        # страница «Графика»
 var settings_from := "main"
 var ctl_box: VBoxContainer        # страница «Управление»
+var gen_box: VBoxContainer        # страница «Основное»
+var cat := "general"              # открытая категория настроек
+var cat_btns := {}                # категория -> кнопка слева
+var ctl_tabs: Array = []          # кнопки-вкладки разделов «Управления»
+var ctl_groups: Array = []        # бинды каждого раздела (виден только активный)
+## Категория «Основное»; всё остальное из SETTINGS — в «Экран и графика».
+const GENERAL_KEYS := ["volume", "sensitivity", "fov", "ui_scale", "crosshair"]
 var net_box: Control              # страница «Сетевая игра» (net_lobby.gd, промпт 14.11 19:37)
 var ctl_rows := {}                # действие -> кнопка с клавишей
 var binds := {}                   # действие -> ["k:<physical_keycode>" | "m:<кнопка мыши>"] (только изменённые)
@@ -158,91 +165,90 @@ func _ready() -> void:
 	net_box = preload("res://scripts/network/net_lobby.gd").new(self)
 	center.add_child(net_box)
 
-	# --- настройки
+	# --- настройки (промпт 23:26): слева категории «Основное» / «Экран и графика» / «Управление», справа — их страница
 	settings_box = _vbox(center)
 	settings_box.add_child(_title("НАСТРОЙКИ", 60))
-	settings_box.add_child(_gap(6))
+	settings_box.add_child(_gap(4))
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 24)
+	settings_box.add_child(body)
+	var cats := VBoxContainer.new()
+	cats.add_theme_constant_override("separation", 10)
+	body.add_child(cats)
+	var pages := VBoxContainer.new()
+	pages.custom_minimum_size = Vector2(660, 0)
+	body.add_child(pages)
+	var touch: bool = preload("res://scripts/ui/touch_controls.gd").wanted()
+
+	# «Основное»
+	gen_box = VBoxContainer.new()
+	pages.add_child(gen_box)
+	var grows := _page_rows(gen_box, 360)
+	for key in GENERAL_KEYS:
+		grows.add_child(_check_row(key) if key == "crosshair" else _slider_row(key))
+
+	# «Экран и графика»: режим экрана, яркость/гамма/контраст/постеризация, пресет и каждый эффект
+	gfx_box = VBoxContainer.new()
+	pages.add_child(gfx_box)
+	var rows := _page_rows(gfx_box, 360)
 	for key in SETTINGS:
-		if key == "graphics" or key.begins_with("g_"):
+		if key in GENERAL_KEYS:
 			continue
 		if key == "window_mode" and _mobile():
 			continue   # на телефоне окна нет
-		settings_box.add_child(_check_row(key) if key == "crosshair" else _slider_row(key))
-	settings_box.add_child(_gap(6))
+		if key == "graphics":
+			rows.add_child(_gap(6))
+		var is_check: bool = key.begins_with("g_") and SETTINGS[key][1] == 0.0 and SETTINGS[key][2] == 1.0
+		rows.add_child(_check_row(key) if is_check else _slider_row(key))
 
-	# --- страница «Графика»: пресет сверху, ниже каждый эффект (с прокруткой — строк много)
-	gfx_box = _vbox(center)
-	gfx_box.add_child(_title("ГРАФИКА", 60))
-	gfx_box.add_child(_gap(8))
-	gfx_box.add_child(_slider_row("graphics"))
-	var sc := ScrollContainer.new()
-	sc.custom_minimum_size = Vector2(640, 330)
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	gfx_box.add_child(sc)
-	var rows := VBoxContainer.new()
-	rows.add_theme_constant_override("separation", 6)
-	sc.add_child(rows)
-	for key in SETTINGS:
-		if key.begins_with("g_"):
-			var is_check: bool = SETTINGS[key][1] == 0.0 and SETTINGS[key][2] == 1.0
-			rows.add_child(_check_row(key) if is_check else _slider_row(key))
-	gfx_box.add_child(_gap(8))
-	gfx_box.add_child(_button("Назад", func():
-		_save()
-		_show("settings")))
-	# --- страница «Управление»: строка = действие и его клавиша; клик — назначить новую
-	ctl_box = _vbox(center)
-	ctl_box.add_child(_title("УПРАВЛЕНИЕ", 60))
-	var hint := _subtitle("Нажмите на клавишу, чтобы переназначить. Esc — отмена.")
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ctl_box.add_child(hint)
-	var csc := ScrollContainer.new()
-	csc.custom_minimum_size = Vector2(640, 300)
-	csc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	ctl_box.add_child(csc)
-	var crows := VBoxContainer.new()
+	# «Управление»: строка = действие и его клавиша; клик — назначить новую; подразделы CTL_GROUPS
+	ctl_box = VBoxContainer.new()
+	pages.add_child(ctl_box)
+	ctl_box.add_child(_subtitle("Нажмите на клавишу, чтобы переназначить. Esc — отмена."))
+	# вкладки разделов в строку (промпт 23:28): видны бинды только активной вкладки
+	var tabs := HBoxContainer.new()
+	tabs.add_theme_constant_override("separation", 6)
+	ctl_box.add_child(tabs)
+	var crows := _page_rows(ctl_box, 290)
 	crows.add_theme_constant_override("separation", 4)
-	crows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	csc.add_child(crows)
 	var shown := {}
-	for g in CTL_GROUPS:
-		var gl := Label.new()
-		gl.text = g[0].to_upper()
-		gl.add_theme_font_size_override("font_size", 24)
-		gl.add_theme_color_override("font_color", Color(0.9, 0.35, 0.25))
-		if not shown.is_empty():
-			crows.add_child(_gap(8))
-		crows.add_child(gl)
+	for gi in CTL_GROUPS.size():
+		var g: Array = CTL_GROUPS[gi]
+		var grp := VBoxContainer.new()
+		grp.add_theme_constant_override("separation", 4)
+		crows.add_child(grp)
+		ctl_groups.append(grp)
+		var tb := _button(g[0], func(): _set_ctl_tab(gi))
+		tb.custom_minimum_size = Vector2(0, 44)
+		tb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tb.add_theme_font_size_override("font_size", 19)
+		tabs.add_child(tb)
+		ctl_tabs.append(tb)
 		for a in g[1]:
 			for c in CONTROLS:
 				if c[0] == a:
-					crows.add_child(_bind_row(c[0], c[1]))
+					grp.add_child(_bind_row(c[0], c[1]))
 					shown[a] = true
 	for c in CONTROLS:
 		if not shown.has(c[0]):
-			crows.add_child(_bind_row(c[0], c[1]))   # действие без раздела — в конце, чтобы не потерялось
-	ctl_box.add_child(_gap(4))
-	var cbtns := HBoxContainer.new()
-	cbtns.add_theme_constant_override("separation", 16)
-	cbtns.add_child(_button("По умолчанию", _reset_binds))
-	cbtns.add_child(_button("Назад", _close_controls))
-	ctl_box.add_child(cbtns)
+			ctl_groups[-1].add_child(_bind_row(c[0], c[1]))   # действие без раздела — в последнюю вкладку, чтобы не потерялось
+	_set_ctl_tab(0)
 
-	# «Графика», «Управление», «По умолчанию», «Назад» — по два в ряд, чтобы всё влезало
-	var btns := HBoxContainer.new()
-	btns.add_theme_constant_override("separation", 16)
-	btns.add_child(_button("Графика", func(): _show("gfx")))
-	# на телефоне клавиш нет — страницу «Управление» не показываем (экранные кнопки: touch_controls.gd)
-	if not preload("res://scripts/ui/touch_controls.gd").wanted():
-		btns.add_child(_button("Управление", func(): _show("controls")))
-	settings_box.add_child(btns)
-	# на телефоне (без «Управления») — все кнопки в один ряд: по высоте экран 20:9 тесный
-	var btns2 := btns if preload("res://scripts/ui/touch_controls.gd").wanted() else HBoxContainer.new()
-	btns2.add_theme_constant_override("separation", 16)
-	btns2.add_child(_button("По умолчанию", _reset))
-	btns2.add_child(_button("Назад", _close_settings))
-	if btns2 != btns:
-		settings_box.add_child(btns2)
+	# кнопки категорий (на телефоне клавиш нет — «Управление» не показываем, экранные кнопки: touch_controls.gd)
+	for c in [["general", "Основное"], ["gfx", "Экран и графика"], ["controls", "Управление"]]:
+		if c[0] == "controls" and touch:
+			continue
+		var id: String = c[0]
+		var b := _button(c[1], func(): _set_cat(id))
+		cats.add_child(b)
+		cat_btns[id] = b
+	cats.add_child(_gap(18))
+	cats.add_child(_button("По умолчанию", _reset_cat))
+	cats.add_child(_button("Назад", _close_settings))
+	for b in cats.get_children():
+		if b is Button:
+			b.custom_minimum_size = Vector2(270, 52)
+	_set_cat("general")
 
 	# --- иконки в углу
 	var corner := HBoxContainer.new()
@@ -296,12 +302,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
 		return
 	get_viewport().set_input_as_handled()
-	if ctl_box.visible:
-		_close_controls()
-	elif gfx_box.visible:
-		_save()
-		_show("settings")
-	elif settings_box.visible:
+	if settings_box.visible:
 		_close_settings()
 	elif slots_box.visible:
 		_show("main")
@@ -368,10 +369,8 @@ func _show(which: String) -> void:
 	pause_box.visible = which == "pause"
 	slots_box.visible = which == "slots"
 	settings_box.visible = which == "settings"
-	gfx_box.visible = which == "gfx"
-	ctl_box.visible = which == "controls"
 	net_box.visible = which == "net"
-	if which != "controls":
+	if which != "settings":
 		_stop_wait()
 
 
@@ -521,6 +520,7 @@ func _slider_row(key: String) -> Control:
 	s.custom_minimum_size = Vector2(300, 32)
 	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	s.focus_mode = Control.FOCUS_NONE
+	s.scrollable = false   # колесо мыши не меняет значение — только прокручивает список (промпт 23:26)
 	s.name = key
 	row.add_child(s)
 	var val_l := Label.new()
@@ -568,7 +568,7 @@ func _reset() -> void:
 
 ## Обновить ползунок/галочку под values[key] (виджет может быть на странице настроек или «Графика»).
 func _set_widget(key: String) -> void:
-	for box in [settings_box, gfx_box]:
+	for box in [settings_box]:
 		var s: Node = box.find_child(key, true, false)
 		if s is HSlider:
 			s.value = values[key]
@@ -863,10 +863,58 @@ func _refresh_binds() -> void:
 		ctl_rows[a].text = _binds_text(a)
 
 
-func _close_controls() -> void:
+## Переключить категорию настроек: показать её страницу, подсветить кнопку слева.
+func _set_cat(id: String) -> void:
 	_stop_wait()
-	_save()
-	_show("settings")
+	cat = id
+	gen_box.visible = id == "general"
+	gfx_box.visible = id == "gfx"
+	ctl_box.visible = id == "controls"
+	for k in cat_btns:
+		_mark_btn(cat_btns[k], k == id)
+
+
+## Вкладка раздела «Управления»: показать её бинды, подсветить кнопку.
+func _set_ctl_tab(i: int) -> void:
+	_stop_wait()
+	for k in ctl_groups.size():
+		ctl_groups[k].visible = k == i
+		_mark_btn(ctl_tabs[k], k == i)
+
+
+## Подсветка активной кнопки (категории/вкладки).
+func _mark_btn(b: Button, on: bool) -> void:
+	if on:
+		b.add_theme_stylebox_override("normal", _btn_style(Color(0.3, 0.05, 0.03, 0.7), Color(1.0, 0.3, 0.2), 8, 30))
+		b.add_theme_color_override("font_color", Color(1.0, 0.92, 0.82))
+	else:
+		b.add_theme_stylebox_override("normal", _btn_style(Color(0.04, 0.02, 0.02, 0.55), Color(0.45, 0.08, 0.05, 0.85), 4, 22))
+		b.add_theme_color_override("font_color", Color(0.8, 0.77, 0.7))
+
+
+## «По умолчанию» — только для открытой категории.
+func _reset_cat() -> void:
+	if cat == "controls":
+		_reset_binds()
+		return
+	for key in SETTINGS:
+		if (key in GENERAL_KEYS) == (cat == "general"):
+			values[key] = SETTINGS[key][4]
+			_set_widget(key)
+	apply_settings()
+
+
+## Прокручиваемый список строк на странице настроек.
+func _page_rows(page: Control, h: float) -> VBoxContainer:
+	var sc := ScrollContainer.new()
+	sc.custom_minimum_size = Vector2(660, h)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	page.add_child(sc)
+	var r := VBoxContainer.new()
+	r.add_theme_constant_override("separation", 6)
+	r.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(r)
+	return r
 
 
 # ---------- оформление ----------
