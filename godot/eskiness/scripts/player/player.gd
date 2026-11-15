@@ -39,7 +39,7 @@ func _ready() -> void:
 	head.position = Vector3(0, CAM_Y, -0.22)
 	add_child(head)
 	cam = Camera3D.new()
-	cam.near = 0.06
+	cam.near = 0.04
 	cam.fov = fov_base
 	head.add_child(cam)
 

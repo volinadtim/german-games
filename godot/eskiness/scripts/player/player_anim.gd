@@ -25,6 +25,29 @@ func _update_crouch(delta: float) -> void:
 
 
 ## Можно ли встать: лучи вверх от верха приседа до роста стоя (центр и 4 точки по краю).
+## Камера не залезает в стену (промпт 23:29): сфера от центра тела до глаз, при касании голова отъезжает назад.
+var _cam_sphere: SphereShape3D
+
+func _cam_wall_pullback() -> void:
+	if cam == null or not cam.current:
+		return
+	if _cam_sphere == null:
+		_cam_sphere = SphereShape3D.new()
+		_cam_sphere.radius = 0.15
+	var from := global_transform * Vector3(0, head.position.y, 0)
+	var to := global_transform * head.position
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = _cam_sphere
+	q.transform = Transform3D(Basis(), from)
+	q.motion = to - from
+	q.exclude = [get_rid()]
+	q.collision_mask = 1
+	var r := get_world_3d().direct_space_state.cast_motion(q)
+	if r.size() == 2 and r[0] < 1.0:
+		head.position.x *= r[0]
+		head.position.z *= r[0]
+
+
 func _head_blocked() -> bool:
 	var space := get_world_3d().direct_space_state
 	for o in [Vector3.ZERO, Vector3(0.22, 0, 0), Vector3(-0.22, 0, 0), Vector3(0, 0, 0.22), Vector3(0, 0, -0.22)]:
@@ -150,6 +173,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		var eye := hb + hd * Vector3(0, 0.08, -0.1)
 		head.position.y = maxf(head.position.y, eye.y)
 		head.position.z = minf(head.position.z, eye.z)
+	_cam_wall_pullback()
 	var want_fov: float = fov_base * (gun.fov_mult() if gun else 1.0) + (7.0 if sprinting else 0.0)   # прицел — gun.gd
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 	_apply_bones()
