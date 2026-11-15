@@ -7,6 +7,8 @@ extends CanvasLayer
 ## Рыночная — цена в магазине (Weapons.SHOP, shop.gd: CONSUMABLES). У хлама, которого в магазине нет,
 ## рыночная = 2 × прежняя «цена скупки» (поле price в items.gd), так что за него дают те же 2/3/3/5.
 ## Монеты и квестовые вещи (car_key и всё с "quest") не продаются.
+## Продажа из сундука дома (промпт 15.11 23:10): show_window(chest) — слева содержимое сундука вместо сумки,
+## непроданное возвращается в сундук. Тогда окно само отпускает/забирает управление игроком.
 
 const Items := preload("res://scripts/items.gd")
 const Weapons := preload("res://scripts/weapons.gd")
@@ -19,6 +21,8 @@ var game
 var shop                        # shop.gd — пересобрать его после продажи
 var open := false
 var pending: Array = []         # [[id, n, прочность или -1], ...]
+var src = null                  # сундук (chest.gd, kind storage) — продаём из него; null — из сумки
+var src_l: Label
 var bag_grid: GridContainer
 var sell_grid: GridContainer
 var total_l: Label
@@ -151,7 +155,8 @@ func _ready() -> void:
 	v.add_child(cols)
 	var bc := VBoxContainer.new()
 	cols.add_child(bc)
-	bc.add_child(_label("СУМКА", 24, Color(0.86, 0.85, 0.8)))
+	src_l = _label("СУМКА", 24, Color(0.86, 0.85, 0.8))
+	bc.add_child(src_l)
 	bag_grid = _pane(bc, "bag")
 	var sc := VBoxContainer.new()
 	cols.add_child(sc)
@@ -212,11 +217,59 @@ func _label(t: String, size: int, col: Color) -> Label:
 	return l
 
 
-func show_window() -> void:
+func show_window(from = null) -> void:
+	src = from
 	open = true
 	visible = true
 	pending = []
+	src_l.text = "СУНДУК" if src else "СУМКА"
+	if src and game.player:
+		game.player.active = false
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_rebuild()
+
+
+## Ячейки левой колонки: сумка или сундук — [{id, n, dur} или null].
+func _src_items() -> Array:
+	var out: Array = []
+	if src:
+		for it in src.contents:
+			out.append({"id": String(it[0]), "n": int(it[1]), "dur": float(it[2]) if it.size() > 2 else -1.0})
+		return out
+	for s in game.inv.slots:
+		out.append(null if s == null else {"id": String(s["id"]), "n": int(s["n"]), "dur": float(s.get("dur", -1.0))})
+	return out
+
+
+## Забрать n штук из ячейки idx левой колонки. Возвращает, сколько взято.
+func _take_src(idx: int, n: int) -> int:
+	if src:
+		if idx >= src.contents.size():
+			return 0
+		var it: Array = src.contents[idx]
+		var k := mini(n, int(it[1]))
+		it[1] = int(it[1]) - k
+		if int(it[1]) <= 0:
+			src.contents.remove_at(idx)
+		return k
+	var got: Array = game.inv.take_at(idx, n)
+	return int(got[1])
+
+
+## Вернуть в левую колонку. Возвращает, сколько не влезло (в сундук влезает всё).
+func _give_src(id: String, n: int, dur: float) -> int:
+	if src:
+		if dur < 0.0:
+			for it in src.contents:
+				if String(it[0]) == id and it.size() <= 2:
+					it[1] = int(it[1]) + n
+					return 0
+		var e: Array = [id, n]
+		if dur >= 0.0:
+			e.append(dur)
+		src.contents.append(e)
+		return 0
+	return game.inv.add(id, n, dur)
 
 
 ## Закрыть: что не продано — обратно в сумку, не влезло — на пол.
@@ -226,7 +279,7 @@ func close() -> void:
 	open = false
 	visible = false
 	for it in pending:
-		var left: int = game.inv.add(String(it[0]), int(it[1]), float(it[2]))
+		var left: int = _give_src(String(it[0]), int(it[1]), float(it[2]))
 		if left > 0:
 			var fwd: Vector3 = -game.player.global_transform.basis.z
 			var p = game._make_pickup(String(it[0]), left, game.player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5, fwd * 2.0 + Vector3(0, 1.0, 0))
@@ -235,6 +288,11 @@ func close() -> void:
 				p.set_meta("dur", float(it[2]))
 			game.hud.toast("Сумка полна — %s на полу" % Items.item_name(String(it[0])))
 	pending = []
+	if src:
+		src = null
+		if game and game.player and game.alive:
+			game.player.active = true
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if shop:
 		shop._refresh()
 
@@ -249,7 +307,8 @@ func _total() -> int:
 ## Переложить из колонки side (ячейка idx): вся стопка или одна штука.
 func click(side: String, idx: int, one: bool) -> void:
 	if side == "bag":
-		var s = game.inv.slots[idx] if idx < game.inv.slots.size() else null
+		var items := _src_items()
+		var s = items[idx] if idx < items.size() else null
 		if s == null:
 			return
 		var id: String = s["id"]
@@ -257,17 +316,17 @@ func click(side: String, idx: int, one: bool) -> void:
 			info_l.text = "%s магазин не берёт" % Items.item_name(id)
 			game.play_ui("buzz", -14.0)
 			return
-		var dur := float(s.get("dur", -1.0))
-		var got: Array = game.inv.take_at(idx, 1 if one else int(s["n"]))
-		if int(got[1]) <= 0:
+		var dur := float(s["dur"])
+		var got := _take_src(idx, 1 if one else int(s["n"]))
+		if got <= 0:
 			return
-		_add_pending(id, int(got[1]), dur)
+		_add_pending(id, got, dur)
 	else:
 		if idx >= pending.size():
 			return
 		var it: Array = pending[idx]
 		var want := 1 if one else int(it[1])
-		var left: int = game.inv.add(String(it[0]), want, float(it[2]))
+		var left: int = _give_src(String(it[0]), want, float(it[2]))
 		var moved := want - left
 		if moved <= 0:
 			info_l.text = "Сумка полна"
@@ -314,16 +373,17 @@ func _rebuild() -> void:
 		for c in g.get_children():
 			g.remove_child(c)
 			c.queue_free()
-	for i in game.inv.slots.size():
+	var items := _src_items()
+	for i in maxi(items.size(), 10):
 		var c := Cell.new()
 		c.sw = self
 		c.side = "bag"
 		c.idx = i
-		var s = game.inv.slots[i]
+		var s = items[i] if i < items.size() else null
 		if s != null:
 			c.id = String(s["id"])
 			c.n = int(s["n"])
-			c.dur = float(s.get("dur", -1.0))
+			c.dur = float(s["dur"])
 			c.dim = market(c.id) <= 0
 		bag_grid.add_child(c)
 	for i in maxi(pending.size(), 10):

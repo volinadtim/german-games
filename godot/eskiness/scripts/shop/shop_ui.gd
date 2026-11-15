@@ -424,7 +424,7 @@ func _buy_upgrade() -> void:
 ## Окно продажи поверх магазина.
 func _open_sell() -> void:
 	if sell_win == null:
-		sell_win = load("res://sell_window.gd").new()
+		sell_win = load("res://scripts/sell_window.gd").new()
 		sell_win.game = game
 		sell_win.shop = self
 		add_child(sell_win)

@@ -152,6 +152,15 @@ func _ready() -> void:
 	all_b.add_theme_font_size_override("font_size", 20)
 	all_b.pressed.connect(take_all)
 	hb.add_child(all_b)
+	# продажа прямо из сундука дома (промпт 15.11 23:10): sell_window.gd с источником — сундук
+	sell_b = Button.new()
+	sell_b.text = "Продать"
+	sell_b.focus_mode = Control.FOCUS_NONE
+	sell_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sell_b.add_theme_font_size_override("font_size", 20)
+	sell_b.add_theme_color_override("font_color", Color(1.0, 0.7, 0.45))
+	sell_b.pressed.connect(_sell_from_src)
+	hb.add_child(sell_b)
 	var close_b := Button.new()
 	close_b.text = "Закрыть"
 	close_b.focus_mode = Control.FOCUS_NONE
@@ -204,12 +213,27 @@ func show_for(c) -> void:
 		t = "СУНДУК" if storage else ("СЕЙФ" if c.get("kind") == "safe" else "ЯЩИК")
 	title.text = String(t)
 	bag_col.visible = storage
+	sell_b.visible = storage
 	all_b.visible = true
 	info.text = "Клик — переложить стопку · Shift+клик — одну · можно перетаскивать · R — забрать всё · E / Esc — закрыть" if storage \
 		else "Клик — взять · R — забрать всё · E / Esc — закрыть"
 	game.player.active = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_rebuild()
+
+
+var sell_b: Button
+var sell_win
+
+
+func _sell_from_src() -> void:
+	var c = src
+	close()
+	if sell_win == null:
+		sell_win = load("res://scripts/sell_window.gd").new()
+		sell_win.game = game
+		game.add_child(sell_win)
+	sell_win.show_window(c)
 
 
 func close() -> void:
