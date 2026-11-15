@@ -37,9 +37,11 @@ func _build_ui() -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.55)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.gui_input.connect(func(e: InputEvent): preload("res://scripts/loot_window.gd")._click_away(dim, e, _close))   # клик мимо — закрыть (промпт 02:15)
 	ui.add_child(dim)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE   # клики мимо окна — в dim
 	ui.add_child(center)
 	var panel := PanelContainer.new()
 	var psb := _sb(Color(0.1, 0.07, 0.045, 0.97), Color(0.45, 0.3, 0.15), 3, 6, 0)

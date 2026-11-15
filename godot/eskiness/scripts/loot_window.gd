@@ -104,7 +104,7 @@ func _ready() -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.35)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dim.gui_input.connect(func(e: InputEvent): _click_away(dim, e, close))   # клик мимо — закрыть (промпт 02:15)
 	add_child(dim)
 	var cc := CenterContainer.new()
 	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -160,6 +160,13 @@ func _ready() -> void:
 	close_b.add_theme_font_size_override("font_size", 20)
 	close_b.pressed.connect(close)
 	hb.add_child(close_b)
+
+
+## Клик мимо окна (ЛКМ/ПКМ по затемнению) — закрыть; событие съедено, в игру не уходит.
+static func _click_away(c: Control, e: InputEvent, fn: Callable) -> void:
+	if e is InputEventMouseButton and e.pressed and e.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+		c.accept_event()
+		fn.call()
 
 
 func _label(t: String, size: int, col: Color) -> Label:

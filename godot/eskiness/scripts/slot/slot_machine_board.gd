@@ -224,9 +224,11 @@ func _build_packs() -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.5)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.gui_input.connect(func(e: InputEvent): preload("res://scripts/loot_window.gd")._click_away(dim, e, close_packs))   # клик мимо — закрыть (промпт 02:15)
 	pack_ui.add_child(dim)
 	var cc := CenterContainer.new()
 	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE   # клики мимо окна — в dim
 	pack_ui.add_child(cc)
 	var panel := PanelContainer.new()
 	var sb := StyleBoxFlat.new()

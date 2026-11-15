@@ -300,6 +300,15 @@ class DropZone extends ColorRect:
 		else:
 			inv.drop_requested.emit(k, true)
 
+	# клик мимо окна (по затемнению) — закрыть; событие съедено, в игру не уходит (промпт 02:15)
+	func _gui_input(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed and e.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+			accept_event()
+			if inv.dlg.visible:
+				inv.dlg.visible = false
+			else:
+				inv.close()
+
 
 func _ready() -> void:
 	layer = 2
