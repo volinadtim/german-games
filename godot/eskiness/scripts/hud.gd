@@ -21,7 +21,6 @@ signal menu_pressed      # экран победы → «В главное ме�
 var restart_b: Button
 var knuckles := false
 var inv  # inventory.gd — для хотбара 1–5
-var cheat_l: Label
 var bleed := 0.0          # сколько ещё течёт кровь (game.gd: _glass)
 var buffs := {}           # активные баффы (game.gd: buffs)
 var hurt := 0.0
@@ -102,21 +101,6 @@ func _ready() -> void:
 	big_toasts.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(big_toasts)
 
-	cheat_l = Label.new()
-	cheat_l.anchor_left = 0.0
-	cheat_l.anchor_right = 1.0
-	cheat_l.anchor_top = 1.0
-	cheat_l.anchor_bottom = 1.0
-	cheat_l.offset_top = -130
-	cheat_l.offset_bottom = -88
-	cheat_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cheat_l.text = "Мухлёжники будут наказаны..."
-	cheat_l.add_theme_font_size_override("font_size", 34)
-	cheat_l.add_theme_color_override("font_color", Color(0.9, 0.1, 0.06))
-	cheat_l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	cheat_l.add_theme_constant_override("outline_size", 8)
-	cheat_l.visible = false
-	root.add_child(cheat_l)
 
 	death_bg = ColorRect.new()
 	death_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -163,8 +147,6 @@ func _process(delta: float) -> void:
 		low = (0.25 + 0.15 * sin(t * 4.0)) * (1.0 - hp / (hp_max * 0.3))
 	vignette.modulate.a = maxf(hurt, low)
 	paint.queue_redraw()
-	if cheat_l.visible:
-		cheat_l.modulate.a = 0.75 + 0.25 * sin(t * 5.0)
 
 
 func set_hp(v: float, mx: float) -> void:
@@ -253,14 +235,9 @@ func _big_toast(text: String, col: Color) -> void:
 	tw.chain().tween_callback(holder.queue_free)
 
 
-## Красная надпись внизу по центру, пока живы монстры-наказание.
 func block_flash() -> void:
 	toast("БЛОК!", Color(0.6, 0.85, 1.0), true)
 	hurt = 0.0
-
-
-func cheat_warning(on: bool) -> void:
-	cheat_l.visible = on
 
 
 func show_death(on: bool) -> void:
@@ -276,7 +253,6 @@ func set_cinematic(on: bool) -> void:
 	prompt_l.visible = not on
 	toasts.visible = not on
 	big_toasts.visible = not on
-	cheat_l.visible = cheat_l.visible and not on
 
 
 ## Экран победы: экран темнеет, «ТЫ ВЫБРАЛСЯ», статистика и кнопки «В главное меню» / «Начать заново».

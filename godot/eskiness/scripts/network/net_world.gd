@@ -386,12 +386,3 @@ func rq_enemy_hit(nid: int, dmg: float, dir: Vector3) -> void:
 	if e and is_instance_valid(e):
 		e.apply_hit(clampf(dmg, 0.0, 200.0), dir)
 
-
-func request_hunters(count: int) -> void:
-	rpc_id(1, "rq_hunters", count)
-
-
-@rpc("any_peer", "reliable")
-func rq_hunters(count: int) -> void:
-	if hosting and game and is_instance_valid(game):
-		game._spawn_hunters(clampi(count, 1, 5))

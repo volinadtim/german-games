@@ -511,12 +511,11 @@ func drop_count(idx: int, n: int) -> void:
 		p.set_meta("dur", dur)
 
 
-## Выбросить монеты из кошелька (запоминаем сколько — см. анти-мухлёж в cheat_check).
+## Выбросить монеты из кошелька.
 func drop_coins(n: int) -> void:
 	n = mini(n, inv.coins)
 	if n <= 0 or not inv.remove("coin", n):
 		return
-	dropped_coins += n
 	var fwd := -player.global_transform.basis.z
 	var pos := player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5
 	var parts := clampi(n, 1, 6)
@@ -533,8 +532,6 @@ func collect(id: String, n: int, from: Node = null) -> int:
 	var d: float = float(from.get_meta("dur", -1.0)) if from != null else -1.0
 	var left: int = inv.add(id, n, d)
 	var got := n - left
-	if id == "coin" and from != null and from.get_meta("dropped", false):
-		dropped_coins = maxi(dropped_coins - got, 0)
 	if got > 0:
 		var nm := Items.item_name(id)
 		hud.toast("+%d  %s" % [got, nm] if got > 1 else "+ " + nm, Color(0.92, 0.82, 0.55) if id == "coin" else Color(0.85, 0.85, 0.8))

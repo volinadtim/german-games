@@ -52,8 +52,6 @@ func interact(g) -> void:
 		boost[k] = int(boost[k]) - 1
 	busy = true
 	screen.text = "КРУТИТСЯ..."
-	if g.has_method("cheat_check"):
-		g.cheat_check()
 	if g.has_method("save_now"):
 		g.save_now()      # крутка уже списана — перезагрузка не вернёт её
 	_roll_stops()

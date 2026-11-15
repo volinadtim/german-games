@@ -1,5 +1,5 @@
 extends Node3D
-# Часть game.gd: константы, состояние, звуки, клавиши, наценка за мухлёж.
+# Часть game.gd: константы, состояние, звуки, клавиши.
 const Player := preload("res://scripts/player/player.gd")
 const Hud := preload("res://scripts/hud.gd")
 const Inventory := preload("res://scripts/inventory.gd")
@@ -101,7 +101,6 @@ func _make_sounds() -> void:
 	snd["growl"] = [Sfx2.growl(0), Sfx2.growl(1), Sfx2.growl(2)]
 	snd["thud"] = [Sfx2.thud()]
 	snd["pickup"] = [Sfx2.pickup()]
-	snd["dread"] = [Sfx2.dread()]
 	snd["estep"] = [Sfx.step(10), Sfx.step(11), Sfx.step(12), Sfx.step(13)]   # шаги врагов
 	snd["whoosh"] = [Sfx.whoosh(1), Sfx.whoosh(2)]
 	snd["hurt"] = [Sfx.exhale(1), Sfx.exhale(3)]
@@ -178,68 +177,7 @@ const STONE_SURFACE := [Vector3(27.8, 0.0, -9.5), Vector3(36.6, 0.0, 8.6), Vecto
 var stone_piles: Array = []
 
 
-# ---------- анти-мухлёж ----------
-## Выбросил много монет (CHEAT_DROP+), оставил себе мало (≤ CHEAT_KEEP) и пошёл крутить KILLBOX —
-## с поверхности по лестнице спускаются 5 монстров и охотятся на игрока прямо в бункере.
-## Подобрал выброшенные монеты обратно — счётчик уменьшается.
-const CHEAT_DROP := 10        # стартовых монет мало, поэтому порог низкий (промпт 23:59)
-const CHEAT_KEEP := 20
-var dropped_coins := 0
 var chests: Array = []
-var hunters: Array = []
-
-
-## Наценка за мухлёж (промпт 14.11 18:10): каждая поимка +1 к cheat_count; на одну следующую покупку
-## в Trinkets Market цена × (1 + 10% × cheat_count), вверх. Купил — наценка снята до следующей поимки.
-var cheat_count := 0
-var markup_pending := false
-
-
-func markup_pct() -> int:
-	return 10 * cheat_count if markup_pending else 0
-
-
-func marked_price(p: int) -> int:
-	return (p * (100 + markup_pct()) + 99) / 100
-
-
-func markup_used() -> void:
-	markup_pending = false
-
-
-## Вызывает автомат после оплаты крутки. true — мухлёж пойман.
-func cheat_check() -> bool:
-	if dropped_coins < CHEAT_DROP or inv.coins > CHEAT_KEEP or dropped_coins < inv.coins:
-		return false
-	dropped_coins = 0
-	cheat_count += 1
-	markup_pending = true
-	hud.cheat_warning(true)
-	play_ui("dread", -1.0, 1.0)  # страшный звук за мухлёж (промпт 14.11 17:26)
-	_spawn_hunters()
-	return true
-
-
-func _spawn_hunters(count := 3) -> void:
-	if net and not net.is_host():
-		net.request_hunters(count)   # враги в сети живут у хоста
-		return
-	for k in count:
-		var e := Enemy.new()
-		e.game = self
-		e.position = Vector3(20.0 - (k % 2) * 0.8, 4.1, -0.6 + (k % 3) * 0.6)
-		e.rotation.y = PI / 2.0
-		add_child(e)
-		e.make_hunter()
-		hunters.append(e)
-		e.died.connect(_hunter_died)
-		await get_tree().create_timer(0.6).timeout
-
-
-func _hunter_died(e: Node) -> void:
-	hunters.erase(e)
-	if hunters.is_empty():
-		hud.cheat_warning(false)
 
 
 # ---------- сохранения (промпт 23:39) ----------

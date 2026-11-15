@@ -45,18 +45,6 @@ func _build_ui() -> void:
 	coins_l = _label("", 17, Color(0.92, 0.8, 0.5))
 	coins_l.autowrap_mode = TextServer.AUTOWRAP_OFF
 	box.add_child(coins_l)
-	markup_l = _label("", 14, Color(1.0, 0.88, 0.85))
-	var msb := StyleBoxFlat.new()
-	msb.bg_color = Color(0.55, 0.06, 0.04, 0.9)
-	msb.set_content_margin_all(6)
-	msb.set_corner_radius_all(3)
-	markup_l.add_theme_stylebox_override("normal", msb)
-	# размер окна не зависит от текста (промпт 14.11 19:28): плашка наценки всегда занимает место,
-	# строки — в одну линию с многоточием
-	markup_l.custom_minimum_size = Vector2(408, 26)
-	markup_l.autowrap_mode = TextServer.AUTOWRAP_OFF
-	markup_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	box.add_child(markup_l)
 	# вкладки-категории
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 3)
@@ -143,9 +131,6 @@ func _label(t: String, size: int, col: Color) -> Label:
 
 func _refresh() -> void:
 	coins_l.text = "Монет: %d" % game.inv.count("coin")
-	var mp: int = game.markup_pct()
-	markup_l.text = "Наценка за мухлёж: +%d%% (цены уже с ней)" % mp if mp > 0 else ""
-	markup_l.self_modulate = Color.WHITE if mp > 0 else Color(1, 1, 1, 0)
 	_rebuild_tab.call_deferred()   # кнопка, по которой кликнули, ещё в сигнале
 
 
@@ -224,7 +209,7 @@ func _section(t: String) -> void:
 
 
 func _can_pay(price: int) -> bool:
-	return game.inv.count("coin") >= game.marked_price(price)
+	return game.inv.count("coin") >= price
 
 
 func _item_cell(grid: GridContainer, id: String, price: int) -> void:
@@ -266,9 +251,8 @@ func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, de
 	pl.size = Vector2(130, 24)
 	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pl.add_theme_font_size_override("font_size", 15)
-	var red: bool = price >= 0 and game.markup_pct() > 0
-	pl.text = price_text if price_text != "" else (_coins(game.marked_price(price)) if price >= 0 else "")
-	pl.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4) if red else Color(0.95, 0.82, 0.5))
+	pl.text = price_text if price_text != "" else (_coins(price) if price >= 0 else "")
+	pl.add_theme_color_override("font_color", Color(0.95, 0.82, 0.5))
 	b.add_child(pl)
 	if reason != "":
 		b.modulate = Color(0.5, 0.5, 0.5)
@@ -426,15 +410,11 @@ func _buy_upgrade() -> void:
 	if game.slot == null:
 		return
 	var base: int = game.slot.upgrade_price()
-	var extra: int = game.marked_price(base) - base
-	if game.inv.count("coin") < base + extra:
+	if game.inv.count("coin") < base:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
 		return
 	if game.slot.buy_upgrade():
-		if extra > 0:
-			game.inv.remove("coin", extra)
-			game.markup_used()
 		info_l.text = "Окно KILLBOX: %s" % game.slot.level_name(game.slot.level)
 	else:
 		info_l.text = "Не хватает монет"
@@ -454,14 +434,12 @@ func _open_sell() -> void:
 func _buy_luck(sym: String, price: int, k := 1) -> void:
 	if game.slot == null:
 		return
-	price = game.marked_price(price)
 	if game.inv.count("coin") < price:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
 		return
 	game.inv.remove("coin", price)
 	game.slot.add_luck(sym, k)
-	game.markup_used()
 	info_l.text = "Гарант: %s ×%d" % [preload("res://scripts/slot/slot_symbols.gd").NAMES[sym], k]
 	game.play_ui("coin", -10.0)
 	_refresh()
@@ -470,21 +448,18 @@ func _buy_luck(sym: String, price: int, k := 1) -> void:
 func _buy_boost(sym: String, price: int) -> void:
 	if game.slot == null:
 		return
-	price = game.marked_price(price)
 	if game.inv.count("coin") < price:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
 		return
 	game.inv.remove("coin", price)
 	game.slot.add_boost(sym)
-	game.markup_used()
 	info_l.text = "Шанс комбинации: %s" % preload("res://scripts/slot/slot_symbols.gd").NAMES[sym]
 	game.play_ui("coin", -10.0)
 	_refresh()
 
 
 func _buy(id: String, price: int) -> void:
-	price = game.marked_price(price)
 	if game.inv.count("coin") < price:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
@@ -499,9 +474,6 @@ func _buy(id: String, price: int) -> void:
 		info_l.text = "Инвентарь полон"
 		return
 	info_l.text = "Куплено: %s" % Items.item_name(id)
-	if game.markup_pct() > 0:
-		info_l.text += " (с наценкой +%d%%)" % game.markup_pct()
-	game.markup_used()
 	_vend(id)
 	if id == "gasmask" and game.gasmask:
 		game.gasmask.on_bought()

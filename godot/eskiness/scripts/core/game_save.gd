@@ -25,10 +25,6 @@ func save_state() -> Dictionary:
 			floor_items.append({"id": n.id, "n": n.n, "pos": _v3(n.global_position),
 				"dur": float(n.get_meta("dur", -1.0)), "dropped": bool(n.get_meta("dropped", false)),
 				"manual": n.need_leave, "ttl": n.life})
-	var alive_hunters := 0
-	for h in hunters:
-		if is_instance_valid(h):
-			alive_hunters += 1
 	return {
 		"version": 1,
 		"coins": inv.coins,
@@ -55,15 +51,11 @@ func save_state() -> Dictionary:
 		"storage": storage.contents.duplicate(true) if storage else [],
 		"safe_contents": safe.contents.duplicate(true) if safe != null and is_instance_valid(safe) else [],
 		"floor": floor_items,
-		"dropped_coins": dropped_coins,
-		"hunters": alive_hunters,
 		"glass": glass_floor.to_save(),
 		"slot_credits": slot.credits if slot else 0,
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
 		"slot_boost": slot.boost.duplicate(true) if slot else {},
 		"slot_level": slot.level if slot else 1,
-		"cheat_count": cheat_count,
-		"markup_pending": markup_pending,
 		"slot_tray": slot.tray_coins if slot else 0,
 		"slot_shield": slot.shield if slot else 0,
 		"slot_reveal": slot.reveal_pending if slot else false,
@@ -168,7 +160,6 @@ func load_state(d: Dictionary) -> void:
 			p.set_meta("dropped", true)
 		p.need_leave = bool(it.get("manual", it.get("dropped", false)))   # выброшенное игроком — только по E
 		p.life = float(it.get("ttl", Pickup.LIFE))
-	dropped_coins = int(d.get("dropped_coins", 0))
 	if storage:
 		storage.contents = []
 		for it in d.get("storage", []):
@@ -197,12 +188,6 @@ func load_state(d: Dictionary) -> void:
 		slot.set_reveal_pending(bool(d.get("slot_reveal", false)))
 		slot.screen.text = ""
 		slot._update_screen_hint()
-	cheat_count = int(d.get("cheat_count", 0))
-	markup_pending = bool(d.get("markup_pending", false))
-	var h := int(d.get("hunters", 0))
-	if h > 0:
-		hud.cheat_warning(true)
-		_spawn_hunters(h)
 	inv.notify()
 	loading = false
 	if net == null:

@@ -11,7 +11,6 @@ var info_l: Label
 var tip_l: RichTextLabel       # подсказка товара у курсора (промпты 14.11 19:10, 19:26)
 var tip_panel: PanelContainer
 var tip_hide_t := 0.0          # долгий тап: подсказка сама прячется через пару секунд
-var markup_l: Label           # красная плашка «Наценка за мухлёж» (game.gd: markup_pct)
 var opened := false
 var tab := 0                  # открытая вкладка (TABS)
 var tab_btns: Array[Button] = []
