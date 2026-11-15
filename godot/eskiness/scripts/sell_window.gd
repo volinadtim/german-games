@@ -27,6 +27,9 @@ var sell_grid: GridContainer
 var total_l: Label
 var info_l: Label
 var sell_b: Button
+var panel: PanelContainer
+var cols: HBoxContainer
+var panes := {}                 # side -> Pane (высоту подгоняем под экран, промпт 02:33)
 
 
 ## Рыночная цена (0 — не продаётся).
@@ -134,7 +137,7 @@ func _ready() -> void:
 	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
 	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(cc)
-	var panel := PanelContainer.new()
+	panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.08, 0.06, 0.05, 0.97)
 	sb.border_color = Color(0.6, 0.3, 0.15, 0.8)
@@ -151,7 +154,7 @@ func _ready() -> void:
 	v.add_child(_label("Магазин берёт почти любые вещи за полцены от своей цены, округляя в твою пользу (вещь за 3 — продашь за 2). " +
 		"Побитое оружие, одежда и начатые ремкомплекты — дешевле, по остатку прочности. Хлам (гайки, шестерёнки, фото) — по 2–5. " +
 		"Не берёт монеты и ключ от машины — они затемнены.", 15, Color(0.65, 0.63, 0.58)))
-	var cols := HBoxContainer.new()
+	cols = HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 24)
 	v.add_child(cols)
 	var bc := VBoxContainer.new()
@@ -174,6 +177,24 @@ func _ready() -> void:
 	sell_b = _button("Продать всё", sell_all)
 	hb.add_child(sell_b)
 	hb.add_child(_button("Закрыть (Esc)", close))
+	get_viewport().size_changed.connect(_fit_panes)
+
+
+## Высота колонок под экран (промпт 02:33): списки укорачиваются (внутри прокрутка),
+## чтобы всё окно влезало по высоте; ui_fit дожимает масштабом, если и так не влезло.
+func _fit_panes() -> void:
+	if panel == null or not visible:
+		return
+	var vh := get_viewport().get_visible_rect().size.y * 0.9
+	var sp: Control = panes["sell"]
+	# всё, кроме колонок, + заголовок «НА ПРОДАЖУ» с отступом
+	var over := panel.get_combined_minimum_size().y - cols.get_combined_minimum_size().y + 24.0 + 8.0
+	var h := clampf(vh - over, 2.0 * 76.0 + 14.0, 5.0 * 76.0 + 3.0 * 30.0)
+	sp.custom_minimum_size.y = h
+	# слева две колонки с заголовками (по 22 px + отступы) — вместе не выше правой
+	var lh := clampf((h + 24.0 - 2.0 * 30.0 - 12.0) * 0.5, 76.0 + 14.0, 2.0 * 76.0)
+	for side in ["bag", "chest"]:
+		(panes[side] as Control).custom_minimum_size.y = lh
 
 
 func _button(t: String, cb: Callable) -> Button:
@@ -196,6 +217,7 @@ func _pane(parent: Control, side: String, rows := 3) -> GridContainer:
 	p.add_theme_stylebox_override("panel", st)
 	p.custom_minimum_size = Vector2(5 * 76 + 14, rows * 76 + (rows - 2) * 30)   # фиксированно: больше — прокрутка (промпт 14.11 19:28)
 	parent.add_child(p)
+	panes[side] = p
 	var sc := ScrollContainer.new()
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sc.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -224,6 +246,7 @@ func show_window() -> void:
 	visible = true
 	pending = []
 	_rebuild()
+	_fit_panes.call_deferred()
 
 
 ## Ячейки источника side ("bag" — сумка, "chest" — сундук дома): [{id, n, dur} или null].

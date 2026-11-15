@@ -20,6 +20,11 @@ func _ready() -> void:
 	target.visibility_changed.connect(_fit)
 	var p := target.get_parent()
 	if p is Control:
+		# Окно больше экрана растягивает CenterContainer по своему минимуму; по умолчанию он растёт
+		# вправо-вниз от (0,0), и окно съезжает вниз — масштаб вокруг центра его уже не спасал
+		# (промпт 02:33, окно продажи). Растём в обе стороны — центр контейнера остаётся в центре экрана.
+		(p as Control).grow_horizontal = Control.GROW_DIRECTION_BOTH
+		(p as Control).grow_vertical = Control.GROW_DIRECTION_BOTH
 		(p as Control).resized.connect(_fit)
 	get_viewport().size_changed.connect(_fit)
 	_fit.call_deferred()
