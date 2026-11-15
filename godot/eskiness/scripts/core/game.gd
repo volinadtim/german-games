@@ -113,7 +113,8 @@ func setup(p: Player) -> void:
 	add_child(storage)
 	glass_floor = GlassFloor.new()
 	add_child(glass_floor)
-	glass_floor.generate()
+	_collect_obstacles()
+	glass_floor.generate(func(p: Vector3, r: float) -> bool: return not _on_object(p, r))
 	for sp in glass_floor.spots:
 		_make_pickup("glass", 1, (sp[0] as Vector3) + Vector3(0.2, 0.1, 0.2), Vector3.ZERO)
 	# старая машина на поляне — до кувшинов, чтобы они её обходили

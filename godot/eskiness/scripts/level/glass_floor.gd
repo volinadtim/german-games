@@ -35,7 +35,8 @@ func _ready() -> void:
 
 
 ## Новая игра: случайные места.
-func generate() -> void:
+## free_ok(p, r) — место свободно (не на сундуке/мебели); передаёт game.gd.
+func generate(free_ok := Callable()) -> void:
 	var list: Array = []
 	var tries := 0
 	while list.size() < SPOTS and tries < 300:
@@ -48,8 +49,11 @@ func generate() -> void:
 		for s in list:
 			if (s[0] as Vector3).distance_to(p) < 4.0:
 				ok = false
+		var rr := randf_range(0.45, 0.75)
+		if ok and free_ok.is_valid() and not free_ok.call(p, rr + 0.3):
+			ok = false
 		if ok:
-			list.append([p, randf_range(0.45, 0.75)])
+			list.append([p, rr])
 	build(list)
 
 

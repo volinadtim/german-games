@@ -20,6 +20,7 @@ func _chest(pos: Vector3, rot: float, extra: Array) -> void:
 
 
 func _random_jars() -> void:
+	_collect_obstacles()
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var placed: Array = []      # [[pos, радиус], ...]
@@ -152,6 +153,8 @@ func _jar_spot_ok(p: Vector3, r: float, placed: Array) -> bool:
 			for g in glass_floor.spots:
 				if Vector2(p.x - g[0].x, p.z - g[0].z).length() < float(g[1]) + 0.6:
 					return false
+	if _on_object(p, r):
+		return false
 	var q := PhysicsShapeQueryParameters3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = r
@@ -160,6 +163,69 @@ func _jar_spot_ok(p: Vector3, r: float, placed: Array) -> bool:
 	q.transform = Transform3D(Basis(), p + Vector3(0, 0.22, 0))
 	q.collision_mask = 1
 	return get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
+
+
+## Препятствия на полу (сундуки, мебель, обломки, автоматы...): [Rect2 след по XZ, низ y, верх y].
+## Берём из CollisionShape3D статических тел, а не из физики: тела, добавленные в этом же кадре,
+## физический запрос ещё не видит — из-за этого кувшины/стекло/камни попадали на объекты.
+var _obst: Array = []
+
+func _collect_obstacles() -> void:
+	_obst = []
+	for cs in get_parent().find_children("*", "CollisionShape3D", true, false):
+		if cs.disabled or cs.shape == null or not (cs.get_parent() is StaticBody3D):
+			continue
+		var la := _shape_aabb(cs.shape)
+		if la.size == Vector3.ZERO:
+			continue
+		var b: AABB = cs.global_transform * la
+		if maxf(b.size.x, b.size.z) > 6.0:
+			continue   # пол, потолок, длинные стены
+		_obst.append([Rect2(b.position.x, b.position.z, b.size.x, b.size.z), b.position.y, b.end.y])
+
+
+static func _shape_aabb(sh) -> AABB:
+	if sh is BoxShape3D:
+		return AABB(-sh.size / 2.0, sh.size)
+	if sh is SphereShape3D:
+		return AABB(-Vector3.ONE * sh.radius, Vector3.ONE * sh.radius * 2.0)
+	if sh is CylinderShape3D or sh is CapsuleShape3D:
+		return AABB(Vector3(-sh.radius, -sh.height / 2.0, -sh.radius), Vector3(sh.radius * 2.0, sh.height, sh.radius * 2.0))
+	if sh is ConvexPolygonShape3D and sh.points.size() > 0:
+		var a := AABB(sh.points[0], Vector3.ZERO)
+		for pt in sh.points:
+			a = a.expand(pt)
+		return a
+	return AABB()
+
+
+## Круг радиуса r на полу в точке p задевает объект (сундук, мебель...)?
+func _on_object(p: Vector3, r: float) -> bool:
+	for o in _obst:
+		if o[2] < p.y + 0.04 or o[1] > p.y + 1.2:
+			continue   # плоское на полу или высоко над головой
+		var rc: Rect2 = o[0]
+		var cx := clampf(p.x, rc.position.x, rc.end.x)
+		var cz := clampf(p.z, rc.position.y, rc.end.y)
+		if Vector2(p.x - cx, p.z - cz).length() < r:
+			return true
+	return false
+
+
+## Ближайшее к p свободное место на полу (по кольцам, детерминированно); sf — поверхность для высоты.
+func _free_spot_near(p: Vector3, r: float, sf: Node = null) -> Vector3:
+	if not _on_object(p, r):
+		return p
+	for ring in range(1, 9):
+		var rad := 0.2 * ring
+		for k in 12:
+			var ang := TAU * k / 12.0
+			var q := p + Vector3(cos(ang), 0, sin(ang)) * rad
+			if sf and q.y > 1.0:
+				q.y = sf.height(q.x, q.z)
+			if not _on_object(q, r):
+				return q
+	return p
 
 
 func _make_jar(pos: Vector3, rot: float, prm: Dictionary, was_broken: bool) -> Jar:
@@ -232,7 +298,9 @@ func _spawn_stone_piles() -> void:
 		var q: Vector3 = p
 		q.y = sf.height(q.x, q.z) if sf else 6.0
 		all.append(q)
+	_collect_obstacles()
 	for k in all.size():
+		all[k] = _free_spot_near(all[k], 0.32, sf)
 		var sp := StonePile.new()
 		sp.seed_ = k
 		sp.left = randi_range(2, 4)
