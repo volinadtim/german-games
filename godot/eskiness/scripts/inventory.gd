@@ -636,12 +636,13 @@ func _build_ui() -> void:
 	panel.add_child(hb)
 
 	# снаряжение на силуэте
-	var dc := VBoxContainer.new()
-	dc.add_theme_constant_override("separation", 10)
+	var dc := HBoxContainer.new()   # кукла, справа от неё рюкзак и карманы (промпт 05:40)
+	dc.add_theme_constant_override("separation", 14)
 	hb.add_child(dc)
 	# надпись «СНАРЯЖЕНИЕ» убрана (промпт 03:47)
 	var doll := Doll.new()
 	doll.custom_minimum_size = Vector2(192, 320)
+	doll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	dc.add_child(doll)
 	for k in EQUIP + ["hands"]:
 		var s := Slot.new()
@@ -655,14 +656,16 @@ func _build_ui() -> void:
 
 	# слева — экипировка: силуэт, под ним рюкзак и карманы одежды (видны, только когда надето); справа — сумка 5×4
 	# (промпт 16.11 03:44)
-	var gear := HBoxContainer.new()
-	gear.add_theme_constant_override("separation", 12)
+	# справа от куклы: рюкзак, под ним карманы верх и штаны в ряд (промпт 05:40)
+	var gear := VBoxContainer.new()
+	gear.add_theme_constant_override("separation", 8)
+	gear.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	dc.add_child(gear)
 	var extra := VBoxContainer.new()
 	extra.add_theme_constant_override("separation", 4)
 	gear.add_child(extra)
-	var pockets := VBoxContainer.new()
-	pockets.add_theme_constant_override("separation", 8)
+	var pockets := HBoxContainer.new()
+	pockets.add_theme_constant_override("separation", 10)
 	gear.add_child(pockets)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
