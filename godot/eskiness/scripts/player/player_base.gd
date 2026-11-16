@@ -18,7 +18,7 @@ static var fov_base := FOV
 ## true — тело игрока: модель models/BaseHuman.fbx, анимированная через кости;
 ## false — старое тело из капсул (код оставлен, чтобы легко вернуть).
 const USE_MODEL := true
-const MODEL := preload("res://assets/models/Ch24_nonPBR.fbx")
+const MODEL := preload("res://assets/models/Player.glb")
 const MODEL_Z := 0.12              # модель чуть позади камеры, чтобы лицо не лезло в кадр
 var HIP_Y := 0.88
 var LEG_L1 := 0.40              # бедро
