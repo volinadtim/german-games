@@ -67,7 +67,7 @@ func setup(p: Player) -> void:
 		safe.locked = true
 		safe.random_loot = false
 		# пистолет без патронов, полный магазин и россыпь патронов (промпт 14.11 19:49)
-		safe.extra = [["pistol", 1, 0.0], ["mag", 1, 8.0], ["ammo", randi_range(12, 16)], ["car_key", 1], ["knuckles", 1], ["coin", 80], ["medkit", 2], ["battery", 1], ["canned", 2], ["wallet", 2]]
+		safe.extra = [["pistol", 1, 0.0], ["mag", 1, 8.0], ["ammo", randi_range(12, 16)], ["car_key", 1], ["knuckles", 1], ["coin", 80], ["medkit", 2], ["wallet", 2]]   # без батарейки и тушёнки (промпт 16.11 02:47)
 		safe.position = Vector3(11.54, 0.0, 7.0)   # задняя стенка вплотную к стене
 		safe.rotation.y = -PI / 2.0
 		add_child(safe)

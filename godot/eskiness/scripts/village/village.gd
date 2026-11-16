@@ -105,13 +105,12 @@ func spawn_village_loot() -> void:
 	_put("ammo", r.randi_range(6, 10), _spot(houses[3], r))
 	_put("mag", 1, _spot(houses[4], r), 2.0)
 	_put("filter", 1, _spot(houses[5 % houses.size()], r))
-	_put("canned", 1, _spot(houses[1], r))
+	_put("canned", 1, _spot(houses[1], r))   # вторая локация — тушёнка можно
 	for k in 3:
 		_put("coin", r.randi_range(6, 14), _spot(houses[k], r))
 	# подвал — запасы на полках
 	_put("ammo", 8, _spot(0, r))
 	_put("filter", 2, _spot(0, r))
-	_put("medkit", 1, _spot(0, r))
 	_put("coin", 20, _spot(0, r))
 
 
