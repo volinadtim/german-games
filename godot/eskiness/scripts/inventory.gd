@@ -138,7 +138,7 @@ class Slot extends Control:
 			# надетые перчатки — пальцами вниз, в левой колонке зеркально (промпт 04:44)
 			var ir := r.grow(-12)
 			var c := ir.get_center()
-			draw_set_transform(c, PI, Vector2(-1.0 if not mirror else 1.0, 1.0))
+			draw_set_transform(c, PI, Vector2(1.0 if not mirror else -1.0, 1.0))   # зеркало в другую сторону (промпт 04:51)
 			Items.draw_icon(self, id, Rect2(-ir.size / 2.0, ir.size))
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		else:
@@ -214,7 +214,9 @@ class Slot extends Control:
 
 	func _draw_part(k: String) -> void:
 		var u := size.x / 64.0
-		if mirror:
+		# кулаки и кисти отзеркалены в другую сторону (промпт 04:51): правая колонка — зеркально, левая — как нарисовано
+		var mir: bool = mirror != (k in ["hands", "left", "right"])
+		if mir:
 			draw_set_transform(Vector2(size.x, 0), 0.0, Vector2(-u, u))
 		else:
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2(u, u))
