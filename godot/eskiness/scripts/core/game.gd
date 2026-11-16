@@ -40,6 +40,9 @@ func setup(p: Player) -> void:
 	chat = preload("res://scripts/ui/chat.gd").new()   # T — чат (ui/chat.gd), в сети — всем
 	chat.game = self
 	add_child(chat)
+	revive = preload("res://scripts/systems/revive.gd").new()   # смерть, подъём союзника, лечение с полоской
+	revive.game = self
+	add_child(revive)
 
 	if USE_FLASHLIGHT:
 		flashlight = Flashlight.new()

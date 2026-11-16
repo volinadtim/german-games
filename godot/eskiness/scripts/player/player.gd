@@ -1,4 +1,4 @@
-extends "res://scripts/player/player_combat.gd"
+extends "res://scripts/player/player_death.gd"
 ## Игрок от первого лица: тело видно, если посмотреть вниз.
 ## WASD, Shift — бег, пробел — прыжок, V или СКМ — боевая стойка (поднять/опустить кулаки),
 ## ЛКМ — удар левой, ПКМ — удар правой; зажать — заряд до 1.5 с (промпты 18:57, 19:06, 19:09).
@@ -146,6 +146,7 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if puppet:
 		_puppet_tick(delta)
+		_death_tick(delta)
 		return
 	_key_look(delta)
 	var on_floor := is_on_floor()
@@ -212,3 +213,4 @@ func _physics_process(delta: float) -> void:
 	was_on_floor = is_on_floor()
 
 	_animate(delta, global_transform.basis.inverse() * hv, sprinting)
+	_death_tick(delta)   # анимация смерти (player_death.gd)

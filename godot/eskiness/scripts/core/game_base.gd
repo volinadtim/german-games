@@ -26,6 +26,7 @@ var gun   # gun.gd — пистолет
 const StoneThrow := preload("res://scripts/stone_throw.gd")
 var stone_throw   # stone_throw.gd — бросок камня (камень в руке: ПКМ держать — прицел, ЛКМ — бросок)
 var chat   # ui/chat.gd — чат (T)
+var revive   # systems/revive.gd — эффекты смерти, подъём союзника, лечение с полоской
 const Sfx := preload("res://scripts/core/sfx.gd")
 const Sfx2 := preload("res://scripts/core/sfx_extra.gd")
 const Car := preload("res://scripts/car/car.gd")

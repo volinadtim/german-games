@@ -135,14 +135,20 @@ func _die() -> void:
 	player.active = false
 	inv.close()
 	inv.enabled = false
+	player.start_death()   # падение, оружие из рук (player_death.gd)
+	if revive:
+		revive.on_died()   # виньет, глухой звук; в одиночке экран смерти — после падения
 	if net:
-		net.local_died()   # в сети — возрождение у старта через 10 с, без экрана смерти
+		net.local_died()   # в сети — лежит, ждёт союзника (revive.gd); лежат все — возрождение у старта
 		return
-	hud.show_death(true)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if revive == null:
+		hud.show_death(true)
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _quick_heal() -> void:
+	if revive and revive.try_revive_with(""):   # Q на лежащего союзника — поднять
+		return
 	if bleed_t > 0.0:
 		for bid in ["bandage", "medkit"]:
 			var bi := inv.bag_index(bid)
@@ -174,6 +180,9 @@ func _quick_heal() -> void:
 	if pick == "":
 		hud.toast("Нечем лечиться")
 		return
+	if revive:
+		revive.heal_channel(pick)
+		return
 	inv.remove(pick, 1)
 	heal(Items.ITEMS[pick]["heal"])
 	hud.toast("%s: +%d здоровья" % [Items.item_name(pick), int(Items.ITEMS[pick]["heal"])], Color(0.7, 0.9, 0.6))
@@ -197,9 +206,14 @@ func use_item(idx: int) -> void:
 		hud.toast("%s: %s на %d с" % [def["name"], what, int(def["time"])], Color(0.8, 0.9, 0.6))
 		play_ui("pickup", -12.0, 0.9)
 	elif def.has("heal"):
+		if revive and revive.try_revive_with(id):   # смотрим на лежащего союзника — поднимаем его
+			return
 		var stops := id in ["bandage", "medkit"] and bleed_t > 0.0
 		if hp >= MAX_HP and not stops:
 			hud.toast("Здоровье и так полное")
+			return
+		if revive:
+			revive.heal_channel(id)   # не мгновенно: полоска, прерывается движением и уроном
 			return
 		inv.take_at(idx, 1)
 		heal(def["heal"])

@@ -180,7 +180,7 @@ func _game_tick(delta: float) -> void:
 	if send_t <= 0.0 and p and peer:
 		send_t = SEND_DT
 		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0) \
-				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0)   # позы с пистолетом
+				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0) | (64 if p.dying else 0)   # позы с пистолетом; 64 — лежит (player_death.gd)
 		rpc("ps", p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1])
 	if p and p.punching and not was_punching and peer:
 		rpc("pev", p.last_arm)
@@ -282,7 +282,13 @@ func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: St
 	if f != pp.fists and not pp.punching:
 		pp.toggle_fists()
 	var alive := flags & 4 != 0
-	pp.visible = alive
+	var down := flags & 64 != 0   # упал — тело лежит, а не пропадает (промпт 03:06)
+	pp.visible = alive or down
+	pp.set_meta("alive", alive)
+	if down and not pp.dying:
+		pp.start_death()
+	elif not down and pp.dying:
+		pp.end_death()
 	if targets.has(id):
 		targets[id].alive = alive
 	if pp.weapon_ids[0] != w0:
@@ -306,7 +312,10 @@ func net_damage(amount: float, from: Vector3) -> void:
 
 
 func local_died() -> void:
-	dead_t = RESPAWN_T
+	if game.revive and game.revive.can_be_revived():
+		game.revive.set_downed()   # лежим, пока не поднимет союзник (revive.gd)
+	else:
+		dead_t = RESPAWN_T
 	if killer != "":
 		game.hud.toast("Вас убил %s" % killer, Color(1.0, 0.55, 0.45))
 	game.hud.hurt_flash()
@@ -314,6 +323,9 @@ func local_died() -> void:
 
 func _respawn() -> void:
 	dead_t = -1.0
+	game.player.end_death()
+	if game.revive:
+		game.revive.on_respawn()
 	info_l.text = ""
 	game.alive = true
 	game.hp = game.MAX_HP
@@ -325,6 +337,13 @@ func _respawn() -> void:
 	game.player.rotation.y = -PI / 2.0
 	game.player.velocity = Vector3.ZERO
 	game.hud.toast("Вы снова в бункере", Color(0.75, 0.85, 0.65))
+
+
+## Союзник поднял нас медициной (revive.gd): amount — сколько здоровья.
+@rpc("any_peer", "reliable")
+func net_revive(amount: float) -> void:
+	if game and is_instance_valid(game) and game.revive:
+		game.revive.revived(clampf(amount, 1.0, 100.0), String(players.get(multiplayer.get_remote_sender_id(), "союзник")))
 
 
 ## Враг у хоста: ближайший живой игрок (текущей цели — небольшая фора, чтобы не метался).
