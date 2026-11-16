@@ -247,7 +247,7 @@ func _rebuild_tab() -> void:
 			var grid := _grid()
 			for e in Weapons.SHOP:
 				var id: String = e[0]
-				if Items.ITEMS[id].get("weapon", false):
+				if Items.ITEMS[id].get("weapon", false) and sells(id):   # монтировка/мачете — не в бункере (04:35)
 					_item_cell(grid, id, int(e[1]))
 		"Одежда":
 			_sub_tabs(CLOTHES, sub, func(i: int): sub = i)
