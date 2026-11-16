@@ -117,7 +117,7 @@ func _process(delta: float) -> void:
 		"cut":
 			if is_instance_valid(crawler):
 				# подходит к косяку и выглядывает: наклон корпуса и головы
-				var to := PEEK_AT - p.global_position
+				var to: Vector3 = PEEK_AT - p.global_position
 				to.y = 0.0
 				p.global_position += to * (1.0 - exp(-4.0 * delta))
 				_aim(crawler.global_position + Vector3(0, 0.45, 0), 1.0 - exp(-3.0 * delta))
