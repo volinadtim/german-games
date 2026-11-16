@@ -79,8 +79,8 @@ func set_powered(on: bool, fx := false) -> void:
 		return
 	# включение: щелчок, гудение, свет и экран дважды мигают и загораются
 	if game:
-		game.play_at("clunk", global_position + Vector3(0, 1.0, 0.4), -4.0, 0.8)
-		game.play_at("buzz", global_position + Vector3(0, 1.2, 0.4), -10.0, 0.9)
+		game.play_at("clunk", global_position + Vector3(0, 1.0, 0.4), -7.5, 0.8)
+		game.play_at("buzz", global_position + Vector3(0, 1.2, 0.4), -13.5, 0.9)
 	var tw := create_tween()
 	for k in [true, false, true, false]:
 		tw.tween_callback(_power_apply.bind(parts, k))
@@ -91,7 +91,7 @@ func set_powered(on: bool, fx := false) -> void:
 
 func _power_jingle() -> void:
 	if game:
-		game.play_at("jingle", global_position + Vector3(0, 1.2, 0.4), -8.0)
+		game.play_at("jingle", global_position + Vector3(0, 1.2, 0.4), -11.5)
 
 
 func _power_apply(parts: Array, on: bool) -> void:

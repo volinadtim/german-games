@@ -433,7 +433,7 @@ func _apply_bones() -> void:
 		if fidget == "neck":
 			nk = Basis(Vector3.UP, 0.35 * fidget_side * sin(TAU * fidget_t) * fk) * Basis(Vector3.BACK, 0.3 * fidget_side * fk)
 		if peek != 0.0:
-			nk = nk * Basis(Vector3.BACK, -peek * 0.22)   # голова — ещё дальше вбок
+			nk = nk * Basis(Vector3.UP, -peek * 0.35) * Basis(Vector3.BACK, -peek * 0.22)   # голова — дальше вбок и чуть к цели
 		_set_global_rot(neck_bone, rr * nk * rest_p.call(neck_bone))
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0

@@ -16,14 +16,17 @@ const DOOR := Vector3(-6.0, 0.0, -1.6)          # проём из северо-�
 const TRIGGER_R := 2.3                          # «почти подошёл к выходу»
 const CRAWL_FROM := Vector3(-7.4, 0.0, 0.35)    # из-за угла коридора; заворачивает в комнату KILLBOX (промпт 16.11 03:49)
 # камера выскальзывает из глаз назад-влево, за плечо, и смотрит, как персонаж выглядывает из-за косяка (промпт 16.11 03:59)
-const SHOULDER := Vector3(-0.42, 0.12, 1.05)     # от глаз, в осях игрока (+Z — назад)
-const PEEK_AT := Vector3(-5.55, 0.0, -2.05)     # куда подходит выглядывать: у восточного косяка проёма, внутри комнаты
-const SIDE_T := 3.0                              # потом за 1.2 с камера плавно возвращается в глаза
+# (промпт 16.11 04:04) осторожно: прижался к стене сбоку от проёма, присел, медленно выглядывает головой
+# и плечом из-за косяка, задерживает дыхание, отклоняется обратно за укрытие и тихо выдыхает
+const SHOULDER := Vector3(0.45, 0.18, 0.95)      # от глаз, в осях игрока (+Z — назад): за правым плечом, со стороны проёма
+const PEEK_AT := Vector3(-4.8, 0.0, -2.02)      # у стены, восточнее косяка (край проёма x = -5.15), лицом к стене (на юг)
+const PEEK_YAW := PI                             # смотрит на юг (+Z); выглядывает вправо — на запад, к проёму
+const SIDE_T := 4.7                              # потом камера плавно возвращается в глаза
 # по коридору к проёму комнаты с автоматом (x = -6, z = 1.6), по оси проёма внутрь; конец пути — стоп (~4 с)
 const CRAWL_PATH := [Vector3(-6.15, 0, 0.6), Vector3(-6.0, 0, 1.6), Vector3(-6.0, 0, 2.9)]
 const CRAWL_SPEED := 0.85
 const WAKE_T := 7.6
-const CUT_T := 4.2
+const CUT_T := 6.2
 const CUE_T := 3.0
 
 var game
@@ -40,6 +43,8 @@ var hidden: Array = []
 var echo_snd: AudioStreamWAV
 var groaned := false
 var stood := false
+var held := false
+var exhaled := false
 
 
 func start() -> void:
@@ -116,14 +121,24 @@ func _process(delta: float) -> void:
 				_begin_cut()
 		"cut":
 			if is_instance_valid(crawler):
-				# подходит к косяку и выглядывает: наклон корпуса и головы
+				# крадётся к стене у косяка, приседает и медленно выглядывает: наклон корпуса и головы
 				var to: Vector3 = PEEK_AT - p.global_position
 				to.y = 0.0
-				p.global_position += to * (1.0 - exp(-4.0 * delta))
-				_aim(crawler.global_position + Vector3(0, 0.45, 0), 1.0 - exp(-3.0 * delta))
-				p.peek = smoothstep(0.4, 1.3, t) * (1.0 - smoothstep(2.9, 3.7, t))
+				p.global_position += to * (1.0 - exp(-2.2 * delta))
+				p.force_crouch = t < 5.4
+				p.rotation.y = lerp_angle(p.rotation.y, PEEK_YAW, 1.0 - exp(-2.5 * delta))
+				var v: Vector3 = crawler.global_position + Vector3(0, 0.4, 0) - p.cam.global_position
+				var pitch := atan2(v.y, Vector2(v.x, v.z).length())
+				p.head.rotation.x = lerpf(p.head.rotation.x, clampf(pitch, -0.6, 0.4), 1.0 - exp(-2.0 * delta))
+				p.peek = smoothstep(1.3, 3.0, t) * (1.0 - smoothstep(4.0, 5.1, t))
+				if t > 1.3 and not held:
+					held = true
+					_breath(0, -30.0, 1.25)   # короткий тихий вдох — затаил дыхание
+				if t > 5.1 and not exhaled:
+					exhaled = true
+					_breath(0, -27.0, 0.75)   # за укрытием — медленный выдох
 				var eye: Transform3D = p.cam.global_transform
-				var out := smoothstep(0.0, 0.9, t) * (1.0 - smoothstep(SIDE_T, CUT_T - 0.05, t))
+				var out := smoothstep(0.0, 1.3, t) * (1.0 - smoothstep(SIDE_T, CUT_T - 0.05, t))
 				var head_pt: Vector3 = eye.origin
 				var look: Vector3 = head_pt.lerp(crawler.global_position + Vector3(0, 0.4, 0), 0.55)
 				var sh_pos: Vector3 = eye.origin + Basis(Vector3.UP, p.rotation.y) * SHOULDER
@@ -267,6 +282,17 @@ func _on_takedown(k) -> void:
 		_on_crawler_died(k)
 
 
+## Дыхание персонажа (звуки выдоха из player.gd), тихо и с заданной высотой.
+func _breath(i: int, db: float, pitch: float) -> void:
+	var p = game.player
+	if p.exhales.is_empty():
+		return
+	p.voice_player.stream = p.exhales[mini(i, p.exhales.size() - 1)]
+	p.voice_player.volume_db = db
+	p.voice_player.pitch_scale = pitch
+	p.voice_player.play()
+
+
 func _end_side_cam() -> void:
 	if is_instance_valid(cut_cam):
 		cut_cam.queue_free()
@@ -275,6 +301,7 @@ func _end_side_cam() -> void:
 		game.player.cam.current = true
 		game.player.set_head_visible(false)
 		game.player.peek = 0.0
+		game.player.force_crouch = false
 
 
 func _on_crawler_died(_e) -> void:
@@ -354,7 +381,7 @@ func _play_echo() -> void:
 	s.stream = echo_snd
 	s.unit_size = 9.0
 	s.max_distance = 60.0
-	s.volume_db = -1.5
+	s.volume_db = -5.0   # тише на 3.5 дБ (промпт 16.11 04:06)
 	s.attenuation_filter_cutoff_hz = 9000.0
 	game.add_child(s)
 	if game.slot and is_instance_valid(game.slot):

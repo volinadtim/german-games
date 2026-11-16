@@ -10,7 +10,7 @@ func _update_crouch(delta: float) -> void:
 		crouch_hold_block = false
 	if not Input.is_action_pressed("crouch"):
 		crouch_hold_block = false
-	var want := active and (crouch_toggled or (Input.is_action_pressed("crouch") and not crouch_hold_block))
+	var want := force_crouch or active and (crouch_toggled or (Input.is_action_pressed("crouch") and not crouch_hold_block))
 	if puppet:
 		want = net_crouch
 	if want:
