@@ -76,7 +76,11 @@ func charge_frac() -> float:
 ## следующее нажатие, уже в стойке, копит заряд.
 func charge_begin(arm: int) -> void:
 	var whip := false
-	# в боевой стойке (промпт 05:24) пистолет не стреляет и не целится — ЛКМ/ПКМ бьют, как обычным оружием
+	# в боевой стойке (промпт 05:34): кнопка руки с пистолетом — выстрел в центр (ЛКМ — левый, ПКМ — правый,
+	# независимо); патронов нет — дальше обычный удар этой рукой с зарядом (рукоятью)
+	if gun and fists and active and weapon_ids[arm] == "pistol" and fist_blend >= 0.9:
+		if gun.stance_fire(arm):
+			return
 	if gun and _has_pistol() and active and not fists:
 		if arm == 1:
 			gun.rmb_input(true)   # ПКМ: держать — от бедра, клик — прицел (gun.gd)

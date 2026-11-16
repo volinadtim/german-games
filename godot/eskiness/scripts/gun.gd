@@ -25,11 +25,13 @@ const EJECT_T := 0.5             # столько держать Enter — из�
 const AIM_FOV := 0.7             # множитель поля зрения в прицеле
 const SPREAD_HIP := 0.03         # разброс от бедра, рад
 const SPREAD_AIM := 0.004
+const SPREAD_STANCE := 0.02      # в боевой стойке — примерно в центр экрана (промпт 05:34)
 const TAP_T := 0.22              # ПКМ короче — клик (переключить прицел), дольше — держать (от бедра)
 const RATE := 22050
 
 var game
 var cd := 0.0
+var hand_cd := [0.0, 0.0]        # задержка выстрела по рукам в стойке (stance_fire)
 var reloading := false
 var voice: AudioStreamPlayer
 var snd_shot: AudioStreamWAV
@@ -184,11 +186,13 @@ func fov_mult() -> float:
 
 func _process(delta: float) -> void:
 	cd -= delta
+	hand_cd[0] -= delta
+	hand_cd[1] -= delta
 	if game == null:
 		return
 	var p = game.player
 	var can: bool = armed() and game.alive and p != null and p.active and not game.inv.open \
-			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not p.fists   # в стойке — только удары (05:24)
+			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not p.fists   # в стойке не целимся: клик — stance_fire (05:34)
 	if not can:
 		ads = false
 		hip = false
@@ -360,7 +364,6 @@ func _unhandled_input(e: InputEvent) -> void:
 # ---------- выстрел ----------
 
 func fire() -> void:
-	var p = game.player
 	if not armed() or reloading or cd > 0.0 or not game.alive:
 		return
 	if not ready_to_fire():
@@ -386,12 +389,31 @@ func fire() -> void:
 			game.hud.toast("Нет магазина — R" if not loaded() else "Пусто — R, сменить магазин; Enter (держать) — вынуть")
 		return
 	_empty_told = false
+	_shoot(h, lerpf(SPREAD_HIP, SPREAD_AIM, aim_k))
+
+
+## Боевая стойка (промпт 05:34): клик — выстрел рукой h примерно в центр экрана, без прицеливания.
+## У каждой руки свой магазин и своя задержка — два пистолета стреляют независимо (ЛКМ — левый, ПКМ — правый).
+## false — патронов нет (или пистолета нет): тогда этой рукой бьют рукоятью (player_combat.gd).
+func stance_fire(h: int) -> bool:
+	if not armed() or not game.alive or rounds_in(h) <= 0:
+		return false
+	if reloading or hand_cd[h] > 0.0:
+		return true   # выстрел не готов — клик съеден, рукоятью не бьём
+	hand_cd[h] = FIRE_CD
+	_shoot(h, SPREAD_STANCE)
+	return true
+
+
+## Сам выстрел из руки h с разбросом spread (патрон уже есть).
+func _shoot(h: int, spread: float) -> void:
+	var p = game.player
+	var r := rounds_in(h)
 	_hand = h
 	game.inv.equip_dur[SLOTS[h]] = pistol_dur(true, r - 1)
 	_play(snd_shot, -1.0, randf_range(0.95, 1.05))
 	var cam: Camera3D = p.cam
 	var from := cam.global_position
-	var spread := lerpf(SPREAD_HIP, SPREAD_AIM, aim_k)
 	var dir := (-cam.global_transform.basis.z).rotated(cam.global_transform.basis.x, randf_range(-spread, spread)) \
 			.rotated(cam.global_transform.basis.y, randf_range(-spread, spread))
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * RANGE)
