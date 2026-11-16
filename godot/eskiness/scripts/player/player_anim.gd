@@ -169,12 +169,19 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		# удар по высоте взгляда: в стойке рука чуть следует за взглядом, в ударе — полностью
 		aim_w[i] = move_toward(aim_w[i], 1.0 if (punching and last_arm == i) else 0.0, get_physics_process_delta_time() * 7.0)
 		var look_p := clampf(head.rotation.x, -1.2, 1.0)
-		var aim_lift := look_p * (0.2 * fist_blend + 0.7 * aim_w[i])
+		# 05:02: взгляд вниз почти не опускает стойку (иначе плечи висят вертикально и руки «складываются»)
+		var aim_lift := look_p * ((0.2 if look_p > 0.0 else 0.05) * fist_blend + 0.7 * aim_w[i])
+		# 05:06: в стойке на ходу/бегу руки живые — боб в такт шагам, мах вперёд-назад навстречу ногам, на бегу кулаки ниже
+		var wk := fist_blend * clampf(amt, 0.0, 1.2)
+		var gsw := clampf(-foot[1 - i].z * 1.1, -0.6, 0.6) * 0.22 * wk
+		var gbob := sin(phase + float(i) * 0.6) * wk * (1.0 + run_k)
+		var g_x := gsw + deg_to_rad(2.5) * gbob - deg_to_rad(10.0) * run_k * fist_blend
+		var g_el := deg_to_rad(4.0) * gbob - gsw * 0.5 + deg_to_rad(8.0) * run_k * fist_blend
 		shoulders[i].rotation = Vector3(
-			deg_to_rad(p.x) + arm_swing + guard_bob + rest_sway + aim_lift + relax_x,
+			deg_to_rad(p.x) + arm_swing + guard_bob + rest_sway + aim_lift + relax_x + g_x,
 			deg_to_rad(p.y) * side + relax_y * side,
 			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend) + relax_z * side + 0.05 * side * rka)
-		elbows[i].rotation.x = deg_to_rad(p.w) + relax_el + run_el
+		elbows[i].rotation.x = deg_to_rad(p.w) + relax_el + run_el + g_el
 		if not USE_MODEL:
 			shoulders[i].position.z = 0.13 - reach[i]
 	_gun_pose(delta)
@@ -185,7 +192,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 			- CROUCH_CAM * _crouch_k()
 	head.position.x = sin(gait * TAU) * 0.012 * bob
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
-	head.position.z = lerpf(-0.22, -0.04, fist_blend) - 0.06 * _crouch_k()
+	head.position.z = lerpf(-0.22, 0.0, fist_blend) - 0.06 * _crouch_k()
 	# камера всегда на уровне глаз тела и перед шеей (присед, наклон, удары): по кости головы
 	if skel != null and head_bone != -1:
 		var hb := to_local(skel.global_transform * skel.get_bone_global_pose(head_bone).origin)
@@ -478,9 +485,12 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 		var rk := idle_amt * (1.0 - fist_blend) * (1.0 - ck)
 		var unl := clampf(-weight * side, 0.0, 1.0)
 		t += Vector3(side * (0.03 + 0.01 * unl), -side * weight * 0.004, (-0.025 if i == 0 else 0.01) - 0.02 * unl) * rk
+		# боевая стойка (05:02): стопы на ширине плеч, левая впереди, правая сзади и носком наружу — ноги не сведены
+		var bk := fist_blend * (1.0 - ck) * (0.4 + 0.6 * idle_amt)
+		t += Vector3(side * 0.075, 0.0, -0.12 if i == 0 else 0.09) * bk
 		# разгруженная нога: пятка чуть приподнята, колено подсогнуто
 		t.y += 0.16 * maxf(-sin(idle_pitch[i]), 0.0)
-		_leg_ik(i, t, idle_pitch[i], -side * deg_to_rad(9.0 + 3.0 * unl) * rk)
+		_leg_ik(i, t, idle_pitch[i], -side * deg_to_rad(9.0 + 3.0 * unl) * rk - side * deg_to_rad(6.0 if i == 0 else 18.0) * bk)
 
 
 ## Торс догоняет взгляд с задержкой. На ходу и в прыжке ноги сразу смотрят по взгляду (как раньше);
@@ -580,7 +590,7 @@ func _update_idle(delta: float, spd: float, grounded: bool) -> void:
 	var sz := (sin(it * 0.37 + 2.0) * 0.006 + sin(it * 0.97) * 0.0025) * rk
 	# таз уходит на опорную ногу и чуть опускается (вес = -1 — левая, она на -X); колени мягкие
 	var tgt := Vector3(w * 0.045 + sx, -(absf(w) * 0.012 + 0.006 * (0.5 + 0.5 * sin(breath_ph))) - 0.007 * rk
-			- box * idle_amt * (0.035 + 0.025 * bounce), sz)
+			- box * idle_amt * (0.022 + 0.014 * bounce), sz)   # 05:02: в стойке колени лишь чуть согнуты
 	hip_off = hip_off.lerp(tgt, 1.0 - exp(-10.0 * delta))
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
