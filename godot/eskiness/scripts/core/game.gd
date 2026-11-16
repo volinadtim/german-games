@@ -213,7 +213,7 @@ func _physics_process(delta: float) -> void:
 	if alive:
 		var from := player.cam.global_position
 		var q := PhysicsRayQueryParameters3D.create(from, from - player.cam.global_transform.basis.z * 2.3)
-		q.collision_mask = 1
+		q.collision_mask = 1 | StonePile.LAYER   # кучки камней — на своём слое (сквозь них проходят, промпт 03:34)
 		q.exclude = [player.get_rid()]
 		var hit := get_world_3d().direct_space_state.intersect_ray(q)
 		var hit_d := 99.0

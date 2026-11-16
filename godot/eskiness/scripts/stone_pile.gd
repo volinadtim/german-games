@@ -2,6 +2,7 @@ extends StaticBody3D
 ## Кучка камней (промпт 14.11 19:22): E — взять 1 камень. В кучке 3–5 камней, пустая исчезает. Камни не пересекаются.
 ## Сколько осталось — в сейве (game.gd: stone_piles). Интерфейс для game.gd: get_prompt(game), interact(game).
 
+const LAYER := 2048   # слой кучек: только для луча взаимодействия
 var game
 var left := 4
 var seed_ := 0
@@ -60,6 +61,10 @@ func _ready() -> void:
 	shape.shape = bs
 	shape.position.y = 0.15
 	add_child(shape)
+	# не мешает проходу (промпт 03:34): свой слой, игрок и враги (маска 1) проходят сквозь;
+	# луч E в game.gd смотрит и этот слой
+	collision_layer = LAYER
+	collision_mask = 0
 	set_left(left)
 
 
