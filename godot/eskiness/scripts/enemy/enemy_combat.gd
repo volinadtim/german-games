@@ -285,6 +285,15 @@ func _die(dir: Vector3) -> void:
 		twp.tween_callback(queue_free)
 		return
 	var pos := global_position + Vector3(0, height * 0.5, 0)
+	if not drop_only.is_empty():
+		for id in drop_only:
+			game.spawn_loot(String(id), 1, pos, Vector3(0, 2.5, 0), 1.0)
+		died.emit(self)
+		var tw3 := create_tween()
+		tw3.tween_interval(8.0)
+		tw3.tween_property(self, "position:y", position.y - 0.8, 3.0)
+		tw3.tween_callback(queue_free)
+		return
 	var coins := randi_range(0, 6) if kind == "heavy" else randi_range(0, 2)
 	if coins > 0:
 		game.spawn_loot("coin", coins, pos, Vector3(0, 2.5, 0), 1.6)

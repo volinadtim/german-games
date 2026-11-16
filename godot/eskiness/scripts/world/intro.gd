@@ -14,17 +14,20 @@ const WAKE_POS := Vector3(-11.25, 0.05, -4.3)   # у западной стены
 
 const DOOR := Vector3(-6.0, 0.0, -1.6)          # проём из северо-западной комнаты в коридор
 const TRIGGER_R := 2.3                          # «почти подошёл к выходу»
-const CRAWL_FROM := Vector3(-8.5, 0.0, 0.25)    # из-за угла коридора
+const CRAWL_FROM := Vector3(-9.8, 0.0, 0.3)     # из-за угла коридора; через 4 с ползания встаёт (~2.4 м)
+const SIDE_CAM := Vector3(-4.3, 1.6, 1.25)       # ракурс сцены — сбоку, из коридора (промпт 16.11 03:40)
+const SIDE_T := 3.0                              # потом за 1.2 с камера плавно возвращается в глаза
 const CRAWL_PATH := [Vector3(-6.0, 0, 0.1), Vector3(0.0, 0, 0.0), Vector3(6.0, 0, 0.0), Vector3(6.0, 0, -0.9),
 	Vector3(6.0, 0, -2.4), Vector3(6.0, 0, -5.3), Vector3(8.0, 0, -7.2)]
 const WAKE_T := 7.6
-const CUT_T := 3.6
+const CUT_T := 4.2
 const CUE_T := 3.0
 
 var game
 var stage := "wake"     # wake → free → cut → hunt → cue_wait → cue → конец
 var t := 0.0
 var crawler: Node3D
+var cut_cam: Camera3D
 var layer: CanvasLayer
 var fade: ColorRect
 var hint: Label
@@ -57,6 +60,9 @@ func start() -> void:
 	layer.add_child(fade)
 	_decor()
 	echo_snd = _slot_echo()
+	game.intro_done = false
+	if game.slot and is_instance_valid(game.slot):
+		game.slot.set_powered(false)   # KILLBOX выключен до убийства монстрика
 	_wake_pose(0.0)
 
 
@@ -108,7 +114,10 @@ func _process(delta: float) -> void:
 		"cut":
 			if is_instance_valid(crawler):
 				_aim(crawler.global_position + Vector3(0, 0.45, 0), 1.0 - exp(-3.0 * delta))
+				var side := Transform3D(Basis(), SIDE_CAM).looking_at(crawler.global_position + Vector3(0, 0.4, 0))
+				cut_cam.global_transform = side.interpolate_with(p.cam.global_transform, smoothstep(SIDE_T, CUT_T - 0.05, t))
 			if t >= CUT_T:
+				_end_side_cam()
 				_lock(false)
 				_show_hint()
 				stage = "hunt"
@@ -118,7 +127,10 @@ func _process(delta: float) -> void:
 			elif String(crawler.get("state")) == "dead":
 				_on_crawler_died(crawler)   # подстраховка, если сигнал died не дошёл
 		"cue_wait":
-			if t >= 0.9:
+			if t >= 0.1:   # сразу после убийства (промпт 16.11 03:39)
+				game.intro_done = true
+				if game.slot and is_instance_valid(game.slot):
+					game.slot.set_powered(true, true)   # KILLBOX загорается со звуком
 				_play_echo()
 				p.active = false
 				game.inv.enabled = false
@@ -193,11 +205,19 @@ func _begin_cut() -> void:
 	if e.bar_fg:
 		e.bar_fg.scale.x = 0.5
 	e.crawl_path = CRAWL_PATH.duplicate()
+	e.crawl_stop = 4.0
+	e.drop_only = ["rusk", "water"]
 	e._set_state("crawl")
 	e.died.connect(_on_crawler_died)
 	if game.takedown:
 		game.takedown.killed.connect(_on_takedown)
 	crawler = e
+	cut_cam = Camera3D.new()
+	cut_cam.fov = game.player.cam.fov
+	cut_cam.near = 0.05
+	game.add_child(cut_cam)
+	cut_cam.global_transform = Transform3D(Basis(), SIDE_CAM).looking_at(e.global_position + Vector3(0, 0.4, 0))
+	cut_cam.current = true
 	# звук: скрежет ползущего тела, жалобный визг и глухой гул
 	var drag := AudioStreamPlayer3D.new()
 	drag.stream = _drag_snd()
@@ -232,9 +252,18 @@ func _on_takedown(k) -> void:
 		_on_crawler_died(k)
 
 
+func _end_side_cam() -> void:
+	if is_instance_valid(cut_cam):
+		cut_cam.queue_free()
+	cut_cam = null
+	if game and is_instance_valid(game.player):
+		game.player.cam.current = true
+
+
 func _on_crawler_died(_e) -> void:
 	if stage in ["hunt", "cut", "free"]:
 		if stage == "cut":
+			_end_side_cam()
 			_lock(false)
 		_hide_hint()
 		stage = "cue_wait"
@@ -242,6 +271,11 @@ func _on_crawler_died(_e) -> void:
 
 
 func _finish() -> void:
+	_end_side_cam()
+	if game and not game.intro_done:
+		game.intro_done = true
+		if game.slot and is_instance_valid(game.slot):
+			game.slot.set_powered(true, true)
 	for c in hidden:
 		if is_instance_valid(c):
 			(c as Node3D).visible = true
@@ -303,7 +337,7 @@ func _play_echo() -> void:
 	s.stream = echo_snd
 	s.unit_size = 9.0
 	s.max_distance = 60.0
-	s.volume_db = 3.0
+	s.volume_db = -1.5
 	s.attenuation_filter_cutoff_hz = 9000.0
 	game.add_child(s)
 	if game.slot and is_instance_valid(game.slot):

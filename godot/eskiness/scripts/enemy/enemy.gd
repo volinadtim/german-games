@@ -208,8 +208,13 @@ func _crawl(delta: float, d: float, ppos: Vector3) -> Vector3:
 		_set_state("chase")
 		_growl()
 		return Vector3.ZERO
-	if crawl_i >= crawl_path.size():
+	if crawl_i >= crawl_path.size() or (crawl_stop > 0.0 and crawl_t >= crawl_stop):
+		# остановился: стоит, покачивается и отворачивается от игрока — ждёт
+		var away := global_position - ppos
+		away.y = 0.0
+		rotation.y = lerp_angle(rotation.y, atan2(-away.x, -away.z), 1.0 - exp(-1.5 * delta))
 		return Vector3.ZERO
+	crawl_t += delta
 	var goal: Vector3 = crawl_path[crawl_i]
 	if Vector2(goal.x - global_position.x, goal.z - global_position.z).length() < 0.35:
 		crawl_i += 1

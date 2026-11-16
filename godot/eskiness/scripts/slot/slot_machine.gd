@@ -32,7 +32,80 @@ func _ready() -> void:
 	_snap_strips()
 
 
+## Питание (world/intro.gd, промпт 16.11 03:42): в начале новой игры автомат выключен — экран, лампы
+## и свет погашены, крутить нельзя; после убийства заблудшего монстрика включается со звуком.
+var powered := true
+var _glow_e := {}     # материал → яркость свечения до выключения
+
+
+func _power_parts() -> Array:
+	var mats: Array = []
+	var lights: Array = []
+	var stack: Array[Node] = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is Light3D:
+			lights.append(n)
+		elif n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			var list: Array = [mi.material_override]
+			if mi.mesh:
+				for i in mi.mesh.get_surface_count():
+					list.append(mi.get_surface_override_material(i))
+					list.append(mi.mesh.surface_get_material(i))
+			for m in list:
+				if m is StandardMaterial3D and (m as StandardMaterial3D).emission_enabled and not m in mats:
+					mats.append(m)
+	return [mats, lights]
+
+
+func set_powered(on: bool, fx := false) -> void:
+	if on == powered and not fx:
+		return
+	var parts := _power_parts()
+	if not on:
+		powered = false
+		for m in parts[0]:
+			if not _glow_e.has(m):
+				_glow_e[m] = (m as StandardMaterial3D).emission_energy_multiplier
+			(m as StandardMaterial3D).emission_energy_multiplier = 0.0
+		for l in parts[1]:
+			(l as Light3D).visible = false
+		screen.visible = false
+		return
+	if not fx:
+		_power_apply(parts, true)
+		return
+	# включение: щелчок, гудение, свет и экран дважды мигают и загораются
+	if game:
+		game.play_at("clunk", global_position + Vector3(0, 1.0, 0.4), -4.0, 0.8)
+		game.play_at("buzz", global_position + Vector3(0, 1.2, 0.4), -10.0, 0.9)
+	var tw := create_tween()
+	for k in [true, false, true, false]:
+		tw.tween_callback(_power_apply.bind(parts, k))
+		tw.tween_interval(0.07 if k else 0.12)
+	tw.tween_callback(_power_apply.bind(parts, true))
+	tw.tween_callback(_power_jingle)
+
+
+func _power_jingle() -> void:
+	if game:
+		game.play_at("jingle", global_position + Vector3(0, 1.2, 0.4), -8.0)
+
+
+func _power_apply(parts: Array, on: bool) -> void:
+	powered = on
+	for m in parts[0]:
+		(m as StandardMaterial3D).emission_energy_multiplier = float(_glow_e.get(m, 1.0)) if on else 0.0
+	for l in parts[1]:
+		(l as Light3D).visible = on
+	screen.visible = on
+
+
 func get_prompt(_game) -> String:
+	if not powered:
+		return ""
 	if busy:
 		return ""
 	return "[E] Крутить KILLBOX (осталось %d)" % credits if credits > 0 else "[E] KILLBOX — купить крутки"
@@ -40,7 +113,7 @@ func get_prompt(_game) -> String:
 
 func interact(g) -> void:
 	game = g
-	if busy:
+	if busy or not powered:
 		return
 	if credits <= 0:
 		_open_packs()
@@ -129,6 +202,8 @@ func _reel_stopped(i: int) -> void:
 
 
 func _process(delta: float) -> void:
+	if not powered:
+		return
 	t += delta
 	# лампочки: бегущий огонёк, при выигрыше — быстро мигают все
 	party = maxf(party - delta, 0.0)

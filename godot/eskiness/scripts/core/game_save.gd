@@ -66,6 +66,7 @@ func save_state() -> Dictionary:
 		"slot_sevens": slot.sevens_hit if slot else false,
 		"slot_reveal": slot.reveal_pending if slot else false,
 		"play_time": play_time,
+		"intro_done": intro_done,
 		"village": village.to_save() if village else {},
 	}
 
@@ -186,6 +187,10 @@ func load_state(d: Dictionary) -> void:
 				e.append(float(it[2]))
 			storage.contents.append(e)
 	play_time = float(d.get("play_time", 0.0))
+	# вступление: сохранились посреди него — монстрика уже нет, поэтому автомат всё равно включаем
+	intro_done = true
+	if slot:
+		slot.set_powered(true)
 	# сейвы до машины: сейф уже открыт, а ключа нигде нет — кладём его в сейф
 	if safe and safe.opened:
 		# машина уже уехала — ключ в её зажигании (car_drive.gd: from_save)

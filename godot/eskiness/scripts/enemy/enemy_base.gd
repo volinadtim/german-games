@@ -75,6 +75,9 @@ static var _screech_cache: Array = []
 @warning_ignore("unused_private_class_variable")
 static var _front_id := 0   # кто из врагов сейчас атакует игрока спереди (окружение)
 var home := Vector3.ZERO
+var drop_only: Array = []   # если задано — при смерти выпадают ровно эти предметы (вступление: сухарь и вода)
+var crawl_stop := 0.0       # заблудший (intro.gd): через столько секунд ползания останавливается (0 — нет)
+var crawl_t := 0.0
 var hunter := false   # всегда гонится, спускается в бункер
 var hp := MAX_HP   # выставляет _apply_kind
 var state := "idle"

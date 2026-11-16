@@ -101,6 +101,17 @@ func _strike(e: Node) -> void:
 			if String(e.get("state")) != "dead" and e.has_method("_die"):
 				e._die(dir)
 		killed.emit(e)
+		# труп уходит в пол и исчезает, как при обычной смерти: без физики, чтобы пол не выталкивал его обратно
+		get_tree().create_timer(7.9, false).timeout.connect(_sink.bind(e))
 	elif is_instance_valid(e) and body:
 		body.collision_layer = layer
 	busy = false
+
+
+func _sink(e) -> void:
+	if not is_instance_valid(e):
+		return
+	e.set_physics_process(false)
+	var tw: Tween = e.create_tween()
+	tw.tween_property(e, "position:y", (e as Node3D).position.y - 0.9, 3.0)
+	tw.tween_callback(e.queue_free)
