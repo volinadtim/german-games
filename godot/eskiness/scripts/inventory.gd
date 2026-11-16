@@ -79,6 +79,8 @@ var craft_shown := false
 var craft_tw: Tween
 var craft_open := -1            # раскрытый рецепт в списке крафта (-1 — все свёрнуты)
 var _press_key = null
+var _press_pos := Vector2.ZERO
+const CLICK_SLOP := 6.0          # ЛКМ: сдвиг меньше — клик (надеть/снять), больше — перетаскивание
 var game  # game.gd — чтобы не открываться поверх магазина
 var hold_key = null              # что выбрасываем удержанием ПКМ: номер ячейки или "coin"
 var hold_t := 0.0
@@ -132,7 +134,15 @@ class Slot extends Control:
 			if is_eq:
 				_draw_part(String(key))
 			return
-		Items.draw_icon(self, id, r.grow(-12))
+		if is_eq and key == "hands":
+			# надетые перчатки — пальцами вниз, в левой колонке зеркально (промпт 04:44)
+			var ir := r.grow(-12)
+			var c := ir.get_center()
+			draw_set_transform(c, PI, Vector2(-1.0 if not mirror else 1.0, 1.0))
+			Items.draw_icon(self, id, Rect2(-ir.size / 2.0, ir.size))
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		else:
+			Items.draw_icon(self, id, r.grow(-12))
 		# полоска прочности
 		var mx := Items.max_dur(id)
 		if mx > 0.0:
@@ -1022,19 +1032,23 @@ func _input(e: InputEvent) -> void:
 			elif uk is String and equip[uk] != "":
 				unequip_requested.emit(uk, -1)
 			get_viewport().set_input_as_handled()
-		# ЛКМ мышью — только перетаскивание; касание пальцем (эмуляция мыши) по-прежнему использует
-		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not dlg.visible \
-				and e.device == InputEvent.DEVICE_ID_EMULATION:
+		# касание пальцем (эмуляция мыши) — использовать; ЛКМ мышью: клик (без сдвига дальше порога) по одежде /
+		# снаряжению — надеть в свой слот (занят — меняются), по надетому — снять в сумку (промпт 04:43);
+		# со сдвигом — обычное перетаскивание
+		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and not dlg.visible:
+			var touch: bool = e.device == InputEvent.DEVICE_ID_EMULATION
 			var at = _slot_at()
 			if e.pressed:
 				_press_key = at
+				_press_pos = e.position
 				if not _same(at, hover):
 					set_hover(at)
 			else:
 				var pk = _press_key
 				_press_key = null
-				if at != null and _same(pk, at) and not get_viewport().gui_is_dragging():
-					if at is int and slots[at] != null:
+				var still: bool = touch or e.position.distance_to(_press_pos) < CLICK_SLOP
+				if at != null and _same(pk, at) and still and not get_viewport().gui_is_dragging():
+					if at is int and slots[at] != null and (touch or Items.equip_slot(String(slots[at]["id"])) != ""):
 						use_requested.emit(at)
 					elif at is String and equip[at] != "":
 						unequip_requested.emit(at, -1)
