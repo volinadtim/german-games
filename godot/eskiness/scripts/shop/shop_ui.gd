@@ -44,7 +44,7 @@ func _build_ui() -> void:
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE   # клики мимо окна — в dim
 	ui.add_child(center)
 	var panel := PanelContainer.new()
-	var psb := _sb(Color(0.1, 0.07, 0.045, 0.97), Color(0.45, 0.3, 0.15), 3, 6, 0)
+	var psb := _sb(_tint(Color(0.1, 0.07, 0.045, 0.97)), _tint(Color(0.45, 0.3, 0.15)), 3, 6, 0)
 	psb.shadow_color = Color(0, 0, 0, 0.5)
 	psb.shadow_size = 12
 	panel.add_theme_stylebox_override("panel", psb)
@@ -58,9 +58,9 @@ func _build_ui() -> void:
 	awning.custom_minimum_size = Vector2(600, 62)
 	awning.draw.connect(func(): _draw_awning(awning))
 	root.add_child(awning)
-	var head := _label("TRINKETS MARKET", 30, Color(0.75, 1.0, 0.72))
+	var head := _label("TRINKETS MARKET", 30, _tint(Color(0.75, 1.0, 0.72)))
 	head.add_theme_font_override("font", sign_font())
-	head.add_theme_color_override("font_outline_color", Color(0.02, 0.08, 0.03))
+	head.add_theme_color_override("font_outline_color", _tint(Color(0.02, 0.08, 0.03)))
 	head.add_theme_constant_override("outline_size", 8)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	head.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -108,9 +108,9 @@ func _build_ui() -> void:
 		tb.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		tb.custom_minimum_size = Vector2(150, 38)
 		tb.add_theme_font_size_override("font_size", 16)
-		tb.add_theme_stylebox_override("normal", _sb(Color(0.17, 0.11, 0.06), Color(0.35, 0.24, 0.12), 1, 4, 8))
-		tb.add_theme_stylebox_override("hover", _sb(Color(0.25, 0.17, 0.09), Color(0.7, 0.5, 0.25), 1, 4, 8))
-		var on := _sb(C_GREEN, Color(0.6, 1.0, 0.6), 2, 4, 8)
+		tb.add_theme_stylebox_override("normal", _sb(_tint(Color(0.17, 0.11, 0.06)), _tint(Color(0.35, 0.24, 0.12)), 1, 4, 8))
+		tb.add_theme_stylebox_override("hover", _sb(_tint(Color(0.25, 0.17, 0.09)), _tint(Color(0.7, 0.5, 0.25)), 1, 4, 8))
+		var on := _sb(_tint(C_GREEN), _tint(Color(0.6, 1.0, 0.6)), 2, 4, 8)
 		on.border_width_left = 6
 		tb.add_theme_stylebox_override("pressed", on)
 		tb.add_theme_stylebox_override("hover_pressed", on)
@@ -145,7 +145,7 @@ func _build_ui() -> void:
 	right.add_theme_constant_override("separation", 6)
 	body.add_child(right)
 	var shelf := PanelContainer.new()
-	shelf.add_theme_stylebox_override("panel", _sb(Color(0.06, 0.045, 0.03), C_WOOD.lightened(0.15), 2, 4, 6))
+	shelf.add_theme_stylebox_override("panel", _sb(Color(0.06, 0.045, 0.03), _tint(C_WOOD.lightened(0.15)), 2, 4, 6))
 	right.add_child(shelf)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(416, 330)
@@ -186,15 +186,15 @@ func _draw_awning(ci: Control) -> void:
 	var n := 12
 	var sw := w / n
 	for i in n:
-		var col := C_GREEN if i % 2 == 0 else C_CREAM
+		var col := _tint(C_GREEN) if i % 2 == 0 else C_CREAM
 		ci.draw_rect(Rect2(i * sw, 0, sw, hh), col)
 		ci.draw_circle(Vector2(i * sw + sw / 2, hh), sw / 2, col)
-	ci.draw_rect(Rect2(0, 0, w, 5), Color(0.08, 0.2, 0.1))
+	ci.draw_rect(Rect2(0, 0, w, 5), _tint(Color(0.08, 0.2, 0.1)))
 	ci.draw_rect(Rect2(0, hh - 2, w, 2), Color(0, 0, 0, 0.18))
 	# вывеска-табличка под надпись
 	var bw := 330.0
-	ci.draw_rect(Rect2((w - bw) / 2, 8, bw, hh - 14), Color(0.05, 0.12, 0.06, 0.92))
-	ci.draw_rect(Rect2((w - bw) / 2, 8, bw, hh - 14), Color(0.5, 1.0, 0.55, 0.8), false, 2.0)
+	ci.draw_rect(Rect2((w - bw) / 2, 8, bw, hh - 14), _tint(Color(0.05, 0.12, 0.06, 0.92)))
+	ci.draw_rect(Rect2((w - bw) / 2, 8, bw, hh - 14), _tint(Color(0.5, 1.0, 0.55, 0.8)), false, 2.0)
 
 
 func _label(t: String, size: int, col: Color) -> Label:
@@ -338,9 +338,9 @@ func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, de
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(130, 82)
 	b.focus_mode = Control.FOCUS_NONE
-	var sb := _sb(Color(0.2, 0.13, 0.07, 0.95), Color(0.42, 0.28, 0.14, 0.9), 1, 4, 0)
+	var sb := _sb(_tint(Color(0.2, 0.13, 0.07, 0.95)), _tint(Color(0.42, 0.28, 0.14, 0.9)), 1, 4, 0)
 	sb.border_width_bottom = 5
-	var sh := _sb(Color(0.28, 0.19, 0.1, 0.95), Color(0.6, 1.0, 0.6, 0.95), 2, 4, 0)
+	var sh := _sb(_tint(Color(0.28, 0.19, 0.1, 0.95)), _tint(Color(0.6, 1.0, 0.6, 0.95)), 2, 4, 0)
 	sh.border_width_bottom = 5
 	b.add_theme_stylebox_override("normal", sb)
 	b.add_theme_stylebox_override("hover", sh)

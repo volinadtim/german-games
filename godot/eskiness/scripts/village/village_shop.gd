@@ -6,6 +6,12 @@ extends "res://scripts/shop/shop.gd"
 var main_shop                         # магазин бункера (game.shop до открытия этого)
 
 
+## красный Trinkets Market (промпт 16.11 03:04) — корпус, вывеска, свет и окно в красной гамме (shop_model._tint)
+func _ready() -> void:
+	red = true
+	super()
+
+
 func interact(g) -> void:
 	if not opened and g.shop != self:
 		main_shop = g.shop

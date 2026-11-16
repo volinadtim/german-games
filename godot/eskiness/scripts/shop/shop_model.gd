@@ -50,6 +50,18 @@ var sub := 0                  # открытая подвкладка «Одеж
 
 const CHEST_REFRESH := 80   # «Обновить все ящики»
 
+## красный маркет (промпт 16.11 03:04): village_shop.gd ставит true до _ready — корпус, вывеска, свет и окно
+## перекрашиваются из зелёного/коричневого в красный через _tint()
+var red := false
+
+
+func _tint(c: Color) -> Color:
+	if not red:
+		return c
+	if c.g > c.r:   # зелёный → красный (меняем каналы)
+		return Color(c.g, c.r, c.b * 0.9, c.a)
+	return Color(minf(c.r * 1.25, 1.0), c.g * 0.4, c.b * 0.45, c.a)   # коричневые рамки → тёмно-красные
+
 
 func _mat(c: Color, metal := 0.0, rough := 0.8) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -116,7 +128,7 @@ func _worn(c: Color, chrome := false, wear := 0.3) -> ShaderMaterial:
 
 
 func _build() -> void:
-	var green := _worn(Color(0.1, 0.27, 0.15), false, 0.3)
+	var green := _worn(_tint(Color(0.1, 0.27, 0.15)), false, 0.3)
 	var steel := _worn(Color(0.5, 0.52, 0.5), true)
 	var dark := _mat(Color(0.03, 0.035, 0.03))
 	var inside := _mat(Color(0.12, 0.13, 0.12), 0.3, 0.7)
@@ -153,7 +165,7 @@ func _build() -> void:
 		add_child(mini_)
 	# мутное зеленоватое стекло витрины
 	var gm := StandardMaterial3D.new()
-	gm.albedo_color = Color(0.5, 0.6, 0.52, 0.1)
+	gm.albedo_color = _tint(Color(0.5, 0.6, 0.52, 0.1))
 	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	gm.roughness = 0.2
 	gm.metallic_specular = 0.8
@@ -170,9 +182,9 @@ func _build() -> void:
 	_box(Vector3(0.52, 0.04, 0.03), Vector3(-0.15, TRAY_Y + 0.1, D / 2 + 0.01), steel)
 	# панель справа: экранчик, кнопки 4×3, щель для монет, возврат монет
 	var px := (WIN_X1 + W / 2) / 2
-	var screen_m := _mat(Color(0.05, 0.12, 0.06))
+	var screen_m := _mat(_tint(Color(0.05, 0.12, 0.06)))
 	screen_m.emission_enabled = true
-	screen_m.emission = Color(0.3, 0.9, 0.4)
+	screen_m.emission = _tint(Color(0.3, 0.9, 0.4))
 	screen_m.emission_energy_multiplier = 0.35
 	_box(Vector3(0.22, 0.08, 0.01), Vector3(px, 1.62, D / 2 + 0.005), screen_m)
 	var scr := Label3D.new()
@@ -180,7 +192,7 @@ func _build() -> void:
 	scr.font = model_font()
 	scr.font_size = 34
 	scr.pixel_size = 0.0018
-	scr.modulate = Color(0.5, 1.0, 0.55)
+	scr.modulate = _tint(Color(0.5, 1.0, 0.55))
 	scr.outline_size = 0
 	scr.position = Vector3(px, 1.62, D / 2 + 0.012)
 	add_child(scr)
@@ -192,9 +204,9 @@ func _build() -> void:
 	_box(Vector3(0.012, 0.06, 0.01), Vector3(px, 1.12, D / 2 + 0.021), dark)
 	_box(Vector3(0.1, 0.06, 0.03), Vector3(px, 0.92, D / 2 + 0.01), dark)
 	# вывеска сверху
-	var sign_m := _mat(Color(0.04, 0.09, 0.05))
+	var sign_m := _mat(_tint(Color(0.04, 0.09, 0.05)))
 	sign_m.emission_enabled = true
-	sign_m.emission = Color(0.12, 0.5, 0.2)
+	sign_m.emission = _tint(Color(0.12, 0.5, 0.2))
 	sign_m.emission_energy_multiplier = 0.45
 	_box(Vector3(W + 0.04, 0.26, 0.12), Vector3(0, H + 0.13, 0.12), sign_m)
 	_box(Vector3(W + 0.06, 0.02, 0.14), Vector3(0, H + 0.27, 0.12), steel)
@@ -204,20 +216,20 @@ func _build() -> void:
 	title.font_size = 64
 	title.pixel_size = 0.00175
 	title.outline_size = 6
-	title.outline_modulate = Color(0.02, 0.1, 0.03)
-	title.modulate = Color(0.6, 1.0, 0.62)
+	title.outline_modulate = _tint(Color(0.02, 0.1, 0.03))
+	title.modulate = _tint(Color(0.6, 1.0, 0.62))
 	title.shaded = false
 	title.position = Vector3(0, H + 0.13, 0.185)
 	add_child(title)
 	# свет витрины и вывески — тусклый зелёный
 	var l := OmniLight3D.new()
-	l.light_color = Color(0.55, 1.0, 0.6)
+	l.light_color = _tint(Color(0.55, 1.0, 0.6))
 	l.light_energy = 0.4
 	l.omni_range = 3.0
 	l.position = Vector3(-0.15, 1.6, D / 2 + 0.4)
 	add_child(l)
 	var inner := OmniLight3D.new()
-	inner.light_color = Color(0.75, 1.0, 0.8)
+	inner.light_color = _tint(Color(0.75, 1.0, 0.8))
 	inner.light_energy = 0.12
 	inner.omni_range = 1.2
 	inner.position = Vector3(-0.15, 1.95, 0.05)
