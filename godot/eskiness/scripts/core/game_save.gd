@@ -92,15 +92,22 @@ func load_state(d: Dictionary) -> void:
 	inv.slots.clear()
 	inv.slots.resize(inv.TOTAL)
 	inv.equip_dur.clear()
+	# без общей сумки (промпт 16.11 06:03): старому сейву надеваем стартовые футболку / штаны / вещмешок в пустые слоты
+	var old_layout := int(d.get("bag_layout", 1)) < inv.BAG_LAYOUT
+	if old_layout:
+		for k in inv.START_GEAR:
+			if String(eq.get(k, "")) == "" or not Items.ITEMS.has(String(eq.get(k, ""))):
+				eq[k] = inv.START_GEAR[k]
+				ed.erase(k)
 	for k in inv.equip:
 		var id: String = String(eq.get(k, ""))
 		inv.equip[k] = id if Items.ITEMS.has(id) else ""
 		if ed.has(k):
 			inv.equip_dur[k] = float(ed[k])
 		_apply_equip(k)
-	# сумка 5×5 → 5×4 (промпт 03:44): старые номера ячеек сдвигаются, нижний ряд — куда влезет / на пол
+	# старая раскладка: все вещи раскладываются по ячейкам одежды заново (inv.migrate_bag)
 	var bag_extra: Array = []
-	if int(d.get("bag_layout", 1)) < inv.BAG_LAYOUT and bag.size() > 20:
+	if old_layout:
 		var mg: Array = inv.migrate_bag(bag)
 		bag = mg[0]
 		bag_extra = mg[1]
@@ -188,9 +195,6 @@ func load_state(d: Dictionary) -> void:
 			p.set_meta("dropped", true)
 		p.need_leave = bool(it.get("manual", it.get("dropped", false)))   # выброшенное игроком — только по E
 		p.life = float(it.get("ttl", Pickup.LIFE))
-	if not spill.is_empty():
-		drop_spilled(spill)   # старый сейв: крупные вещи не влезли в сетку
-		hud.toast("Сумка теперь сетка 5×4 — что не влезло, лежит на полу рядом", Color(0.95, 0.75, 0.45))
 	if storage:
 		storage.contents = []
 		for it in d.get("storage", []):
@@ -200,6 +204,18 @@ func load_state(d: Dictionary) -> void:
 			if it.size() > 4:   # ячейка и поворот в сетке сундука (loot_window, промпт 16.11 05:05)
 				e.append_array([int(it[3]), bool(it[4])])
 			storage.contents.append(e)
+	if not spill.is_empty():
+		# старый сейв: не влезло в ячейки одежды — в сундук дома (с пола вещи пропадают), нет сундука — на пол
+		if storage:
+			for sp in spill:
+				var e: Array = [String(sp["id"]), int(sp.get("n", 1))]
+				if sp.has("dur"):
+					e.append(float(sp["dur"]))
+				storage.contents.append(e)
+			hud.toast("Общей сумки больше нет: вещи — в одежде и вещмешке, что не влезло — в сундуке дома", Color(0.95, 0.75, 0.45))
+		else:
+			drop_spilled(spill)
+			hud.toast("Общей сумки больше нет: что не влезло в одежду и вещмешок — на полу рядом", Color(0.95, 0.75, 0.45))
 	play_time = float(d.get("play_time", 0.0))
 	# вступление: сохранились посреди него — монстрика уже нет, поэтому автомат всё равно включаем
 	intro_done = true

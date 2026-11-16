@@ -184,7 +184,7 @@ func take_hit(_dmg: float, _dir: Vector3) -> void:
 	if game.inv.add("wood", 1) > 0:
 		var pk = game._make_pickup("wood", 1, global_position + Vector3(0, 0.8, 0), Vector3(0, 1.5, 0))
 		pk.need_leave = false
-		game.hud.toast("Сумка полна — деревяшка на земле")
+		game.hud.toast("Нет места — деревяшка на земле")
 	else:
 		game.hud.toast("+ Деревяшка", Color(0.85, 0.8, 0.65))
 		game.play_ui("pickup", -12.0, 0.9)

@@ -51,6 +51,11 @@ func setup(p: Player) -> void:
 		flashlight.attach(player.cam)
 
 	# стартовый набор (крутка автомата — 10 монет). Фонарика нет — он в магазине снаряжения.
+	# общей сумки нет (промпт 16.11 06:03): надеты футболка, штаны и вещмешок — их ячейки и есть инвентарь
+	for k in inv.START_GEAR:
+		inv.equip[k] = inv.START_GEAR[k]
+		inv.equip_dur[k] = Items.max_dur(inv.START_GEAR[k])
+	inv.update_blocks()
 	inv.add("coin", 50)
 	inv.add("bandage", 2)
 

@@ -76,7 +76,7 @@ func interact(g) -> void:
 	if left <= 0:
 		return
 	if g.inv.add("stone", 1) > 0:
-		g.hud.toast("Сумка полна")
+		g.hud.toast("Нет места")
 		return
 	g.hud.toast("+ Камень", Color(0.85, 0.85, 0.8))
 	g.play_ui("thud", -14.0, 1.4)

@@ -59,7 +59,7 @@ func interact(g) -> void:
 	if not ready_:
 		return
 	if g.inv.add("tape", 1) > 0:
-		g.hud.toast("Сумка полна")
+		g.hud.toast("Нет места")
 		return
 	g.hud.toast("+ Изолента", Color(0.85, 0.85, 0.8))
 	g.play_ui("pickup", -10.0)

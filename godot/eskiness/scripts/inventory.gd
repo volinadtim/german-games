@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Инвентарь: сетка 5×4 (+ отсек рюкзака и карманы одежды; монеты — отдельный кошелёк), снаряжение на силуэте человека
+## Инвентарь: общей сумки нет — ячейки только в надетом (спина: вещмешок/рюкзак, верх, штаны; монеты — кошелёк), снаряжение на силуэте человека
 ## (голова, лицо — противогаз, спина — рюкзак, тело, руки, ноги, обувь, левая и правая рука — оружие/щит), хотбар 1–5 и крафт.
 ## Tab / I — открыть/закрыть, игра не на паузе.
 ##   ЛКМ — использовать / надеть / снять; ПКМ — меню действий (промпт 14.11 19:07);
@@ -30,11 +30,12 @@ const Gun := preload("res://scripts/gun.gd")
 ## остальные ячейки под ним — null; "r": true — повёрнут. Отдельные блоки: рюкзак и карманы одежды.
 ## Блок: [первая ячейка, макс. ширина, макс. высота, слот снаряжения ("" — сумка), подпись].
 ## Индексы фиксированы (ячейка = начало + y * макс.ширина + x), активна только часть, которую даёт вещь.
-## сумка 5×4 (промпт 16.11 03:44, было 5×5 — сейвы без "bag_layout" сдвигаются, см. migrate_bag)
-const BLOCKS := [[0, 5, 4, "", "СУМКА"], [20, 5, 3, "back", "РЮКЗАК"], [35, 3, 2, "body", "КАРМАНЫ: ВЕРХ"], [41, 3, 2, "legs", "КАРМАНЫ: ШТАНЫ"]]
-const TOTAL := 47
-const BAG := 20                  # ячеек основной сумки
-const BAG_LAYOUT := 2            # версия раскладки номеров ячеек в сейве
+## Общей сумки нет (промпт 16.11 06:03): хранение только в надетом — спина (вещмешок 3×3 / рюкзак 3×5),
+## верх (футболка 2, куртки…), штаны. Не надето — блока нет. Старые сейвы (bag_layout < 3) — migrate_bag.
+const BLOCKS := [[0, 3, 5, "back", "СПИНА"], [15, 3, 2, "body", "ВЕРХ"], [21, 3, 2, "legs", "ШТАНЫ"]]
+const TOTAL := 27
+const BAG_LAYOUT := 3            # версия раскладки номеров ячеек в сейве
+const START_GEAR := {"body": "tshirt", "legs": "pants", "back": "sack"}   # надето в новой игре
 const COLS := 5
 const SLOT := 76.0
 const CELL := 58.0               # ячейка сетки сумки
@@ -70,18 +71,13 @@ var drag_off := Vector2i.ZERO    # за какую ячейку предмета
 var drag_key = null
 var drag_pv: Control = null
 var drop_rot := false            # поворот для unequip в ячейку (game.unequip читает)
-var bag_l: Label
+var empty_l: Label              # «ничего не надето — ячеек нет»
 var craft_box: VBoxContainer
 var craft_tab: Button
 var craft_wrap: Control
 var craft_panel: PanelContainer
 var craft_shown := false
 var craft_tw: Tween
-var gear_tab: Button             # «Снаряжение» — выкатывает слева куклу, рюкзак и карманы (промпт 05:52)
-var gear_wrap: Control
-var gear_panel: Control
-var gear_shown := false
-var gear_tw: Tween
 var craft_open := -1            # раскрытый рецепт в списке крафта (-1 — все свёрнуты)
 var _press_key = null
 var _press_pos := Vector2.ZERO
@@ -130,7 +126,7 @@ class Slot extends Control:
 		var r := Rect2(Vector2.ZERO, size)
 		var hovered: bool = typeof(inv.hover) == typeof(key) and inv.hover == key
 		var is_eq: bool = key is String
-		var extra: bool = not is_eq and int(key) >= inv.BAG   # ячейка рюкзака
+		var extra: bool = not is_eq
 		draw_rect(r, Color(0.09, 0.06, 0.03, 0.75) if is_eq else (Color(0.12, 0.09, 0.04, 0.6) if extra else Color(0.0, 0.0, 0.0, 0.5)))
 		draw_rect(r, Color(0.9, 0.7, 0.4, 0.6 if hovered else 0.25) if is_eq else Color(1, 1, 1, 0.45 if hovered else 0.12), false, 1.0)
 		var f := ThemeDB.fallback_font
@@ -361,7 +357,7 @@ class BagGrid extends Control:
 	func _draw() -> void:
 		var d: Vector2i = inv.block_dim(b)
 		var c: float = inv.CELL
-		draw_rect(Rect2(Vector2.ZERO, Vector2(d) * c), Color(0.12, 0.09, 0.04, 0.6) if b > 0 else Color(0, 0, 0, 0.5))
+		draw_rect(Rect2(Vector2.ZERO, Vector2(d) * c), Color(0.12, 0.09, 0.04, 0.6))
 		for x in d.x + 1:
 			draw_line(Vector2(x * c, 0), Vector2(x * c, d.y * c), Color(1, 1, 1, 0.1), 1.0)
 		for y in d.y + 1:
@@ -644,23 +640,12 @@ func _build_ui() -> void:
 	hb.add_theme_constant_override("separation", 18)
 	outer.add_child(hb)
 
-	# снаряжение на силуэте
-	# снаряжение выкатывается слева по кнопке «Снаряжение» (промпт 05:52); обёртка обрезает панель
-	gear_wrap = Control.new()
-	gear_wrap.clip_contents = true
-	gear_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	gear_wrap.visible = false
-	hb.add_child(gear_wrap)
-	var dc := HBoxContainer.new()   # кукла, справа от неё рюкзак и карманы (промпт 05:40)
-	dc.add_theme_constant_override("separation", 14)
-	gear_wrap.add_child(dc)
-	gear_panel = dc
-	gear_wrap.resized.connect(func(): _fit_slide(gear_wrap, gear_panel, true))
-	# надпись «СНАРЯЖЕНИЕ» убрана (промпт 03:47)
+	# основное окно — «Снаряжение» (промпт 16.11 06:03): кукла, справа — блоки ячеек надетого (спина, верх, штаны);
+	# общей сумки нет. Крафт выкатывается справа.
 	var doll := Doll.new()
 	doll.custom_minimum_size = Vector2(192, 320)
 	doll.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	dc.add_child(doll)
+	hb.add_child(doll)
 	for k in EQUIP + ["hands"]:
 		var s := Slot.new()
 		s.inv = self
@@ -670,40 +655,31 @@ func _build_ui() -> void:
 		s.mirror = s.position.x < 1.0 and k in ["hands", "left"]
 		doll.add_child(s)
 		slot_nodes.append(s)
-
-	# слева — экипировка: силуэт, под ним рюкзак и карманы одежды (видны, только когда надето); справа — сумка 5×4
-	# (промпт 16.11 03:44)
-	# справа от куклы: рюкзак, под ним карманы верх и штаны в ряд (промпт 05:40)
-	var gear := VBoxContainer.new()
-	gear.add_theme_constant_override("separation", 8)
-	gear.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	dc.add_child(gear)
-	var extra := VBoxContainer.new()
-	extra.add_theme_constant_override("separation", 4)
-	gear.add_child(extra)
-	var pockets := HBoxContainer.new()
-	pockets.add_theme_constant_override("separation", 10)
-	gear.add_child(pockets)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 6)
+	vb.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	hb.add_child(vb)
-	# заголовок: «ИНВЕНТАРЬ» и рядом кнопка «Крафт» (промпт 04:07) — выкатывает панель крафта, повторно прячет
+	# заголовок: «СНАРЯЖЕНИЕ» и рядом кнопка «Крафт» — выкатывает панель крафта, повторно прячет
 	var title := HBoxContainer.new()
 	title.add_theme_constant_override("separation", 8)
 	vb.add_child(title)
-	title.add_child(_label("ИНВЕНТАРЬ", 26, Color(0.86, 0.85, 0.8)))
-	gear_tab = _tab_button("Снаряжение")
-	gear_tab.pressed.connect(func(): set_gear(not gear_shown))
-	title.add_child(gear_tab)
+	title.add_child(_label("СНАРЯЖЕНИЕ", 26, Color(0.86, 0.85, 0.8)))
 	craft_tab = _tab_button("Крафт")
 	craft_tab.pressed.connect(toggle_craft)
 	title.add_child(craft_tab)
-	var mainc := VBoxContainer.new()
-	mainc.add_theme_constant_override("separation", 4)
-	vb.add_child(mainc)
+	var cells := HBoxContainer.new()   # спина слева, верх и штаны — столбиком справа
+	cells.add_theme_constant_override("separation", 10)
+	vb.add_child(cells)
+	var pockets := VBoxContainer.new()
+	pockets.add_theme_constant_override("separation", 6)
+	pockets.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	empty_l = _label("Наденьте одежду
+или вещмешок —
+появятся ячейки", 14, Color(0.55, 0.55, 0.52))
 	for bi in BLOCKS.size():
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", 3)
+		col.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		var bl := _label(BLOCKS[bi][4], 14, Color(0.6, 0.6, 0.56))
 		col.add_child(bl)
 		block_ls.append(bl)
@@ -715,12 +691,11 @@ func _build_ui() -> void:
 		col.add_child(g)
 		grids.append(g)
 		if bi == 0:
-			mainc.add_child(col)
-		elif bi == 1:
-			extra.add_child(col)
+			cells.add_child(col)
 		else:
 			pockets.add_child(col)
-	bag_l = block_ls[0]
+	cells.add_child(pockets)
+	cells.add_child(empty_l)
 	update_blocks()
 	var wallet := HBoxContainer.new()
 	wallet.add_theme_constant_override("separation", 10)
@@ -1547,12 +1522,6 @@ func set_craft(on: bool, instant := false) -> void:
 	craft_tw = _slide(craft_wrap, craft_panel, on, instant, craft_tw, false)
 
 
-func set_gear(on: bool, instant := false) -> void:
-	gear_shown = on
-	gear_tab.set_pressed_no_signal(on)
-	gear_tw = _slide(gear_wrap, gear_panel, on, instant, gear_tw, true)
-
-
 ## Кнопка-вкладка в заголовке окна (нажата — панель выкачена).
 func _tab_button(text: String) -> Button:
 	var b := Button.new()
@@ -1598,8 +1567,7 @@ func _fit_slide(wrap: Control, content: Control, right: bool) -> void:
 func show_inventory() -> void:
 	open = true
 	root.visible = true
-	set_craft(false, true)   # по умолчанию — только сумка; снаряжение остаётся как было в прошлый раз
-	set_gear(gear_shown, true)
+	set_craft(false, true)   # по умолчанию — только снаряжение
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_rebuild_craft()
 	_place_hot()
@@ -1772,8 +1740,6 @@ func _swap_equip(a: String, b: String) -> void:
 
 ## Размер блока b сейчас (рюкзак / карманы — от надетой вещи; не надето — 0×0).
 func block_dim(b: int) -> Vector2i:
-	if b == 0:
-		return Vector2i(COLS, int(BLOCKS[0][2]))
 	var d := Items.block_of(String(equip.get(BLOCKS[b][3], "")))
 	return Vector2i(mini(d.x, BLOCKS[b][1]), mini(d.y, BLOCKS[b][2]))
 
@@ -1926,23 +1892,14 @@ func reflow(extra: Array = []) -> Array:
 	return left
 
 
-## Старая раскладка (сумка 5×5, 52 ячейки): номера ячеек → новые. Нижний ряд сумки (20..24) — в extra
-## (reflow положит куда влезет, остальное — на пол), рюкзак и карманы сдвигаются на 5.
+## Старые сейвы (общая сумка, bag_layout < 3): номера ячеек больше не совпадают — все вещи в extra,
+## reflow раскладывает их по ячейкам одежды / вещмешка, что не влезло — game_save кладёт в сундук дома.
 static func migrate_bag(old: Array) -> Array:
 	var out: Array = []
 	out.resize(TOTAL)
 	var extra: Array = []
-	for i in old.size():
-		var s = old[i]
-		if s == null:
-			continue
-		if i < 20:
-			out[i] = s
-		elif i < 25:
-			extra.append(s)
-		elif i - 5 < TOTAL:
-			out[i - 5] = s
-		else:
+	for s in old:
+		if s != null:
 			extra.append(s)
 	return [out, extra]
 
@@ -1962,14 +1919,16 @@ func restore(sn: Array) -> void:
 func update_blocks() -> void:
 	if slots.size() != TOTAL:
 		slots.resize(TOTAL)
+	var any := false
 	for b in grids.size():
 		var d := block_dim(b)
 		grids[b].refit()
 		grids[b].get_parent().visible = d.x > 0 and d.y > 0
-		if b > 0:
-			block_ls[b].text = "%s %d×%d" % [BLOCKS[b][4], d.x, d.y]
-	if gear_wrap and gear_shown and (gear_tw == null or not gear_tw.is_running()):
-		set_gear.call_deferred(true, true)   # надели / сняли рюкзак — ширина панели снаряжения другая
+		any = any or (d.x > 0 and d.y > 0)
+		var eid := String(equip.get(BLOCKS[b][3], ""))
+		block_ls[b].text = "%s %d×%d" % [Items.item_name(eid).to_upper() if eid != "" else BLOCKS[b][4], d.x, d.y]
+	if empty_l:
+		empty_l.visible = not any
 	if hover is int and slots[hover] == null:
 		hover = null
 	if touch_sel is int and slots[touch_sel] == null:

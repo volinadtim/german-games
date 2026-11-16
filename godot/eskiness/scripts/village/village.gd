@@ -196,7 +196,8 @@ func _force_gasmask() -> void:
 	if game.inv.equip["face"] == "gasmask":
 		return
 	if game.inv.count("gasmask") == 0:
-		game.inv.add("gasmask", 1)
+		if game.inv.add("gasmask", 1) > 0:
+			game.drop_spilled([{"id": "gasmask", "n": 1}])
 		game.hud.toast("В бардачке нашёлся Нюхич", Color(0.7, 0.85, 0.6))
 	if game.gasmask and game.gasmask.filter_left <= 0.0:
 		if game.inv.count("filter") > 0:

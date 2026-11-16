@@ -695,13 +695,14 @@ func _buy(id: String, price: int) -> void:
 		return
 	var qty: int = AMMO_PACK if id == "ammo" else 1   # патроны — набором (05:11)
 	var left: int = game.inv.add(id, qty, 0.0 if id == "mag" else -1.0)   # магазин продаётся пустым (05:11)
-	if left > 0:
-		if left < qty:
-			game.inv.remove(id, qty - left)
-		game.inv.add("coin", price)
-		info_l.text = "Инвентарь полон"
-		return
 	info_l.text = "Куплено: %s" % Items.item_name(id)
+	if left > 0:
+		# нет места (общей сумки нет, промпт 16.11 06:03) — покупка на полу рядом
+		var e := {"id": id, "n": left}
+		if id == "mag":
+			e["dur"] = 0.0
+		game.drop_spilled([e])
+		info_l.text += " — на полу"
 	if Items.ITEMS[id].has("equip") or Items.ITEMS[id].get("weapon", false):
 		game.shop_bought.append(id)
 	_vend(id)

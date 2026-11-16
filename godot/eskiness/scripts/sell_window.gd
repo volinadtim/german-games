@@ -168,7 +168,7 @@ func _ready() -> void:
 	v.add_child(cols)
 	var bc := VBoxContainer.new()
 	cols.add_child(bc)
-	bc.add_child(_label("СУМКА", 22, Color(0.86, 0.85, 0.8)))
+	bc.add_child(_label("ВЕЩИ", 22, Color(0.86, 0.85, 0.8)))
 	bag_grid = _pane(bc, "bag", 2)
 	bc.add_child(_label("СУНДУК ДОМА", 22, Color(0.8, 0.72, 0.55)))
 	chest_grid = _pane(bc, "chest", 2)
@@ -322,7 +322,7 @@ func close() -> void:
 			p.need_leave = true
 			if float(it[2]) >= 0.0:
 				p.set_meta("dur", float(it[2]))
-			game.hud.toast("Сумка полна — %s на полу" % Items.item_name(String(it[0])))
+			game.hud.toast("Нет места — %s на полу" % Items.item_name(String(it[0])))
 	pending = []
 	if shop:
 		shop._refresh()
@@ -361,7 +361,7 @@ func click(side: String, idx: int, one: bool, to := "") -> void:
 		var left: int = _give_src(dest, String(it[0]), want, float(it[2]))
 		var moved := want - left
 		if moved <= 0:
-			info_l.text = "Сумка полна"
+			info_l.text = "Нет места"
 			return
 		it[1] = int(it[1]) - moved
 		if int(it[1]) <= 0:

@@ -204,7 +204,7 @@ func _ready() -> void:
 	var bc := VBoxContainer.new()
 	bc.add_theme_constant_override("separation", 8)
 	cols.add_child(bc)
-	bc.add_child(_label("СУМКА", 28, Color(0.86, 0.85, 0.8)))
+	bc.add_child(_label("ВЕЩИ", 28, Color(0.86, 0.85, 0.8)))
 	var holders: Array = []
 	for b in Inv.BLOCKS.size():
 		var g := LwBag.new()
@@ -215,15 +215,15 @@ func _ready() -> void:
 		var h := MarginContainer.new()
 		h.add_child(g)
 		holders.append(h)
-	bc.add_child(holders[0])
+	# общей сумки нет (промпт 16.11 06:03): спина слева, верх и штаны — столбиком справа
 	var low := HBoxContainer.new()
 	low.add_theme_constant_override("separation", 8)
 	bc.add_child(low)
-	low.add_child(holders[1])
+	low.add_child(holders[0])
 	var pk := VBoxContainer.new()
 	pk.add_theme_constant_override("separation", 8)
 	low.add_child(pk)
-	for b in range(2, holders.size()):
+	for b in range(1, holders.size()):
 		pk.add_child(holders[b])
 	# содержимое справа
 	var sc := VBoxContainer.new()
@@ -663,7 +663,7 @@ func take(i: int, quiet := false) -> void:
 	var got := want - left
 	if got <= 0:
 		if not quiet:
-			game.hud.toast("Сумка полна", Color(0.9, 0.5, 0.4))
+			game.hud.toast("Нет места", Color(0.9, 0.5, 0.4))
 		return
 	it[1] = int(it[1]) - got
 	if int(it[1]) <= 0:
@@ -720,4 +720,4 @@ func take_all() -> void:
 	if src != null and src.contents.is_empty() and not storage:
 		close()
 	elif src != null and not src.contents.is_empty():
-		game.hud.toast("Сумка полна", Color(0.9, 0.5, 0.4))
+		game.hud.toast("Нет места", Color(0.9, 0.5, 0.4))

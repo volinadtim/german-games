@@ -295,9 +295,12 @@ func equip(idx: int, slot_: String) -> void:
 	inv.equip[slot_] = id
 	inv.equip_dur[slot_] = new_d
 	inv.update_blocks()
-	if not inv.reflow(extra).is_empty():
+	var left := inv.reflow(extra)
+	if left.size() == 1 and not extra.is_empty() and is_same(left[0], extra[0]):
+		drop_spilled(left)   # снятому некуда — на пол (общей сумки нет, промпт 16.11 06:03)
+	elif not left.is_empty():
 		inv.restore(sn)
-		hud.toast("Сумка полна — некуда переложить")
+		hud.toast("Нет места — некуда переложить")
 		inv.notify()
 		return
 	_apply_equip(slot_)
@@ -357,9 +360,12 @@ func unequip(slot_: String, to := -1) -> bool:
 	inv.equip_dur.erase(slot_)
 	inv.equip[slot_] = ""
 	inv.update_blocks()
-	if not inv.reflow([e]).is_empty():
+	var left := inv.reflow([e])
+	if left.size() == 1 and is_same(left[0], e):
+		drop_spilled(left)   # снятую вещь некуда положить — на пол (общей сумки нет, промпт 16.11 06:03)
+	elif not left.is_empty():
 		inv.restore(sn)
-		hud.toast("Сумка полна — некуда снять" if Items.block_of(id).x == 0 else "Не снять: в сумке нет места для вещей из %s" % Items.item_name(id).to_lower(), Color(0.95, 0.6, 0.45))
+		hud.toast("Не снять: нет места для вещей из %s" % Items.item_name(id).to_lower(), Color(0.95, 0.6, 0.45))
 		play_ui("buzz", -14.0)
 		inv.notify()
 		return false
@@ -378,13 +384,9 @@ func drop_equipped(slot_: String) -> void:
 	inv.equip[slot_] = ""
 	inv.equip_dur.erase(slot_)
 	inv.update_blocks()
-	if not inv.reflow().is_empty():
-		# вещи из рюкзака / карманов не влезли в сумку — не выбрасываем
-		inv.restore(sn)
-		hud.toast("Не снять: в сумке нет места для вещей из %s" % Items.item_name(id).to_lower(), Color(0.95, 0.6, 0.45))
-		play_ui("buzz", -14.0)
-		inv.notify()
-		return
+	var left := inv.reflow()
+	if not left.is_empty():
+		drop_spilled(left)   # выбросили вещмешок / одежду — что не влезло в остальное, падает рядом
 	_apply_equip(slot_)
 	inv.notify()
 	var fwd := -player.global_transform.basis.z
@@ -536,7 +538,7 @@ func craft(r: int) -> void:
 	if inv.add(out, 1) > 0:
 		var fwd := -player.global_transform.basis.z
 		_make_pickup(out, 1, player.global_position + Vector3(0, 1.0, 0) + fwd * 0.4, Vector3.ZERO).need_leave = true
-		hud.toast("Сумка полна — %s на полу" % Items.item_name(out))
+		hud.toast("Нет места — %s на полу" % Items.item_name(out))
 	else:
 		hud.toast("Скрафчено: %s" % Items.item_name(out), Color(0.8, 0.9, 0.6))
 	play_ui("creak", -14.0, 1.6)
@@ -593,7 +595,7 @@ func drop_spilled(items: Array) -> void:
 		if s.has("dur"):
 			p.set_meta("dur", float(s["dur"]))
 	if not loading:
-		hud.toast("Не влезло в сумку — выпало на пол", Color(0.95, 0.6, 0.45))
+		hud.toast("Нет места — выпало на пол", Color(0.95, 0.6, 0.45))
 
 
 ## Выбросить монеты из кошелька.

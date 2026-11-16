@@ -59,8 +59,13 @@ const ITEMS := {
 		"icon": "repair_weapon", "color": Color(0.6, 0.2, 0.15), "repair": "weapon", "dur": 3},
 	"repair_gear": {"name": "Ремкомплект одежды", "desc": "3 заряда, каждый чинит одежду (голова, тело, ноги, обувь) на 50%. Нажать — самую потрёпанную; или перетащить на нужную.", "stack": 1,
 		"icon": "repair_gear", "color": Color(0.3, 0.42, 0.5), "repair": "gear", "dur": 3},
-	"backpack": {"name": "Рюкзак", "desc": "Спина: отдельный отсек для вещей. Снимешь — вещи из него переложатся в сумку.", "stack": 1,
-		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": [4, 3]},
+	"backpack": {"name": "Рюкзак", "desc": "Спина: отсек 3×5 для вещей. Снимешь — вещи из него переложатся в карманы.", "stack": 1,
+		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": [3, 5]},
+	# стартовая одежда (промпт 16.11 06:03): общей сумки нет — вещи только в одежде и на спине
+	"sack": {"name": "Вещмешок", "desc": "Спина: простой мешок с лямками, отсек 3×3.", "stack": 1,
+		"icon": "sack", "color": Color(0.42, 0.4, 0.28), "equip": "back", "bag": [3, 3]},
+	"tshirt": {"name": "Футболка", "desc": "Тело: простая футболка, без защиты. Нагрудный карман на 2 клетки.", "stack": 1,
+		"icon": "tshirt", "color": Color(0.55, 0.55, 0.5), "equip": "body"},
 	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 5,
 		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
 	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 6,
@@ -152,7 +157,7 @@ const RECIPES := [
 ## Размер предмета в ячейках сумки [ширина, высота] (промпт 16.11 02:42); нет в списке — 1×1.
 ## Пробел при перетаскивании поворачивает (inventory.gd).
 const SIZES := {
-	"pistol": [2, 2], "medkit": [2, 2], "shield": [2, 2], "fuel": [2, 2], "backpack": [2, 2],
+	"pistol": [2, 2], "medkit": [2, 2], "shield": [2, 2], "fuel": [2, 2], "backpack": [2, 2], "sack": [2, 2], "tshirt": [2, 1],
 	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
 	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
 	"flashlight": [1, 2], "water": [1, 2], "soda": [1, 2], "wood": [1, 2], "gasmask": [2, 2],
@@ -167,7 +172,7 @@ const SIZES := {
 ## Рюкзак — "bag" в ITEMS (свой блок).
 const POCKETS := {
 	"kurtka": [2, 1], "jacket": [2, 2], "vest": [3, 1],
-	"jeans": [2, 1], "pants": [2, 2], "wpants": [1, 2],
+	"jeans": [2, 1], "pants": [2, 1], "wpants": [1, 2], "tshirt": [2, 1],
 }
 
 
@@ -392,6 +397,19 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				dome.append(c + Vector2(cos(a) * s * 0.3, s * 0.08 + sin(a) * s * 0.3))
 			ci.draw_colored_polygon(dome, col)
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.4, s * 0.06), Vector2(s * 0.8, s * 0.08)), col.darkened(0.25))
+		"tshirt":
+			# футболка: короткие рукава, вырез
+			var tb := PackedVector2Array([c + Vector2(-s * 0.18, -s * 0.3), c + Vector2(s * 0.18, -s * 0.3), c + Vector2(s * 0.38, -s * 0.16),
+				c + Vector2(s * 0.3, -s * 0.02), c + Vector2(s * 0.22, -s * 0.06), c + Vector2(s * 0.22, s * 0.32), c + Vector2(-s * 0.22, s * 0.32),
+				c + Vector2(-s * 0.22, -s * 0.06), c + Vector2(-s * 0.3, -s * 0.02), c + Vector2(-s * 0.38, -s * 0.16)])
+			ci.draw_colored_polygon(tb, col)
+			ci.draw_arc(c + Vector2(0, -s * 0.3), s * 0.08, 0.0, PI, 10, col.darkened(0.4), maxf(1.5, s * 0.03))
+		"sack":
+			# вещмешок: горловина на шнурке, мешок, лямка
+			ci.draw_line(c + Vector2(-s * 0.08, -s * 0.3), c + Vector2(s * 0.08, -s * 0.3), dark, maxf(2.0, s * 0.05))
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.08, -s * 0.28), c + Vector2(s * 0.08, -s * 0.28),
+				c + Vector2(s * 0.3, s * 0.05), c + Vector2(s * 0.26, s * 0.34), c + Vector2(-s * 0.26, s * 0.34), c + Vector2(-s * 0.3, s * 0.05)]), col)
+			ci.draw_line(c + Vector2(-s * 0.06, -s * 0.24), c + Vector2(-s * 0.32, s * 0.3), col.darkened(0.35), maxf(1.5, s * 0.04))
 		"jacket":
 			var body := PackedVector2Array([c + Vector2(-s * 0.2, -s * 0.32), c + Vector2(s * 0.2, -s * 0.32), c + Vector2(s * 0.4, -s * 0.1),
 				c + Vector2(s * 0.3, s * 0.0), c + Vector2(s * 0.22, -s * 0.06), c + Vector2(s * 0.22, s * 0.34), c + Vector2(-s * 0.22, s * 0.34),
@@ -698,9 +716,9 @@ static func make_mesh(id: String) -> Node3D:
 			sm.height = 0.26
 			mi.mesh = sm
 			m.roughness = 0.3
-		"jacket", "pants", "kurtka", "vest", "jeans", "wpants":
+		"jacket", "pants", "kurtka", "vest", "jeans", "wpants", "tshirt":
 			var bm := BoxMesh.new()
-			bm.size = Vector3(0.4, 0.06, 0.32) if id in ["jacket", "kurtka", "vest"] else Vector3(0.3, 0.05, 0.42)
+			bm.size = Vector3(0.4, 0.06, 0.32) if id in ["jacket", "kurtka", "vest", "tshirt"] else Vector3(0.3, 0.05, 0.42)
 			if id == "vest":
 				bm.size = Vector3(0.34, 0.08, 0.36)
 				m.metallic = 0.4
@@ -709,9 +727,9 @@ static func make_mesh(id: String) -> Node3D:
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.12, 0.22, 0.26) if id == "boots" else Vector3(0.11, 0.09, 0.26)
 			mi.mesh = bm
-		"backpack":
+		"backpack", "sack":
 			var bm := BoxMesh.new()
-			bm.size = Vector3(0.28, 0.36, 0.14)
+			bm.size = Vector3(0.28, 0.36, 0.14) if id == "backpack" else Vector3(0.26, 0.3, 0.16)
 			mi.mesh = bm
 		"repair_weapon", "repair_gear":
 			var bm := BoxMesh.new()

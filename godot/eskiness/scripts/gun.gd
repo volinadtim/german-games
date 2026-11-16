@@ -674,7 +674,7 @@ func eject(target) -> void:
 		var pk = game._make_pickup("mag", 1, p.global_position + Vector3(0, 1.1, 0) + fwd * 0.4, fwd * 1.2 + Vector3(0, 0.6, 0))
 		pk.need_leave = true
 		pk.set_meta("dur", float(n))
-		game.hud.toast("Магазин извлечён — сумка полна, упал на пол")
+		game.hud.toast("Магазин извлечён — нет места, упал на пол")
 	else:
 		game.hud.toast("Магазин извлечён: %d / %d" % [n, CAP], Color(0.9, 0.85, 0.7))
 	inv.notify()
