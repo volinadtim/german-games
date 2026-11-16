@@ -216,6 +216,30 @@ func _ground() -> void:
 
 
 ## Полотно дороги: гравийная лента поверх земли, от поляны до конца деревни.
+## Невидимые стены по краям карты (промпт 16.11 05:21): поляна (сетка x -6..70, z -38..38) и долина
+## дороги/деревня (x -15..77, z до Z_END) — один общий прямоугольник чуть внутри сеток. Низ стен — на уровне
+## земли G: бункер под поляной ниже, его не задевают; у краёв везде холмы, так что стены уходят в землю.
+func _bounds() -> void:
+	const X_LO := -4.5
+	const X_HI := 68.5
+	const Z_LO := -36.5
+	var z_hi := Z_END - 1.5
+	var body := StaticBody3D.new()
+	body.name = "MapBounds"
+	add_child(body)
+	var yc := G - 0.2 + 30.0
+	for w in [[Vector3(X_LO - 0.5, yc, (Z_LO + z_hi) / 2.0), Vector3(1.0, 60.0, z_hi - Z_LO + 2.0)],
+			[Vector3(X_HI + 0.5, yc, (Z_LO + z_hi) / 2.0), Vector3(1.0, 60.0, z_hi - Z_LO + 2.0)],
+			[Vector3((X_LO + X_HI) / 2.0, yc, Z_LO - 0.5), Vector3(X_HI - X_LO + 2.0, 60.0, 1.0)],
+			[Vector3((X_LO + X_HI) / 2.0, yc, z_hi + 0.5), Vector3(X_HI - X_LO + 2.0, 60.0, 1.0)]]:
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = w[1]
+		cs.shape = bs
+		cs.position = w[0]
+		body.add_child(cs)
+
+
 func _road() -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)

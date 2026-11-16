@@ -54,6 +54,7 @@ func _ready() -> void:
 	_materials()
 	_ground()
 	_road()
+	_bounds()
 	var first := get_child_count()
 	_basement_house()
 	for h in HOUSES:

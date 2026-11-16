@@ -344,6 +344,8 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 			speed = maxf(v - ACC * 0.7 * -thr_s * delta, minf(-MAX_R, v))
 	# качение и сопротивление воздуха
 	speed = move_toward(speed, 0.0, (ROLL * (1.0 - absf(thr_s)) + 0.004 * v * v) * delta)
+	# ручник срывает зад сразу, сцепление возвращается плавно (~1 с) — можно держать дугу рулём и газом
+	grip_k = move_toward(grip_k, 0.0 if hand and absf(speed) > 2.0 else 1.0, delta * (5.0 if hand else 1.1))
 	if hand:
 		speed = move_toward(speed, 0.0, HB_DECEL * delta)
 		if absf(speed) < 0.5 and absf(slip) < 0.5:
@@ -355,9 +357,9 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	steer = move_toward(steer, st_in, delta * (4.0 if back else 2.4))
 	var ang := steer * lerpf(0.6, 0.2, clampf(absf(speed) / MAX_F, 0.0, 1.0))
 	var want := speed * tan(ang) / WHEELBASE
-	if hand and absf(speed) > 2.0:
-		want *= 1.7   # задние колёса заблокированы — корму заносит
-	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-(3.0 if hand else 9.0) * delta))
+	# зад без сцепления — корму заносит сильнее; газ (передний привод) тянет нос по рулю
+	want *= 1.0 + (1.0 - grip_k) * (0.9 + 0.5 * maxf(thr_s, 0.0))
+	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(3.0, 9.0, grip_k) * delta))
 
 
 func _move(delta: float) -> void:
@@ -372,8 +374,11 @@ func _move(delta: float) -> void:
 	fwd = Vector3(sin(yaw), 0, cos(yaw))
 	side = Vector3(cos(yaw), 0, -sin(yaw))
 	speed = vel.dot(fwd)
-	slip = move_toward(vel.dot(side), 0.0, (A_LAT_HB if hand else A_LAT) * delta)
+	# передний привод: под газом передние колёса тянут по ходу и вытаскивают из заноса
+	var a_lat := lerpf(A_LAT_HB, A_LAT, grip_k) * (1.0 + 0.5 * maxf(thr_s, 0.0) * (1.0 - grip_k))
+	slip = move_toward(vel.dot(side), 0.0, a_lat * delta)
 	vel = fwd * speed + side * slip
+	car_vel = vel
 	var np := position + vel * delta
 	# крутой склон впереди — дальше не едет. Уклон меряем по земле на 1.2 м вперёд по ходу (раньше делили
 	# разницу высот на шаг кадра — на старте шаг ~1 мм, и любая неровность/осевший угол «бампали» машину: не ехала)
@@ -432,13 +437,32 @@ func _blocked(xf: Transform3D) -> bool:
 		if c == null or c.has_meta("ground"):
 			continue
 		if c is CharacterBody3D and c.has_method("take_hit"):
-			if absf(speed) > 3.0 and not c.get_meta("car_hit", false):
-				c.set_meta("car_hit", true)
-				c.take_hit(absf(speed) * 7.0, Vector3(sin(yaw), 0.2, cos(yaw)) * signf(speed))
-				get_tree().create_timer(0.8).timeout.connect(_unmark.bind(c))
+			_ram(c)
 			continue
 		block = true
 	return block
+
+
+## Сбить моба (промпт 16.11 05:21): урон — по относительной скорости удара (машина минус моб вдоль
+## линии удара), отброс — по ходу машины. take_hit сам шлёт урон хосту, если моб — сетевая копия.
+func _ram(c) -> void:
+	if c.get_meta("car_hit", false) or car_vel.length() < 0.5:
+		return
+	var n: Vector3 = c.global_position - global_position
+	n.y = 0.0
+	n = n.normalized() if n.length() > 0.1 else car_vel.normalized()
+	var mv: Vector3 = c.velocity
+	var rel := (car_vel - Vector3(mv.x, 0, mv.z)).dot(n)
+	if rel < HIT_MIN:
+		return
+	c.set_meta("car_hit", true)
+	get_tree().create_timer(0.8).timeout.connect(_unmark.bind(c))
+	var dir := (car_vel.normalized() * 0.6 + n * 0.4).normalized()
+	c.take_hit(roundf(rel * HIT_DMG), dir + Vector3(0, 0.2, 0))
+	if "knock" in c:
+		c.knock += dir * rel * 0.7
+	game.play_at("thud", c.global_position, -2.0, 0.8)
+	speed *= 0.88
 
 
 func _unmark(c) -> void:
