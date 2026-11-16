@@ -68,6 +68,11 @@ var drag_pv: Control = null
 var drop_rot := false            # поворот для unequip в ячейку (game.unequip читает)
 var bag_l: Label
 var craft_box: VBoxContainer
+var craft_tab: Button
+var craft_wrap: Control
+var craft_panel: PanelContainer
+var craft_shown := false
+var craft_tw: Tween
 var craft_open := -1            # раскрытый рецепт в списке крафта (-1 — все свёрнуты)
 var _press_key = null
 var game  # game.gd — чтобы не открываться поверх магазина
@@ -624,8 +629,30 @@ Shift+ПКМ — выбросить 1 (держать — всю стопку)
 	hint.custom_minimum_size.x = COLS * CELL
 	vb.add_child(hint)
 
+	# вкладка «Крафт» у правого края (промпт 03:56): по нажатию рядом выкатывается панель крафта, повторно — прячется
+	craft_tab = Button.new()
+	craft_tab.text = "К
+р
+а
+ф
+т
+▸"
+	craft_tab.focus_mode = Control.FOCUS_NONE
+	craft_tab.add_theme_font_size_override("font_size", 20)
+	craft_tab.custom_minimum_size = Vector2(40, 200)
+	craft_tab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	craft_tab.pressed.connect(toggle_craft)
+	hb.add_child(craft_tab)
+	# обёртка обрезает панель: её ширина плавно растёт от 0 (выкатывание)
+	craft_wrap = Control.new()
+	craft_wrap.clip_contents = true
+	craft_wrap.custom_minimum_size = Vector2(0, 0)
+	craft_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	craft_wrap.visible = false
+	hb.add_child(craft_wrap)
 	# крафт — отдельная панель с рамкой и своим фоном (промпт 03:44)
 	var cpanel := PanelContainer.new()
+	craft_panel = cpanel
 	var cst := StyleBoxFlat.new()
 	cst.bg_color = Color(0.13, 0.11, 0.08, 0.95)
 	cst.border_color = Color(0.85, 0.66, 0.38, 0.45)
@@ -633,8 +660,7 @@ Shift+ПКМ — выбросить 1 (держать — всю стопку)
 	cst.set_corner_radius_all(4)
 	cst.set_content_margin_all(12)
 	cpanel.add_theme_stylebox_override("panel", cst)
-	cpanel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	hb.add_child(cpanel)
+	craft_wrap.add_child(cpanel)
 	var cb := VBoxContainer.new()
 	cb.add_theme_constant_override("separation", 10)
 	cb.custom_minimum_size = Vector2(250, 0)
@@ -1354,9 +1380,41 @@ func _bind_hover(k: int) -> void:
 	_after_change()
 
 
+## Выкатить / спрятать панель крафта (вкладка «Крафт», промпт 03:56).
+func toggle_craft() -> void:
+	set_craft(not craft_shown)
+
+
+func set_craft(on: bool, instant := false) -> void:
+	craft_shown = on
+	craft_tab.text = "К
+р
+а
+ф
+т
+" + ("◂" if on else "▸")
+	if craft_tw:
+		craft_tw.kill()
+	var sz := craft_panel.get_combined_minimum_size()
+	craft_panel.size = sz
+	craft_wrap.custom_minimum_size.y = sz.y
+	var w := sz.x if on else 0.0
+	if on:
+		craft_wrap.visible = true
+	if instant:
+		craft_wrap.custom_minimum_size.x = w
+		craft_wrap.visible = on
+		return
+	craft_tw = create_tween()
+	craft_tw.tween_property(craft_wrap, "custom_minimum_size:x", w, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if not on:
+		craft_tw.tween_callback(func(): craft_wrap.visible = false)
+
+
 func show_inventory() -> void:
 	open = true
 	root.visible = true
+	set_craft(false, true)   # по умолчанию — только инвентарь
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_rebuild_craft()
 	_place_hot()
