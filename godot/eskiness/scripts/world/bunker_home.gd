@@ -84,10 +84,18 @@ func build(id: String) -> bool:
 	if build_reason(id) != "":
 		return false
 	var b := info(id)
+	_apply(id)
+	# место постройки занято (сундук/манекен/игрок/другая постройка) — не строим (промпт 16.11 04:28)
+	var n = nodes.get(id)
+	if n is CollisionObject3D and n != self and game.carry and game.carry.is_blocked(n, n.global_transform):
+		nodes.erase(id)
+		n.queue_free()
+		game.play_ui("buzz", -14.0)
+		game.hud.toast("Место для постройки занято — освободи его", Color(1.0, 0.5, 0.4))
+		return false
 	for m in b[4]:
 		game.inv.remove(String(m), int(b[4][m]))
 	state[id] = 2
-	_apply(id)
 	if game.has_method("play_ui"):
 		game.play_ui("thud", -8.0, 0.9)
 	return true
