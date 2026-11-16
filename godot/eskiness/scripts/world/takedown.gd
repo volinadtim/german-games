@@ -92,7 +92,7 @@ func _strike(e: Node) -> void:
 		var dir: Vector3 = en.global_position - p.global_position
 		dir.y = 0.0
 		dir = dir.normalized()
-		game.play_at("thud", en.global_position + Vector3(0, 0.6, 0), -6.5, 0.75)   # тише на 3.5 дБ (промпт 16.11 04:06)
+		game.play_at("thud", en.global_position + Vector3(0, 0.6, 0), -7.9, 0.75)   # тише: 04:06 −3.5 дБ, 04:24 ещё −15% (−1.4 дБ)
 		if bool(e.get("net_puppet")):
 			e.take_hit(666.0, dir)
 		else:
