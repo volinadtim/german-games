@@ -657,8 +657,8 @@ Shift+ПКМ — выбросить 1 (держать — всю стопку)
 	var cpanel := PanelContainer.new()
 	craft_panel = cpanel
 	var cst := StyleBoxFlat.new()
-	cst.bg_color = Color(0.13, 0.11, 0.08, 0.95)
-	cst.border_color = Color(0.85, 0.66, 0.38, 0.45)
+	cst.bg_color = Color(0.04, 0.04, 0.04, 0.6)   # без жёлтого фона (промпт 04:16)
+	cst.border_color = Color(1, 1, 1, 0.18)
 	cst.set_border_width_all(2)
 	cst.set_corner_radius_all(4)
 	cst.set_content_margin_all(12)
@@ -668,7 +668,7 @@ Shift+ПКМ — выбросить 1 (держать — всю стопку)
 	cb.add_theme_constant_override("separation", 10)
 	cb.custom_minimum_size = Vector2(250, 0)
 	cpanel.add_child(cb)
-	cb.add_child(_label("КРАФТ", 34, Color(0.86, 0.85, 0.8)))
+	# заголовка «КРАФТ» внутри нет (промпт 04:16) — есть кнопка рядом с «ИНВЕНТАРЬ»
 	# рецептов много — список названий прокручивается, рецепт раскрывается по нажатию
 	var cscroll := ScrollContainer.new()
 	cscroll.custom_minimum_size = Vector2(290, 440)
@@ -791,6 +791,13 @@ func _label(text: String, size: int, col: Color) -> Label:
 func _rebuild_craft() -> void:
 	for c in craft_box.get_children():
 		c.queue_free()
+	# список — только иконки (промпт 04:16); название и описание — во всплывающей подсказке у курсора,
+	# рецепт выбранного — под сеткой
+	var grid := GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 4)
+	grid.add_theme_constant_override("v_separation", 4)
+	craft_box.add_child(grid)
 	for r in Items.RECIPES.size():
 		var rec: Dictionary = Items.RECIPES[r]
 		var out: String = rec["out"]
@@ -808,43 +815,33 @@ func _rebuild_craft() -> void:
 					break
 		ok = ok and have_t
 		var opened := craft_open == r
-		# строка-кнопка: иконка и название; нажатие раскрывает / сворачивает рецепт (промпт 03:44)
+		# кнопка-иконка; нажатие раскрывает / сворачивает рецепт
 		var head := Button.new()
 		head.focus_mode = Control.FOCUS_NONE
 		head.flat = not opened
-		head.toggle_mode = false
-		head.custom_minimum_size = Vector2(0, 52)
-		head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		head.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		head.custom_minimum_size = Vector2(52, 52)
+		head.tooltip_text = "%s
+%s" % [Items.item_name(out), String(Items.ITEMS[out].get("desc", ""))]
 		head.pressed.connect(func():
 			craft_open = -1 if craft_open == r else r
 			_rebuild_craft())
-		var row := HBoxContainer.new()
-		row.set_anchors_preset(Control.PRESET_FULL_RECT)
-		row.offset_left = 4
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_theme_constant_override("separation", 8)
 		var ic := Icon.new()
 		ic.id = out
-		ic.custom_minimum_size = Vector2(44, 44)
-		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ic.dim = not ok
+		ic.position = Vector2(4, 4)
+		ic.size = Vector2(44, 44)
 		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(ic)
-		var on := _label(("▾ " if opened else "▸ ") + Items.item_name(out), 19, Color(0.92, 0.88, 0.75) if ok else Color(0.7, 0.68, 0.62))
-		on.clip_text = true
-		on.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		on.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		on.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		on.custom_minimum_size.x = 60
-		on.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		row.add_child(on)
-		head.add_child(row)
-		craft_box.add_child(head)
+		head.add_child(ic)
+		grid.add_child(head)
 		if not opened:
 			continue
 		var det := VBoxContainer.new()
 		det.add_theme_constant_override("separation", 6)
 		craft_box.add_child(det)
+		det.add_child(HSeparator.new())
+		var dn := _label(Items.item_name(out), 18, Color(0.92, 0.88, 0.75))
+		dn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		det.add_child(dn)
 		for id in need:
 			var have := count(id)
 			var n: int = need[id]
@@ -875,7 +872,6 @@ func _rebuild_craft() -> void:
 		b.add_theme_font_size_override("font_size", 18)
 		b.pressed.connect(func(): craft_requested.emit(r))
 		det.add_child(b)
-		det.add_child(HSeparator.new())
 
 
 func _input(e: InputEvent) -> void:
