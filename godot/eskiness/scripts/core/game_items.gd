@@ -268,24 +268,26 @@ func equip(idx: int, slot_: String) -> void:
 	var prev: String = inv.equip[slot_]
 	var prev_d: float = inv.equip_dur.get(slot_, Items.max_dur(prev))
 	var new_d: float = float(s.get("dur", Items.max_dur(id)))
-	if int(s.get("n", 1)) > 1:
-		# из стопки (камни) в руку берём один, остальные остаются в ячейке; прежнее из руки — в сумку
-		if prev != "" and inv.add(prev, 1, prev_d) > 0:
-			hud.toast("Сумка полна")
-			return
-		s["n"] = int(s["n"]) - 1
-		inv.equip[slot_] = id
-		inv.equip_dur[slot_] = new_d
-		_apply_equip(slot_)
-		inv.notify()
-		play_ui("click", -10.0, 0.8)
-		return
+	# сетка (промпт 16.11 02:42): прежнее из слота ложится на место нового (не влезет — куда поместится);
+	# куртка/штаны/рюкзак меняют свой блок ячеек — вещи из него перекладываются. Не влезло — отменяем.
+	var sn := inv.snapshot()
+	var extra: Array = []
 	if prev != "":
-		inv.slots[idx] = {"id": prev, "n": 1, "dur": prev_d}
+		extra.append({"id": prev, "n": 1, "dur": prev_d, "_at": idx})
+	if int(s.get("n", 1)) > 1:
+		s["n"] = int(s["n"]) - 1   # из стопки (камни) в руку берём один
+		if not extra.is_empty():
+			extra[0].erase("_at")
 	else:
 		inv.slots[idx] = null
 	inv.equip[slot_] = id
 	inv.equip_dur[slot_] = new_d
+	inv.update_blocks()
+	if not inv.reflow(extra).is_empty():
+		inv.restore(sn)
+		hud.toast("Сумка полна — некуда переложить")
+		inv.notify()
+		return
 	_apply_equip(slot_)
 	inv.notify()
 	play_ui("click", -10.0, 0.8)
@@ -296,27 +298,27 @@ func unequip(slot_: String, to := -1) -> bool:
 	var id: String = inv.equip[slot_]
 	if id == "":
 		return false
-	if to >= 0 and inv.slots[to] != null:
-		if Items.fits(inv.slots[to]["id"], slot_):
-			equip(to, slot_)       # обмен
-			return true
-		to = -1
-	# рюкзак: сначала вещи из его ячеек — в основные; не влезли — не снимаем
-	var limit := -1
-	if slot_ == "back":
-		if not _empty_backpack():
-			return false
-		limit = inv.BAG
-		if to >= limit:
-			to = -1
-	if to < 0:
-		to = inv.free_cell(limit)
-	if to < 0:
-		hud.toast("Сумка полна — некуда снять")
-		return false
-	inv.slots[to] = {"id": id, "n": 1, "dur": float(inv.equip_dur.get(slot_, Items.max_dur(id)))}
+	var o: int = inv.owner_at(to) if to >= 0 else -1
+	if o >= 0 and Items.fits(inv.slots[o]["id"], slot_):
+		equip(o, slot_)       # обмен
+		return true
+	# сетка: вещь — в ячейку to (или куда поместится); рюкзак/куртка/штаны — их блок пропадает,
+	# вещи из него перекладываются в остальные; не влезло — не снимаем
+	var sn := inv.snapshot()
+	var e := {"id": id, "n": 1, "dur": float(inv.equip_dur.get(slot_, Items.max_dur(id)))}
+	if to >= 0:
+		e["_at"] = to
+		if inv.drop_rot:
+			e["r"] = true
 	inv.equip_dur.erase(slot_)
 	inv.equip[slot_] = ""
+	inv.update_blocks()
+	if not inv.reflow([e]).is_empty():
+		inv.restore(sn)
+		hud.toast("Сумка полна — некуда снять" if Items.block_of(id).x == 0 else "Не снять: в сумке нет места для вещей из %s" % Items.item_name(id).to_lower(), Color(0.95, 0.6, 0.45))
+		play_ui("buzz", -14.0)
+		inv.notify()
+		return false
 	_apply_equip(slot_)
 	inv.notify()
 	play_ui("click", -12.0, 0.7)
@@ -327,11 +329,18 @@ func drop_equipped(slot_: String) -> void:
 	var id: String = inv.equip[slot_]
 	if id == "":
 		return
-	if slot_ == "back" and not _empty_backpack():
-		return
 	var d: float = inv.equip_dur.get(slot_, Items.max_dur(id))
+	var sn := inv.snapshot()
 	inv.equip[slot_] = ""
 	inv.equip_dur.erase(slot_)
+	inv.update_blocks()
+	if not inv.reflow().is_empty():
+		# вещи из рюкзака / карманов не влезли в сумку — не выбрасываем
+		inv.restore(sn)
+		hud.toast("Не снять: в сумке нет места для вещей из %s" % Items.item_name(id).to_lower(), Color(0.95, 0.6, 0.45))
+		play_ui("buzz", -14.0)
+		inv.notify()
+		return
 	_apply_equip(slot_)
 	inv.notify()
 	var fwd := -player.global_transform.basis.z
@@ -339,15 +348,6 @@ func drop_equipped(slot_: String) -> void:
 	p.need_leave = true
 	if Items.max_dur(id) > 0.0:
 		p.set_meta("dur", d)
-
-
-## Перед тем как снять рюкзак: вещи из его ячеек — в свободные основные. false — не влезли (рюкзак остаётся).
-func _empty_backpack() -> bool:
-	if inv.free_extra():
-		return true
-	hud.toast("Рюкзак не снять: в сумке нет места для вещей из него", Color(0.95, 0.6, 0.45))
-	play_ui("buzz", -14.0)
-	return false
 
 
 func _apply_equip(slot_: String) -> void:
@@ -365,10 +365,11 @@ func _apply_equip(slot_: String) -> void:
 			if id != "" and id != "gasmask" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 		"back":
-			# рюкзак: +ячейки сумки (снимают его только с пустыми доп. ячейками — unequip/drop_equipped)
-			inv.set_capacity(inv.BAG + (int(Items.ITEMS[id].get("bag", 0)) if id != "" else 0))
+			# рюкзак: свой блок ячеек (промпт 16.11 02:42; вещи из него при снятии — inv.reflow)
+			inv.update_blocks()
 			if id != "" and not loading:
-				hud.toast("Надето: %s (+%d ячеек)" % [Items.item_name(id), int(Items.ITEMS[id].get("bag", 0))], Color(0.9, 0.85, 0.7))
+				var bd := Items.block_of(id)
+				hud.toast("Надето: %s (отсек %d×%d)" % [Items.item_name(id), bd.x, bd.y], Color(0.9, 0.85, 0.7))
 		"head":
 			if id != "" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
@@ -378,6 +379,7 @@ func _apply_equip(slot_: String) -> void:
 			if id != "" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 		"body", "legs", "feet":
+			inv.update_blocks()   # карманы куртки / штанов
 			if id != "" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 
@@ -525,6 +527,21 @@ func drop_count(idx: int, n: int) -> void:
 	p.need_leave = true
 	if dur >= 0.0:
 		p.set_meta("dur", dur)
+
+
+## Вещи, которым не нашлось места в сетке (inv.spilled: пропали карманы / рюкзак, старый сейв) — на пол у игрока.
+func drop_spilled(items: Array) -> void:
+	if player == null:
+		return
+	var fwd := -player.global_transform.basis.z
+	for s in items:
+		var p := _make_pickup(String(s["id"]), int(s.get("n", 1)), player.global_position + Vector3(0, 1.2, 0) + fwd * 0.5,
+			fwd * 1.5 + Vector3(randf_range(-0.8, 0.8), 1.0, randf_range(-0.8, 0.8)))
+		p.need_leave = true
+		if s.has("dur"):
+			p.set_meta("dur", float(s["dur"]))
+	if not loading:
+		hud.toast("Не влезло в сумку — выпало на пол", Color(0.95, 0.6, 0.45))
 
 
 ## Выбросить монеты из кошелька.

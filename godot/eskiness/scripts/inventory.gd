@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Инвентарь: 10 ячеек (+5 с рюкзаком; монеты — отдельный кошелёк), снаряжение на силуэте человека
+## Инвентарь: сетка 5×5 (+ отсек рюкзака и карманы одежды; монеты — отдельный кошелёк), снаряжение на силуэте человека
 ## (голова, лицо — противогаз, спина — рюкзак, тело, руки, ноги, обувь, левая и правая рука — оружие/щит), хотбар 1–5 и крафт.
 ## Tab / I — открыть/закрыть, игра не на паузе.
 ##   ЛКМ — использовать / надеть / снять; ПКМ — меню действий (промпт 14.11 19:07);
@@ -21,13 +21,21 @@ signal drop_equipped_requested(slot: String)
 signal craft_requested(recipe: int)
 signal repair_requested(kit_idx: int, target)   # target — номер ячейки или слот экипировки
 signal message(text: String)
+signal spilled(items: Array)   # не влезли после пропажи блока ячеек — game.gd выбрасывает на пол
 
 const Items := preload("res://scripts/items.gd")
 const Gun := preload("res://scripts/gun.gd")
-const BAG := 10                  # ячеек без рюкзака
-const BAG_MAX := 15              # с рюкзаком (items.gd: "bag" — сколько добавляет)
+## Сетка (промпт 16.11 02:42): сумка 5×5 без зазоров, предметы занимают w×h ячеек (Items.SIZES),
+## пробел при перетаскивании — повернуть. Предмет хранится в ячейке-якоре (левый верхний угол),
+## остальные ячейки под ним — null; "r": true — повёрнут. Отдельные блоки: рюкзак и карманы одежды.
+## Блок: [первая ячейка, макс. ширина, макс. высота, слот снаряжения ("" — сумка), подпись].
+## Индексы фиксированы (ячейка = начало + y * макс.ширина + x), активна только часть, которую даёт вещь.
+const BLOCKS := [[0, 5, 5, "", "СУМКА"], [25, 5, 3, "back", "РЮКЗАК"], [40, 3, 2, "body", "КАРМАНЫ: ВЕРХ"], [46, 3, 2, "legs", "КАРМАНЫ: ШТАНЫ"]]
+const TOTAL := 52
+const BAG := 25                  # ячеек основной сумки
 const COLS := 5
 const SLOT := 76.0
+const CELL := 58.0               # ячейка сетки сумки
 const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left", "right"]
 const EQUIP_NAMES := {"head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
 	"left": "Левая", "right": "Правая"}
@@ -49,7 +57,13 @@ var root: Control
 var info_name: Label
 var info_desc: Label
 var slot_nodes: Array = []
-var bag_nodes: Array = []        # ячейки сумки (BAG_MAX штук; лишние без рюкзака скрыты)
+var grids: Array = []            # BagGrid на каждый блок BLOCKS
+var block_ls: Array = []         # подписи блоков
+var drag_rot := false            # тащим предмет повёрнутым (пробел)
+var drag_off := Vector2i.ZERO    # за какую ячейку предмета взяли
+var drag_key = null
+var drag_pv: Control = null
+var drop_rot := false            # поворот для unequip в ячейку (game.unequip читает)
 var bag_l: Label
 var craft_box: VBoxContainer
 var _press_key = null
@@ -166,17 +180,10 @@ class Slot extends Control:
 			accept_event()
 
 	func _get_drag_data(_at: Vector2) -> Variant:
-		var id := item_id()
-		if id == "":
+		if item_id() == "":
 			return null
-		var pv := Icon.new()
-		pv.id = id
-		pv.size = Vector2(60, 60)
-		pv.position = Vector2(-30, -30)
-		var holder := Control.new()
-		holder.add_child(pv)
-		set_drag_preview(holder)
-		return {"inv_key": key}
+		set_drag_preview(inv.begin_drag(key, Vector2i.ZERO))
+		return {"inv_key": key, "off": Vector2i.ZERO}
 
 	func _can_drop_data(_at: Vector2, data: Variant) -> bool:
 		return data is Dictionary and (data.has("inv_key") or data.has("hot"))
@@ -186,6 +193,161 @@ class Slot extends Control:
 			inv.unbind_hot(int(data["hot"]))
 			return
 		inv.move(data["inv_key"], key)
+
+
+## Блок сетки сумки (промпт 16.11 02:42): ячейки без зазоров, предметы w×h рисуются целиком.
+class BagGrid extends Control:
+	const Items := preload("res://scripts/items.gd")
+	const Gun := preload("res://scripts/gun.gd")
+	var inv
+	var b := 0
+	var hint: Array = []          # ячейки, куда ляжет тащимый предмет
+	var hint_ok := true
+
+	func _ready() -> void:
+		mouse_exited.connect(func():
+			hint = []
+			queue_redraw())
+
+	func refit() -> void:
+		var d: Vector2i = inv.block_dim(b)
+		custom_minimum_size = Vector2(d) * inv.CELL
+		size = custom_minimum_size
+		queue_redraw()
+
+	## Ячейка под точкой p (локально); -1 — мимо.
+	func cell_at(p: Vector2) -> int:
+		var d: Vector2i = inv.block_dim(b)
+		if p.x < 0 or p.y < 0:
+			return -1
+		var x := int(p.x / inv.CELL)
+		var y := int(p.y / inv.CELL)
+		if x >= d.x or y >= d.y:
+			return -1
+		return inv.cell_idx(b, x, y)
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_DRAG_END:
+			hint = []
+			queue_redraw()
+
+	func _draw() -> void:
+		var d: Vector2i = inv.block_dim(b)
+		var c: float = inv.CELL
+		draw_rect(Rect2(Vector2.ZERO, Vector2(d) * c), Color(0.12, 0.09, 0.04, 0.6) if b > 0 else Color(0, 0, 0, 0.5))
+		for x in d.x + 1:
+			draw_line(Vector2(x * c, 0), Vector2(x * c, d.y * c), Color(1, 1, 1, 0.1), 1.0)
+		for y in d.y + 1:
+			draw_line(Vector2(0, y * c), Vector2(d.x * c, y * c), Color(1, 1, 1, 0.1), 1.0)
+		var f := ThemeDB.fallback_font
+		for i in inv.TOTAL:
+			var s = inv.slots[i]
+			if s == null or inv.cell_block(i) != b:
+				continue
+			var p: Vector2i = inv.cell_xy(i)
+			var r := Rect2(Vector2(p) * c, Vector2(inv.item_dim(s)) * c)
+			var id: String = s["id"]
+			var hovered: bool = inv.hover is int and inv.hover == i
+			draw_rect(r.grow(-1), Color(0.2, 0.17, 0.12, 0.55 if hovered else 0.35))
+			draw_rect(r.grow(-1), Color(1, 1, 1, 0.5 if hovered else 0.2), false, 1.0)
+			var side := minf(r.size.x, r.size.y) - 14.0
+			Items.draw_icon(self, id, Rect2(r.get_center() - Vector2(side, side) / 2, Vector2(side, side)))
+			var mx := Items.max_dur(id)
+			if mx > 0.0:
+				var fr := clampf(float(inv.get_dur(i)) / mx, 0.0, 1.0)
+				if id == "pistol":
+					fr = float(Gun.mag_rounds(inv.get_dur(i))) / Gun.CAP
+				draw_rect(Rect2(r.position.x + 5, r.end.y - 8, r.size.x - 10, 4), Color(0, 0, 0, 0.6))
+				draw_rect(Rect2(r.position.x + 5, r.end.y - 8, (r.size.x - 10) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
+			var txt := ""
+			if Items.ITEMS[id].has("rounds"):
+				txt = "%d/%d" % [int(round(inv.get_dur(i))), int(mx)]
+				if id == "pistol":
+					var pd: float = inv.get_dur(i)
+					txt = "%d/%d" % [Gun.mag_rounds(pd), Gun.CAP] if Gun.has_mag(pd) else "без маг."
+			elif Items.ITEMS[id].has("repair"):
+				txt = "×%d" % int(ceil(inv.get_dur(i)))
+			elif int(s["n"]) > 1:
+				txt = str(int(s["n"]))
+			if txt != "":
+				var tp := Vector2(r.position.x + 3, r.end.y - 10)
+				draw_string_outline(f, tp, txt, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 8, 15, 4, Color(0, 0, 0, 0.8))
+				draw_string(f, tp, txt, HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 8, 15, Color(0.95, 0.88, 0.6))
+			if inv.hold_key is int and inv.hold_key == i:
+				var fr2 := clampf(inv.hold_t / inv.HOLD_TIME, 0.0, 1.0)
+				draw_rect(r, Color(0.6, 0.1, 0.05, 0.25 * fr2))
+				draw_arc(r.get_center(), minf(r.size.x, r.size.y) * 0.4, -PI / 2, -PI / 2 + TAU * fr2, 32, Color(1.0, 0.45, 0.3, 0.95), 4.0, true)
+			var hk: int = inv.hotbar.find(id)
+			if hk >= 0:
+				draw_string_outline(f, r.position + Vector2(4, 15), str(hk + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.8))
+				draw_string(f, r.position + Vector2(4, 15), str(hk + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1.0, 0.8, 0.4))
+		for h in hint:
+			var hp: Vector2i = inv.cell_xy(h)
+			draw_rect(Rect2(Vector2(hp) * c, Vector2(c, c)).grow(-2), Color(0.4, 0.9, 0.4, 0.3) if hint_ok else Color(0.95, 0.3, 0.2, 0.35))
+
+	func _gui_input(e: InputEvent) -> void:
+		var o: int = inv.owner_at(cell_at(get_local_mouse_position()))
+		var key = o if o >= 0 else null
+		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.device == InputEvent.DEVICE_ID_EMULATION:
+			if e.pressed:
+				inv.touch_sel = key
+				inv.set_hover(key)
+				if key != null:
+					inv.touch_key = key
+					inv.touch_t = 0.0
+					inv.touch_pos = get_global_mouse_position()
+			else:
+				inv.touch_key = null
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_RIGHT and key != null:
+			if e.shift_pressed:
+				inv.start_hold(key, int(inv.slots[key]["n"]))
+			else:
+				inv.open_menu(key, get_global_mouse_position())
+			accept_event()
+
+	func _get_drag_data(at: Vector2) -> Variant:
+		var cell := cell_at(at)
+		var o: int = inv.owner_at(cell)
+		if o < 0:
+			return null
+		var off: Vector2i = inv.cell_xy(cell) - inv.cell_xy(o)
+		set_drag_preview(inv.begin_drag(o, off))
+		return {"inv_key": o, "off": off}
+
+	func _can_drop_data(at: Vector2, data: Variant) -> bool:
+		if not (data is Dictionary and (data.has("inv_key") or data.has("hot"))):
+			return false
+		hint = []
+		if data.has("inv_key"):
+			var cell := cell_at(at)
+			if cell >= 0:
+				var res: Array = inv.drop_preview(data["inv_key"], cell)
+				hint = res[0]
+				hint_ok = res[1]
+		queue_redraw()
+		return true
+
+	func _drop_data(at: Vector2, data: Variant) -> void:
+		hint = []
+		queue_redraw()
+		if data.has("hot"):
+			inv.unbind_hot(int(data["hot"]))
+			return
+		var cell := cell_at(at)
+		if cell >= 0:
+			inv.drop_to_cell(data["inv_key"], cell)
+
+
+## Превью перетаскивания: предмет в натуральную величину (поворачивается пробелом).
+class DragIcon extends Control:
+	const Items := preload("res://scripts/items.gd")
+	var id := ""
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.2, 0.17, 0.12, 0.45))
+		draw_rect(Rect2(Vector2.ZERO, size), Color(1.0, 0.8, 0.45, 0.6), false, 1.5)
+		var side := minf(size.x, size.y) - 12.0
+		Items.draw_icon(self, id, Rect2(size / 2 - Vector2(side, side) / 2, Vector2(side, side)))
 
 
 ## Ячейка хотбара 1–5 поверх нарисованной hud.gd (только пока открыт инвентарь): цель перетаскивания.
@@ -313,7 +475,7 @@ class DropZone extends ColorRect:
 func _ready() -> void:
 	layer = 2
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	slots.resize(BAG)
+	slots.resize(TOTAL)
 	for k in 5:
 		_add_key("hot_%d" % (k + 1), KEY_1 + k)
 	_build_ui()
@@ -379,22 +541,40 @@ func _build_ui() -> void:
 	vb.add_theme_constant_override("separation", 10)
 	hb.add_child(vb)
 	vb.add_child(_label("ИНВЕНТАРЬ", 34, Color(0.86, 0.85, 0.8)))
-	bag_l = _label("СУМКА (%d)" % BAG, 15, Color(0.6, 0.6, 0.56))
-	vb.add_child(bag_l)
-	var grid := GridContainer.new()
-	grid.columns = COLS
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
-	grid.custom_minimum_size = Vector2(0, (SLOT + 6) * 3 - 6)   # место под 3 ряда: с рюкзаком окно не растёт
-	vb.add_child(grid)
-	for i in BAG_MAX:
-		var s := Slot.new()
-		s.inv = self
-		s.key = i
-		s.visible = i < slots.size()
-		grid.add_child(s)
-		slot_nodes.append(s)
-		bag_nodes.append(s)
+	# сетка: сумка 5×5 слева, справа — рюкзак и карманы одежды (видны, только когда надето)
+	var grow := HBoxContainer.new()
+	grow.add_theme_constant_override("separation", 16)
+	vb.add_child(grow)
+	var mainc := VBoxContainer.new()
+	mainc.add_theme_constant_override("separation", 4)
+	grow.add_child(mainc)
+	var extra := VBoxContainer.new()
+	extra.add_theme_constant_override("separation", 4)
+	grow.add_child(extra)
+	var pockets := HBoxContainer.new()
+	pockets.add_theme_constant_override("separation", 12)
+	for bi in BLOCKS.size():
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 3)
+		var bl := _label(BLOCKS[bi][4], 14, Color(0.6, 0.6, 0.56))
+		col.add_child(bl)
+		block_ls.append(bl)
+		var g := BagGrid.new()
+		g.inv = self
+		g.b = bi
+		g.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		g.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		col.add_child(g)
+		grids.append(g)
+		if bi == 0:
+			mainc.add_child(col)
+		elif bi == 1:
+			extra.add_child(col)
+		else:
+			pockets.add_child(col)
+	extra.add_child(pockets)
+	bag_l = block_ls[0]
+	update_blocks()
 	var wallet := HBoxContainer.new()
 	wallet.add_theme_constant_override("separation", 10)
 	var wi := Icon.new()
@@ -415,14 +595,14 @@ func _build_ui() -> void:
 	info_name = _label(" ", 21, Color(0.9, 0.82, 0.62))
 	info_name.clip_text = true
 	info_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	info_name.custom_minimum_size = Vector2(COLS * (SLOT + 6), 30)
+	info_name.custom_minimum_size = Vector2(COLS * CELL, 30)
 	vb.add_child(info_name)
 	info_desc = _label(" ", 16, Color(0.72, 0.71, 0.67))
 	info_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_desc.max_lines_visible = 3
 	info_desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	info_desc.clip_text = true
-	info_desc.custom_minimum_size = Vector2(COLS * (SLOT + 6), 3 * 27)
+	info_desc.custom_minimum_size = Vector2(COLS * CELL, 3 * 27)
 	info_desc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	vb.add_child(info_desc)
 	var hint_text := "F (навести) — использовать    ЛКМ — перетащить    ПКМ — действия    Tab — закрыть\nShift+ПКМ — выбросить 1 (держать — всю стопку)\nЗа окно — выбросить    На ячейки 1–5 внизу — хотбар"
@@ -639,6 +819,11 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif open and hold_key != null and e is InputEventMouseButton and not e.pressed and e.button_index == MOUSE_BUTTON_RIGHT:
 		_finish_hold()
+	elif open and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_SPACE:
+		# пробел при перетаскивании — повернуть предмет (промпт 16.11 02:42)
+		if get_viewport().gui_is_dragging() and drag_key != null:
+			rotate_drag()
+		get_viewport().set_input_as_handled()
 	elif open:
 		for k in 5:
 			if e.is_action_pressed("hot_%d" % (k + 1)):
@@ -684,7 +869,152 @@ func _slot_at():
 		var c: Control = n
 		if c.is_visible_in_tree() and Rect2(Vector2.ZERO, c.size).has_point(c.get_local_mouse_position()):
 			return c.key
+	for g in grids:
+		var gc: Control = g
+		if gc.is_visible_in_tree() and Rect2(Vector2.ZERO, gc.size).has_point(gc.get_local_mouse_position()):
+			var o := owner_at(g.cell_at(gc.get_local_mouse_position()))
+			return o if o >= 0 else null
 	return null
+
+
+# ---------- перетаскивание по сетке (промпт 16.11 02:42) ----------
+
+## Начать тащить предмет key (ячейка-якорь или слот экипировки), взятый за ячейку off. Возвращает превью.
+func begin_drag(key, off: Vector2i) -> Control:
+	drag_key = key
+	drag_off = off
+	var id := ""
+	if key is String:
+		id = equip[key]
+		drag_rot = false
+	else:
+		id = slots[key]["id"]
+		drag_rot = bool(slots[key].get("r", false))
+	var holder := Control.new()
+	var pv := DragIcon.new()
+	pv.id = id
+	pv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.add_child(pv)
+	drag_pv = pv
+	_fit_drag_pv()
+	return holder
+
+
+func _drag_dim() -> Vector2i:
+	if drag_key == null:
+		return Vector2i.ONE
+	var id: String = equip[drag_key] if drag_key is String else (String(slots[drag_key]["id"]) if slots[drag_key] != null else "")
+	var d := Items.size_of(id)
+	return Vector2i(d.y, d.x) if drag_rot else d
+
+
+func _fit_drag_pv() -> void:
+	if drag_pv == null or not is_instance_valid(drag_pv):
+		return
+	drag_pv.size = Vector2(_drag_dim()) * CELL
+	drag_pv.position = -(Vector2(drag_off) * CELL + Vector2(CELL, CELL) / 2)
+	drag_pv.queue_redraw()
+
+
+## Пробел: повернуть тащимый предмет (ячейка, за которую держим, остаётся под курсором).
+func rotate_drag() -> void:
+	drag_rot = not drag_rot
+	drag_off = Vector2i(drag_off.y, drag_off.x)
+	_fit_drag_pv()
+	for g in grids:
+		g.hint = []
+		g.queue_redraw()
+
+
+## Якорь, если отпустить тащимое над ячейкой cell (с учётом того, за что взяли).
+func _drop_anchor(cell: int) -> int:
+	var b := cell_block(cell)
+	var p := cell_xy(cell) - drag_off
+	p.x = maxi(p.x, 0)
+	p.y = maxi(p.y, 0)
+	return cell_idx(b, p.x, p.y)
+
+
+## Подсветка при наведении тащимого: [ячейки, помещается ли].
+func drop_preview(from, cell: int) -> Array:
+	var d := _drag_dim()
+	var at := _drop_anchor(cell)
+	var cells := _cells(at, d)
+	if cells.is_empty():
+		return [[cell], false]
+	var occ := occupancy()
+	var t := occ[cell]
+	if from is int and t >= 0 and t != from and _special_target(from, t):
+		return [_cells(t, item_dim(slots[t])), true]
+	var others: Array = []
+	for c in cells:
+		if occ[c] >= 0 and occ[c] != from and not (occ[c] in others):
+			others.append(occ[c])
+	return [cells, others.size() <= (1 if from is int else 0)]
+
+
+## Отпустили тащимое над ячейкой cell.
+func drop_to_cell(from, cell: int) -> void:
+	var t := owner_at(cell)
+	if from is int and t >= 0 and t != from and _special_target(from, t):
+		move(from, t)   # починка, магазин в пистолет, патроны в магазин, слить стопки
+		return
+	var at := _drop_anchor(cell)
+	if from is String:
+		drop_rot = drag_rot
+		unequip_requested.emit(from, at)
+		drop_rot = false
+		return
+	_move_item(from, at, drag_rot)
+
+
+## Предмет from, брошенный на t, делает что-то особое (а не просто перекладывается).
+func _special_target(from: int, t: int) -> bool:
+	var a = slots[from]
+	var b = slots[t]
+	if a == null or b == null:
+		return false
+	var fid: String = a["id"]
+	var tid: String = b["id"]
+	if Items.ITEMS[fid].has("repair") and Items.repairable(tid) != "":
+		return true
+	if (fid == "mag" and tid == "pistol") or (fid == "ammo" and tid == "mag"):
+		return true
+	return fid == tid and int(Items.ITEMS[fid]["stack"]) > 1 and int(b["n"]) < int(Items.ITEMS[fid]["stack"])
+
+
+## Переложить предмет из якоря from в якорь at (rot — повёрнут). Один мешающий предмет меняется местами.
+func _move_item(from: int, at: int, rot: bool) -> void:
+	var s = slots[from]
+	if s == null:
+		return
+	var d := Items.size_of(s["id"])
+	if rot:
+		d = Vector2i(d.y, d.x)
+	var sn := snapshot()
+	slots[from] = null
+	var occ := occupancy()
+	var cells := _cells(at, d)
+	var others: Array = []
+	for c in cells:
+		if occ[c] >= 0 and not (occ[c] in others):
+			others.append(occ[c])
+	if cells.is_empty() or others.size() > 1:
+		restore(sn)
+		message.emit("Не помещается")
+		return
+	var displaced = null
+	if others.size() == 1:
+		displaced = slots[others[0]]
+		slots[others[0]] = null
+	_put(s, at, rot)
+	if displaced != null:
+		displaced["_at"] = from
+		if not reflow([displaced]).is_empty():
+			restore(sn)
+			message.emit("Не помещается")
+			return
+	_after_change()
 
 
 static func _same(a, b) -> bool:
@@ -887,14 +1217,14 @@ func split(idx: int) -> void:
 	var s = slots[idx]
 	if s == null or int(s["n"]) < 2:
 		return
-	var j := free_cell()
-	if j < 0:
-		message.emit("Нет свободной ячейки")
+	var fp := find_place(String(s["id"]))
+	if int(fp[0]) < 0:
+		message.emit("Нет места")
 		return
 	@warning_ignore("integer_division")
 	var half := int(s["n"]) / 2
 	s["n"] = int(s["n"]) - half
-	slots[j] = {"id": s["id"], "n": half}
+	_put({"id": s["id"], "n": half}, int(fp[0]), bool(fp[1]))
 	_after_change()
 
 
@@ -1004,7 +1334,7 @@ func set_hover(k) -> void:
 		n = slots[k]["n"]
 	if id != "":
 		info_name.text = "%s  ×%d" % [Items.item_name(id), n] if n > 1 else Items.item_name(id)
-		info_desc.text = Items.ITEMS[id]["desc"]
+		info_desc.text = Items.ITEMS[id]["desc"] + _size_note(id)
 		# подсказка при наведении: «F — использовать» (клавиша — из управления)
 		if k is String:
 			info_name.text += "    [%s — снять]" % _use_key()
@@ -1027,8 +1357,20 @@ func _use_key() -> String:
 	return "F"
 
 
+## «Размер 2×3» и карманы / отсек рюкзака — к описанию.
+func _size_note(id: String) -> String:
+	var d := Items.size_of(id)
+	var t := "  [%d×%d]" % [d.x, d.y]
+	var bd := Items.block_of(id)
+	if bd.x > 0:
+		t += "  %s %d×%d" % ["Отсек" if Items.equip_slot(id) == "back" else "Карманы", bd.x, bd.y]
+	return t
+
+
 func _refresh() -> void:
 	for n in slot_nodes:
+		n.queue_redraw()
+	for n in grids:
 		n.queue_redraw()
 	for n in hot_nodes:
 		n.queue_redraw()
@@ -1072,9 +1414,9 @@ func move(from, to) -> void:
 			a["n"] -= take
 			if a["n"] <= 0:
 				slots[from] = null
-		else:
-			slots[from] = b
-			slots[to] = a
+		elif a != null:
+			_move_item(from, to, bool(a.get("r", false)))
+			return
 		_after_change()
 	elif from is int and to is String:
 		var s = slots[from]
@@ -1117,57 +1459,196 @@ func _swap_equip(a: String, b: String) -> void:
 
 # ---------- данные ----------
 
-## Сколько ячеек в сумке (рюкзак добавляет). Уменьшать — только когда лишние пусты (free_extra).
-func set_capacity(n: int) -> void:
-	n = clampi(n, BAG, BAG_MAX)
-	slots.resize(n)
-	for i in bag_nodes.size():
-		bag_nodes[i].visible = i < n
-	if bag_l:
-		bag_l.text = "СУМКА (%d)" % n if n == BAG else "СУМКА (%d + %d в рюкзаке)" % [BAG, n - BAG]
-	if hover is int and hover >= n:
-		hover = null
-	if touch_sel is int and touch_sel >= n:
-		touch_sel = null
+
+# ---------- сетка (промпт 16.11 02:42) ----------
+
+## Размер блока b сейчас (рюкзак / карманы — от надетой вещи; не надето — 0×0).
+func block_dim(b: int) -> Vector2i:
+	if b == 0:
+		return Vector2i(COLS, 5)
+	var d := Items.block_of(String(equip.get(BLOCKS[b][3], "")))
+	return Vector2i(mini(d.x, BLOCKS[b][1]), mini(d.y, BLOCKS[b][2]))
 
 
-## Переложить вещи из ячеек рюкзака в свободные основные (стаки сливаются). true — рюкзак пуст.
-func free_extra() -> bool:
-	var ok := true
-	for i in range(BAG, slots.size()):
+func cell_block(i: int) -> int:
+	for b in range(BLOCKS.size() - 1, -1, -1):
+		if i >= int(BLOCKS[b][0]):
+			return b
+	return 0
+
+
+func cell_xy(i: int) -> Vector2i:
+	var b := cell_block(i)
+	var o: int = i - int(BLOCKS[b][0])
+	var w: int = BLOCKS[b][1]
+	@warning_ignore("integer_division")
+	return Vector2i(o % w, o / w)
+
+
+func cell_idx(b: int, x: int, y: int) -> int:
+	return int(BLOCKS[b][0]) + y * int(BLOCKS[b][1]) + x
+
+
+## Размер предмета в ячейке с учётом поворота.
+func item_dim(s) -> Vector2i:
+	var d := Items.size_of(String(s["id"]))
+	return Vector2i(d.y, d.x) if bool(s.get("r", false)) else d
+
+
+## Ячейки под предметом размера d с якорем at; [] — выходит за активную часть блока.
+func _cells(at: int, d: Vector2i) -> Array:
+	if at < 0 or at >= TOTAL:
+		return []
+	var b := cell_block(at)
+	var p := cell_xy(at)
+	var bd := block_dim(b)
+	if p.x + d.x > bd.x or p.y + d.y > bd.y:
+		return []
+	var out: Array = []
+	for y in d.y:
+		for x in d.x:
+			out.append(cell_idx(b, p.x + x, p.y + y))
+	return out
+
+
+## Для каждой ячейки — якорь предмета, который её занимает (-1 — пусто).
+func occupancy() -> PackedInt32Array:
+	var occ := PackedInt32Array()
+	occ.resize(TOTAL)
+	occ.fill(-1)
+	for i in TOTAL:
 		var s = slots[i]
 		if s == null:
 			continue
-		var mx: int = Items.ITEMS[s["id"]]["stack"]
-		if not s.has("dur"):
-			for j in BAG:
-				var t = slots[j]
-				if t != null and t["id"] == s["id"] and not t.has("dur") and int(t["n"]) < mx:
-					var take := mini(int(s["n"]), mx - int(t["n"]))
-					t["n"] += take
-					s["n"] -= take
-					if s["n"] <= 0:
-						break
-		if s["n"] <= 0:
-			slots[i] = null
+		for c in _cells(i, item_dim(s)):
+			occ[c] = i
+	return occ
+
+
+## Якорь предмета, накрывающего ячейку i; -1 — пусто.
+func owner_at(i: int) -> int:
+	if i < 0 or i >= TOTAL:
+		return -1
+	return occupancy()[i]
+
+
+func _fits_at(at: int, d: Vector2i, occ: PackedInt32Array) -> bool:
+	var cells := _cells(at, d)
+	if cells.is_empty():
+		return false
+	for c in cells:
+		if occ[c] != -1:
+			return false
+	return true
+
+
+## Свободное место под предмет id: [якорь, повёрнут]; [-1, false] — нет места. Сначала сумка, потом рюкзак, карманы.
+func find_place(id: String, occ = null) -> Array:
+	if occ == null:
+		occ = occupancy()
+	var d := Items.size_of(id)
+	for b in BLOCKS.size():
+		var bd := block_dim(b)
+		for rot in ([false, true] if d.x != d.y else [false]):
+			var dd := Vector2i(d.y, d.x) if rot else d
+			for y in maxi(bd.y - dd.y + 1, 0):
+				for x in maxi(bd.x - dd.x + 1, 0):
+					var at := cell_idx(b, x, y)
+					if _fits_at(at, dd, occ):
+						return [at, rot]
+	return [-1, false]
+
+
+func _put(s: Dictionary, at: int, rot: bool, occ = null) -> void:
+	if rot:
+		s["r"] = true
+	else:
+		s.erase("r")
+	slots[at] = s
+	if occ != null:
+		for c in _cells(at, item_dim(s)):
+			occ[c] = at
+
+
+## Проверить раскладку: предметы, что вылезли за блок (сняли рюкзак/куртку) или наложились, — переложить
+## в свободное место; extra — новые предметы ({..., "_at": желаемый якорь}). Возвращает то, что не влезло
+## (эти предметы из сумки уже убраны — вызывающий откатывает snapshot или выбрасывает их).
+func reflow(extra: Array = []) -> Array:
+	var pending: Array = extra.duplicate()
+	var occ := PackedInt32Array()
+	occ.resize(TOTAL)
+	occ.fill(-1)
+	for i in TOTAL:
+		var s = slots[i]
+		if s == null:
 			continue
-		var j := free_cell(BAG)
-		if j >= 0:
-			slots[j] = s
-			slots[i] = null
+		var cells := _cells(i, item_dim(s))
+		var ok := not cells.is_empty()
+		for c in cells:
+			if occ[c] != -1:
+				ok = false
+		if ok:
+			for c in cells:
+				occ[c] = i
 		else:
-			ok = false
-	_after_change()
-	return ok
+			slots[i] = null
+			pending.append(s)
+	var left: Array = []
+	for s in pending:
+		var at := int(s.get("_at", -1))
+		s.erase("_at")
+		var placed := false
+		if at >= 0:
+			var r0 := bool(s.get("r", false))
+			for rot in [r0, not r0]:
+				var d := Items.size_of(String(s["id"]))
+				if rot:
+					d = Vector2i(d.y, d.x)
+				if _fits_at(at, d, occ):
+					_put(s, at, rot, occ)
+					placed = true
+					break
+		if not placed:
+			var fp := find_place(String(s["id"]), occ)
+			if int(fp[0]) >= 0:
+				_put(s, int(fp[0]), bool(fp[1]), occ)
+				placed = true
+		if not placed:
+			left.append(s)
+	return left
 
 
-## Первая свободная ячейка среди первых limit (-1 — все); -1 — нет.
-func free_cell(limit := -1) -> int:
-	var n := slots.size() if limit < 0 else mini(limit, slots.size())
-	for i in n:
-		if slots[i] == null:
-			return i
-	return -1
+func snapshot() -> Array:
+	return [slots.duplicate(true), equip.duplicate(), equip_dur.duplicate()]
+
+
+func restore(sn: Array) -> void:
+	slots = sn[0]
+	equip = sn[1]
+	equip_dur = sn[2]
+	update_blocks()
+
+
+## Блоки рюкзака и карманов — по надетому (вызывает game._apply_equip и загрузка).
+func update_blocks() -> void:
+	if slots.size() != TOTAL:
+		slots.resize(TOTAL)
+	for b in grids.size():
+		var d := block_dim(b)
+		grids[b].refit()
+		grids[b].get_parent().visible = d.x > 0 and d.y > 0
+		if b > 0:
+			block_ls[b].text = "%s %d×%d" % [BLOCKS[b][4], d.x, d.y]
+	if hover is int and slots[hover] == null:
+		hover = null
+	if touch_sel is int and slots[touch_sel] == null:
+		touch_sel = null
+	_refresh()
+
+
+## Есть ли место под предмет id (для разделения стопки и т.п.).
+func free_cell_for(id: String) -> int:
+	return int(find_place(id)[0])
 
 ## Прочность предмета в ячейке (int) или в слоте снаряжения (String).
 func get_dur(key) -> float:
@@ -1180,8 +1661,11 @@ func get_dur(key) -> float:
 	return float(s.get("dur", Items.max_dur(s["id"])))
 
 
+
+
 ## Добавить предметы; возвращает, сколько не влезло. Монеты идут в кошелёк.
 ## dur — прочность (для оружия/сапог, подобранных с пола), -1 — новая вещь.
+## Новая стопка ложится туда, где помещается её размер (find_place), при нужде — повёрнутой.
 func add(id: String, n: int, dur := -1.0) -> int:
 	if id == "coin":
 		coins += n
@@ -1196,16 +1680,19 @@ func add(id: String, n: int, dur := -1.0) -> int:
 			s["n"] += take
 			n -= take
 	while n > 0:
-		var i := slots.find(null)
+		var fp := find_place(id)
+		var i := int(fp[0])
 		if i == -1:
 			break
 		var take := mini(n, mx)
-		slots[i] = {"id": id, "n": take}
+		var e := {"id": id, "n": take}
 		if dur >= 0.0:
-			slots[i]["dur"] = dur
+			e["dur"] = dur
+		_put(e, i, bool(fp[1]))
 		n -= take
 	_after_change()
 	return n
+
 
 
 ## Сколько есть (в сумке + надето; монеты — в кошельке).
@@ -1276,6 +1763,10 @@ func notify() -> void:
 
 
 func _after_change() -> void:
+	# вещь сломалась / её забрали — карманы или рюкзак пропали: вещи из них перекладываем, не влезло — на пол
+	var lost := reflow()
+	if not lost.is_empty():
+		spilled.emit(lost)
 	if wallet_l:
 		wallet_l.text = "Монеты: %d" % coins
 	if open:

@@ -29,6 +29,7 @@ func setup(p: Player) -> void:
 	inv.craft_requested.connect(craft)
 	inv.repair_requested.connect(repair)
 	inv.message.connect(func(t: String): hud.toast(t))
+	inv.spilled.connect(drop_spilled)
 	hud.inv = inv
 	hud.set_hp(hp, MAX_HP)
 	hud.restart_pressed.connect(restart)

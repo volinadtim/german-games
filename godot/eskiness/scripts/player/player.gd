@@ -150,7 +150,8 @@ func _physics_process(delta: float) -> void:
 	_key_look(delta)
 	var on_floor := is_on_floor()
 	# прыжок из приседа сначала поднимает игрока
-	var jump_now := active and not carrying and Input.is_action_just_pressed("jump")
+	var jump_now: bool = active and not carrying and Input.is_action_just_pressed("jump") \
+		and not (game != null and game.inv != null and game.inv.open and get_viewport().gui_is_dragging())   # пробел — поворот предмета в инвентаре
 	if jump_now and crouched:
 		_stand_request()
 		jump_now = false

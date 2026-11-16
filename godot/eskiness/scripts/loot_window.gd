@@ -10,7 +10,8 @@ extends CanvasLayer
 ##   game.open_loot_items(items, pos, title) — разовый лут (разбитый кувшин): что не взяли — выпадет на пол в pos.
 
 const Items := preload("res://scripts/items.gd")
-const STORAGE_SLOTS := 20
+const STORAGE_SLOTS := 40   # позиций (стопок) в сундуке-хранилище
+const STORAGE_VOL := 50     # объём сундука в ячейках: предмет w×h занимает w*h (промпт 16.11 02:42)
 
 var game
 var src                        # объект с contents
@@ -23,6 +24,7 @@ var title: Label
 var info: Label
 var all_b: Button
 var _opened_at := 0
+var _base_title := ""
 
 
 ## Разовый лут без своего объекта: после закрытия остаток высыпается на пол.
@@ -210,7 +212,8 @@ func show_for(c) -> void:
 	var t = c.get("loot_title")
 	if t == null or String(t) == "":
 		t = "СУНДУК" if storage else ("СЕЙФ" if c.get("kind") == "safe" else "ЯЩИК")
-	title.text = String(t)
+	_base_title = String(t)
+	title.text = _base_title
 	bag_col.visible = storage
 	all_b.visible = true
 	info.text = "Клик — переложить стопку · Shift+клик — одну · можно перетаскивать · R — забрать всё · E / Esc — закрыть" if storage \
@@ -268,16 +271,20 @@ func _rebuild() -> void:
 			c.n = int(cont[i][1])
 		src_grid.add_child(c)
 	if storage:
+		# сумка — сетка с предметами разного размера: здесь списком, idx — ячейка-якорь
 		for i in game.inv.slots.size():
+			var s = game.inv.slots[i]
+			if s == null:
+				continue
 			var c := Cell.new()
 			c.lw = self
 			c.side = "bag"
 			c.idx = i
-			var s = game.inv.slots[i]
-			if s != null:
-				c.id = String(s["id"])
-				c.n = int(s["n"])
+			c.id = String(s["id"])
+			c.n = int(s["n"])
 			bag_grid.add_child(c)
+		var used := storage_used()
+		title.text = "%s  %d/%d" % [_base_title, used, STORAGE_VOL]
 
 
 ## Клик по клетке: из содержимого — в сумку, из сумки — в сундук.
@@ -326,7 +333,8 @@ func put(i: int, one := false) -> void:
 				var add := mini(left, mx - int(it[1]))
 				it[1] = int(it[1]) + add
 				left -= add
-	while left > 0 and cont.size() < STORAGE_SLOTS:
+	var area := Items.size_of(id).x * Items.size_of(id).y
+	while left > 0 and cont.size() < STORAGE_SLOTS and storage_used() + area <= STORAGE_VOL:
 		var add := mini(left, mx)
 		cont.append([id, add, dur] if dur >= 0.0 else [id, add])
 		left -= add
@@ -353,3 +361,14 @@ func take_all() -> void:
 			i += 1
 	if src.contents.is_empty() and not storage:
 		close()
+
+
+## Занятый объём сундука: каждая стопка — w×h ячеек своего предмета.
+func storage_used() -> int:
+	var t := 0
+	if src == null:
+		return 0
+	for it in src.contents:
+		var d := Items.size_of(String(it[0]))
+		t += d.x * d.y
+	return t

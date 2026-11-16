@@ -59,8 +59,8 @@ const ITEMS := {
 		"icon": "repair_weapon", "color": Color(0.6, 0.2, 0.15), "repair": "weapon", "dur": 3},
 	"repair_gear": {"name": "Ремкомплект одежды", "desc": "3 заряда, каждый чинит одежду (голова, тело, ноги, обувь) на 50%. Нажать — самую потрёпанную; или перетащить на нужную.", "stack": 1,
 		"icon": "repair_gear", "color": Color(0.3, 0.42, 0.5), "repair": "gear", "dur": 3},
-	"backpack": {"name": "Рюкзак", "desc": "Спина: +5 ячеек сумки. Снимешь — вещи из него переложатся в свободные ячейки.", "stack": 1,
-		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": 5},
+	"backpack": {"name": "Рюкзак", "desc": "Спина: отдельный отсек 4×3 (12 ячеек). Снимешь — вещи из него переложатся в сумку.", "stack": 1,
+		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": [4, 3]},
 	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 5,
 		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
 	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 6,
@@ -142,6 +142,45 @@ const RECIPES := [
 	{"out": "knuckles", "need": {"gear": 1, "twine": 1}, "tool": "hammer", "wear": 1},
 	{"out": "spiked_club", "need": {"wood": 2, "nut": 3}, "tool": "hammer", "wear": 2},
 ]
+
+
+## Размер предмета в ячейках сумки [ширина, высота] (промпт 16.11 02:42); нет в списке — 1×1.
+## Пробел при перетаскивании поворачивает (inventory.gd).
+const SIZES := {
+	"pistol": [2, 3], "medkit": [2, 2], "shield": [2, 2], "fuel": [2, 2], "backpack": [2, 2],
+	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
+	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
+	"flashlight": [1, 2], "water": [1, 2], "soda": [1, 2], "wood": [1, 2], "gasmask": [2, 1],
+	"repair_weapon": [2, 1], "repair_gear": [2, 1], "canned": [1, 1],
+	"helmet": [2, 2], "moto_helmet": [2, 2], "ushanka": [2, 1],
+	"jacket": [2, 2], "kurtka": [2, 2], "vest": [2, 2],
+	"pants": [2, 2], "jeans": [2, 2], "wpants": [2, 2],
+	"boots": [2, 2], "sneakers": [2, 1],
+}
+
+## Отдельные ячейки хранения у одежды (промпт 16.11 02:42): [ширина, высота] блока карманов.
+## Рюкзак — "bag" в ITEMS (свой блок).
+const POCKETS := {
+	"kurtka": [2, 1], "jacket": [2, 2], "vest": [3, 1],
+	"jeans": [2, 1], "pants": [2, 2], "wpants": [1, 2],
+}
+
+
+static func size_of(id: String) -> Vector2i:
+	var a = SIZES.get(id, [1, 1])
+	return Vector2i(int(a[0]), int(a[1]))
+
+
+## Блок ячеек, который даёт надетая вещь (рюкзак, карманы); (0,0) — никакого.
+static func block_of(id: String) -> Vector2i:
+	if id == "" or not ITEMS.has(id):
+		return Vector2i.ZERO
+	var a = ITEMS[id].get("bag", POCKETS.get(id, null))
+	if a is Array:
+		return Vector2i(int(a[0]), int(a[1]))
+	if a != null:   # старый формат рюкзака: число ячеек
+		return Vector2i(4, 3)
+	return Vector2i.ZERO
 
 
 ## Куда надевается предмет: hand (левая или правая рука), head (голова), face (противогаз), back (рюкзак), hands (кастет) или "".

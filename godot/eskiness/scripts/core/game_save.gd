@@ -80,18 +80,11 @@ func load_state(d: Dictionary) -> void:
 		if ed.has("head"):
 			ed["face"] = ed["head"]
 			ed.erase("head")
-	# рюкзак надет — сумка сразу шире, чтобы загрузились вещи из его ячеек
-	var back_id := String(eq.get("back", ""))
-	inv.set_capacity(inv.BAG + (int(Items.ITEMS[back_id].get("bag", 0)) if Items.ITEMS.has(back_id) else 0))
-	for i in inv.slots.size():
-		var s = bag[i] if i < bag.size() else null
-		if s is Dictionary and Items.ITEMS.has(String(s.get("id", ""))):
-			var e := {"id": String(s["id"]), "n": int(s.get("n", 1))}
-			if s.has("dur"):
-				e["dur"] = float(s["dur"])
-			inv.slots[i] = e
-		else:
-			inv.slots[i] = null
+	# сетка (промпт 16.11 02:42): сначала снаряжение (рюкзак / карманы дают свои блоки), потом вещи.
+	# Старые сейвы (10–15 ячеек 1×1): вещи стоят по старым номерам, наложившиеся крупные reflow перекладывает,
+	# не влезшие — на пол у игрока (ниже, после позиции).
+	inv.slots.clear()
+	inv.slots.resize(inv.TOTAL)
 	inv.equip_dur.clear()
 	for k in inv.equip:
 		var id: String = String(eq.get(k, ""))
@@ -99,6 +92,16 @@ func load_state(d: Dictionary) -> void:
 		if ed.has(k):
 			inv.equip_dur[k] = float(ed[k])
 		_apply_equip(k)
+	for i in inv.slots.size():
+		var s = bag[i] if i < bag.size() else null
+		if s is Dictionary and Items.ITEMS.has(String(s.get("id", ""))):
+			var e := {"id": String(s["id"]), "n": int(s.get("n", 1))}
+			if s.has("dur"):
+				e["dur"] = float(s["dur"])
+			if bool(s.get("r", false)):
+				e["r"] = true
+			inv.slots[i] = e
+	var spill: Array = inv.reflow()
 	var hb: Array = d.get("hotbar", [])
 	for k in 5:
 		inv.hotbar[k] = String(hb[k]) if k < hb.size() and hb[k] != null else ""
@@ -164,6 +167,9 @@ func load_state(d: Dictionary) -> void:
 			p.set_meta("dropped", true)
 		p.need_leave = bool(it.get("manual", it.get("dropped", false)))   # выброшенное игроком — только по E
 		p.life = float(it.get("ttl", Pickup.LIFE))
+	if not spill.is_empty():
+		drop_spilled(spill)   # старый сейв: крупные вещи не влезли в сетку 5×5
+		hud.toast("Сумка теперь сетка 5×5 — что не влезло, лежит на полу рядом", Color(0.95, 0.75, 0.45))
 	if storage:
 		storage.contents = []
 		for it in d.get("storage", []):
