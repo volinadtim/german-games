@@ -275,6 +275,7 @@ func _finish_revive(pp, peer: int, id: String, amount: float, nm: String) -> voi
 func heal_channel(id: String) -> void:
 	var hv: float = Items.ITEMS[id]["heal"]
 	_channel(1.0 + hv / 25.0, Items.item_name(id), func(): _finish_heal(id), Callable(), false)
+	ch_walk = id == "bandage"
 
 
 func _finish_heal(id: String) -> void:
@@ -292,9 +293,13 @@ func _finish_heal(id: String) -> void:
 
 # ---------- полоска действия ----------
 
+var ch_walk := false   # полоска не прерывается шагом (бинт)
+
+
 func _channel(dur: float, text: String, done: Callable, valid: Callable, kneel: bool) -> void:
 	if ch_on:
 		return
+	ch_walk = false
 	ch_on = true
 	ch_t = 0.0
 	ch_dur = dur
@@ -359,9 +364,11 @@ func _channel_tick(delta: float) -> void:
 	if not game.alive:
 		_stop("")
 		return
-	if Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2 \
-			or Input.is_action_just_pressed("jump") or Vector2(p.velocity.x, p.velocity.z).length() > 1.2:
-		why = "Прервано: движение"
+	# бинт можно на ходу, но не на бегу (промпт 16.11 05:12); остальное — стоя
+	var walk_ok: bool = ch_walk and not Input.is_action_pressed("sprint") 			and Vector2(p.velocity.x, p.velocity.z).length() < p.WALK + 0.4
+	var moving: bool = Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2 			or Vector2(p.velocity.x, p.velocity.z).length() > 1.2
+	if Input.is_action_just_pressed("jump") or (moving and not walk_ok):
+		why = "Прервано: бег" if ch_walk else "Прервано: движение"
 	elif game.hp < ch_hp - 0.9:   # кровотечение капает понемногу — прерывает только настоящий урон
 		why = "Прервано: урон"
 	elif ch_valid.is_valid() and not ch_valid.call():

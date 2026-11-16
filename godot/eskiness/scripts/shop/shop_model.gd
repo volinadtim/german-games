@@ -26,7 +26,8 @@ const CONS_SUBS := [
 var sub_c := 0                # открытая подвкладка «Расходников»
 ## только магазин в подвале деревни (village_shop.gd): вкладки «Патроны» и «Магазины» после «Инструментов»
 const VILLAGE_TABS := ["Патроны", "Магазины"]
-const AMMO_SHOP := [["ammo", 3]]
+const AMMO_SHOP := [["ammo", 12]]   # набор из AMMO_PACK патронов за 12 (промпт 16.11 05:11)
+const AMMO_PACK := 5
 const MAG_SHOP := [["mag", 30]]   # магазин с 8 патронами
 ## «Инструменты» (промпт 16.11 02:42): фонарик, метла, нормальный молоток, топорик (рубит деревья на поляне — surface.gd)
 const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55]]
