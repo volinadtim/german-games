@@ -139,6 +139,13 @@ func _host() -> void:
 			wan_code_l.text = NetScript.encode(a[0], net.port) if not a.is_empty() and t.count(".") == 3 else "")
 		add_child(row)
 		add_child(_hint("Через интернет: нужен белый (статический) IP и проброс порта %d (UDP) на роутере на этот ПК. Введите свой внешний IP — получите код." % net.port))
+		var ff := CheckBox.new()
+		ff.text = "Огонь по своим (урон по другим игрокам)"
+		ff.button_pressed = net.friendly_fire
+		ff.focus_mode = Control.FOCUS_NONE
+		ff.add_theme_font_size_override("font_size", 20)
+		ff.toggled.connect(func(on: bool): net.set_friendly_fire(on))
+		add_child(_centered(ff))
 		add_child(_label("Игроки:", 22, Color(0.75, 0.7, 0.62), 0))
 		players_box = VBoxContainer.new()
 		add_child(players_box)
@@ -184,7 +191,7 @@ func _join() -> void:
 	status_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(status_l)
 	if net.connected:
-		status_l.text = "Подключено. Ждём, пока хост начнёт игру…"
+		status_l.text = "Подключено. Ждём, пока хост начнёт игру…   Огонь по своим: %s" % ("вкл" if net.friendly_fire else "выкл")
 	var bb: Button = menu._button("Отключиться" if (net.connected or net.joining) else "Назад", back)
 	add_child(_centered(bb))
 
@@ -219,6 +226,8 @@ func _on_lobby() -> void:
 		if keep != "" and status_l and status_l.text == "":
 			status_l.text = keep
 		return
+	if page == "join" and net.connected and status_l and status_l.text.begins_with("Подключено"):
+		status_l.text = "Подключено. Ждём, пока хост начнёт игру…   Огонь по своим: %s" % ("вкл" if net.friendly_fire else "выкл")
 	_fill_players()
 
 

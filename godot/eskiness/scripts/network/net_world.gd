@@ -135,6 +135,14 @@ func _apply_world(g, w: Dictionary) -> void:
 		pickups[fids[i]] = fl[i]
 
 
+## Имена над головами — по текущему списку игроков (имя могли сменить / прийти позже).
+func refresh_nicks() -> void:
+	for id in puppets:
+		var pp = puppets[id]
+		if is_instance_valid(pp) and pp.has_meta("nick"):
+			(pp.get_meta("nick") as Label3D).text = String(players.get(id, "?"))
+
+
 func _make_puppet(id: int) -> void:
 	if puppets.has(id) or game == null:
 		return
@@ -159,7 +167,11 @@ func _make_puppet(id: int) -> void:
 	lb.outline_size = 10
 	lb.modulate = Color(0.95, 0.9, 0.8)
 	lb.position.y = 2.05
+	lb.no_depth_test = true          # ник над головой виден и из-за угла / в темноте (промпт 16.11 21:47)
+	lb.render_priority = 10
+	lb.shaded = false
 	pp.add_child(lb)
+	pp.set_meta("nick", lb)
 	puppets[id] = pp
 	if hosting:
 		var t := RemoteTarget.new()

@@ -290,7 +290,7 @@ func _soft_push(p: CharacterBody3D, _delta: float) -> void:
 
 ## Попали по модели другого игрока (удар, заряженный удар, пуля) — урон ему через хоста.
 func _pvp_hit(pp, dmg: float, dir: Vector3) -> void:
-	if game == null or not game.alive:
+	if game == null or not game.alive or not friendly_fire:
 		return
 	game.weapon_hit()
 	Fx.damage_number(pp.get_parent(), pp.global_position + Vector3(0, 2.0, 0), dmg, Color(1.0, 0.55, 0.45))
@@ -305,7 +305,7 @@ func _pvp_hit(pp, dmg: float, dir: Vector3) -> void:
 
 @rpc("any_peer", "reliable")
 func rq_pvp(victim: int, dmg: float, from: Vector3) -> void:
-	if hosting:
+	if hosting and friendly_fire:
 		_pvp_route(victim, clampf(dmg, 0.0, 120.0), from, multiplayer.get_remote_sender_id())
 
 

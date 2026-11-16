@@ -11,6 +11,10 @@ extends "res://scripts/network/net_session.gd"
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_load_name()
+	var v := Node.new()
+	v.set_script(load("res://scripts/network/voip.gd"))
+	v.name = "Voip"   # голосовой чат на X (network/voip.gd)
+	add_child(v)
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	multiplayer.connected_to_server.connect(_on_connected)

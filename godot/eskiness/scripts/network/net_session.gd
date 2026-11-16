@@ -90,11 +90,27 @@ func _drop_later(id: int) -> void:
 
 func _send_players() -> void:
 	rpc("lobby_players", players)
+	rpc("lobby_ff", friendly_fire)
+
+
+## Хост меняет галочку «Огонь по своим» в лобби — всем рассылается.
+func set_friendly_fire(on: bool) -> void:
+	friendly_fire = on
+	if hosting:
+		rpc("lobby_ff", on)
+	lobby_changed.emit()
+
+
+@rpc("authority", "reliable")
+func lobby_ff(on: bool) -> void:
+	friendly_fire = on
+	lobby_changed.emit()
 
 
 @rpc("authority", "reliable")
 func lobby_players(d: Dictionary) -> void:
 	players = d
+	refresh_nicks()
 	lobby_changed.emit()
 
 
