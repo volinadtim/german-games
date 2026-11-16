@@ -231,7 +231,9 @@ func _physics_process(delta: float) -> void:
 			focus = takedown
 			text = takedown.get_prompt(self)
 	if carry and alive:
-		var ch: String = carry.hint(focus)
+		# манекен и т.п. без interact() не попадают в focus — для B берём цель луча переноски (05:04)
+		var ct: Object = focus if focus != null else carry._aim()
+		var ch: String = carry.hint(ct)
 		if ch != "":
 			text = ch if text == "" or carry.held else text + "   " + ch
 	hud.prompt(text)
