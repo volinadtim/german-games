@@ -77,6 +77,11 @@ var craft_wrap: Control
 var craft_panel: PanelContainer
 var craft_shown := false
 var craft_tw: Tween
+var gear_tab: Button             # «Снаряжение» — выкатывает слева куклу, рюкзак и карманы (промпт 05:52)
+var gear_wrap: Control
+var gear_panel: Control
+var gear_shown := false
+var gear_tw: Tween
 var craft_open := -1            # раскрытый рецепт в списке крафта (-1 — все свёрнуты)
 var _press_key = null
 var _press_pos := Vector2.ZERO
@@ -640,9 +645,17 @@ func _build_ui() -> void:
 	outer.add_child(hb)
 
 	# снаряжение на силуэте
+	# снаряжение выкатывается слева по кнопке «Снаряжение» (промпт 05:52); обёртка обрезает панель
+	gear_wrap = Control.new()
+	gear_wrap.clip_contents = true
+	gear_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	gear_wrap.visible = false
+	hb.add_child(gear_wrap)
 	var dc := HBoxContainer.new()   # кукла, справа от неё рюкзак и карманы (промпт 05:40)
 	dc.add_theme_constant_override("separation", 14)
-	hb.add_child(dc)
+	gear_wrap.add_child(dc)
+	gear_panel = dc
+	gear_wrap.resized.connect(func(): _fit_slide(gear_wrap, gear_panel, true))
 	# надпись «СНАРЯЖЕНИЕ» убрана (промпт 03:47)
 	var doll := Doll.new()
 	doll.custom_minimum_size = Vector2(192, 320)
@@ -676,14 +689,13 @@ func _build_ui() -> void:
 	hb.add_child(vb)
 	# заголовок: «ИНВЕНТАРЬ» и рядом кнопка «Крафт» (промпт 04:07) — выкатывает панель крафта, повторно прячет
 	var title := HBoxContainer.new()
-	title.add_theme_constant_override("separation", 18)
+	title.add_theme_constant_override("separation", 8)
 	vb.add_child(title)
-	title.add_child(_label("ИНВЕНТАРЬ", 34, Color(0.86, 0.85, 0.8)))
-	craft_tab = Button.new()
-	craft_tab.text = "Крафт ▸"
-	craft_tab.focus_mode = Control.FOCUS_NONE
-	craft_tab.add_theme_font_size_override("font_size", 22)
-	craft_tab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	title.add_child(_label("ИНВЕНТАРЬ", 26, Color(0.86, 0.85, 0.8)))
+	gear_tab = _tab_button("Снаряжение")
+	gear_tab.pressed.connect(func(): set_gear(not gear_shown))
+	title.add_child(gear_tab)
+	craft_tab = _tab_button("Крафт")
 	craft_tab.pressed.connect(toggle_craft)
 	title.add_child(craft_tab)
 	var mainc := VBoxContainer.new()
@@ -763,9 +775,9 @@ func _build_ui() -> void:
 	craft_wrap = Control.new()
 	craft_wrap.clip_contents = true
 	craft_wrap.custom_minimum_size = Vector2(0, 0)
-	craft_wrap.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	craft_wrap.visible = false
+	craft_wrap.visible = false   # по высоте — во всю высоту окна (FILL), панель растягивается под неё (промпт 05:52)
 	hb.add_child(craft_wrap)
+	craft_wrap.resized.connect(func(): _fit_slide(craft_wrap, craft_panel, false))
 	# крафт — отдельная панель с рамкой и своим фоном (промпт 03:44)
 	var cpanel := PanelContainer.new()
 	craft_panel = cpanel
@@ -784,7 +796,8 @@ func _build_ui() -> void:
 	# заголовка «КРАФТ» внутри нет (промпт 04:16) — есть кнопка рядом с «ИНВЕНТАРЬ»
 	# рецептов много — список названий прокручивается, рецепт раскрывается по нажатию
 	var cscroll := ScrollContainer.new()
-	cscroll.custom_minimum_size = Vector2(290, 440)
+	cscroll.custom_minimum_size = Vector2(290, 160)
+	cscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER   # длинные подписи не расширяют окно
 	cb.add_child(cscroll)
 	craft_box = VBoxContainer.new()
@@ -1509,29 +1522,63 @@ func toggle_craft() -> void:
 
 func set_craft(on: bool, instant := false) -> void:
 	craft_shown = on
-	craft_tab.text = "Крафт " + ("◂" if on else "▸")
-	if craft_tw:
-		craft_tw.kill()
-	var sz := craft_panel.get_combined_minimum_size()
-	craft_panel.size = sz
-	craft_wrap.custom_minimum_size.y = sz.y
+	craft_tab.set_pressed_no_signal(on)
+	craft_tw = _slide(craft_wrap, craft_panel, on, instant, craft_tw, false)
+
+
+func set_gear(on: bool, instant := false) -> void:
+	gear_shown = on
+	gear_tab.set_pressed_no_signal(on)
+	gear_tw = _slide(gear_wrap, gear_panel, on, instant, gear_tw, true)
+
+
+## Кнопка-вкладка в заголовке окна (нажата — панель выкачена).
+func _tab_button(text: String) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.toggle_mode = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 16)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return b
+
+
+## Выкатить / спрятать боковую панель: ширина обёртки плавно 0 ↔ ширина панели.
+## fixed_h — высота по самой панели (снаряжение), иначе — во всю высоту окна (крафт).
+func _slide(wrap: Control, content: Control, on: bool, instant: bool, tw: Tween, fixed_h: bool) -> Tween:
+	if tw:
+		tw.kill()
+	var sz := content.get_combined_minimum_size()
+	wrap.custom_minimum_size.y = sz.y if fixed_h else 0.0
+	_fit_slide(wrap, content, fixed_h)
 	var w := sz.x if on else 0.0
 	if on:
-		craft_wrap.visible = true
+		wrap.visible = true
 	if instant:
-		craft_wrap.custom_minimum_size.x = w
-		craft_wrap.visible = on
-		return
-	craft_tw = create_tween()
-	craft_tw.tween_property(craft_wrap, "custom_minimum_size:x", w, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		wrap.custom_minimum_size.x = w
+		wrap.visible = on
+		return null
+	var t := create_tween()
+	t.tween_property(wrap, "custom_minimum_size:x", w, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if not on:
-		craft_tw.tween_callback(func(): craft_wrap.visible = false)
+		t.tween_callback(func(): wrap.visible = false)
+	return t
+
+
+## Панель в обёртке: полная ширина, высота — по обёртке; снаряжение (слева) прижато к правому краю — выезжает от сумки.
+func _fit_slide(wrap: Control, content: Control, right: bool) -> void:
+	if content == null:
+		return
+	var sz := content.get_combined_minimum_size()
+	content.size = Vector2(sz.x, maxf(sz.y, wrap.size.y))
+	content.position = Vector2(wrap.size.x - sz.x if right else 0.0, 0.0)
 
 
 func show_inventory() -> void:
 	open = true
 	root.visible = true
-	set_craft(false, true)   # по умолчанию — только инвентарь
+	set_craft(false, true)   # по умолчанию — только сумка; снаряжение остаётся как было в прошлый раз
+	set_gear(gear_shown, true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_rebuild_craft()
 	_place_hot()
@@ -1900,6 +1947,8 @@ func update_blocks() -> void:
 		grids[b].get_parent().visible = d.x > 0 and d.y > 0
 		if b > 0:
 			block_ls[b].text = "%s %d×%d" % [BLOCKS[b][4], d.x, d.y]
+	if gear_wrap and gear_shown and (gear_tw == null or not gear_tw.is_running()):
+		set_gear.call_deferred(true, true)   # надели / сняли рюкзак — ширина панели снаряжения другая
 	if hover is int and slots[hover] == null:
 		hover = null
 	if touch_sel is int and slots[touch_sel] == null:
