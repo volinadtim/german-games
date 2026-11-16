@@ -150,6 +150,9 @@ func _physics_process(delta: float) -> void:
 		_death_tick(delta)
 		return
 	_key_look(delta)
+	if stamina == null:
+		stamina = preload("res://scripts/player/stamina.gd").new()
+		add_child(stamina)
 	var on_floor := is_on_floor()
 	# прыжок из приседа сначала поднимает игрока
 	var jump_now: bool = active and not carrying and Input.is_action_just_pressed("jump") \
@@ -159,8 +162,9 @@ func _physics_process(delta: float) -> void:
 		jump_now = false
 	if not on_floor:
 		velocity.y -= GRAVITY * (FALL_MULT if velocity.y < 0.0 else 1.0) * delta
-	elif jump_now:
+	elif jump_now and stamina.can_jump():
 		velocity.y = JUMP
+		stamina.jump()
 		on_floor = false
 
 	var inp := Vector2.ZERO
@@ -175,6 +179,9 @@ func _physics_process(delta: float) -> void:
 	_update_crouch(delta)
 	if crouched:
 		sprinting = false
+	if sprinting and not stamina.can_sprint():
+		sprinting = false   # выдохся — только шаг до UNLOCK (stamina.gd)
+	stamina.tick(delta, sprinting, moving)
 
 	if sprinting:
 		sprint_carry = 1.0
