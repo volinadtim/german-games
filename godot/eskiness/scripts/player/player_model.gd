@@ -432,7 +432,9 @@ func _apply_bones() -> void:
 			var side := -1.0 if arm == 0 else 1.0
 			# с оружием (кроме щита) кисть остаётся большим пальцем вверх — молотковый хват, оружие стоит вертикально
 			var armed_k := ARMED_TWIST if weapon_ids[arm] != "" and weapon_ids[arm] != "shield" else 1.0
-			var tw := deg_to_rad(90.0) * side * (0.1 + 0.6 * fist_blend * armed_k) * (1.0 if e[4] else 0.5)
+			# голый кулак (промпт 03:33) вывернут меньше — пальцами к другой руке; щит — как раньше
+			var fist_k := 0.6 if weapon_ids[arm] == "shield" else 0.22
+			var tw := deg_to_rad(90.0) * side * (0.1 + fist_k * fist_blend * armed_k) * (1.0 if e[4] else 0.5)
 			bas = bas * Basis(Vector3.UP, tw)
 		_set_global_rot(e[0], rr * bas * e[2])
 	var wig := fk * idle_amt * (1.0 - fist_blend) if fidget == "fingers" else 0.0
