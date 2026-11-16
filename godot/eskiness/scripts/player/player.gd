@@ -59,6 +59,35 @@ func _notification(what: int) -> void:
 				Input.action_release(a)
 
 
+## Автобег (промпт 04:38): Windows при долгом Shift (залипание/фильтрация клавиш) может «съесть»
+## отпускание W/Shift — действие остаётся нажатым, и персонаж бежит сам. Каждый кадр сверяем
+## движение и бег с реальным состоянием клавиш/кнопок мыши; не нажато физически — отпускаем.
+## Телефон (touch_controls.gd жмёт действия сам) и действия с геймпадом не трогаем.
+const _MOVE_ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "sprint"]
+
+func _unstick_moves() -> void:
+	if OS.has_feature("mobile") or "--touch" in OS.get_cmdline_user_args():
+		return
+	for a in _MOVE_ACTIONS:
+		if not InputMap.has_action(a) or not Input.is_action_pressed(a):
+			continue
+		var held := false
+		var known := true
+		for ev in InputMap.action_get_events(a):
+			if ev is InputEventKey:
+				var k := ev as InputEventKey
+				if (k.physical_keycode != KEY_NONE and Input.is_physical_key_pressed(k.physical_keycode)) \
+						or (k.keycode != KEY_NONE and Input.is_key_pressed(k.keycode)):
+					held = true
+			elif ev is InputEventMouseButton:
+				if Input.is_mouse_button_pressed((ev as InputEventMouseButton).button_index):
+					held = true
+			else:
+				known = false   # геймпад и пр. — не проверяем
+		if known and not held:
+			Input.action_release(a)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not active:
 		return
@@ -151,6 +180,7 @@ func _physics_process(delta: float) -> void:
 		_death_tick(delta)
 		return
 	_key_look(delta)
+	_unstick_moves()
 	if stamina == null:
 		stamina = preload("res://scripts/player/stamina.gd").new()
 		add_child(stamina)
