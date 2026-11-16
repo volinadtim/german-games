@@ -81,7 +81,7 @@ func _draw_bar() -> void:
 	var w := 160.0
 	var h := 4.5
 	var x0 := sz.x / 2.0 - w / 2.0
-	var y0 := sz.y - 64.0 - 18.0 - 8.0
+	var y0 := sz.y - 64.0 - 18.0 - 14.0   # 04:25: чуть выше
 	var a := alpha * 0.8
 	var col := Color(0.95, 0.45, 0.35) if exhausted else Color(0.92, 0.9, 0.82)
 	ui.draw_rect(Rect2(x0 - 1, y0 - 1, w + 2, h + 2), Color(0, 0, 0, 0.45 * a))

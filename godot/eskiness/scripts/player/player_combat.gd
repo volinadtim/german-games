@@ -173,7 +173,7 @@ func _charge_draw() -> void:
 	var w := 240.0
 	var h := 5.0
 	var x0 := sz.x / 2.0 - w / 2.0
-	var y0 := sz.y * 0.64
+	var y0 := sz.y * 0.928 - 78.4   # 04:25: опущена на 80% от подъёма 04:13 (был sz.y−98, стал 0.64·sz.y)
 	var a := charge_ui_a * 0.6
 	var full := charge_ui_k >= 0.999
 	charge_ui.draw_rect(Rect2(x0 - 2, y0 - 2, w + 4, h + 4), Color(0, 0, 0, 0.45 * a))
