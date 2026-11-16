@@ -18,6 +18,7 @@ func _close() -> void:
 const C_GREEN := Color(0.16, 0.42, 0.22)
 const C_CREAM := Color(0.86, 0.8, 0.62)
 const C_WOOD := Color(0.24, 0.15, 0.08)
+const SIGN_W := 330.0   # ширина таблички с названием на навесе
 
 
 func _sb(bg: Color, border := Color(0, 0, 0, 0), bw := 0, r := 4, m := 6) -> StyleBoxFlat:
@@ -58,15 +59,27 @@ func _build_ui() -> void:
 	awning.custom_minimum_size = Vector2(600, 62)
 	awning.draw.connect(func(): _draw_awning(awning))
 	root.add_child(awning)
-	var head := _label("TRINKETS MARKET", 30, _tint(Color(0.75, 1.0, 0.72)))
+	# вывеска: «#1» — бункер, «#2» — подвал деревни (промпт 04:36); шрифт ужимается, чтобы надпись
+	# целиком влезала в табличку (SIGN_W); остальное окно масштабирует ui_fit, пропорции сохраняются
+	var head := _label("TRINKETS MARKET #%d" % (2 if "main_shop" in self else 1), 30, _tint(Color(0.75, 1.0, 0.72)))
 	head.add_theme_font_override("font", sign_font())
 	head.add_theme_color_override("font_outline_color", _tint(Color(0.02, 0.08, 0.03)))
-	head.add_theme_constant_override("outline_size", 8)
+	head.add_theme_constant_override("outline_size", 6)
 	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	head.autowrap_mode = TextServer.AUTOWRAP_OFF
-	head.set_anchors_preset(Control.PRESET_FULL_RECT)
-	head.offset_bottom = -14
 	head.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	head.autowrap_mode = TextServer.AUTOWRAP_OFF
+	head.clip_text = true
+	var fs := 30
+	while fs > 12 and sign_font().get_string_size(head.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 6 > SIGN_W - 24:
+		fs -= 1
+	head.add_theme_font_size_override("font_size", fs)
+	# по табличке: по центру навеса, сверху 8, высота 62 − 12 (фестоны) − 14
+	head.anchor_left = 0.5
+	head.anchor_right = 0.5
+	head.offset_left = -SIGN_W / 2 + 4
+	head.offset_right = SIGN_W / 2 - 4
+	head.offset_top = 8
+	head.offset_bottom = 44
 	awning.add_child(head)
 	var x := Button.new()
 	x.focus_mode = Control.FOCUS_NONE
@@ -192,7 +205,7 @@ func _draw_awning(ci: Control) -> void:
 	ci.draw_rect(Rect2(0, 0, w, 5), _tint(Color(0.08, 0.2, 0.1)))
 	ci.draw_rect(Rect2(0, hh - 2, w, 2), Color(0, 0, 0, 0.18))
 	# вывеска-табличка под надпись
-	var bw := 330.0
+	var bw := SIGN_W
 	ci.draw_rect(Rect2((w - bw) / 2, 8, bw, hh - 14), _tint(Color(0.05, 0.12, 0.06, 0.92)))
 	ci.draw_rect(Rect2((w - bw) / 2, 8, bw, hh - 14), _tint(Color(0.5, 1.0, 0.55, 0.8)), false, 2.0)
 
@@ -303,7 +316,7 @@ func _grid() -> GridContainer:
 
 func _section(t: String) -> void:
 	var l := _label(t, 15, Color(1.0, 0.45, 0.3))
-	l.autowrap_mode = TextServer.AUTOWRAP_OFF
+	l.custom_minimum_size = Vector2(400, 0)   # длинный заголовок раздела — переносом, не за витрину
 	content.add_child(l)
 
 
@@ -359,6 +372,8 @@ func _cell(grid: GridContainer, draw_fn: Callable, price: int, title: String, de
 	pl.size = Vector2(130, 24)
 	pl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	pl.add_theme_font_size_override("font_size", 15)
+	pl.clip_text = true
+	pl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	pl.text = price_text if price_text != "" else (_coins(price) if price >= 0 else "")
 	pl.add_theme_color_override("font_color", Color(0.95, 0.82, 0.5))
 	b.add_child(pl)
