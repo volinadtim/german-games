@@ -67,6 +67,7 @@ func seat_local(i: int, instant := false) -> void:
 	p.velocity = Vector3.ZERO
 	p.process_mode = Node.PROCESS_MODE_DISABLED
 	p.col_shape.disabled = true
+	p.set_meta("car_seat", i)   # revive.gd: в машине лечение прерывает не скорость, а руль/газ водителя
 	seat_from = p.cam.global_position
 	_body_visible(false)
 	if instant:
@@ -162,6 +163,15 @@ func _seat_tick(delta: float) -> void:
 		if seat_anim >= 1.0:
 			seat_dir = 0
 			open_door(my_seat, false)
+	elif seat_dir == 2:
+		# пересадка с пассажирского за руль: пригнувшись, через рычаг передач
+		seat_anim = minf(seat_anim + delta / SWITCH_T, 1.0)
+		var k := smoothstep(0.0, 1.0, seat_anim)
+		p.rotation.y = lerp_angle(p.rotation.y, yaw + PI, 1.0 - exp(-7.0 * delta))
+		_place_player(seat_eye_world(1).lerp(seat_eye_world(0), k) - global_transform.basis.y * sin(k * PI) * 0.12)
+		if seat_anim >= 1.0:
+			seat_dir = 0
+			_driver_in()
 	elif seat_dir == -1:
 		seat_anim = maxf(seat_anim - delta / 0.9, 0.0)
 		var k := smoothstep(0.0, 1.0, seat_anim)
@@ -173,6 +183,30 @@ func _seat_tick(delta: float) -> void:
 			_stand_up()
 	else:
 		_place_player(seat_eye_world(my_seat))
+		if game.focus == null and can_take_wheel() and not _looking_at_door():
+			game.hud.prompt.call_deferred("[E] Пересесть за руль")
+
+
+## С переднего пассажирского — за руль, если водительское свободно (промпт 16.11 05:13).
+func can_take_wheel() -> bool:
+	return my_seat == 1 and seat_dir == 0 and seats[0] == 0
+
+
+func take_wheel() -> void:
+	if not can_take_wheel():
+		return
+	var p = game.player
+	seats[1] = 0
+	seats[0] = my_id()
+	my_seat = 0
+	p.set_meta("car_seat", 0)
+	seat_dir = 2
+	seat_anim = 0.0
+	net_drive = false
+	speed = 0.0 if absf(speed) < 0.5 else speed
+	game.play_at("whoosh", seat_eye_world(0), -20.0, 0.7)
+	if vnet():
+		vnet().rpc("v_seat", my_id(), 0)
 
 
 ## Своё тело в салоне прячем: оно стоит в позе «стоя» и торчало бы сквозь пол и крышу перед камерой.
@@ -190,6 +224,7 @@ func _stand_up() -> void:
 	p.process_mode = Node.PROCESS_MODE_INHERIT
 	p.col_shape.disabled = false
 	p.active = true
+	p.remove_meta("car_seat")
 	_body_visible(true)
 	seats[i] = 0
 	my_seat = -1
@@ -219,6 +254,11 @@ func _free_seat_near(pos: Vector3) -> int:
 func _unhandled_input(e: InputEvent) -> void:
 	if my_seat < 0 or game == null:
 		return
+	# пересесть за руль — E, когда не смотришь на дверь (если луч попал в машину, это делает interact)
+	if e.is_action_pressed("interact") and not e.is_echo() and game.focus != self and can_take_wheel() 			and not _looking_at_door() and not game.window_open():
+		take_wheel()
+		get_viewport().set_input_as_handled()
+		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if e is InputEventMouseMotion and captured:
 		if e.device == InputEvent.DEVICE_ID_EMULATION:
@@ -232,74 +272,134 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _drive_tick(delta: float) -> void:
 	bump_cd -= delta
-	var yaw0 := yaw
 	if my_seat == 0 and seat_dir == 0 and game.alive and not game.window_open():
 		var thr := Input.get_axis("move_back", "move_forward")
 		var st_in := Input.get_axis("move_right", "move_left")
+		hand = Input.is_action_pressed("handbrake" if InputMap.has_action("handbrake") else "jump")
 		if fuel <= 0.0:
 			thr = 0.0
 			if engine_on:
 				_engine(false)
 				game.hud.toast("Бензин кончился", Color(0.95, 0.7, 0.45))
-		if thr > 0.0:
-			speed = move_toward(speed, MAX_F, (ACC if speed >= -0.1 else BRAKE) * thr * delta)
-		elif thr < 0.0:
-			speed = move_toward(speed, -MAX_R, (BRAKE if speed > 0.1 else ACC * 0.7) * -thr * delta)
-		else:
-			speed = move_toward(speed, 0.0, ROLL * delta)
-		if Input.is_action_pressed("jump"):
-			speed = move_toward(speed, 0.0, BRAKE * 1.4 * delta)
-		steer = move_toward(steer, st_in, delta * 3.0)
+		var v0 := speed
+		_physics(delta, thr, st_in)
 		if engine_on:
-			fuel = maxf(fuel - delta * FUEL_USE * (0.25 + 0.75 * absf(thr)), 0.0)
-		if absf(speed) > 0.05:
+			fuel = maxf(fuel - delta * FUEL_USE * (0.25 + 0.75 * absf(thr_s)), 0.0)
+		if absf(speed) > 0.05 or absf(slip) > 0.05 or absf(yaw_rate) > 0.01:
 			_move(delta)
+		acc_s = lerpf(acc_s, (speed - v0) / maxf(delta, 0.001), 1.0 - exp(-6.0 * delta))
 		net_t -= delta
 		if vnet() and net_t <= 0.0:
 			net_t = 1.0 / 20.0
 			vnet().rpc("v_car", position, yaw, speed, fuel, engine_on)
 	elif net_drive:
 		# машину ведёт другой игрок — плавно к его данным
+		var y0 := yaw
 		position = position.lerp(net_pos, 1.0 - exp(-10.0 * delta))
 		yaw = lerp_angle(yaw, net_yaw, 1.0 - exp(-10.0 * delta))
+		yaw_rate = lerpf(yaw_rate, angle_difference(y0, yaw) / maxf(delta, 0.001), 1.0 - exp(-6.0 * delta))
+		acc_s = lerpf(acc_s, 0.0, 1.0 - exp(-3.0 * delta))
 		var target := _fit(position, yaw, false)
 		transform = Transform3D(transform.basis.slerp(target.basis, 1.0 - exp(-8.0 * delta)), target.origin)
 	else:
 		speed = move_toward(speed, 0.0, BRAKE * delta)
-	for w in wheels:
-		w.rotation.x += speed / WHEEL_R * delta
+		slip = move_toward(slip, 0.0, A_LAT * delta)
+		yaw_rate = 0.0
+		acc_s = 0.0
+		hand = false
+	for i in wheels.size():
+		if not (hand and i >= 2):   # ручник — задние колёса стоят
+			wheels[i].rotation.x += speed / WHEEL_R * delta
 	for i in 2:
-		wheels[i].rotation.y = steer * 0.45
+		wheels[i].rotation.y = steer * lerpf(0.6, 0.2, clampf(absf(speed) / MAX_F, 0.0, 1.0))
+	# подвеска: крен в повороте наружу, клевок при торможении, приседание при разгоне
+	var roll_want := clampf(speed * yaw_rate * 0.006, -0.07, 0.07)
+	var pitch_want := clampf(-acc_s * 0.005, -0.045, 0.045)
+	roll_vis = lerpf(roll_vis, roll_want, 1.0 - exp(-5.0 * delta))
+	pitch_vis = lerpf(pitch_vis, pitch_want, 1.0 - exp(-5.0 * delta))
+	rig.rotation = Vector3(pitch_vis, 0.0, roll_vis)
 	if engine_on and engine:
-		engine.volume_db = lerpf(engine.volume_db, minf(-20.0 + absf(speed) * 0.5, -10.0), 1.0 - exp(-4.0 * delta))
-		engine.pitch_scale = 0.8 + absf(speed) * 0.07
+		engine.volume_db = lerpf(engine.volume_db, minf(-20.0 + absf(speed) * 0.5 + absf(thr_s) * 2.0, -10.0), 1.0 - exp(-4.0 * delta))
+		engine.pitch_scale = 0.8 + absf(speed) * 0.07 + absf(thr_s) * 0.08
 		var vib := 0.004 + absf(speed) * 0.0008
 		rig.position = Vector3(0, randf_range(-1, 1) * vib, 0)
 	_carry()
 
 
+## Педали, руль, ручник → speed (вдоль), yaw_rate. Разгон слабеет к максимальной скорости,
+## угол руля на скорости меньше, поворот — по колёсной базе (велосипедная модель).
+func _physics(delta: float, thr: float, st_in: float) -> void:
+	thr_s = move_toward(thr_s, thr, delta * (3.0 if absf(thr) > absf(thr_s) else 6.0))
+	var v := speed
+	if thr_s > 0.01:
+		if v < -0.3:
+			speed = move_toward(v, 0.0, BRAKE * thr_s * delta)
+		else:
+			var k := clampf(v / MAX_F, 0.0, 1.0)
+			speed = minf(v + ACC * thr_s * (1.0 - 0.7 * k * k) * delta, maxf(MAX_F, v))
+	elif thr_s < -0.01:
+		if v > 0.3:
+			speed = move_toward(v, 0.0, BRAKE * -thr_s * delta)
+		else:
+			speed = maxf(v - ACC * 0.7 * -thr_s * delta, minf(-MAX_R, v))
+	# качение и сопротивление воздуха
+	speed = move_toward(speed, 0.0, (ROLL * (1.0 - absf(thr_s)) + 0.004 * v * v) * delta)
+	if hand:
+		speed = move_toward(speed, 0.0, HB_DECEL * delta)
+		if absf(speed) < 0.5 and absf(slip) < 0.5:
+			# стоит на ручнике: газ не сдвинет
+			speed = 0.0
+			slip = 0.0
+	# руль: к центру возвращается быстрее, чем крутится
+	var back := st_in == 0.0 or signf(st_in) != signf(steer)
+	steer = move_toward(steer, st_in, delta * (4.0 if back else 2.4))
+	var ang := steer * lerpf(0.6, 0.2, clampf(absf(speed) / MAX_F, 0.0, 1.0))
+	var want := speed * tan(ang) / WHEELBASE
+	if hand and absf(speed) > 2.0:
+		want *= 1.7   # задние колёса заблокированы — корму заносит
+	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-(3.0 if hand else 9.0) * delta))
+
+
 func _move(delta: float) -> void:
 	var old_yaw := yaw
-	yaw += steer * TURN * clampf(speed / 6.0, -1.0, 1.0) * delta
+	var old := [speed, slip]
 	var fwd := Vector3(sin(yaw), 0, cos(yaw))
-	var np := position + fwd * speed * delta
+	var side := Vector3(cos(yaw), 0, -sin(yaw))
+	var vel := fwd * speed + side * slip
+	# кузов поворачивается, а скорость по инерции остаётся прежней — появляется боковая (занос);
+	# шины гасят её не быстрее предела сцепления
+	yaw += yaw_rate * delta
+	fwd = Vector3(sin(yaw), 0, cos(yaw))
+	side = Vector3(cos(yaw), 0, -sin(yaw))
+	speed = vel.dot(fwd)
+	slip = move_toward(vel.dot(side), 0.0, (A_LAT_HB if hand else A_LAT) * delta)
+	vel = fwd * speed + side * slip
+	var np := position + vel * delta
 	# крутой склон впереди — дальше не едет. Уклон меряем по земле на 1.2 м вперёд по ходу (раньше делили
 	# разницу высот на шаг кадра — на старте шаг ~1 мм, и любая неровность/осевший угол «бампали» машину: не ехала)
-	var dir := fwd * signf(speed)
-	var h0: float = surface.height(position.x, position.z)
-	var h1: float = surface.height(position.x + dir.x * 1.2, position.z + dir.z * 1.2)
-	if (h1 - h0) / 1.2 > 0.75:
-		yaw = old_yaw
-		_bump()
-		return
+	if vel.length() > 0.05:
+		var dir := vel.normalized()
+		var h0: float = surface.height(position.x, position.z)
+		var h1: float = surface.height(position.x + dir.x * 1.2, position.z + dir.z * 1.2)
+		if (h1 - h0) / 1.2 > 0.75:
+			yaw = old_yaw
+			speed = old[0]
+			slip = old[1]
+			_bump()
+			return
 	var target := _fit(np, yaw, true)
 	if _blocked(target):
 		yaw = old_yaw
+		speed = old[0]
+		slip = old[1]
 		_bump()
 		return
 	if carried.is_empty() and absf(speed) > 0.3:
 		_grab_carried()
-	transform = Transform3D(transform.basis.slerp(target.basis, 1.0 - exp(-10.0 * delta)), target.origin)
+	# подвеска: высоту догоняем плавно (кочки не дёргают кузов), но в землю не проваливаемся
+	var y := lerpf(position.y, target.origin.y, 1.0 - exp(-14.0 * delta))
+	y = clampf(y, target.origin.y - 0.04, target.origin.y + 0.12)
+	transform = Transform3D(transform.basis.slerp(target.basis, 1.0 - exp(-8.0 * delta)), Vector3(np.x, y, np.z))
 	for m in worn_mats:
 		m.set_shader_parameter("origin_shift", position - start_pos)
 
@@ -310,6 +410,8 @@ func _bump() -> void:
 		game.play_at("thud", global_position, -4.0, 0.7)
 		game.hud.hurt_flash(0.2)
 	speed = -speed * 0.25
+	slip = -slip * 0.25
+	yaw_rate = 0.0
 
 
 ## Есть ли что-то на пути (стены, дома, камни). Враги — сбиваем (урон по скорости).

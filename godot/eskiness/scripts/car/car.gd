@@ -39,7 +39,9 @@ func get_prompt(g) -> String:
 	if state != "parked":
 		return ""
 	if my_seat >= 0:
-		return "[E] Открыть дверь и выйти" if seat_dir == 0 and _looking_at_door() else ""
+		if seat_dir == 0 and _looking_at_door():
+			return "[E] Открыть дверь и выйти"
+		return "[E] Пересесть за руль" if can_take_wheel() else ""
 	if g.inv.count("fuel") > 0 and fuel < 0.9:
 		return "[E] Залить бензин (канистра)"
 	var s := _free_seat_near(g.player.global_position)
@@ -75,6 +77,8 @@ func interact(g) -> void:
 	if my_seat >= 0:
 		if seat_dir == 0 and _looking_at_door():
 			exit_local()
+		elif can_take_wheel():
+			take_wheel()
 		return
 	if g.inv.count("fuel") > 0 and fuel < 0.9:
 		refuel()

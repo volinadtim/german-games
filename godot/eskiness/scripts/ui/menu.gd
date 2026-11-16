@@ -101,6 +101,7 @@ const CONTROLS := [
 	["hide_ui", "Скрыть интерфейс", ["k:4194341"]],        # F10 (main.gd)
 	["toggle_ping", "Скрыть/показать пинг", ["k:96"]],     # ~ (net_world.gd)
 	["chat", "Чат", ["k:84"]],                             # T (ui/chat.gd)
+	["handbrake", "Ручник (машина)", ["k:32"]],            # Пробел (car_drive.gd)
 ]
 
 ## Разделы страницы «Управление» (промпт 22:53). Обзор стрелками (look_*) — не переназначается, ставит main.gd.
@@ -110,6 +111,7 @@ const CTL_GROUPS := [
 	["Действия", ["interact", "carry", "loot_all", "flashlight", "quick_heal", "gasmask"]],
 	["Инвентарь", ["inventory", "inv_use", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
 	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat"]],
+	["Машина", ["handbrake"]],
 ]
 
 

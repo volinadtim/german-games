@@ -367,8 +367,15 @@ func _channel_tick(delta: float) -> void:
 	# бинт можно на ходу, но не на бегу (промпт 16.11 05:12); остальное — стоя
 	var walk_ok: bool = ch_walk and not Input.is_action_pressed("sprint") 			and Vector2(p.velocity.x, p.velocity.z).length() < p.WALK + 0.4
 	var moving: bool = Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2 			or Vector2(p.velocity.x, p.velocity.z).length() > 1.2
-	if Input.is_action_just_pressed("jump") or (moving and not walk_ok):
-		why = "Прервано: бег" if ch_walk else "Прервано: движение"
+	# в машине (car_drive.gd) игрок стоит, а едет машина: пассажиру ничего не мешает, водителю — руль и газ
+	var seat: int = p.get_meta("car_seat", -1)
+	if seat >= 0:
+		walk_ok = true
+		moving = seat == 0 and Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2
+		if moving:
+			walk_ok = false
+	if seat < 0 and Input.is_action_just_pressed("jump") or (moving and not walk_ok):
+		why = "Прервано: руль" if seat == 0 else ("Прервано: бег" if ch_walk else "Прервано: движение")
 	elif game.hp < ch_hp - 0.9:   # кровотечение капает понемногу — прерывает только настоящий урон
 		why = "Прервано: урон"
 	elif ch_valid.is_valid() and not ch_valid.call():
