@@ -198,6 +198,52 @@ func _seat_tick(delta: float) -> void:
 			game.hud.prompt.call_deferred("[E] Пересесть за руль")
 
 
+## Шкала бензина внизу экрана, пока сидишь в машине (промпт 16.11 05:55).
+func _fuel_ui_tick() -> void:
+	var on := my_seat >= 0 and state == "parked" and game != null
+	if fuel_ui == null:
+		if not on:
+			return
+		fuel_ui = CanvasLayer.new()
+		fuel_ui.layer = 5
+		add_child(fuel_ui)
+		var box := Control.new()
+		box.anchor_left = 0.5
+		box.anchor_right = 0.5
+		box.anchor_top = 1.0
+		box.anchor_bottom = 1.0
+		box.offset_left = -110
+		box.offset_right = 110
+		box.offset_top = -150
+		box.offset_bottom = -118
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fuel_ui.add_child(box)
+		var bg := ColorRect.new()
+		bg.color = Color(0, 0, 0, 0.55)
+		bg.position = Vector2(0, 20)
+		bg.size = Vector2(220, 10)
+		bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(bg)
+		fuel_bar = ColorRect.new()
+		fuel_bar.position = Vector2(1, 21)
+		fuel_bar.size = Vector2(218, 8)
+		fuel_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(fuel_bar)
+		fuel_l = Label.new()
+		fuel_l.size = Vector2(220, 20)
+		fuel_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		fuel_l.add_theme_font_size_override("font_size", 14)
+		fuel_l.add_theme_color_override("font_outline_color", Color.BLACK)
+		fuel_l.add_theme_constant_override("outline_size", 4)
+		box.add_child(fuel_l)
+	fuel_ui.visible = on
+	if not on:
+		return
+	fuel_bar.size.x = 218.0 * clampf(fuel, 0.0, 1.0)
+	fuel_bar.color = Color(0.85, 0.3, 0.2) if fuel < 0.2 else Color(0.85, 0.7, 0.3)
+	fuel_l.text = "Бензин %d%%" % roundi(fuel * 100.0) if fuel > 0.0 else "Бак пуст — нужна канистра"
+
+
 ## Куда смотрит видимый кузов (поворот вокруг вертикали).
 func vis_yaw() -> float:
 	var z := global_transform.basis.z
@@ -362,10 +408,14 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	# качение и сопротивление воздуха
 	speed = move_toward(speed, 0.0, (ROLL * (1.0 - absf(thr_s)) + 0.004 * v * v) * delta)
 	# ручник срывает зад сразу, сцепление возвращается плавно (~1 с) — можно держать дугу рулём и газом
-	grip_k = move_toward(grip_k, 0.0 if hand and absf(speed) > 2.0 else 1.0, delta * (5.0 if hand else 1.1))
+	# (промпт 05:55) скорость заноса — полная, вместе с боковой: машина боком не «теряет» занос
+	var vt := Vector2(speed, slip).length()
+	grip_k = move_toward(grip_k, 0.0 if hand and vt > 2.0 else 1.0, delta * (5.0 if hand else 1.1))
 	if hand:
-		speed = move_toward(speed, 0.0, HB_DECEL * delta)
-		if absf(speed) < 0.5 and absf(slip) < 0.5:
+		var dec := lerpf(HB_DECEL, HB_DECEL_GAS, maxf(thr_s, 0.0)) * delta
+		speed = move_toward(speed, 0.0, dec)
+		slip = move_toward(slip, 0.0, dec)
+		if vt < 0.5:
 			# стоит на ручнике: газ не сдвинет
 			speed = 0.0
 			slip = 0.0
@@ -373,10 +423,22 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	var back := st_in == 0.0 or signf(st_in) != signf(steer)
 	steer = move_toward(steer, st_in, delta * (6.0 if back else 3.6))
 	var ang := steer * lerpf(0.6, 0.27, clampf(absf(speed) / MAX_F, 0.0, 1.0))
-	var want := speed * tan(ang) / WHEELBASE
+	# в заносе руль крутит по полной скорости (иначе боком машина «замирает» на 90°)
+	var drift := 1.0 - grip_k
+	var vs := lerpf(speed, vt * (1.0 if speed >= -0.5 else -1.0), drift)
+	if drift > 0.05:
+		ang = steer * lerpf(0.6, 0.4, clampf(vt / MAX_F, 0.0, 1.0))
+	var want := vs * tan(ang) / WHEELBASE
 	# зад без сцепления — корму заносит сильнее; газ (передний привод) тянет нос по рулю
-	want *= 1.0 + (1.0 - grip_k) * (0.9 + 0.5 * maxf(thr_s, 0.0))
-	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(3.0, 13.0, grip_k) * delta))
+	want *= 1.0 + drift * (0.6 + 0.6 * maxf(thr_s, 0.0))
+	want = clampf(want, -lerpf(9.0, DRIFT_YAW, drift), lerpf(9.0, DRIFT_YAW, drift))
+	# в заносе вращение по инерции живёт дольше (плавно крутится, а не дёргается)
+	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(1.6, 13.0, grip_k) * delta))
+	# передний привод в заносе: тяга по направлению передних колёс — газом держишь дугу
+	if drift > 0.05 and thr_s > 0.01:
+		var a := ACC * thr_s * drift * delta
+		speed = minf(speed + a * cos(ang) * 0.6, maxf(MAX_F, speed))
+		slip += a * sin(ang)
 
 
 func _move(delta: float) -> void:
@@ -393,7 +455,11 @@ func _move(delta: float) -> void:
 	speed = vel.dot(fwd)
 	# передний привод: под газом передние колёса тянут по ходу и вытаскивают из заноса
 	var a_lat := lerpf(A_LAT_HB, A_LAT, grip_k) * (1.0 + 0.5 * maxf(thr_s, 0.0) * (1.0 - grip_k))
-	slip = move_toward(vel.dot(side), 0.0, a_lat * delta)
+	var sl := vel.dot(side)
+	slip = move_toward(sl, 0.0, a_lat * delta)
+	# в заносе под газом часть погашенной боковой скорости уходит вперёд (передние колёса тянут) — не тормозит в ноль
+	if grip_k < 0.95 and thr_s > 0.01 and speed > -0.5:
+		speed += absf(sl - slip) * 0.7 * thr_s * (1.0 - grip_k)
 	vel = fwd * speed + side * slip
 	car_vel = vel
 	var np := position + vel * delta

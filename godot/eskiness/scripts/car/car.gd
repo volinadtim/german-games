@@ -136,6 +136,7 @@ func _process(delta: float) -> void:
 	if state == "parked":
 		_drive_tick(delta)
 		_seat_tick(delta)
+		_fuel_ui_tick()
 		_doors_tick(delta)
 		return
 	if state == "idle" or state == "done":
