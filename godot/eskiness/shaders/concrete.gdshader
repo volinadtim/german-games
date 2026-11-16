@@ -20,6 +20,9 @@ uniform float ceiling_h = 3.2;
 uniform float polished = 0.0;
 uniform float bump = 0.25;
 uniform float grain_bump = 0.4;
+uniform float floor_detail = 1.0;   // пол: плиты, грязь, потёртости (0 — гладкий, как раньше)
+uniform float slab = 2.0;           // размер плиты пола, м
+uniform vec3 dirt_color : source_color = vec3(0.12, 0.105, 0.085);
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -27,6 +30,12 @@ varying vec3 wnrm;
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	wnrm = normalize((MODEL_MATRIX * vec4(NORMAL, 0.0)).xyz);
+}
+
+float hash12(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
 }
 
 float tri(sampler2D t, vec3 p, vec3 n, float s) {
@@ -74,6 +83,33 @@ void fragment() {
 		col = mix(col, dust_color, dust * 0.1);
 		rough = 0.5 + 0.12 * big + 0.3 * dust + 0.3 * cr;
 		hgt = 0.0;
+		// Пол (только грани вверх — потолок не трогаем): плиты со швами, тон плит, грязь, потёртости.
+		float fl = smoothstep(0.7, 0.95, up) * floor_detail;
+		if (fl > 0.0) {
+			vec2 q = wpos.xz + vec2(0.37, 0.81);
+			float row = floor(q.y / slab);
+			q.x += hash12(vec2(row, 3.1)) * slab;   // ряды плит со сдвигом
+			vec2 cell = floor(q / slab);
+			vec2 f = fract(q / slab) * slab;
+			vec2 e = min(f, vec2(slab) - f);
+			float ed = min(e.x, e.y);
+			float sw = fwidth(ed) + 0.004;
+			float seam = 1.0 - smoothstep(0.012, 0.012 + sw, ed);
+			float edge = 1.0 - smoothstep(0.0, 0.09, ed);   // пыль набилась у шва
+			float slab_t = hash12(cell) - 0.5;
+			float dirt = smoothstep(0.5, 0.8, tri_px(noise_big_px, wpos + vec3(71.0, 0.0, 13.0), wnrm, 0.05));
+			float spots = smoothstep(0.68, 0.8, tri_px(noise_fine_px, wpos + vec3(5.0, 0.0, 91.0), wnrm, 0.35));
+			float scuff = smoothstep(0.62, 0.78, texture(noise_fine_px, vec2(wpos.x * 0.9 + wpos.z * 0.25, wpos.z * 0.12 - wpos.x * 0.05)).r)
+				* smoothstep(0.45, 0.65, tri_px(noise_big_px, wpos + vec3(23.0), wnrm, 0.09));
+			vec3 fc = col * (1.0 + 0.07 * slab_t);
+			fc *= 1.0 - 0.14 * dirt - 0.1 * spots - 0.08 * edge;
+			fc = mix(fc, dirt_color, dirt * 0.25);
+			fc *= 1.0 + 0.1 * scuff;
+			fc *= 1.0 - 0.45 * seam;
+			col = mix(col, fc, fl);
+			rough = mix(rough, clamp(rough + 0.25 * dirt + 0.12 * spots - 0.15 * scuff + 0.3 * seam + 0.06 * slab_t, 0.3, 1.0), fl);
+			hgt = -seam * 0.03 * fl;
+		}
 	} else {
 		float cell = tri_px(noise_cell_px, wpos, wnrm, 0.45);
 		float grain = tri_px(noise_fine_px, wpos * 1.4, wnrm, 0.6);
