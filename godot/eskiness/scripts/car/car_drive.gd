@@ -69,7 +69,7 @@ func seat_local(i: int, instant := false) -> void:
 	p.col_shape.disabled = true
 	p.set_meta("car_seat", i)   # revive.gd: в машине лечение прерывает не скорость, а руль/газ водителя
 	seat_from = p.cam.global_position
-	look_yaw = yaw
+	look_yaw = vis_yaw()
 	_body_visible(false)
 	if instant:
 		seat_dir = 0
@@ -155,17 +155,20 @@ func _seat_tick(delta: float) -> void:
 		return
 	var p = game.player
 	# взгляд — в осях машины (промпт 16.11 05:47): машина повернула — повернулся и игрок,
-	# мышь задаёт только смещение от «вперёд по машине», не дальше LOOK_MAX
-	var dy := angle_difference(look_yaw, yaw)
-	look_yaw = yaw
+	# мышь задаёт только смещение от «вперёд по машине», не дальше LOOK_MAX.
+	# Берём поворот ВИДИМОГО кузова (transform уже обновлён в _drive_tick этого кадра), а не yaw:
+	# кузов догоняет yaw плавно, и голова опережала машину (05:51)
+	var vy := vis_yaw()
+	var dy := angle_difference(look_yaw, vy)
+	look_yaw = vy
 	if seat_dir == 0 or seat_dir == 2:
-		var rel := clampf(angle_difference(yaw + PI, p.rotation.y + dy), -LOOK_MAX, LOOK_MAX)
-		p.rotation.y = yaw + PI + rel
+		var rel := clampf(angle_difference(vy + PI, p.rotation.y + dy), -LOOK_MAX, LOOK_MAX)
+		p.rotation.y = vy + PI + rel
 	if seat_dir == 1:
 		seat_anim = minf(seat_anim + delta / 0.8, 1.0)
 		var k := smoothstep(0.0, 1.0, seat_anim)
 		# садясь, поворачиваемся лицом вперёд по машине
-		p.rotation.y = lerp_angle(p.rotation.y, yaw + PI, 1.0 - exp(-7.0 * delta))
+		p.rotation.y = lerp_angle(p.rotation.y, vy + PI, 1.0 - exp(-7.0 * delta))
 		p.head.rotation.x = lerpf(p.head.rotation.x, -0.12, 1.0 - exp(-5.0 * delta))
 		_place_player(seat_from.lerp(seat_eye_world(my_seat), k) + Vector3(0, sin(k * PI) * 0.05, 0))
 		if seat_anim >= 1.0:
@@ -175,7 +178,7 @@ func _seat_tick(delta: float) -> void:
 		# пересадка с пассажирского за руль: пригнувшись, через рычаг передач
 		seat_anim = minf(seat_anim + delta / SWITCH_T, 1.0)
 		var k := smoothstep(0.0, 1.0, seat_anim)
-		p.rotation.y = lerp_angle(p.rotation.y, yaw + PI, 1.0 - exp(-7.0 * delta))
+		p.rotation.y = lerp_angle(p.rotation.y, vy + PI, 1.0 - exp(-7.0 * delta))
 		_place_player(seat_eye_world(1).lerp(seat_eye_world(0), k) - global_transform.basis.y * sin(k * PI) * 0.12)
 		if seat_anim >= 1.0:
 			seat_dir = 0
@@ -193,6 +196,12 @@ func _seat_tick(delta: float) -> void:
 		_place_player(seat_eye_world(my_seat))
 		if game.focus == null and can_take_wheel() and not _looking_at_door():
 			game.hud.prompt.call_deferred("[E] Пересесть за руль")
+
+
+## Куда смотрит видимый кузов (поворот вокруг вертикали).
+func vis_yaw() -> float:
+	var z := global_transform.basis.z
+	return atan2(z.x, z.z)
 
 
 ## С переднего пассажирского — за руль, если водительское свободно (промпт 16.11 05:13).
@@ -412,7 +421,10 @@ func _move(delta: float) -> void:
 	# подвеска: высоту догоняем плавно (кочки не дёргают кузов), но в землю не проваливаемся
 	var y := lerpf(position.y, target.origin.y, 1.0 - exp(-7.0 * delta))
 	y = clampf(y, target.origin.y - 0.06, target.origin.y + 0.1)
-	transform = Transform3D(transform.basis.slerp(target.basis, 1.0 - exp(-4.0 * delta)), Vector3(np.x, y, np.z))
+	# поворот кузова — ровно yaw этого кадра (без отставания); сглаживаем только наклон по кочкам
+	var yb := Basis(Vector3.UP, yaw)
+	var tilt := (Basis(Vector3.UP, -vis_yaw()) * transform.basis).slerp(yb.inverse() * target.basis, 1.0 - exp(-4.0 * delta))
+	transform = Transform3D((yb * tilt).orthonormalized(), Vector3(np.x, y, np.z))
 	for m in worn_mats:
 		m.set_shader_parameter("origin_shift", position - start_pos)
 
