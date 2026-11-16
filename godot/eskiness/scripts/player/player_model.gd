@@ -470,6 +470,9 @@ func _apply_bones() -> void:
 			# голый кулак (промпт 03:33) вывернут меньше — пальцами к другой руке; щит — как раньше
 			var fist_k := 0.6 if weapon_ids[arm] == "shield" else 0.22
 			var tw := deg_to_rad(90.0) * side * (0.1 + fist_k * fist_blend * armed_k) * (1.0 if e[4] else 0.5)
+			if arm == 0 and weapon_ids[0] == "knife":
+				# нож в левой (промпт 04:48): кисть развёрнута тыльной стороной вверх — лезвие от мизинца лежит поверх предплечья, видно в кадре
+				tw = deg_to_rad(90.0) * side * (0.1 + 1.0 * fist_blend) * (1.0 if e[4] else 0.5)
 			bas = bas * Basis(Vector3.UP, tw)
 		_set_global_rot(e[0], rr * bas * e[2])
 	var wig := fk * idle_amt * (1.0 - fist_blend) if fidget == "fingers" else 0.0
@@ -607,7 +610,7 @@ func _grip(arm: int, id: String) -> Transform3D:
 	var d2 := (across * cos(GRIP_TILT) + knuck * sin(GRIP_TILT) - n * GRIP_OUT).normalized()
 	if id == "knife" and arm == 0:
 		# левая рука (промпт 04:40): обратный (тактический) хват — лезвие выходит у мизинца и идёт вниз вдоль предплечья
-		d2 = (-across * 0.6 - knuck * 0.75 - n * 0.12).normalized()
+		d2 = (-across * 0.5 - knuck * 0.7 - n * 0.5).normalized()   # 04:48: и от ладони — поверх кисти, в кадр
 	var xw := (knuck - d2 * knuck.dot(d2)).normalized()   # лезвие ребром к костяшкам — по направлению удара
 	var zw := xw.cross(d2).normalized()
 	return Transform3D(Basis(xw * unit, d2 * unit, zw * unit), c * unit)

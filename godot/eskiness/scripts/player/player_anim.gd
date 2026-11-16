@@ -131,6 +131,11 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
 		var p: Vector4 = arm_pose[i]
+		if i == 0:
+			# нож в левой (промпт 04:48): в стойке рука выше и ближе к центру, чтобы нож был в кадре; в махе — по траектории
+			var want_kr := 1.0 if weapon_ids[0] == "knife" and not (punching and last_arm == 0) else 0.0
+			knife_rev_w = move_toward(knife_rev_w, want_kr, delta * 5.0)
+			p += KNIFE_REV_ADD * knife_rev_w * fist_blend
 		# заряд удара (промпт 19:32): рука удара оттягивается к щеке, вторая выдвигается вперёд раскрытой ладонью
 		if charge_arm >= 0 and charge_vis > 0.0:
 			var ck := smoothstep(0.0, 1.0, charge_vis)
