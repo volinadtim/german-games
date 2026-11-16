@@ -374,6 +374,8 @@ func _carry() -> void:
 ## Поставить машину (заглохшую) в точку: для деревни после кат-сцены и для загрузки.
 func park_at(p: Vector3, a: float) -> void:
 	escaped = true
+	if ign_key:
+		ign_key.visible = true
 	state = "parked"
 	yaw = a
 	speed = 0.0
@@ -433,6 +435,9 @@ func from_save(d: Dictionary) -> void:
 	if pz > 430.0:   # старые сейвы: деревня была на 360 м дальше
 		pz -= 360.0
 	park_at(Vector3(float(a[0]), float(a[1]), pz), float(d.get("yaw", 0.0)))
+	# ключ остался в зажигании (старые сейвы: ключ ещё в рюкзаке — убираем)
+	if game and game.inv.count("car_key") > 0:
+		game.inv.remove("car_key", game.inv.count("car_key"))
 	fuel = float(d.get("fuel", 0.0))
 	var s := int(d.get("seat", -1))
 	if s >= 0 and s < 4:

@@ -63,6 +63,7 @@ var seat_dir := 0                    # 1 — садится, -1 — выходи
 var seat_from := Vector3.ZERO        # откуда едет камера при посадке (мир)
 var fuel := 0.0                      # бак 0..1 (кат-сцена: последний бензин)
 var escaped := false                 # уже уезжала с поляны (в сейве)
+var ign_key: Node3D                  # ключ в замке зажигания: виден, когда ключ использован (= escaped)
 var engine_on := false
 var steer := 0.0
 var carried: Array = []              # предметы в салоне едут вместе с машиной: [pickup, локальный transform]
@@ -181,6 +182,7 @@ func _build() -> void:
 	wheel_mi.rotation.x = -1.05
 	rig.add_child(wheel_mi)
 	_box(Vector3(0.03, 0.03, 0.22), Vector3(0.36, 1.0, 0.56), dark, Vector3(-0.5, 0, 0))
+	_build_ign_key(chrome)
 	# водитель — тёмный силуэт, появляется в кат-сцене
 	driver = Node3D.new()
 	driver.visible = false
@@ -413,6 +415,21 @@ func _worn(c: Color, chrome := false, wear := 0.3, rust := 0.6, dust := 0.6) -> 
 	m.set_shader_parameter("base_y", position.y)
 	worn_mats.append(m)
 	return m
+
+
+## Ключ в замке зажигания справа от рулевой колонки (промпт 16.11 02:45): головка, бородка, брелок.
+func _build_ign_key(chrome: Material) -> void:
+	ign_key = Node3D.new()
+	ign_key.position = Vector3(0.22, 0.985, 0.55)
+	ign_key.rotation = Vector3(-0.35, 0, 0.25)
+	ign_key.visible = false
+	rig.add_child(ign_key)
+	var brass := _mat(Color(0.7, 0.55, 0.25), 0.8, 0.35)
+	_box(Vector3(0.05, 0.05, 0.03), Vector3(0, 0.0, 0.035), _mat(Color(0.05, 0.05, 0.05), 0.0, 0.7), Vector3.ZERO, ign_key)   # замок
+	_box(Vector3(0.008, 0.012, 0.035), Vector3(0, 0, 0.0), brass, Vector3.ZERO, ign_key)        # бородка в замке
+	_box(Vector3(0.006, 0.032, 0.026), Vector3(0, 0, -0.03), brass, Vector3.ZERO, ign_key)      # головка
+	_box(Vector3(0.004, 0.014, 0.012), Vector3(0, -0.022, -0.042), chrome, Vector3.ZERO, ign_key)  # кольцо
+	_box(Vector3(0.012, 0.03, 0.02), Vector3(0, -0.048, -0.046), _mat(Color(0.55, 0.12, 0.1), 0.0, 0.6), Vector3(0.2, 0, 0), ign_key)  # брелок
 
 
 func _mat(c: Color, metal := 0.0, rough := 0.8) -> StandardMaterial3D:

@@ -255,6 +255,7 @@ func _process(delta: float) -> void:
 			if game.inv.count("filter") > 0:
 				game.inv.remove("filter", 1)
 				filter_left = FILTER_TIME
+				_drop_old_filter()
 				game.hud.toast("Новый фильтр (осталось %d)" % game.inv.count("filter"), Color(0.75, 0.85, 0.7))
 				game.play_ui("click", -8.0, 0.5)
 			else:
@@ -303,6 +304,79 @@ func _process(delta: float) -> void:
 	mat.set_shader_parameter("put", put)
 	mat.set_shader_parameter("fog", fog)
 	_status(out, protected)
+
+
+## Старый грязный фильтр (промпт 16.11 02:45): откручивается у подбородка и падает на землю
+## физическим мусором, через ~10 с тает и исчезает.
+func _drop_old_filter() -> void:
+	var cam: Camera3D = game.player.cam
+	var world: Node = game.get_parent()
+	if cam == null or world == null:
+		return
+	var body := RigidBody3D.new()
+	body.collision_layer = 0
+	body.collision_mask = 1
+	body.mass = 0.3
+	body.freeze = true
+	var cs := CollisionShape3D.new()
+	var sh := CylinderShape3D.new()
+	sh.radius = 0.045
+	sh.height = 0.07
+	cs.shape = sh
+	body.add_child(cs)
+	var dirty := StandardMaterial3D.new()
+	dirty.albedo_color = Color(0.22, 0.2, 0.15)
+	dirty.roughness = 0.95
+	dirty.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.045
+	cm.bottom_radius = 0.045
+	cm.height = 0.07
+	cm.radial_segments = 14
+	var mi := MeshInstance3D.new()
+	mi.mesh = cm
+	mi.material_override = dirty
+	body.add_child(mi)
+	# решётка-торец и резьба — чуть темнее
+	var grime := StandardMaterial3D.new()
+	grime.albedo_color = Color(0.08, 0.075, 0.06)
+	grime.roughness = 1.0
+	grime.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var cap := CylinderMesh.new()
+	cap.top_radius = 0.035
+	cap.bottom_radius = 0.035
+	cap.height = 0.012
+	cap.radial_segments = 12
+	for y in [0.037, -0.037]:
+		var c := MeshInstance3D.new()
+		c.mesh = cap
+		c.material_override = grime
+		c.position.y = y
+		body.add_child(c)
+	world.add_child(body)
+	var b := cam.global_transform.basis
+	body.global_position = cam.global_position - b.z * 0.18 - b.y * 0.17
+	body.global_basis = b * Basis(Vector3.RIGHT, PI / 2.0)   # ось фильтра — вперёд, от лица
+	game.play_ui("click", -10.0, 0.7)
+	# откручивается: пара оборотов на месте, потом падает
+	var tw := body.create_tween()
+	tw.tween_method(func(k: float):
+		if is_instance_valid(cam):
+			var bb := cam.global_transform.basis
+			body.global_position = cam.global_position - bb.z * (0.18 + 0.05 * k) - bb.y * 0.17
+			body.global_basis = bb * Basis(Vector3.RIGHT, PI / 2.0) * Basis(Vector3.UP, k * TAU * 1.5)
+		, 0.0, 1.0, 0.45)
+	tw.tween_callback(func():
+		body.freeze = false
+		var fb := cam.global_transform.basis if is_instance_valid(cam) else Basis.IDENTITY
+		body.linear_velocity = -fb.z * 0.8 + Vector3(randf_range(-0.3, 0.3), -0.3, 0)
+		body.angular_velocity = Vector3(randf_range(-6, 6), randf_range(-6, 6), randf_range(-6, 6)))
+	tw.tween_interval(9.0)
+	tw.tween_method(func(a: float):
+		dirty.albedo_color.a = a
+		grime.albedo_color.a = a
+		, 1.0, 0.0, 1.2)
+	tw.tween_callback(body.queue_free)
 
 
 ## Подсказка сверху: при смене смысла плавно проявляется заново.
