@@ -1,6 +1,6 @@
 extends Node
 ## Стелс-добивание (промпт 16.11 03:13): подошёл к мелкому врагу сзади — вприсядку или пока он тебя
-## не заметил — E: один удар (стойка, удар правой с полным зарядом), враг падает сразу.
+## не заметил — E: один удар (стойка, удар правой), над врагом «666», враг падает сразу.
 ## Мелкие — ниже 1.7 м: «Шныга» (enemy.gd kind fast) и «Плевун» (village/mutant.gd spitter).
 ## game.gd спрашивает candidate() каждый кадр и ставит этот узел в focus — E вызывает interact().
 
@@ -69,18 +69,38 @@ func interact(_g) -> void:
 func _strike(e: Node) -> void:
 	busy = true
 	var p = game.player
+	# сам удар — только анимация: тело врага на время убираем из лучей, чтобы кулак не нанёс
+	# свой урон и не вывел «МОЩНО!»; убивает добивание ниже (666, промпт 16.11 03:36)
+	var body := e as CollisionObject3D
+	var layer := body.collision_layer if body else 0
+	if body:
+		body.collision_layer = 0
 	if not p.fists:
 		p.toggle_fists()
-		await get_tree().create_timer(0.3, false).timeout
+		await get_tree().create_timer(0.32, false).timeout
 	var t := 0.0
 	while p.punching and t < 0.6:
 		await get_tree().process_frame
 		t += get_process_delta_time()
-	p.punch(1, 1.0)
+	p.fist_blend = maxf(p.fist_blend, 0.95)
+	p.punch(1, 0.0)
 	await get_tree().create_timer(0.13, false).timeout
 	if is_instance_valid(e) and String(e.get("state")) != "dead":
-		var dir: Vector3 = (e as Node3D).global_position - p.global_position
+		if body:
+			body.collision_layer = layer
+		var en := e as Node3D
+		var dir: Vector3 = en.global_position - p.global_position
 		dir.y = 0.0
-		e.take_hit(float(e.get("max_hp")) * 3.0 + 50.0, dir.normalized())
+		dir = dir.normalized()
+		game.play_at("thud", en.global_position + Vector3(0, 0.6, 0), -3.0, 0.75)
+		if bool(e.get("net_puppet")):
+			e.take_hit(666.0, dir)
+		else:
+			e.hp = 0.5
+			e.apply_hit(666.0, dir)   # «666» над врагом, падает и умирает
+			if String(e.get("state")) != "dead" and e.has_method("_die"):
+				e._die(dir)
 		killed.emit(e)
+	elif is_instance_valid(e) and body:
+		body.collision_layer = layer
 	busy = false

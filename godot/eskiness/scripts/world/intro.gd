@@ -86,12 +86,12 @@ func _process(delta: float) -> void:
 				groaned = true
 				if not p.exhales.is_empty():
 					p.voice_player.stream = p.exhales[0]
-					p.voice_player.volume_db = -13.0
+					p.voice_player.volume_db = -24.0
 					p.voice_player.pitch_scale = 0.82
 					p.voice_player.play()
 			if t > 7.1 and not stood:
 				stood = true
-				p._play_step(-12.0)
+				p._play_step(-22.0)
 			if t >= WAKE_T:
 				_wake_pose(WAKE_T)
 				for c in hidden:
@@ -115,6 +115,8 @@ func _process(delta: float) -> void:
 		"hunt":
 			if not is_instance_valid(crawler):
 				_finish()
+			elif String(crawler.get("state")) == "dead":
+				_on_crawler_died(crawler)   # подстраховка, если сигнал died не дошёл
 		"cue_wait":
 			if t >= 0.9:
 				_play_echo()
@@ -193,23 +195,41 @@ func _begin_cut() -> void:
 	e.crawl_path = CRAWL_PATH.duplicate()
 	e._set_state("crawl")
 	e.died.connect(_on_crawler_died)
+	if game.takedown:
+		game.takedown.killed.connect(_on_takedown)
 	crawler = e
 	# звук: скрежет ползущего тела, жалобный визг и глухой гул
 	var drag := AudioStreamPlayer3D.new()
 	drag.stream = _drag_snd()
 	drag.unit_size = 3.0
-	drag.volume_db = -4.0
+	drag.volume_db = -13.0
 	drag.position.y = 0.3
 	e.add_child(drag)
 	drag.play()
-	e._growl()
-	e.voice.volume_db = -11.0
-	e.voice.pitch_scale = 0.72
+	_whimper(e, 0.72)
+	get_tree().create_timer(1.5, false).timeout.connect(_whimper_again)
 	var sting := AudioStreamPlayer.new()
 	sting.stream = SlotM._dread()
-	sting.volume_db = -15.0
+	sting.volume_db = -24.0
 	add_child(sting)
 	sting.play()
+
+
+## Жалобный тихий визг ползущего (длиннее и тише обычного, промпт 16.11 03:36).
+func _whimper(e, pitch: float) -> void:
+	e._growl()
+	e.voice.volume_db = -20.0
+	e.voice.pitch_scale = pitch
+
+
+func _whimper_again() -> void:
+	if is_instance_valid(crawler) and String(crawler.get("state")) == "crawl":
+		_whimper(crawler, 0.62)
+
+
+func _on_takedown(k) -> void:
+	if k == crawler:
+		_on_crawler_died(k)
 
 
 func _on_crawler_died(_e) -> void:
@@ -342,7 +362,7 @@ static func _slot_echo() -> AudioStreamWAV:
 ## Скрежет ползущего тела: глухие волочения шумом с паузами.
 static func _drag_snd() -> AudioStreamWAV:
 	var r := Sfx.RATE
-	var n := int(r * 3.4)
+	var n := int(r * 5.6)
 	var buf := PackedFloat32Array()
 	buf.resize(n)
 	var rng := RandomNumberGenerator.new()
@@ -352,7 +372,7 @@ static func _drag_snd() -> AudioStreamWAV:
 	for i in n:
 		var ts := float(i) / r
 		var ph := fmod(ts, 0.62) / 0.62
-		var env := sin(clampf(ph / 0.7, 0.0, 1.0) * PI) * (1.0 - smoothstep(2.8, 3.4, ts))
+		var env := sin(clampf(ph / 0.7, 0.0, 1.0) * PI) * (1.0 - smoothstep(4.6, 5.6, ts))
 		var w := rng.randf() * 2.0 - 1.0
 		buf[i] = (bp.bp(w) * 0.9 + bp2.bp(w) * 0.25) * env
 	return Sfx._wav(buf, 0.6)
