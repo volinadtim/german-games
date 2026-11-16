@@ -152,10 +152,10 @@ const RECIPES := [
 ## Размер предмета в ячейках сумки [ширина, высота] (промпт 16.11 02:42); нет в списке — 1×1.
 ## Пробел при перетаскивании поворачивает (inventory.gd).
 const SIZES := {
-	"pistol": [2, 3], "medkit": [2, 2], "shield": [2, 2], "fuel": [2, 2], "backpack": [2, 2],
+	"pistol": [2, 2], "medkit": [2, 2], "shield": [2, 2], "fuel": [2, 2], "backpack": [2, 2],
 	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
 	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
-	"flashlight": [1, 2], "water": [1, 2], "soda": [1, 2], "wood": [1, 2], "gasmask": [2, 1],
+	"flashlight": [1, 2], "water": [1, 2], "soda": [1, 2], "wood": [1, 2], "gasmask": [2, 2],
 	"repair_weapon": [2, 1], "repair_gear": [2, 1], "canned": [1, 1],
 	"helmet": [2, 2], "moto_helmet": [2, 2], "ushanka": [2, 1],
 	"jacket": [2, 2], "kurtka": [2, 2], "vest": [2, 2],

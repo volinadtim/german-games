@@ -42,8 +42,13 @@ const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left",
 const EQUIP_NAMES := {"head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
 	"left": "Левая", "right": "Правая"}
 ## где слоты стоят на силуэте (вид со спины: левая рука слева)
-const DOLL_POS := {"head": Vector2(113, 4), "face": Vector2(16, 4), "back": Vector2(210, 4), "body": Vector2(113, 92), "left": Vector2(16, 92), "right": Vector2(210, 92),
-	"hands": Vector2(210, 180), "legs": Vector2(113, 180), "feet": Vector2(113, 266)}
+## (промпт 04:10) фигура ниже на DOLL_DY; «лицо» — на лице, «голова» — над ним; перчатки — на обеих ладонях
+## (HANDS2 — второй квадратик того же слота), «левая» / «правая» — под руками
+const DOLL_DY := 60.0
+const DOLL_POS := {"head": Vector2(113, 2), "face": Vector2(113, 68), "back": Vector2(222, 2), "body": Vector2(113, 150), "left": Vector2(15, 306), "right": Vector2(211, 306),
+	"hands": Vector2(211, 238), "legs": Vector2(113, 254), "feet": Vector2(113, 340)}
+const HANDS2 := Vector2(15, 238)
+const DOLL_LABELS := ["back", "left", "right"]   # подписи пустых слотов — только эти (промпт 04:10)
 const HOLD_TIME := 0.4                  # Shift + держать ПКМ столько — выбросить всю стопку
 const TOUCH_HOLD := 0.5                 # палец: столько держать на ячейке — меню действий
 
@@ -124,7 +129,7 @@ class Slot extends Control:
 		var f := ThemeDB.fallback_font
 		var id := item_id()
 		if id == "":
-			if is_eq:
+			if is_eq and key in inv.DOLL_LABELS:
 				draw_string(f, Vector2(0, size.y / 2 + 5), inv.EQUIP_NAMES[key], HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, Color(0.6, 0.55, 0.45, 0.75))
 			return
 		Items.draw_icon(self, id, r.grow(-12))
@@ -431,12 +436,13 @@ class HotSlot extends Control:
 class Doll extends Control:
 	func _draw() -> void:
 		var c := Color(1, 1, 1, 0.07)
-		draw_circle(Vector2(145, 40), 30, c)
-		draw_rect(Rect2(108, 76, 74, 104), c)
+		var dy: float = 60.0   # = DOLL_DY: фигура ниже (промпт 04:10)
+		draw_circle(Vector2(145, 40 + dy), 30, c)
+		draw_rect(Rect2(108, 76 + dy, 74, 104), c)
 		for sx in [-1.0, 1.0]:
-			draw_line(Vector2(145 + 40 * sx, 84), Vector2(145 + 92 * sx, 150), c, 16.0)
-			draw_line(Vector2(145 + 92 * sx, 150), Vector2(145 + 98 * sx, 210), c, 13.0)
-			draw_line(Vector2(145 + 18 * sx, 180), Vector2(145 + 24 * sx, 330), c, 22.0)
+			draw_line(Vector2(145 + 40 * sx, 84 + dy), Vector2(145 + 92 * sx, 150 + dy), c, 16.0)
+			draw_line(Vector2(145 + 92 * sx, 150 + dy), Vector2(145 + 98 * sx, 210 + dy), c, 13.0)
+			draw_line(Vector2(145 + 18 * sx, 180 + dy), Vector2(145 + 24 * sx, 330 + dy), c, 22.0)
 
 
 ## Картинка предмета (превью перетаскивания, крафт).
@@ -534,14 +540,14 @@ func _build_ui() -> void:
 	hb.add_child(dc)
 	# надпись «СНАРЯЖЕНИЕ» убрана (промпт 03:47)
 	var doll := Doll.new()
-	doll.custom_minimum_size = Vector2(290, 340)
+	doll.custom_minimum_size = Vector2(290, 404)
 	dc.add_child(doll)
-	for k in EQUIP:
+	for k in EQUIP + ["hands"]:
 		var s := Slot.new()
 		s.inv = self
 		s.key = k
 		s.px = 64.0
-		s.position = DOLL_POS[k]
+		s.position = HANDS2 if k == "hands" and slot_nodes.size() >= EQUIP.size() else DOLL_POS[k]
 		doll.add_child(s)
 		slot_nodes.append(s)
 
