@@ -240,14 +240,16 @@ func _rebuild_tab() -> void:
 			_sub_tabs(CLOTHES, sub, func(i: int): sub = i)
 			var grid := _grid()
 			for id in CLOTHES[sub][1]:
+				if not sells(String(id)):
+					continue
 				_item_cell(grid, String(id), _price(String(id)))
 		"Расходники":
 			# подвкладки «Пропитание», «Медицина», «Починка» (промпт 16.11 02:57)
 			_sub_tabs(CONS_SUBS, sub_c, func(i: int): sub_c = i)
 			var grid := _grid()
 			for id in CONS_SUBS[sub_c][1]:
-				# аптечки — только в магазине деревни (village_shop.gd), не в бункере (промпт 16.11 02:47)
-				if String(id) == "medkit" and not "main_shop" in self:
+				# аптечки, тушёнка, газировка — только в магазине деревни (промпты 16.11 02:47, 03:13)
+				if not sells(String(id)):
 					continue
 				_item_cell(grid, String(id), _price(String(id)))
 		"Инструменты":

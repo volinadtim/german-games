@@ -258,14 +258,22 @@ func _animate(delta: float, spd: float) -> void:
 		"leap":
 			arm_x = 1.7
 			lean = base - 0.35
+		"crawl":
+			# заблудший (intro.gd): почти на четвереньках, руки тянутся вперёд и подтягивают тело
+			arm_x = 1.35
+			lean = base - 0.6
 	for i in 2:
 		var s := 1.0 if i == 0 else -1.0
 		var swing := -sin(walk_ph) * 0.35 * walk_amt * s if state == "chase" or state == "idle" else 0.0
+		if state == "crawl":
+			swing = -sin(walk_ph) * 0.6 * walk_amt * s
 		arms[i].rotation.x = lerpf(arms[i].rotation.x, arm_x + swing, 1.0 - exp(-14.0 * delta))
 	torso.rotation.x = lerpf(torso.rotation.x, lean, 1.0 - exp(-12.0 * delta))
 	vis.position.y = absf(sin(walk_ph)) * 0.04 * walk_amt
 	if state == "leap_prep":
 		vis.position.y = -0.14 * smoothstep(0.0, 0.25, st)   # присела перед прыжком
+	if state == "crawl":
+		vis.position.y = -0.32 + absf(sin(walk_ph)) * 0.05 * walk_amt
 	if kind == "fast" and state == "chase" and spd > 0.5:
 		# рывок — прыжок: тело подлетает и наклоняется вперёд, в передышке приседает
 		var hop := sin(clampf(dash_ph / 0.636, 0.0, 1.0) * PI) if dash_ph < 0.636 else 0.0

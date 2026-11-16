@@ -55,10 +55,10 @@ func setup(p: Player) -> void:
 	inv.add("bandage", 2)
 
 	if USE_DUMMY:
-		# манекен — в комнате с KILLBOX (юго-западная), у левой стены (промпт 15.11 23:10)
+		# манекен — в комнате с KILLBOX (юго-западная), слева от магазина, рядом с сундуком (промпт 16.11 03:13)
 		var d := Dummy.new()
 		d.game = self
-		d.position = Vector3(-9.9, 0.0, 6.0)
+		d.position = DUMMY_POS
 		add_child(d)
 	if USE_ENEMIES and (net == null or net.is_host()):   # в сети враги — у хоста, клиенту приходят копии
 		for s in ENEMY_SPOTS:
@@ -117,12 +117,12 @@ func setup(p: Player) -> void:
 	loot_window = LootWindow.new()
 	loot_window.game = self
 	add_child(loot_window)
-	# сундук-хранилище (один, у старта): складывать вещи (промпт 00:08)
+	# сундук-хранилище: складывать вещи (промпт 00:08) — у южной стены слева от магазина, рядом с манекеном (16.11 03:13)
 	storage = Chest.new()
 	storage.game = self
 	storage.kind = "storage"
-	storage.position = Vector3(-11.55, 0.0, -2.7)   # вплотную к стене (был зазор 11 см)
-	storage.rotation.y = PI / 2.0
+	storage.position = STORAGE_POS   # вплотную к стене
+	storage.rotation.y = PI
 	add_child(storage)
 	home = preload("res://scripts/world/bunker_home.gd").new()
 	home.game = self
@@ -163,13 +163,27 @@ func setup(p: Player) -> void:
 	if shop:
 		shop.game = self
 	# сохранения: загрузить выбранный слот (menu.gd) или начать новую игру в нём
+	takedown = preload("res://scripts/world/takedown.gd").new()
+	takedown.game = self
+	add_child(takedown)
 	save_slot = Save.slot()
 	if net:
 		net.on_game_setup(self)   # сетевая сессия в слоты сохранений не пишет; мир у клиента — от хоста
+		if net.is_host():
+			_start_intro()
 	elif Engine.get_meta("eskiness_load", false) and Save.exists(save_slot):
 		load_state(Save.read(save_slot))
 	else:
+		_start_intro()
 		save_now()
+
+
+## Новая игра: пробуждение в северо-западной комнате и заблудший монстрик (world/intro.gd, промпт 16.11 03:13).
+func _start_intro() -> void:
+	var intro = preload("res://scripts/world/intro.gd").new()
+	intro.game = self
+	add_child(intro)
+	intro.start()
 
 
 # ---------- взаимодействие ----------
@@ -212,6 +226,10 @@ func _physics_process(delta: float) -> void:
 		if pk != null and from.distance_to(pk.global_position) < hit_d:
 			focus = pk
 			text = pk.get_prompt(self)
+		# мелкий враг спиной к игроку рядом — E: добить (world/takedown.gd)
+		if takedown and takedown.candidate() != null:
+			focus = takedown
+			text = takedown.get_prompt(self)
 	if carry and alive:
 		var ch: String = carry.hint(focus)
 		if ch != "":

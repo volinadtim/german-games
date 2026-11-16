@@ -68,6 +68,8 @@ func _physics_process(delta: float) -> void:
 	match state:
 		"dead":
 			pass
+		"crawl":
+			want = _crawl(delta, d, ppos)
 		"idle":
 			if hunter and tg.alive:
 				_set_state("chase")
@@ -185,6 +187,34 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_animate(delta, want.length())
 	_footsteps(delta)
+
+
+## Заблудший (world/intro.gd, начало новой игры): ползёт по crawl_path и в конце замирает, игрока не ищет.
+## Замечает, только если тот шумит рядом (идёт не вприсядку ближе 2.5 м, бежит — 5 м), подошёл вплотную или стоит перед глазами.
+const CRAWL_SPEED := 0.6
+var crawl_path: Array = []
+var crawl_i := 0
+
+
+func _crawl(delta: float, d: float, ppos: Vector3) -> Vector3:
+	var pl = tg.player
+	var pv := Vector2(pl.velocity.x, pl.velocity.z).length()
+	var loud_r := 0.0 if bool(pl.get("crouched")) or pv < 0.6 else (5.0 if pv > 4.0 else 2.5)   # шаг 2.5 м, бег 5 м
+	var fwd := -global_transform.basis.z
+	var to := ppos - global_position
+	to.y = 0.0
+	var seen := d < 5.0 and fwd.dot(to.normalized()) > 0.7
+	if tg.alive and (d < loud_r or d < 0.5 or seen) and _clear(global_position, ppos):
+		_set_state("chase")
+		_growl()
+		return Vector3.ZERO
+	if crawl_i >= crawl_path.size():
+		return Vector3.ZERO
+	var goal: Vector3 = crawl_path[crawl_i]
+	if Vector2(goal.x - global_position.x, goal.z - global_position.z).length() < 0.35:
+		crawl_i += 1
+		return Vector3.ZERO
+	return _steer(goal, delta) * CRAWL_SPEED
 
 
 ## Сделать охотником (наказание за мухлёж): гонится всегда, без привязи к дому и поляне.

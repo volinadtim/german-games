@@ -46,12 +46,16 @@ const USE_FLASHLIGHT := true
 
 const MAX_HP := 100.0
 const START := Vector3(-10.5, 0.05, 0.0)
+## манекен и сундук — в комнате с KILLBOX слева от магазина (shop.gd у main.gd: x −4.05, z 8.5)
+const DUMMY_POS := Vector3(-2.75, 0.0, 7.75)
+const STORAGE_POS := Vector3(-1.35, 0.0, 8.55)
 ## враги бродят по поляне наверху (выход из бункера — лестница в восточном торце коридора)
 const ENEMY_SPOTS := [Vector3(28.0, 4.1, 7.0), Vector3(36.0, 4.1, -6.0), Vector3(40.0, 4.1, 4.0), Vector3(31.0, 4.1, -10.0)]
 const RESPAWN := 40.0
 const FAST_SHARE := 0.4   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
 
 var player: Player
+var takedown   # world/takedown.gd — стелс-добивание мелких врагов сзади на E
 var hud: Hud
 var net = null   # net.gd в сетевой игре (выставляет main.gd до setup), иначе null
 var inv: Inventory
@@ -74,7 +78,7 @@ var gasmask: GasMask
 ## Не ставим у проёмов, автомата, магазина, сейфа, манекена, завалов и стекла; пересечения проверяет физика.
 ## Расстановка (место, вид, размер, рисунок, разбит ли) пишется в сейв (jars).
 const CHEST_AVOID := [[Vector3(-6.0, 0, 8.5), 1.9], [Vector3(-4.05, 0, 8.5), 1.7], [Vector3(11.5, 0, 7.0), 1.4],
-	[Vector3(-9.9, 0, 6.0), 1.3], [Vector3(-6.95, 0, 8.66), 1.0], [Vector3(-10.5, 0, 0), 1.5],
+	[Vector3(-2.75, 0, 7.75), 1.2], [Vector3(-1.35, 0, 8.55), 1.2], [Vector3(-10.8, 0, -4.3), 1.8], [Vector3(-6.95, 0, 8.66), 1.0], [Vector3(-10.5, 0, 0), 1.5],
 	[Vector3(-6, 0, -1.6), 1.6], [Vector3(-6, 0, 1.6), 1.6], [Vector3(6, 0, -1.6), 1.6], [Vector3(6, 0, 1.6), 1.6],
 	[Vector3(0, 0, 5.5), 1.6], [Vector3(-8.5, 0, 5.5), 1.0], [Vector3(8.5, 0, 5.5), 1.0],
 	# завалы из level.gd

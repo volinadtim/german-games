@@ -46,6 +46,13 @@ const CLOTHES := [
 	["Снаряжение", ["gasmask", "filter", "backpack"]],
 ]
 var sub := 0                  # открытая подвкладка «Одежды» (CLOTHES)
+## магазин первого тира (бункер): без аптечек, тушёнки, газировки и лучшей одежды — они только в деревне (промпт 16.11 03:13)
+const TIER1_HIDE := ["medkit", "canned", "soda", "moto_helmet", "vest", "wpants", "tac_gloves"]
+
+
+## Товар есть в этом магазине: в бункере (не village_shop.gd) — без TIER1_HIDE.
+func sells(id: String) -> bool:
+	return "main_shop" in self or not id in TIER1_HIDE
 
 
 const CHEST_REFRESH := 80   # «Обновить все ящики»
