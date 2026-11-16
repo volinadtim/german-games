@@ -266,11 +266,24 @@ func show_death(on: bool) -> void:
 
 
 ## Кат-сцена (отъезд на машине, car.gd): прячем полоски, хотбар, прицел и сообщения.
+## После кат-сцены интерфейс проявляется плавно, за 0.8 с (промпт 16.11 03:51).
+var cine_tw: Tween
+
+
 func set_cinematic(on: bool) -> void:
-	paint.visible = not on
-	prompt_l.visible = not on
-	toasts.visible = not on
-	big_toasts.visible = not on
+	if cine_tw and cine_tw.is_valid():
+		cine_tw.kill()
+	var was_hidden := not paint.visible
+	for c in [paint, prompt_l, toasts, big_toasts]:
+		(c as CanvasItem).visible = not on
+	if on or not was_hidden:
+		for c in [paint, prompt_l, toasts, big_toasts]:
+			(c as CanvasItem).modulate.a = 1.0
+		return
+	cine_tw = create_tween().set_parallel(true)
+	for c in [paint, prompt_l, toasts, big_toasts]:
+		(c as CanvasItem).modulate.a = 0.0
+		cine_tw.tween_property(c, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE)
 
 
 ## Экран победы: экран темнеет, «ТЫ ВЫБРАЛСЯ», статистика и кнопки «В главное меню» / «Начать заново».

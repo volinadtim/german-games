@@ -165,6 +165,11 @@ var hands: Array[Node3D] = []     # драйверы кистей
 var model_root: Node3D
 var spine_bones: Array[int] = []  # spine01..03
 var neck_bone := -1
+var head_mi: MeshInstance3D      # видимый меш тела (голова схлопнута для вида из глаз)
+var head_shadow: MeshInstance3D  # копия с головой — только тень
+var head_skin_full: Skin
+var head_skin_cut: Skin
+var head_parts: Array = []        # голова/шея простой модели (только тень)
 # --- поворот тела за камерой: камера (сам игрок) поворачивается сразу, торс догоняет,
 # ноги стоят и переступают, если угол стал большим ---
 var yaw_init := false

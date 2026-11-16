@@ -14,11 +14,12 @@ const WAKE_POS := Vector3(-11.25, 0.05, -4.3)   # у западной стены
 
 const DOOR := Vector3(-6.0, 0.0, -1.6)          # проём из северо-западной комнаты в коридор
 const TRIGGER_R := 2.3                          # «почти подошёл к выходу»
-const CRAWL_FROM := Vector3(-9.8, 0.0, 0.3)     # из-за угла коридора; через 4 с ползания встаёт (~2.4 м)
-const SIDE_CAM := Vector3(-4.3, 1.6, 1.25)       # ракурс сцены — сбоку, из коридора (промпт 16.11 03:40)
+const CRAWL_FROM := Vector3(-7.4, 0.0, 0.35)    # из-за угла коридора; заворачивает в комнату KILLBOX (промпт 16.11 03:49)
+const SIDE_CAM := Vector3(-4.6, 1.8, -8.4)       # ракурс — из той же комнаты, с противоположной стороны, через проём (промпт 16.11 03:48)
 const SIDE_T := 3.0                              # потом за 1.2 с камера плавно возвращается в глаза
-const CRAWL_PATH := [Vector3(-6.0, 0, 0.1), Vector3(0.0, 0, 0.0), Vector3(6.0, 0, 0.0), Vector3(6.0, 0, -0.9),
-	Vector3(6.0, 0, -2.4), Vector3(6.0, 0, -5.3), Vector3(8.0, 0, -7.2)]
+# по коридору к проёму комнаты с автоматом (x = -6, z = 1.6), по оси проёма внутрь; конец пути — стоп (~4 с)
+const CRAWL_PATH := [Vector3(-6.15, 0, 0.6), Vector3(-6.0, 0, 1.6), Vector3(-6.0, 0, 2.9)]
+const CRAWL_SPEED := 0.85
 const WAKE_T := 7.6
 const CUT_T := 4.2
 const CUE_T := 3.0
@@ -115,7 +116,9 @@ func _process(delta: float) -> void:
 			if is_instance_valid(crawler):
 				_aim(crawler.global_position + Vector3(0, 0.45, 0), 1.0 - exp(-3.0 * delta))
 				var side := Transform3D(Basis(), SIDE_CAM).looking_at(crawler.global_position + Vector3(0, 0.4, 0))
-				cut_cam.global_transform = side.interpolate_with(p.cam.global_transform, smoothstep(SIDE_T, CUT_T - 0.05, t))
+				var kb := smoothstep(SIDE_T, CUT_T - 0.05, t)
+				cut_cam.global_transform = side.interpolate_with(p.cam.global_transform, kb)
+				p.set_head_visible(kb < 0.8)   # голова видна, пока камера снаружи
 			if t >= CUT_T:
 				_end_side_cam()
 				_lock(false)
@@ -199,13 +202,14 @@ func _begin_cut() -> void:
 	e.game = game
 	e.kind = "fast"
 	e.position = CRAWL_FROM
-	e.rotation.y = -PI / 2.0     # ползёт на восток, прочь
+	e.rotation.y = -PI / 2.0     # ползёт на восток, к проёму
 	game.add_child(e)
 	e.hp = e.max_hp * 0.5
 	if e.bar_fg:
 		e.bar_fg.scale.x = 0.5
 	e.crawl_path = CRAWL_PATH.duplicate()
-	e.crawl_stop = 4.0
+	e.crawl_speed = CRAWL_SPEED
+	e.crawl_stop = 4.3           # путь ~3.4 м — к концу уже в комнате; стоит, отвернувшись от входа
 	e.drop_only = ["rusk", "water"]
 	e._set_state("crawl")
 	e.died.connect(_on_crawler_died)
@@ -218,6 +222,7 @@ func _begin_cut() -> void:
 	game.add_child(cut_cam)
 	cut_cam.global_transform = Transform3D(Basis(), SIDE_CAM).looking_at(e.global_position + Vector3(0, 0.4, 0))
 	cut_cam.current = true
+	game.player.set_head_visible(true)
 	# звук: скрежет ползущего тела, жалобный визг и глухой гул
 	var drag := AudioStreamPlayer3D.new()
 	drag.stream = _drag_snd()
@@ -258,6 +263,7 @@ func _end_side_cam() -> void:
 	cut_cam = null
 	if game and is_instance_valid(game.player):
 		game.player.cam.current = true
+		game.player.set_head_visible(false)
 
 
 func _on_crawler_died(_e) -> void:

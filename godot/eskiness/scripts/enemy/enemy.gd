@@ -219,7 +219,7 @@ func _crawl(delta: float, d: float, ppos: Vector3) -> Vector3:
 	if Vector2(goal.x - global_position.x, goal.z - global_position.z).length() < 0.35:
 		crawl_i += 1
 		return Vector3.ZERO
-	return _steer(goal, delta) * CRAWL_SPEED
+	return _steer(goal, delta) * crawl_speed
 
 
 ## Сделать охотником (наказание за мухлёж): гонится всегда, без привязи к дому и поляне.

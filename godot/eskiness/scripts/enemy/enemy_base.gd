@@ -78,6 +78,7 @@ var home := Vector3.ZERO
 var drop_only: Array = []   # если задано — при смерти выпадают ровно эти предметы (вступление: сухарь и вода)
 var crawl_stop := 0.0       # заблудший (intro.gd): через столько секунд ползания останавливается (0 — нет)
 var crawl_t := 0.0
+var crawl_speed := 0.6      # скорость ползания (intro.gd)
 var hunter := false   # всегда гонится, спускается в бункер
 var hp := MAX_HP   # выставляет _apply_kind
 var state := "idle"

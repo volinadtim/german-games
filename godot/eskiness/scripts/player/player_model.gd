@@ -24,12 +24,14 @@ func _build_body() -> void:
 	hm.height = 0.25
 	var h := _part(body, hm, Vector3(0, 1.68, 0.08), skin)
 	h.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	head_parts.append(h)
 	var neck := CylinderMesh.new()
 	neck.top_radius = 0.06
 	neck.bottom_radius = 0.075
 	neck.height = 0.24
 	var n := _part(body, neck, Vector3(0, 1.53, 0.1), skin)
 	n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	head_parts.append(n)
 	# плечевой пояс — закрывает щели между торсом и руками
 	var yoke := CapsuleMesh.new()
 	yoke.radius = 0.075
@@ -289,6 +291,23 @@ func _build_model() -> void:
 		body_mi.skin = shadow.skin
 		body_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		shadow.queue_free()
+	else:
+		head_mi = body_mi
+		head_shadow = shadow
+		head_skin_full = shadow.skin
+		head_skin_cut = skin
+
+
+## Показать голову (камера снаружи — кат-сцены, промпт 16.11 03:48) или снова спрятать для вида из глаз.
+func set_head_visible(on: bool) -> void:
+	if head_mi and is_instance_valid(head_mi):
+		head_mi.skin = head_skin_full if on else head_skin_cut
+		head_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		if is_instance_valid(head_shadow):
+			head_shadow.visible = not on
+	for p in head_parts:
+		if is_instance_valid(p):
+			(p as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 
 
 ## Кулак для кисти s ("_L"/"_R"). Нормаль ладони — из геометрии кисти (поперёк костяшек × вдоль кисти),
