@@ -8,6 +8,7 @@ extends Node
 ##   3. Монстрик умер — по коридору эхом звенит игровой автомат, камера плавно поворачивается
 ##      в сторону комнаты с KILLBOX, потом управление полностью возвращается.
 const Enemy := preload("res://scripts/enemy/enemy.gd")
+const Items := preload("res://scripts/items.gd")
 const Sfx := preload("res://scripts/core/sfx.gd")
 const SlotM := preload("res://scripts/slot/slot_machine.gd")
 const WAKE_POS := Vector3(-11.25, 0.05, -4.3)   # у западной стены; game_base.gd CHEST_AVOID и glass_floor.gd AVOID обходят это место
@@ -52,8 +53,10 @@ var peek_at := Vector3.ZERO
 var exhaled := false
 
 
-func start() -> void:
+func start(new_game := true) -> void:
 	var p = game.player
+	if new_game:
+		_starter_kit()
 	p.global_position = WAKE_POS
 	p.rotation.y = -PI / 2.0          # лицом в комнату (+X)
 	p.head.rotation.x = 0.0
@@ -81,6 +84,21 @@ func start() -> void:
 	if game.slot and is_instance_valid(game.slot):
 		game.slot.set_powered(false)   # KILLBOX выключен до убийства монстрика
 	_wake_pose(0.0)
+
+
+## Новая игра (промпт 16.11 21:46): персонаж без одежды — футболка, штаны, вещмешок и бинты лежат рядом
+## на полу (подбираются на E, не исчезают). Повтор вступления после загрузки — без них: вещи уже в сейве.
+func _starter_kit() -> void:
+	var spots := [["tshirt", 1, Vector3(1.0, 0, -0.85)], ["pants", 1, Vector3(1.45, 0, -0.45)],
+		["sack", 1, Vector3(0.85, 0, 1.2)], ["bandage", 2, Vector3(1.4, 0, 1.0)]]
+	for s in spots:
+		var pk = game._make_pickup(String(s[0]), int(s[1]), WAKE_POS + (s[2] as Vector3) + Vector3(0, 0.1, 0), Vector3.ZERO)
+		pk.angular_velocity = Vector3.ZERO
+		pk.rotation.y = randf_range(0.0, TAU)
+		pk.need_leave = true   # не подлетает сама, только по E
+		pk.life = 1.0e9        # не исчезает
+		if Items.max_dur(String(s[0])) > 0.0:
+			pk.set_meta("dur", Items.max_dur(String(s[0])))
 
 
 func _lock(on: bool) -> void:

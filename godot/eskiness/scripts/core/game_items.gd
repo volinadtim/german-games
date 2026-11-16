@@ -198,6 +198,9 @@ func use_item(idx: int) -> void:
 	if def.has("repair"):
 		repair(idx, _most_worn(String(def["repair"])))
 	elif def.has("buff"):
+		if inv.equip["face"] == "gasmask":   # еда и питьё — не через противогаз (промпт 16.11 21:46)
+			hud.toast("В противогазе не поесть и не попить — сними его (G)", Color(0.95, 0.7, 0.45))
+			return
 		inv.take_at(idx, 1)
 		add_buff(id)
 		var what := "−%d%% урона" % int(float(def["power"]) * 100) if def["buff"] == "resist" else "+%d%% скорости" % int(float(def["power"]) * 100)

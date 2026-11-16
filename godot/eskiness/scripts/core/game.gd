@@ -50,14 +50,10 @@ func setup(p: Player) -> void:
 		add_child(flashlight)
 		flashlight.attach(player.cam)
 
-	# стартовый набор (крутка автомата — 10 монет). Фонарика нет — он в магазине снаряжения.
-	# общей сумки нет (промпт 16.11 06:03): надеты футболка, штаны и вещмешок — их ячейки и есть инвентарь
-	for k in inv.START_GEAR:
-		inv.equip[k] = inv.START_GEAR[k]
-		inv.equip_dur[k] = Items.max_dur(inv.START_GEAR[k])
+	# стартовый набор: 25 монет (промпт 16.11 21:46). Фонарика нет — он в магазине снаряжения.
+	# Одежда (футболка, штаны, вещмешок) и бинты не надеты — лежат на полу рядом со спавном (intro.gd: _starter_kit).
 	inv.update_blocks()
-	inv.add("coin", 50)
-	inv.add("bandage", 2)
+	inv.add("coin", 25)
 
 	if USE_DUMMY:
 		# манекен — в комнате с KILLBOX (юго-западная), слева от магазина, рядом с сундуком (промпт 16.11 03:13)
@@ -177,18 +173,22 @@ func setup(p: Player) -> void:
 		if net.is_host():
 			_start_intro()
 	elif Engine.get_meta("eskiness_load", false) and Save.exists(save_slot):
-		load_state(Save.read(save_slot))
+		var sd: Dictionary = Save.read(save_slot)
+		load_state(sd)
+		# вышли до конца вступления — оно начинается заново, вещи из сейва остаются (промпт 16.11 21:46)
+		if not bool(sd.get("intro_done", true)):
+			_start_intro(false)
 	else:
 		_start_intro()
 		save_now()
 
 
 ## Новая игра: пробуждение в северо-западной комнате и заблудший монстрик (world/intro.gd, промпт 16.11 03:13).
-func _start_intro() -> void:
+func _start_intro(new_game := true) -> void:
 	var intro = preload("res://scripts/world/intro.gd").new()
 	intro.game = self
 	add_child(intro)
-	intro.start()
+	intro.start(new_game)
 
 
 # ---------- взаимодействие ----------
