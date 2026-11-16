@@ -365,7 +365,7 @@ func _channel_tick(delta: float) -> void:
 		_stop("")
 		return
 	# бинт можно на ходу, но не на бегу (промпт 16.11 05:12); остальное — стоя
-	var walk_ok: bool = ch_walk and not Input.is_action_pressed("sprint") 			and Vector2(p.velocity.x, p.velocity.z).length() < p.WALK + 0.4
+	var walk_ok: bool = ch_walk and not Input.is_action_pressed("sprint") 			and Vector2(p.velocity.x, p.velocity.z).length() < p.WALK * maxf(1.0, float(p.speed_mult)) + 0.6   # с баффами скорости одежды (05:39)
 	var moving: bool = Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2 			or Vector2(p.velocity.x, p.velocity.z).length() > 1.2
 	# в машине (car_drive.gd) игрок стоит, а едет машина: пассажиру ничего не мешает, водителю — руль и газ
 	var seat: int = p.get_meta("car_seat", -1)
