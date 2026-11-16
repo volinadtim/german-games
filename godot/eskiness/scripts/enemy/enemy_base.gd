@@ -148,6 +148,7 @@ func _set_state(s: String) -> void:
 ## Шаги врага (промпт 14.11 17:26): тяжёлые, ниже по тону, чем у игрока; шаг — каждые ~0.7 м пройденного пути.
 @warning_ignore("unused_private_class_variable")
 var _step_dist := 0.0
+var vis_step := 0.0   # модель догоняет тело на ступеньках (enemy.gd, core/step_up.gd)
 @warning_ignore("unused_private_class_variable")
 var _last_ph_step := 0
 

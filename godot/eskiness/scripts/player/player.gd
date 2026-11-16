@@ -3,6 +3,7 @@ extends "res://scripts/player/player_death.gd"
 ## WASD, Shift — бег, пробел — прыжок, V или СКМ — боевая стойка (поднять/опустить кулаки),
 ## ЛКМ — удар левой, ПКМ — удар правой; зажать — заряд до 1.5 с (промпты 18:57, 19:06, 19:09).
 ## Без стойки ЛКМ/ПКМ только поднимают кулаки, удара нет (промпт 19:08).
+const StepUp := preload("res://scripts/core/step_up.gd")
 
 
 func _ready() -> void:
@@ -204,7 +205,15 @@ func _physics_process(delta: float) -> void:
 	velocity.z = hv.z
 	if net_push.is_valid():
 		net_push.call(self, delta)
+	# ступеньки (промпт 03:51): уступ до 0.4 м — переступаем; камера догоняет плавно, нога выше
+	var su := StepUp.step_up(self, on_floor or (air_t < 0.15 and velocity.y <= 0.0), delta)
+	if su > 0.0:
+		cam_step -= su
+		step_lift = maxf(step_lift, su * 0.7)
 	move_and_slide()
+	cam_step += StepUp.step_down(self, on_floor)
+	cam_step = clampf(cam_step, -0.5, 0.5) * exp(-11.0 * delta)
+	step_lift = move_toward(step_lift, 0.0, delta * 1.2)
 
 	if is_on_floor() and not was_on_floor and land_speed < -2.5:
 		_play_step(-4.0)

@@ -1,4 +1,5 @@
 extends "res://scripts/enemy/enemy_combat.gd"
+const StepUp := preload("res://scripts/core/step_up.gd")
 ## Враг «Бетонник» (боёвка): сутулая фигура из бетона с тлеющими глазами и торчащей арматурой.
 ## Заметил игрока (видит и ближе 9 м) — идёт к нему, обходя стены через проёмы, замахивается и бьёт.
 ## На поверхности (спавн выше уровня земли) — бродит по поляне и гонится напрямую.
@@ -184,7 +185,11 @@ func _physics_process(delta: float) -> void:
 		want = Vector3.ZERO
 	velocity.x = want.x + knock.x
 	velocity.z = want.z + knock.z
+	var was_floor := is_on_floor()
+	vis_step -= StepUp.step_up(self, was_floor, delta)   # ступеньки (промпт 03:51)
 	move_and_slide()
+	vis_step += StepUp.step_down(self, was_floor)
+	vis_step = clampf(vis_step, -0.5, 0.5) * exp(-10.0 * delta)
 	_animate(delta, want.length())
 	_footsteps(delta)
 

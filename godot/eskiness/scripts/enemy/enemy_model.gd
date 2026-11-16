@@ -279,3 +279,4 @@ func _animate(delta: float, spd: float) -> void:
 		var hop := sin(clampf(dash_ph / 0.636, 0.0, 1.0) * PI) if dash_ph < 0.636 else 0.0
 		vis.position.y = hop * 0.22 - (0.06 if dash_ph >= 0.636 else 0.0)
 		torso.rotation.x = lerpf(torso.rotation.x, base - 0.25 * hop, 1.0 - exp(-14.0 * delta))
+	vis.position.y += vis_step

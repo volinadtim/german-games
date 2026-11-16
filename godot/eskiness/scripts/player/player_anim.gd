@@ -175,6 +175,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		var eye := hb + hd * Vector3(0, 0.08, -0.1)
 		head.position.y = maxf(head.position.y, eye.y)
 		head.position.z = minf(head.position.z, eye.z)
+	head.position.y += cam_step   # ступеньки: тело уже наверху/внизу, камера догоняет
 	_cam_wall_pullback()
 	var want_fov: float = fov_base * (gun.fov_mult() if gun else 1.0) + (7.0 if sprinting else 0.0)   # прицел — gun.gd
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
@@ -376,7 +377,7 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 		var beta := lerpf(0.62, 0.42, run)           # доля опоры в цикле (при беге есть фаза полёта)
 		var cycle := 2.0 + 0.1 * spd                 # метров за полный цикл (два шага)
 		var amp := clampf(0.06 + 0.045 * spd, 0.0, 0.32)
-		var lift := 0.04 + 0.025 * spd
+		var lift := 0.04 + 0.025 * spd + step_lift
 		gait = fmod(gait + spd / cycle * delta, 1.0)
 		for i in 2:
 			var ph := fmod(gait + 0.5 * i, 1.0)

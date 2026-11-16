@@ -218,6 +218,8 @@ var phase := 0.0
 var bob := 0.0
 var last_step := -1
 var was_on_floor := true
+var cam_step := 0.0     # сглаживание камеры по высоте на ступеньках (player.gd, core/step_up.gd)
+var step_lift := 0.0    # нога поднимается выше, когда переступаем уступ
 var air_t := 0.0   # сколько секунд не на полу: у стены is_on_floor мигает — короткие «отрывы» не считаем полётом (промпт 23:34)
 var land_speed := 0.0
 

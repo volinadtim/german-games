@@ -1,4 +1,5 @@
 extends "res://scripts/village/mutant_base.gd"
+const StepUp := preload("res://scripts/core/step_up.gd")
 ## Мутанты деревни (промпт 15.11 23:10) — три вида, у каждого свой стиль боя:
 ##   «Плевун» (spitter) — держит дистанцию 6–10 м, ходит боком и плюётся кислотой по дуге (замах — зоб
 ##     раздувается и светится); подошёл вплотную — отпрыгивает и царапает.
@@ -85,7 +86,10 @@ func _physics_process(delta: float) -> void:
 			want = _special(delta, d, to, ppos)
 	velocity.x = want.x + knock.x
 	velocity.z = want.z + knock.z
+	var was_floor := is_on_floor()
+	StepUp.step_up(self, was_floor, delta)   # ступеньки (промпт 03:51)
 	move_and_slide()
+	StepUp.step_down(self, was_floor)
 	_animate(delta, Vector2(velocity.x, velocity.z).length())
 
 
