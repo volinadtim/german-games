@@ -433,7 +433,7 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	want *= 1.0 + drift * (0.6 + 0.6 * maxf(thr_s, 0.0))
 	want = clampf(want, -lerpf(9.0, DRIFT_YAW, drift), lerpf(9.0, DRIFT_YAW, drift))
 	# в заносе вращение по инерции живёт дольше (плавно крутится, а не дёргается)
-	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(1.6, 13.0, grip_k) * delta))
+	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(2.3, 13.0, grip_k) * delta))
 	# передний привод в заносе: тяга по направлению передних колёс — газом держишь дугу
 	if drift > 0.05 and thr_s > 0.01:
 		var a := ACC * thr_s * drift * delta
@@ -459,7 +459,7 @@ func _move(delta: float) -> void:
 	slip = move_toward(sl, 0.0, a_lat * delta)
 	# в заносе под газом часть погашенной боковой скорости уходит вперёд (передние колёса тянут) — не тормозит в ноль
 	if grip_k < 0.95 and thr_s > 0.01 and speed > -0.5:
-		speed += absf(sl - slip) * 0.7 * thr_s * (1.0 - grip_k)
+		speed += absf(sl - slip) * 0.4 * thr_s * (1.0 - grip_k)
 	vel = fwd * speed + side * slip
 	car_vel = vel
 	var np := position + vel * delta
@@ -627,9 +627,9 @@ func refuel() -> void:
 	if game.inv.count("fuel") <= 0:
 		return
 	game.inv.remove("fuel", 1)
-	fuel = 1.0
+	fuel = minf(fuel + 0.5, 1.0)   # канистра — полбака (05:59)
 	game.play_at("pickup", global_position, -6.0, 0.6)
-	game.hud.toast("Бак полный. Садись за руль", Color(0.75, 0.9, 0.6))
+	game.hud.toast("Бензин %d%%. Садись за руль" % roundi(fuel * 100.0), Color(0.75, 0.9, 0.6))
 	if vnet():
 		vnet().rpc("v_fuel", fuel)
 
