@@ -99,7 +99,25 @@ var WRIST_HIT := 1.1   # сгиб кисти в момент удара (рад)
 const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28, "pistol": 0.12, "stone": 0.05}
 const Fx := preload("res://scripts/core/fx.gd")
 
-var active := false
+## Управление (промпт 16.11 04:51): окна (магазин, лут, автомат…) пишут active как раньше, а консоль, чат,
+## вступление и кат-сцены ставят независимые блокировки set_lock(причина) — пока есть хоть одна, active = false.
+var active := false:
+	set(v):
+		_active_raw = v
+	get:
+		return _active_raw and input_locks.is_empty()
+var _active_raw := false
+var input_locks := {}
+
+
+## Поставить/снять блокировку ввода по причине (console, chat, intro…). Инвентарь включён, только когда блокировок нет.
+func set_lock(reason: String, on: bool) -> void:
+	if on:
+		input_locks[reason] = true
+	else:
+		input_locks.erase(reason)
+	if game and game.inv:
+		game.inv.enabled = input_locks.is_empty()
 var carrying := false   # несёт объект в руках (world/carry.gd): без ударов, бега и прыжков
 ## Сетевая игра (net.gd): модель другого игрока — без камеры, ввода, звуков и урона; движется по данным из сети.
 var puppet := false

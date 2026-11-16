@@ -84,12 +84,8 @@ func _can_open() -> bool:
 
 func show_chat() -> void:
 	open = true
-	_prev_active = game.player.active
 	_prev_mouse = Input.mouse_mode
-	game.player.active = false
-	if game.inv:
-		_prev_inv = game.inv.enabled
-		game.inv.enabled = false
+	game.player.set_lock("chat", true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	edit.visible = true
 	edit.clear()
@@ -104,9 +100,7 @@ func close() -> void:
 	edit.release_focus()
 	edit.visible = false
 	if game and game.player:
-		game.player.active = _prev_active and game.alive
-	if game and game.inv:
-		game.inv.enabled = _prev_inv
+		game.player.set_lock("chat", false)
 	Input.mouse_mode = _prev_mouse
 
 

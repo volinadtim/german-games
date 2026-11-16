@@ -85,11 +85,10 @@ func start() -> void:
 
 func _lock(on: bool) -> void:
 	var p = game.player
-	p.active = not on
-	game.inv.enabled = not on
+	p.set_lock("intro", on)   # независимая блокировка (консоль и чат её не снимают, промпт 16.11 04:51)
 	game.hud.set_cinematic(on)
 	p.cinematic_stance(on)
-	if not on:
+	if not on and p.input_locks.is_empty():   # консоль ещё открыта — мышь не захватываем
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
@@ -174,8 +173,7 @@ func _process(delta: float) -> void:
 				if game.slot and is_instance_valid(game.slot):
 					game.slot.set_powered(true, true)   # KILLBOX загорается со звуком
 				_play_echo()
-				p.active = false
-				game.inv.enabled = false
+				p.set_lock("intro_cue", true)
 				t = 0.0
 				stage = "cue"
 		"cue":
@@ -184,8 +182,6 @@ func _process(delta: float) -> void:
 				at = game.slot.global_position + Vector3(0, 1.4, 0)
 			_aim(at, 1.0 - exp(-2.2 * delta))
 			if t >= CUE_T:
-				p.active = true
-				game.inv.enabled = true
 				_finish()
 
 
@@ -347,6 +343,9 @@ func _on_crawler_died(_e) -> void:
 
 func _finish() -> void:
 	_end_side_cam()
+	if game and is_instance_valid(game.player):
+		game.player.set_lock("intro", false)
+		game.player.set_lock("intro_cue", false)
 	if is_instance_valid(crawler):
 		crawler.set("calm", false)
 	if game and not game.intro_done:

@@ -126,12 +126,8 @@ func show_console() -> void:
 		return
 	open = true
 	root.visible = true
-	_prev_active = game.player.active
 	_prev_mouse = Input.mouse_mode
-	game.player.active = false
-	if game.inv:
-		_prev_inv = game.inv.enabled
-		game.inv.enabled = false
+	game.player.set_lock("console", true)   # независимая блокировка: не перетирает кат-сцены (промпт 16.11 04:51)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	hist_i = history.size()
 	edit.clear()
@@ -146,10 +142,7 @@ func close() -> void:
 	root.visible = false
 	edit.release_focus()
 	if game and game.player:
-		# если за время консоли открылось другое окно — оно само вернёт управление
-		game.player.active = _prev_active and game.alive
-	if game and game.inv:
-		game.inv.enabled = _prev_inv
+		game.player.set_lock("console", false)
 	Input.mouse_mode = _prev_mouse
 
 
