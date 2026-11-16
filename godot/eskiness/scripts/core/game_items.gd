@@ -632,11 +632,32 @@ func auto_equip(id: String, dur := -1.0) -> bool:
 	return true
 
 
+## Насколько вещь хороша для своего слота: броня, ячейки (рюкзак, карманы), сила удара перчаток, прочность.
+func gear_score(id: String) -> float:
+	if id == "" or not Items.ITEMS.has(id):
+		return -1.0
+	var d: Dictionary = Items.ITEMS[id]
+	var sc := float(d.get("armor", 0.0)) * 100.0 + float(d.get("fist", 0.0)) * 10.0 + float(d.get("dur", 0)) / 10.0
+	var bag: Array = d.get("bag", [])
+	if bag.size() == 2:
+		sc += float(int(bag[0]) * int(bag[1])) * 2.0
+	return sc
+
+
 ## Выдать вещь (покупка): надеть в свободный слот → в сумку → на пол рядом. "equip" / "bag" / "floor".
-func give_gear(id: String, dur := -1.0) -> String:
+## upgrade — покупка в магазине: вещь лучше надетой сразу надевается, прежняя — в ячейки / на пол (промпт 16.11 21:53).
+func give_gear(id: String, dur := -1.0, upgrade := false) -> String:
 	if auto_equip(id, dur):
 		return "equip"
+	var k := Items.equip_slot(id)
+	var better := upgrade and k != "" and k != "hand" and inv.equip.has(k) and gear_score(id) > gear_score(String(inv.equip[k]))
 	if inv.add(id, 1, dur) == 0:
+		if better:
+			var idx := inv.bag_index(id)
+			if idx >= 0:
+				equip(idx, k)
+				if String(inv.equip[k]) == id:
+					return "equip"
 		return "bag"
 	var e := {"id": id, "n": 1}
 	if dur >= 0.0:

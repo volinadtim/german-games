@@ -685,9 +685,9 @@ func _buy(id: String, price: int) -> void:
 		# одежда/снаряжение (промпт 05:37): без лимита; надеть → в сумку → на пол, покупку не отменяем
 		if id == "gasmask" and game.gasmask:
 			game.gasmask.on_bought()
-		var where: String = game.give_gear(id)
+		var where: String = game.give_gear(id, -1.0, true)   # лучше надетого — сразу надевается
 		info_l.text = "Куплено: %s%s" % [Items.item_name(id),
-			{"equip": " — надето", "bag": " — в сумке", "floor": " — на полу"}[where]]
+			{"equip": " — надето", "bag": " — в ячейках", "floor": " — на полу"}[where]]
 		game.shop_bought.append(id)
 		_vend(id)
 		game.play_ui("coin", -10.0)
