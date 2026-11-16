@@ -69,6 +69,7 @@ func seat_local(i: int, instant := false) -> void:
 	p.col_shape.disabled = true
 	p.set_meta("car_seat", i)   # revive.gd: в машине лечение прерывает не скорость, а руль/газ водителя
 	seat_from = p.cam.global_position
+	look_yaw = yaw
 	_body_visible(false)
 	if instant:
 		seat_dir = 0
@@ -153,6 +154,13 @@ func _seat_tick(delta: float) -> void:
 	if my_seat < 0:
 		return
 	var p = game.player
+	# взгляд — в осях машины (промпт 16.11 05:47): машина повернула — повернулся и игрок,
+	# мышь задаёт только смещение от «вперёд по машине», не дальше LOOK_MAX
+	var dy := angle_difference(look_yaw, yaw)
+	look_yaw = yaw
+	if seat_dir == 0 or seat_dir == 2:
+		var rel := clampf(angle_difference(yaw + PI, p.rotation.y + dy), -LOOK_MAX, LOOK_MAX)
+		p.rotation.y = yaw + PI + rel
 	if seat_dir == 1:
 		seat_anim = minf(seat_anim + delta / 0.8, 1.0)
 		var k := smoothstep(0.0, 1.0, seat_anim)
