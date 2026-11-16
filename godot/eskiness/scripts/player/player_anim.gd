@@ -120,6 +120,13 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	_animate_legs(delta, v_local, grounded)
 	var amt := clampf(spd / WALK, 0.0, 1.5) if grounded else 0.0
 	phase = gait * TAU * 2.0
+	# бег (промпт 04:05): плавный переход шаг↔бег, фаза — по разнице стоп вдоль движения
+	var run_t := clampf((spd - WALK - 0.2) / (SPRINT - WALK - 0.2), 0.0, 1.0) if grounded else run_k
+	run_k = move_toward(run_k, run_t, delta * (2.5 if run_t > run_k else 3.5))
+	var rd_t := clampf((foot[0] - foot[1]).dot(move_dir) / 0.5, -1.0, 1.0) if grounded and spd > 0.4 else 0.0
+	run_d = lerpf(run_d, rd_t, 1.0 - exp(-18.0 * delta))
+	# таз ниже всего чуть после постановки стопы, выше — в фазе полёта
+	run_bob = -run_k * 0.035 * (0.5 + 0.5 * cos(phase - 0.6))
 	var box_ph := sin(idle_time * TAU * 1.8) * fist_blend * idle_amt
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
@@ -137,6 +144,11 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 				p += CHARGE_OTHER * ck
 		# рука качается навстречу противоположной ноге
 		var arm_swing := clampf(-foot[1 - i].z * 1.1, -0.6, 0.6) * (1.0 - fist_blend)
+		# бег: согнутые в локтях руки машут вперёд-назад в противофазе ногам (вперёд сильнее, чем назад)
+		var rka := run_k * (1.0 - fist_blend)
+		var rs := run_d * (1.0 if i == 1 else -1.0)   # >0 — рука впереди
+		arm_swing = lerpf(arm_swing, rs * (0.8 if rs > 0.0 else 0.55) + 0.12, rka)
+		var run_el := rka * deg_to_rad(68.0 + 22.0 * rs)
 		var guard_bob := deg_to_rad(sin(phase + float(i)) * 1.5 * amt * fist_blend + box_ph * 1.3)   # промпт 03:38: вдвое слабее
 		# дыхание чуть разводит руки, в покое они слегка покачиваются
 		var rest_sway := (sin(idle_time * 0.9 + float(i) * 2.0) * 0.03 + sin(idle_time * 0.37 + float(i)) * 0.015) * idle_amt * (1.0 - fist_blend)
@@ -155,8 +167,8 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		shoulders[i].rotation = Vector3(
 			deg_to_rad(p.x) + arm_swing + guard_bob + rest_sway + aim_lift + relax_x,
 			deg_to_rad(p.y) * side + relax_y * side,
-			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend) + relax_z * side)
-		elbows[i].rotation.x = deg_to_rad(p.w) + relax_el
+			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend) + relax_z * side + 0.05 * side * rka)
+		elbows[i].rotation.x = deg_to_rad(p.w) + relax_el + run_el
 		if not USE_MODEL:
 			shoulders[i].position.z = 0.13 - reach[i]
 	_gun_pose(delta)

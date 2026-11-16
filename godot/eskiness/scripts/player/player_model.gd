@@ -404,9 +404,15 @@ func _apply_bones() -> void:
 	var w_r := weight * rk
 	var idle_tw := (-0.06 * w_r + (sin(it * 0.19 + 0.5) * 0.03 + sin(it * 0.47) * 0.012) * rk)
 	if pelvis_bone != -1:
-		_set_global_rot(pelvis_bone, rr * leg_rot * Basis(Vector3.UP, -idle_tw * 0.6)
+		_set_global_rot(pelvis_bone, rr * leg_rot * Basis(Vector3.UP, -idle_tw * 0.6 - run_d * run_k * 0.13)
+				* Basis(Vector3.BACK, sin(gait * TAU) * 0.04 * run_k)
 				* Basis(Vector3.BACK, weight * (0.045 + 0.03 * (1.0 - fist_blend)) * idle_amt) * rest_p.call(pelvis_bone))
 	var ck := _crouch_k()
+	# бег (промпт 04:05): корпус наклонён вперёд, таз и плечи поворачиваются навстречу друг другу
+	# за ногами, лёгкое покачивание из стороны в сторону; голова (шея задаётся в мировых осях) остаётся ровной
+	var rn := run_k
+	var rtw := run_d * run_k
+	var rsway := sin(gait * TAU) * 0.035 * rn
 	# в ударе корпус наклоняется туда, куда смотрит камера (вниз — вперёд, вверх — назад)
 	var aim_bend := clampf(head.rotation.x, -1.2, 0.8) * maxf(aim_w[0], aim_w[1])
 	# расслабленно: грудь чуть ссутулена, а не «грудь колесом»
@@ -414,15 +420,18 @@ func _apply_bones() -> void:
 			sway_p + breath * 0.012 - box * 0.08 - ck * 0.1 + aim_bend * 0.14 + 0.03 * rk,
 			breath * 0.035 - box * 0.06 - bounce * 0.03 - ck * 0.04 + aim_bend * 0.1 + 0.035 * rk]
 	var spine_z := [-weight * (0.03 + 0.03 * (1.0 - fist_blend)) * idle_amt + sway_r, sway_r - w_r * 0.025, sway_r * 0.5 - w_r * 0.015]
+	for k in 3:
+		spine_x[k] -= rn * [0.13, 0.1, 0.05][k]
+		spine_z[k] += rsway * [1.0, -0.6, -0.4][k]
 	if peek != 0.0:
 		# выглядывает: корпус клонится вбок и чуть вперёд (вправо — отрицательный угол вокруг +Z)
 		for k in 3:
 			spine_z[k] -= peek * [0.1, 0.14, 0.16][k]
 			spine_x[k] += absf(peek) * 0.05
 	# корпус доворачивается за бьющей рукой, ключица выносит плечо вперёд
-	var twist := (reach[1] - reach[0]) * 2.2 + swing_twist
+	var twist := (reach[1] - reach[0]) * 2.2 + swing_twist + rtw * 0.18
 	var dt := torso_off - leg_off
-	var spine_a := [leg_off + dt * 0.3 + swing_twist * 0.3 + idle_tw * 0.3, leg_off + dt * 0.65 + swing_twist * 0.6 + idle_tw * 0.7,
+	var spine_a := [leg_off + dt * 0.3 + swing_twist * 0.3 + idle_tw * 0.3 - rtw * 0.06, leg_off + dt * 0.65 + swing_twist * 0.6 + idle_tw * 0.7 + rtw * 0.06,
 			torso_off + twist + idle_tw]
 	for k in spine_bones.size():
 		_set_global_rot(spine_bones[k], rr * Basis(Vector3.UP, spine_a[k]) * Basis(Vector3.RIGHT, spine_x[k])
@@ -523,7 +532,7 @@ func _crouch_k() -> float:
 ## Таз: перенос веса/покачивание стоя + опускание в приседе (чуть назад).
 func _hip() -> Vector3:
 	var ck := _crouch_k()
-	return hip_off + Vector3(0, -CROUCH_HIP * ck, 0.05 * ck)
+	return hip_off + Vector3(0, -CROUCH_HIP * ck + run_bob, 0.05 * ck)
 
 
 ## Взять оружие в руку arm (0 — левая, 1 — правая; "" — убрать). Модель крепится к кости кисти.
