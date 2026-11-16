@@ -137,7 +137,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 				p += CHARGE_OTHER * ck
 		# рука качается навстречу противоположной ноге
 		var arm_swing := clampf(-foot[1 - i].z * 1.1, -0.6, 0.6) * (1.0 - fist_blend)
-		var guard_bob := deg_to_rad(sin(phase + float(i)) * 3.0 * amt * fist_blend + box_ph * 2.5)
+		var guard_bob := deg_to_rad(sin(phase + float(i)) * 1.5 * amt * fist_blend + box_ph * 1.3)   # промпт 03:38: вдвое слабее
 		# дыхание чуть разводит руки, в покое они слегка покачиваются
 		var rest_sway := (sin(idle_time * 0.9 + float(i) * 2.0) * 0.03 + sin(idle_time * 0.37 + float(i)) * 0.015) * idle_amt * (1.0 - fist_blend)
 		# руки не по швам: стоя локти чуть согнуты, руки немного вперёд и в стороны (на ходу — меньше);

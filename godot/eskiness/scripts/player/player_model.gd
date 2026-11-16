@@ -336,7 +336,7 @@ func _build_fist_pose(s: String) -> void:
 	var center: Vector3 = (h + gr.call("middle01").origin) * 0.5
 	var unit: float = h.distance_to(gr.call("middle01").origin) / 0.09    # ~9 см от запястья до костяшек
 	# большой палец лежит поверх средних фаланг снаружи кулака (раньше цель была почти в фалангах — палец прорезал их)
-	var tgt: Vector3 = mid + (mid - center).normalized() * 0.03 * unit
+	var tgt: Vector3 = mid + (mid - center).normalized() * 0.045 * unit
 	# большой палец
 	var t1 := skel.find_bone("thumb01" + s)
 	if t1 == -1:
