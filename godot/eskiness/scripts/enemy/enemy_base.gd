@@ -80,6 +80,7 @@ var drop_only: Array = []   # если задано — при смерти вы
 var crawl_stop := 0.0       # заблудший (intro.gd): через столько секунд ползания останавливается (0 — нет)
 var crawl_t := 0.0
 var crawl_wait := false     # заблудший до кат-сцены (intro.gd): копошится на месте, игрока не замечает
+var calm := false           # до конца кат-сцены (intro.gd): не агрится ни на что и неуязвим
 var crawl_speed := 0.6      # скорость ползания (intro.gd)
 var hunter := false   # всегда гонится, спускается в бункер
 var hp := MAX_HP   # выставляет _apply_kind

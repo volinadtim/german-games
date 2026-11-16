@@ -134,7 +134,7 @@ func _throw_rock(ppos: Vector3) -> bool:
 
 ## Камень игрока упал рядом (stone_throw.gd): кто не видит игрока — идёт проверить место и стоит там пару секунд.
 func hear_stone(at: Vector3) -> void:
-	if net_puppet or not state in ["idle", "return", "investigate"]:
+	if net_puppet or calm or not state in ["idle", "return", "investigate"]:
 		return
 	var ppos: Vector3 = tg.player.global_position
 	if tg.alive and global_position.distance_to(ppos) < SIGHT and _clear(global_position, ppos):
@@ -226,7 +226,7 @@ func _growl() -> void:
 
 ## Попадание кулаком игрока.
 func take_hit(dmg: float, dir: Vector3) -> void:
-	if state == "dead":
+	if state == "dead" or calm:
 		return
 	game.weapon_hit()
 	if net_puppet:
@@ -246,7 +246,7 @@ func _hit_fx(dmg: float, dir: Vector3) -> void:
 
 ## Урон (у хоста — и от ударов других игроков по сети, net.gd).
 func apply_hit(dmg: float, dir: Vector3) -> void:
-	if state == "dead":
+	if state == "dead" or calm:
 		return
 	hp -= dmg
 	bar_t = 4.0

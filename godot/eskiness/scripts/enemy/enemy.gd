@@ -211,7 +211,7 @@ func _crawl(delta: float, d: float, ppos: Vector3) -> Vector3:
 	var to := ppos - global_position
 	to.y = 0.0
 	var seen := d < 5.0 and fwd.dot(to.normalized()) > 0.7
-	if tg.alive and (d < loud_r or d < 0.5 or seen) and _clear(global_position, ppos):
+	if not calm and tg.alive and (d < loud_r or d < 0.5 or seen) and _clear(global_position, ppos):
 		_set_state("chase")
 		_growl()
 		return Vector3.ZERO
