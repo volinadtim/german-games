@@ -18,9 +18,11 @@ const CRAWL_FROM := Vector3(-7.4, 0.0, 0.35)    # из-за угла корид�
 # камера выскальзывает из глаз назад-влево, за плечо, и смотрит, как персонаж выглядывает из-за косяка (промпт 16.11 03:59)
 # (промпт 16.11 04:04) осторожно: прижался к стене сбоку от проёма, присел, медленно выглядывает головой
 # и плечом из-за косяка, задерживает дыхание, отклоняется обратно за укрытие и тихо выдыхает
-const SHOULDER := Vector3(0.45, 0.18, 0.95)      # от глаз, в осях игрока (+Z — назад): за правым плечом, со стороны проёма
-const PEEK_AT := Vector3(-4.8, 0.0, -2.02)      # у стены, восточнее косяка (край проёма x = -5.15), лицом к стене (на юг)
-const PEEK_YAW := PI                             # смотрит на юг (+Z); выглядывает вправо — на запад, к проёму
+# (04:12) выглядывает у ближнего к нему косяка, проём не пересекает: пришёл с запада — у западного, иначе — у восточного
+const SHOULDER := Vector3(0.45, 0.18, 0.95)      # от глаз, в осях игрока (+Z — назад); X умножается на сторону
+const PEEK_DX := 1.2                             # от оси проёма до места у стены (край проёма — 0.85)
+const PEEK_Z := -2.02                            # вплотную к стене с проёмом, внутри комнаты
+const PEEK_YAW := PI                             # смотрит на юг (+Z), выглядывает вбок — к проёму
 const SIDE_T := 4.7                              # потом камера плавно возвращается в глаза
 # по коридору к проёму комнаты с автоматом (x = -6, z = 1.6), по оси проёма внутрь; конец пути — стоп (~4 с)
 const CRAWL_PATH := [Vector3(-6.15, 0, 0.6), Vector3(-6.0, 0, 1.6), Vector3(-6.0, 0, 2.9)]
@@ -44,6 +46,8 @@ var echo_snd: AudioStreamWAV
 var groaned := false
 var stood := false
 var held := false
+var side := 1.0          # с какой стороны проёма стоит: -1 — запад, +1 — восток
+var peek_at := Vector3.ZERO
 var exhaled := false
 
 
@@ -122,7 +126,7 @@ func _process(delta: float) -> void:
 		"cut":
 			if is_instance_valid(crawler):
 				# крадётся к стене у косяка, приседает и медленно выглядывает: наклон корпуса и головы
-				var to: Vector3 = PEEK_AT - p.global_position
+				var to: Vector3 = peek_at - p.global_position
 				to.y = 0.0
 				p.global_position += to * (1.0 - exp(-2.2 * delta))
 				p.force_crouch = t < 5.4
@@ -130,7 +134,7 @@ func _process(delta: float) -> void:
 				var v: Vector3 = crawler.global_position + Vector3(0, 0.4, 0) - p.cam.global_position
 				var pitch := atan2(v.y, Vector2(v.x, v.z).length())
 				p.head.rotation.x = lerpf(p.head.rotation.x, clampf(pitch, -0.6, 0.4), 1.0 - exp(-2.0 * delta))
-				p.peek = smoothstep(1.3, 3.0, t) * (1.0 - smoothstep(4.0, 5.1, t))
+				p.peek = side * smoothstep(1.3, 3.0, t) * (1.0 - smoothstep(4.0, 5.1, t))
 				if t > 1.3 and not held:
 					held = true
 					_breath(0, -30.0, 1.25)   # короткий тихий вдох — затаил дыхание
@@ -141,7 +145,7 @@ func _process(delta: float) -> void:
 				var out := smoothstep(0.0, 1.3, t) * (1.0 - smoothstep(SIDE_T, CUT_T - 0.05, t))
 				var head_pt: Vector3 = eye.origin
 				var look: Vector3 = head_pt.lerp(crawler.global_position + Vector3(0, 0.4, 0), 0.55)
-				var sh_pos: Vector3 = eye.origin + Basis(Vector3.UP, p.rotation.y) * SHOULDER
+				var sh_pos: Vector3 = eye.origin + Basis(Vector3.UP, p.rotation.y) * Vector3(SHOULDER.x * side, SHOULDER.y, SHOULDER.z)
 				var shoulder := Transform3D(Basis(), sh_pos).looking_at(look)
 				cut_cam.global_transform = eye.interpolate_with(shoulder, out)
 				p.set_head_visible(out > 0.2)   # голова видна, пока камера снаружи
@@ -222,6 +226,9 @@ func _aim(point: Vector3, k: float) -> void:
 
 func _begin_cut() -> void:
 	stage = "cut"
+	var px: float = game.player.global_position.x
+	side = -1.0 if px < DOOR.x else 1.0
+	peek_at = Vector3(DOOR.x + side * PEEK_DX, 0.0, PEEK_Z)
 	t = 0.0
 	_lock(true)
 	var e := Enemy.new()

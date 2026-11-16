@@ -316,7 +316,7 @@ func _glass(delta: float) -> void:
 	hud.bleed = bleed_t
 	var pp := player.global_position
 	var now := false
-	if alive and player.is_on_floor() and pp.y < 0.4:
+	if alive and player.active and player.is_on_floor() and pp.y < 0.4:   # в кат-сценах стекло не срабатывает (промпт 16.11 04:12)
 		for g in glass_floor.spots:
 			var c: Vector3 = g[0]
 			if Vector2(pp.x - c.x, pp.z - c.z).length() < float(g[1]) + 0.1:
