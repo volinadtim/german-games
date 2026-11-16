@@ -97,9 +97,10 @@ func _build_ui() -> void:
 	left.add_theme_constant_override("separation", 4)
 	body.add_child(left)
 	var group := ButtonGroup.new()
-	for i in TABS.size():
+	var names := tab_names()
+	for i in names.size():
 		var tb := Button.new()
-		tb.text = TABS[i]
+		tb.text = names[i]
 		tb.toggle_mode = true
 		tb.button_group = group
 		tb.button_pressed = i == tab
@@ -227,55 +228,66 @@ func _rebuild_tab() -> void:
 		content.remove_child(c)
 		c.queue_free()
 	_set_tip("")
-	match tab:
-		0:
+	var names := tab_names()
+	match String(names[tab]) if tab < names.size() else "":
+		"Оружие":
 			var grid := _grid()
 			for e in Weapons.SHOP:
 				var id: String = e[0]
 				if Items.ITEMS[id].get("weapon", false):
 					_item_cell(grid, id, int(e[1]))
-		1:
-			_sub_tabs()
+		"Одежда":
+			_sub_tabs(CLOTHES, sub, func(i: int): sub = i)
 			var grid := _grid()
 			for id in CLOTHES[sub][1]:
 				_item_cell(grid, String(id), _price(String(id)))
-		2:
+		"Расходники":
+			# подвкладки «Пропитание», «Медицина», «Починка» (промпт 16.11 02:57)
+			_sub_tabs(CONS_SUBS, sub_c, func(i: int): sub_c = i)
 			var grid := _grid()
-			for e in CONSUMABLES:
+			for id in CONS_SUBS[sub_c][1]:
 				# аптечки — только в магазине деревни (village_shop.gd), не в бункере (промпт 16.11 02:47)
-				if String(e[0]) == "medkit" and not "main_shop" in self:
+				if String(id) == "medkit" and not "main_shop" in self:
 					continue
-				if not String(e[0]) in CLOTHES[CLOTHES.size() - 1][1]:
-					_item_cell(grid, String(e[0]), int(e[1]))
-		3:
+				_item_cell(grid, String(id), _price(String(id)))
+		"Инструменты":
 			var grid := _grid()
 			for e in TOOLS:
 				_item_cell(grid, String(e[0]), _price(String(e[0])))
-		4:
+		"Патроны":
+			var grid := _grid()
+			for e in AMMO_SHOP:
+				_item_cell(grid, String(e[0]), int(e[1]))
+		"Магазины":
+			var grid := _grid()
+			for e in MAG_SHOP:
+				_item_cell(grid, String(e[0]), int(e[1]))
+		"Слот-Машина":
 			_build_slot_tab()
-		5:
+		"Чертежи":
 			_build_blueprint_tab()
 
 
-## Ряд подвкладок «Одежды» (внутри прокрутки, ширина ≤ 400 — окно не растёт).
-func _sub_tabs() -> void:
+## Ряд подвкладок (внутри прокрутки, ширина ≤ 400 — окно не растёт): list — [[название, товары], ...].
+func _sub_tabs(list: Array, cur: int, pick: Callable) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 3)
 	content.add_child(row)
 	var group := ButtonGroup.new()
-	for i in CLOTHES.size():
+	for i in list.size():
 		var b := Button.new()
-		b.text = CLOTHES[i][0]
+		b.text = list[i][0]
 		b.toggle_mode = true
 		b.button_group = group
-		b.button_pressed = i == sub
+		b.button_pressed = i == cur
 		b.focus_mode = Control.FOCUS_NONE
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.add_theme_font_size_override("font_size", 13)
 		b.pressed.connect(func():
-			sub = i
+			pick.call(i)
 			_rebuild_tab.call_deferred())
 		row.add_child(b)
+
 
 
 func _grid() -> GridContainer:

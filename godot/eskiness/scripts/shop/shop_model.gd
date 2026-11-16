@@ -17,6 +17,17 @@ var tab_btns: Array[Button] = []
 var content: VBoxContainer    # содержимое вкладки — пересобирается при переключении и покупке
 
 const TABS := ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"]
+## подвкладки «Расходников» во всех магазинах (промпт 16.11 02:57); цены — CONSUMABLES
+const CONS_SUBS := [
+	["Пропитание", ["rusk", "water", "soda", "choco", "canned"]],
+	["Медицина", ["pills", "bandage", "medkit"]],
+	["Починка", ["repair_weapon", "repair_gear", "battery"]],
+]
+var sub_c := 0                # открытая подвкладка «Расходников»
+## только магазин в подвале деревни (village_shop.gd): вкладки «Патроны» и «Магазины» после «Инструментов»
+const VILLAGE_TABS := ["Патроны", "Магазины"]
+const AMMO_SHOP := [["ammo", 3]]
+const MAG_SHOP := [["mag", 30]]   # магазин с 8 патронами
 ## «Инструменты» (промпт 16.11 02:42): фонарик, метла, нормальный молоток, топорик (рубит деревья на поляне — surface.gd)
 const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55]]
 ## расходники (промпт 14.11 17:21): [id, цена]. Батарейки и сухари — дёшево, хилки дороже.
@@ -317,10 +328,20 @@ static func _price(id: String) -> int:
 	for e in CONSUMABLES:
 		if e[0] == id:
 			return int(e[1])
-	for e in TOOLS:
+	for e in TOOLS + AMMO_SHOP + MAG_SHOP:
 		if e[0] == id:
 			return int(e[1])
 	return 0
+
+
+## Вкладки этого магазина: в деревне — ещё «Патроны» и «Магазины» после «Инструментов».
+func tab_names() -> Array:
+	var t: Array = TABS.duplicate()
+	if "main_shop" in self:
+		var at := t.find("Инструменты") + 1
+		for k in VILLAGE_TABS.size():
+			t.insert(at + k, VILLAGE_TABS[k])
+	return t
 
 
 ## «1 монета», «3 монеты», «5 монет».
