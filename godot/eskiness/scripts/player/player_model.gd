@@ -470,7 +470,7 @@ func _apply_bones() -> void:
 			# голый кулак (промпт 03:33) вывернут меньше — пальцами к другой руке; щит — как раньше
 			var fist_k := 0.6 if weapon_ids[arm] == "shield" else 0.22
 			var tw := deg_to_rad(90.0) * side * (0.1 + fist_k * fist_blend * armed_k) * (1.0 if e[4] else 0.5)
-			if arm == 0 and weapon_ids[0] == "knife":
+			if arm == 0 and weapon_ids[0] in ["knife", "shiv"]:
 				# нож в левой (промпт 04:48): кисть развёрнута тыльной стороной вверх — лезвие от мизинца лежит поверх предплечья, видно в кадре
 				tw = deg_to_rad(90.0) * side * (0.1 + 1.0 * fist_blend) * (1.0 if e[4] else 0.5)
 			bas = bas * Basis(Vector3.UP, tw)
@@ -486,9 +486,11 @@ func _apply_bones() -> void:
 			# в позе кулака поверх пальцев — при полном раскрытии он проходил сквозь них (его поза покоя — вдоль пальцев)
 			if not finger_thumb[n]:
 				b *= 1.0 - 0.35 * smoothstep(0.0, 1.0, charge_vis)
-		# поднятый пистолет — пальцы сжаты на рукояти
-		if n < finger_arm.size() and weapon_ids[finger_arm[n]] == "pistol":
-			b = maxf(b, clampf(gun_hip_w + gun_ads_w, 0.0, 1.0))
+		# с оружием (промпт 04:49) пальцы всегда обхватывают рукоять по её толщине — не кулак насквозь;
+		# большой палец заходит чуть сильнее — сверху/сбоку
+		if n < finger_arm.size() and weapon_ids[finger_arm[n]] != "":
+			var gk: float = GRIP_CURL.get(weapon_ids[finger_arm[n]], 0.7)
+			b = minf(gk + 0.1, 1.0) if finger_thumb[n] else gk
 		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], b))
 	_flex_weapons()
 
@@ -608,7 +610,7 @@ func _grip(arm: int, id: String) -> Transform3D:
 		n = -n                                         # сторона ладони (туда сгибаются пальцы)
 	var c := (idx + pnk) * 0.5 - knuck * 0.016 + n * 0.016 - Vector3(0, 0.08, 0)
 	var d2 := (across * cos(GRIP_TILT) + knuck * sin(GRIP_TILT) - n * GRIP_OUT).normalized()
-	if id == "knife" and arm == 0:
+	if id in ["knife", "shiv"] and arm == 0:
 		# левая рука (промпт 04:40): обратный (тактический) хват — лезвие выходит у мизинца и идёт вниз вдоль предплечья
 		d2 = (-across * 0.5 - knuck * 0.7 - n * 0.5).normalized()   # 04:48: и от ладони — поверх кисти, в кадр
 	var xw := (knuck - d2 * knuck.dot(d2)).normalized()   # лезвие ребром к костяшкам — по направлению удара

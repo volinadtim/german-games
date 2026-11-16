@@ -273,10 +273,10 @@ func _weapon_swing(i: int, wid: String) -> void:
 	var group := "heavy"
 	if wid in ["machete", "knife", "shield"]:
 		group = wid
-		if wid == "knife" and i == 0:
+		if wid in ["knife", "shiv"] and i == 0:
 			group = "knife_rev"   # левая — обратный хват, свой мах
 	elif wid == "shiv":
-		group = "knife"
+		group = "knife_rev" if i == 0 else "knife"   # заточка — как нож (промпт 04:49), в левой — обратный хват
 	elif wid == "pistol":
 		group = "pistol"
 	elif wid == "stone":
@@ -399,7 +399,7 @@ func _check_hit(arm: int, _kind := "straight") -> void:
 			if not armed and hit.collider is StaticBody3D and str(hit.collider.get("kind")) == "crate":
 				dmg *= 0.45
 			# нож в левой (обратный хват, промпт 04:40): 25% — крит ×1.5, плашка «КРИТ» рядом с цифрой урона
-			if wid == "knife" and arm == 0 and randf() < 0.25 and _breakable(hit.collider):
+			if wid in ["knife", "shiv"] and arm == 0 and randf() < 0.25 and _breakable(hit.collider):
 				dmg *= 1.5
 				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.35, 0) + cam.global_transform.basis.x * 0.22,
 						"КРИТ", Color(1.0, 0.3, 0.2), 0.7)
