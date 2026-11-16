@@ -559,7 +559,18 @@ func _build_ui() -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
 	hb.add_child(vb)
-	vb.add_child(_label("ИНВЕНТАРЬ", 34, Color(0.86, 0.85, 0.8)))
+	# заголовок: «ИНВЕНТАРЬ» и рядом кнопка «Крафт» (промпт 04:07) — выкатывает панель крафта, повторно прячет
+	var title := HBoxContainer.new()
+	title.add_theme_constant_override("separation", 18)
+	vb.add_child(title)
+	title.add_child(_label("ИНВЕНТАРЬ", 34, Color(0.86, 0.85, 0.8)))
+	craft_tab = Button.new()
+	craft_tab.text = "Крафт ▸"
+	craft_tab.focus_mode = Control.FOCUS_NONE
+	craft_tab.add_theme_font_size_override("font_size", 22)
+	craft_tab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	craft_tab.pressed.connect(toggle_craft)
+	title.add_child(craft_tab)
 	var mainc := VBoxContainer.new()
 	mainc.add_theme_constant_override("separation", 4)
 	vb.add_child(mainc)
@@ -629,20 +640,6 @@ Shift+ПКМ — выбросить 1 (держать — всю стопку)
 	hint.custom_minimum_size.x = COLS * CELL
 	vb.add_child(hint)
 
-	# вкладка «Крафт» у правого края (промпт 03:56): по нажатию рядом выкатывается панель крафта, повторно — прячется
-	craft_tab = Button.new()
-	craft_tab.text = "К
-р
-а
-ф
-т
-▸"
-	craft_tab.focus_mode = Control.FOCUS_NONE
-	craft_tab.add_theme_font_size_override("font_size", 20)
-	craft_tab.custom_minimum_size = Vector2(40, 200)
-	craft_tab.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	craft_tab.pressed.connect(toggle_craft)
-	hb.add_child(craft_tab)
 	# обёртка обрезает панель: её ширина плавно растёт от 0 (выкатывание)
 	craft_wrap = Control.new()
 	craft_wrap.clip_contents = true
@@ -1387,12 +1384,7 @@ func toggle_craft() -> void:
 
 func set_craft(on: bool, instant := false) -> void:
 	craft_shown = on
-	craft_tab.text = "К
-р
-а
-ф
-т
-" + ("◂" if on else "▸")
+	craft_tab.text = "Крафт " + ("◂" if on else "▸")
 	if craft_tw:
 		craft_tw.kill()
 	var sz := craft_panel.get_combined_minimum_size()
