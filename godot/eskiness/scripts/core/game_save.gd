@@ -197,6 +197,8 @@ func load_state(d: Dictionary) -> void:
 			var e: Array = [String(it[0]), int(it[1])]
 			if it.size() > 2:
 				e.append(float(it[2]))
+			if it.size() > 4:   # ячейка и поворот в сетке сундука (loot_window, промпт 16.11 05:05)
+				e.append_array([int(it[3]), bool(it[4])])
 			storage.contents.append(e)
 	play_time = float(d.get("play_time", 0.0))
 	# вступление: сохранились посреди него — монстрика уже нет, поэтому автомат всё равно включаем
