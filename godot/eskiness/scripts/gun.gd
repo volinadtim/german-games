@@ -188,7 +188,7 @@ func _process(delta: float) -> void:
 		return
 	var p = game.player
 	var can: bool = armed() and game.alive and p != null and p.active and not game.inv.open \
-			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not p.fists   # в стойке — только удары (05:24)
 	if not can:
 		ads = false
 		hip = false

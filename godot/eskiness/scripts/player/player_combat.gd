@@ -76,7 +76,8 @@ func charge_frac() -> float:
 ## следующее нажатие, уже в стойке, копит заряд.
 func charge_begin(arm: int) -> void:
 	var whip := false
-	if gun and _has_pistol() and active:
+	# в боевой стойке (промпт 05:24) пистолет не стреляет и не целится — ЛКМ/ПКМ бьют, как обычным оружием
+	if gun and _has_pistol() and active and not fists:
 		if arm == 1:
 			gun.rmb_input(true)   # ПКМ: держать — от бедра, клик — прицел (gun.gd)
 			return
@@ -122,7 +123,7 @@ func charge_release(arm: int) -> void:
 		gun.rmb_input(false)
 	if arm == 1 and stone_throw:
 		stone_throw.rmb_input(false)
-	if _has_pistol() or _has_stone() or _whip_lmb:
+	if (_has_pistol() and not fists) or _has_stone() or _whip_lmb:
 		if arm == 1 or not _whip_lmb:
 			return
 		_whip_lmb = false

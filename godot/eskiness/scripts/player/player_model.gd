@@ -336,6 +336,7 @@ func _build_fist_pose(s: String) -> void:
 			var fist_q := rest_q * Quaternion(axis, deg_to_rad(FIST[k] + (4.0 if f == "pinky" else 0.0)))
 			finger_bones.append([b, rest_q * Quaternion(axis, deg_to_rad(RELAX[k])), fist_q])
 			finger_thumb.append(false)
+			finger_index.append(f == "index")
 			fist_of[b] = fist_q
 	# где окажутся средние фаланги в кулаке: цепочка от покоя кисти с поворотами кулака
 	var gp := func(n2: String) -> Vector3:
@@ -366,6 +367,7 @@ func _build_fist_pose(s: String) -> void:
 	var fist1 := rest1 * (g1.inverse() * aim * g1).get_rotation_quaternion()
 	finger_bones.append([t1, rest1.slerp(fist1, 0.15), fist1])
 	finger_thumb.append(true)
+	finger_index.append(false)
 	for k in [2, 3]:
 		var b := skel.find_bone("thumb%02d%s" % [k, s])
 		if b == -1:
@@ -376,6 +378,7 @@ func _build_fist_pose(s: String) -> void:
 		var rest_q := skel.get_bone_rest(b).basis.get_rotation_quaternion()
 		finger_bones.append([b, rest_q * Quaternion(axis, deg_to_rad(8.0)), rest_q * Quaternion(axis, deg_to_rad(THUMB_CURL[k]))])
 		finger_thumb.append(true)
+		finger_index.append(false)
 
 
 ## Кости модели повторяют повороты узлов-драйверов + выпад плеча, поворот корпуса, кулак.
@@ -491,6 +494,8 @@ func _apply_bones() -> void:
 		if n < finger_arm.size() and weapon_ids[finger_arm[n]] != "":
 			var gk: float = GRIP_CURL.get(weapon_ids[finger_arm[n]], 0.7)
 			b = minf(gk + 0.1, 1.0) if finger_thumb[n] else gk
+			if weapon_ids[finger_arm[n]] == "pistol" and n < finger_index.size() and finger_index[n]:
+				b = 0.42   # указательный — вдоль спуска, не в кулаке
 		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], b))
 	_flex_weapons()
 
@@ -606,8 +611,17 @@ func _grip(arm: int, id: String) -> Transform3D:
 	var across := (idx - pnk).normalized()            # к указательному — туда выходит оружие
 	var knuck := (mid - across * mid.dot(across)).normalized()
 	var n := across.cross(knuck).normalized()
-	if n.z < 0.0:
-		n = -n                                         # сторона ладони (туда сгибаются пальцы)
+	# сторона ладони (туда сгибаются пальцы) — как в _build_fist_pose (там она проверена для обеих рук):
+	# раньше бралась по знаку z, и у левой руки могла оказаться тыльной — рукоять уходила сквозь пальцы (промпт 05:23)
+	var gr_i := skel.get_bone_global_rest(skel.find_bone("index01" + s)).origin
+	var gr_p := skel.get_bone_global_rest(skel.find_bone("pinky01" + s)).origin
+	var gr_m := skel.get_bone_global_rest(skel.find_bone("middle01" + s)).origin
+	var palm_g := (gr_i - gr_p).normalized().cross((gr_m - hr.origin).normalized())
+	if s == "_L":
+		palm_g = -palm_g
+	var palm_l := (hr.basis.inverse() * palm_g).normalized()
+	if n.dot(palm_l) < 0.0:
+		n = -n
 	var c := (idx + pnk) * 0.5 - knuck * 0.016 + n * 0.016 - Vector3(0, 0.08, 0)
 	var d2 := (across * cos(GRIP_TILT) + knuck * sin(GRIP_TILT) - n * GRIP_OUT).normalized()
 	if id in ["knife", "shiv"] and arm == 0:

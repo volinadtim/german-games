@@ -192,6 +192,7 @@ var bone_map: Array = []          # [кость, узел-драйвер, опо
 var finger_bones: Array = []      # [кость, поворот расслабленной кисти, поворот в кулаке]
 var finger_arm: Array[int] = []   # чья это кость пальца: 0 — левая рука, 1 — правая
 var finger_thumb: Array[bool] = [] # это кость большого пальца
+var finger_index: Array[bool] = [] # кость указательного (у пистолета — вдоль спуска)
 var spine_bone := -1
 var clav_bones: Array[int] = [-1, -1]
 var hands: Array[Node3D] = []     # драйверы кистей

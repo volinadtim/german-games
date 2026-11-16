@@ -274,7 +274,7 @@ func _gun_pose(delta: float) -> void:
 			var side := -1.0 if i == 0 else 1.0
 			var gn = weapon_nodes[main]
 			if gn != null and is_instance_valid(gn) and (gn as Node3D).is_inside_tree():
-				var gp := to_local((gn as Node3D).global_transform * Vector3(-0.005, 0.015, side * 0.035)) - cb.y * 0.015
+				var gp := to_local((gn as Node3D).global_transform * Vector3(-0.01, -0.01, side * 0.06)) - cb.y * 0.035   # 05:23: сбоку-снизу, не внутри стреляющей кисти
 				_arm_ik(i, gp - _fist_off(i), sh, torso_inv, gun_ads_w)
 	if gun_rel_w > 0.0:
 		_reload_pose(eye, cb, torso_inv)
