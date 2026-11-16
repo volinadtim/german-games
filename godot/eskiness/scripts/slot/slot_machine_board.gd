@@ -192,22 +192,24 @@ func _update_screen_hint() -> void:
 
 # ---------- табличка баффов (промпт 16.11 04:32) ----------
 
-## Табличка на стене между автоматом и магазином (магазин — слева, локальный x < 0).
+## Табличка на правой боковой стенке магазина (промпт 16.11 04:38). Магазин стоит в main.gd
+## на SLOT_POS + (1.95, 0, 0), в локальных координатах автомата — x −1.95, его бок (W/2 = 0.5) — x −1.45.
 func _build_buff_panel() -> void:
 	var p := Node3D.new()
-	p.position = Vector3(-1.2, 1.55, -0.3)
+	p.position = Vector3(-1.425, 1.4, 0.0)
+	p.rotation.y = PI / 2.0   # лицом к автомату — к тому, кто подходит к магазину сбоку
 	add_child(p)
 	var frame := _worn(Color(0.62, 0.5, 0.26), true, 0.0, 0.6, 0.5)
 	var back := _worn(Color(0.06, 0.05, 0.04), false, 0.2, 0.4, 0.5)
-	var w := 0.78
-	var h := 0.9
+	var w := 0.62
+	var h := 0.85
 	_box(p, Vector3(w, h, 0.03), Vector3(0, 0, -0.012), back)
 	for sy in [-1.0, 1.0]:
 		_box(p, Vector3(w + 0.03, 0.03, 0.04), Vector3(0, h / 2.0 * sy, 0), frame)
 	for sx in [-1.0, 1.0]:
 		_box(p, Vector3(0.03, h + 0.03, 0.04), Vector3(w / 2.0 * sx, 0, 0), frame)
 	var l := Label3D.new()
-	l.font_size = 36
+	l.font_size = 30
 	l.pixel_size = 0.0011
 	l.outline_size = 6
 	l.modulate = Color(1.0, 0.8, 0.35)
