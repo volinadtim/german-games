@@ -1355,7 +1355,9 @@ func open_menu(key, at: Vector2) -> void:
 		var n := int(s["n"])
 		title = Items.item_name(id) + ("  ×%d" % n if n > 1 else "")
 		var ul := _use_label(id)
-		if ul != "":
+		if Items.equip_slot(id) == "hand":
+			acts.append(["Л|П", "hands"])   # «Взять в руку» — две кнопки в строку: левая / правая (промпт 05:54)
+		elif ul != "":
 			acts.append([ul, "use"])
 		if id == "pistol" and Gun.has_mag(get_dur(key)):
 			acts.append(["Извлечь магазин", "eject"])
@@ -1374,6 +1376,21 @@ func open_menu(key, at: Vector2) -> void:
 	menu_box.add_child(tl)
 	# пункта «На хотбар» нет (промпт 14.11 19:20) — на хотбар только перетаскиванием
 	for a in acts:
+		if a[1] == "hands":
+			var hr := HBoxContainer.new()
+			hr.add_theme_constant_override("separation", 4)
+			hr.add_child(_label("В руку:", 16, Color(0.8, 0.78, 0.7)))
+			for h in [["Л", "left"], ["П", "right"]]:
+				var hb2 := Button.new()
+				hb2.text = h[0]
+				hb2.focus_mode = Control.FOCUS_NONE
+				hb2.custom_minimum_size = Vector2(52, 32)
+				hb2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				hb2.add_theme_font_size_override("font_size", 18)
+				hb2.pressed.connect(_menu_pick.bind(key, "hand_" + String(h[1])))
+				hr.add_child(hb2)
+			menu_box.add_child(hr)
+			continue
 		var b := Button.new()
 		b.text = a[0]
 		b.flat = true
@@ -1409,6 +1426,10 @@ func _menu_pick(key, act: String) -> void:
 		"use":
 			if key is int and slots[key] != null:
 				use_requested.emit(key)
+		"hand_left", "hand_right":
+			# в выбранную руку; занята — старое уходит в сумку на место нового (game.equip)
+			if key is int and slots[key] != null:
+				equip_requested.emit(key, act.substr(5))
 		"split":
 			split(key)
 		"eject":
