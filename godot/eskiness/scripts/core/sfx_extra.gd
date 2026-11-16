@@ -43,22 +43,13 @@ const CREAK_SOUNDS: Array[AudioStream] = [
 static func creak(variant: int) -> AudioStream:
 	return CREAK_SOUNDS[abs(variant) % CREAK_SOUNDS.size()]
 	
-static func creak_close(variant: int) -> AudioStreamWAV:
-	var src := CREAK_SOUNDS[abs(variant) % CREAK_SOUNDS.size()] as AudioStreamWAV
-	var rev := AudioStreamWAV.new()
-	rev.format = src.format
-	rev.mix_rate = src.mix_rate
-	rev.stereo = src.stereo
-	var src_data := src.data
-	var step := (4 if src.stereo else 2) if src.format == AudioStreamWAV.FORMAT_16_BITS else (2 if src.stereo else 1)
-	var rev_data := PackedByteArray()
-	rev_data.resize(src_data.size())
-	var total := src_data.size()
-	for i in range(0, total, step):
-		for b in step:
-			rev_data[total - step - i + b] = src_data[i + b]
-	rev.data = rev_data
-	return rev
+## Закрытие крышки — тот же скрип открытия, проигранный задом наперёд (готовый файл:
+## импортированный WAV сжат QOA, побайтово его не развернуть).
+const CREAK_CLOSE_SOUNDS: Array[AudioStream] = [
+	preload("res://assets/sounds/creak_1_rev.wav"),
+]
+static func creak_close(variant: int) -> AudioStream:
+	return CREAK_CLOSE_SOUNDS[abs(variant) % CREAK_CLOSE_SOUNDS.size()]
 
 
 ## Щелчок кнопки фонарика.
