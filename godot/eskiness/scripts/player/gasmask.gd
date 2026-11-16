@@ -32,6 +32,10 @@ var voice: AudioStreamPlayer
 var breaths: Array = []
 var breath_lp: AudioEffectLowPassFilter   # тембр дыхания меняется от вдоха к вдоху (шина «MaskBreath»)
 var breath_eq: AudioEffectEQ6
+var cough_p: AudioStreamPlayer   # кашель от отравленного воздуха (промпт 04:26)
+var coughs: Array = []
+var cough_t := 1.5
+var cough_left := 0            # сколько покашливаний осталось в текущем приступе
 
 
 func _ready() -> void:
@@ -58,6 +62,10 @@ func _ready() -> void:
 	add_child(voice)
 	var Sfx := preload("res://scripts/core/sfx.gd")
 	breaths = [Sfx.inhale(), Sfx.inhale(true)]
+	cough_p = AudioStreamPlayer.new()
+	add_child(cough_p)
+	for v in 4:
+		coughs.append(_cough_sound(v))
 	_breath_bus()
 	if not InputMap.has_action("gasmask"):
 		InputMap.add_action("gasmask")
@@ -300,6 +308,7 @@ func _process(delta: float) -> void:
 			voice.play()
 			if exhale:
 				breath = randf_range(0.7, 1.0)
+	_cough_tick(delta, out and not protected and visible and game.alive)
 	mat.set_shader_parameter("breath", breath)
 	mat.set_shader_parameter("put", put)
 	mat.set_shader_parameter("fog", fog)
@@ -405,3 +414,56 @@ func _status(out: bool, protected: bool) -> void:
 		status_l.modulate.a = minf(status_l.modulate.a + get_process_delta_time() * 3.0, 1.0)
 	else:
 		status_l.text = ""
+
+
+## Кашель (промпт 04:26): задыхаешься (наверху без Нюхича или кончился фильтр) — тихие приглушённые
+## покашливания приступами по 1–3, с паузами и разной высотой; чем сильнее отравление, тем чаще.
+func _cough_tick(delta: float, choking: bool) -> void:
+	if not choking or tox < 0.12:
+		cough_left = 0
+		cough_t = maxf(cough_t, randf_range(0.8, 1.6))
+		return
+	cough_t -= delta
+	if cough_t > 0.0:
+		return
+	if cough_left <= 0:
+		cough_left = 1 + int(randf() < 0.6) + int(randf() < 0.3 * tox)
+	cough_left -= 1
+	cough_p.stream = coughs[randi() % coughs.size()]
+	cough_p.volume_db = randf_range(-27.0, -22.0) + (2.0 if worn else 0.0)
+	cough_p.pitch_scale = randf_range(0.88, 1.1)
+	cough_p.play()
+	if cough_left > 0:
+		cough_t = randf_range(0.2, 0.34)
+	else:
+		cough_t = lerpf(7.0, 3.2, tox) * randf_range(0.75, 1.35)
+
+
+## Одно покашливание: короткий шумовой толчок через «горло» (две форманты) + низкий хрип голоса,
+## всё срезано по верхам — звук глухой, будто в кулак.
+static func _cough_sound(variant: int) -> AudioStreamWAV:
+	var Sfx := preload("res://scripts/core/sfx.gd")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4260 + variant
+	var dur := rng.randf_range(0.2, 0.3)
+	var n := int(Sfx.RATE * dur)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var f1 := Sfx.Svf.new(rng.randf_range(380.0, 520.0), 1.6)
+	var f2 := Sfx.Svf.new(rng.randf_range(1100.0, 1500.0), 1.4)
+	var f0 := rng.randf_range(110.0, 150.0)
+	var ph := 0.0
+	var lp1 := 0.0
+	var lp2 := 0.0
+	for i in n:
+		var t := float(i) / Sfx.RATE
+		var w := rng.randf() * 2.0 - 1.0
+		# резкий взрыв и спад, в конце — короткий хвост-выдох
+		var env := smoothstep(0.0, 0.012, t) * (exp(-t * 18.0) * 0.85 + 0.15 * (1.0 - smoothstep(0.0, dur, t)))
+		ph += (f0 * (1.0 - 0.25 * t / dur)) / Sfx.RATE
+		var buzz := (fmod(ph, 1.0) * 2.0 - 1.0) * exp(-t * 22.0)
+		var v := f1.bp(w) * 0.9 + f2.bp(w) * 0.35 + buzz * 0.25
+		lp1 += (v - lp1) * 0.22     # приглушаем верха
+		lp2 += (lp1 - lp2) * 0.22
+		buf[i] = lp2 * env
+	return Sfx._wav(buf, 0.5)

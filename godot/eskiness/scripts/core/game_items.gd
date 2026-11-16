@@ -107,9 +107,7 @@ func damage_player(amount: float, from: Vector3) -> void:
 	var push := player.global_position - from
 	push.y = 0.0
 	player.velocity += push.normalized() * 4.5 + Vector3(0, 2.0, 0)
-	var tw := create_tween()
-	tw.tween_property(player.cam, "rotation:z", randf_range(-0.07, 0.07), 0.05)
-	tw.tween_property(player.cam, "rotation:z", 0.0, 0.25)
+	player.aim_punch(amount)   # толчок камеры и прицела (player_combat.gd)
 	play_ui("hurt", -9.0, 0.75)
 	if hp <= 0.0:
 		_die()

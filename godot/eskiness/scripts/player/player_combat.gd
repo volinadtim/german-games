@@ -422,3 +422,24 @@ func _hit_scan(from: Vector3, reach_len: float) -> Dictionary:
 		elif k == 0:
 			wall = h   # стена/пол — только если прямо по центру
 	return best if not best.is_empty() else wall
+
+
+## Aim punch (промпт 04:26): получил удар — камера резко дёргается (питч вверх + случайный yaw/roll),
+## сила от урона; толчок гаснет ~0.25 с, а небольшая часть остаётся в прицеле — он реально сбивается.
+func aim_punch(dmg: float) -> void:
+	var k := clampf(dmg / 25.0, 0.25, 1.4)
+	aim_kick += Vector3(randf_range(0.06, 0.09) * k, randf_range(-0.05, 0.05) * k, randf_range(-0.07, 0.07) * k)
+	# остаток: прицел смещается и не возвращается сам
+	head.rotation.x = clampf(head.rotation.x + randf_range(0.012, 0.025) * k, -1.5, 1.4)
+	rotate_y(randf_range(-0.015, 0.015) * k)
+
+
+## Толчок прибавляется к повороту камеры приращением — не мешает кат-сценам, которые сами ставят cam.rotation.
+func _aim_kick_tick(delta: float) -> void:
+	if cam == null or (aim_kick == Vector3.ZERO and aim_kick_applied == Vector3.ZERO):
+		return
+	aim_kick *= exp(-delta * 16.0)
+	if aim_kick.length() < 0.0005:
+		aim_kick = Vector3.ZERO
+	cam.rotation += aim_kick - aim_kick_applied
+	aim_kick_applied = aim_kick

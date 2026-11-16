@@ -26,6 +26,8 @@ var inv  # inventory.gd — для хотбара 1–5
 var bleed := 0.0          # сколько ещё течёт кровь (game.gd: _glass)
 var buffs := {}           # активные баффы (game.gd: buffs)
 var hurt := 0.0
+var hit_edge := 0.0        # короткое покраснение по краям от удара (промпт 04:26)
+var hit_vig: TextureRect
 var t := 0.0
 
 var paint: Control
@@ -65,6 +67,25 @@ func _ready() -> void:
 	vignette.texture = gt
 	vignette.modulate.a = 0.0
 	root.add_child(vignette)
+	# покраснение краёв от удара: узкая яркая кайма, гаснет за ~0.3 с
+	hit_vig = TextureRect.new()
+	hit_vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hit_vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hit_vig.stretch_mode = TextureRect.STRETCH_SCALE
+	var hg := Gradient.new()
+	hg.set_color(0, Color(0.8, 0.0, 0.0, 0.0))
+	hg.set_offset(0, 0.68)
+	hg.set_color(1, Color(0.85, 0.04, 0.02, 0.75))
+	var hgt := GradientTexture2D.new()
+	hgt.gradient = hg
+	hgt.fill = GradientTexture2D.FILL_RADIAL
+	hgt.fill_from = Vector2(0.5, 0.5)
+	hgt.fill_to = Vector2(1.0, 0.5)
+	hgt.width = 256
+	hgt.height = 256
+	hit_vig.texture = hgt
+	hit_vig.modulate.a = 0.0
+	root.add_child(hit_vig)
 
 	paint = Control.new()
 	paint.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -163,6 +184,8 @@ func _process(delta: float) -> void:
 	if hp < hp_max * 0.3 and hp > 0.0:
 		low = (0.25 + 0.15 * sin(t * 4.0)) * (1.0 - hp / (hp_max * 0.3))
 	vignette.modulate.a = maxf(hurt, low)
+	hit_edge = move_toward(hit_edge, 0.0, delta * 3.2)
+	hit_vig.modulate.a = hit_edge * hit_edge
 	paint.queue_redraw()
 
 
@@ -191,6 +214,7 @@ func prompt(text: String) -> void:
 
 func hurt_flash(amount := 0.75) -> void:
 	hurt = maxf(hurt, amount)
+	hit_edge = maxf(hit_edge, clampf(amount * 1.2, 0.5, 1.0))
 
 
 func toast(text: String, col := Color(0.88, 0.86, 0.8), important = null) -> void:

@@ -129,6 +129,7 @@ func _process(delta: float) -> void:
 	if charge_ui == null and not puppet:
 		_make_charge_ui()
 	_charge_tick(delta)
+	_aim_kick_tick(delta)
 	if trail_mesh.is_empty():
 		_make_trails()
 	for i in 2:
