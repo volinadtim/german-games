@@ -39,7 +39,7 @@ const GUARDS: Array[Vector4] = [Vector4(66, 18, 30, 56), Vector4(50, 16, 32, 72)
 # доля сгиба кулака, когда пальцы обхватывают рукоять (толще рукоять — меньше): промпт 04:49
 const GRIP_CURL := {"bat": 0.6, "spiked_club": 0.58, "pipe": 0.68, "crowbar": 0.72, "machete": 0.74, "hammer": 0.68,
 		"knife": 0.7, "shiv": 0.76, "pistol": 0.78, "stone": 0.5, "shield": 0.8}
-const KNIFE_REV_ADD := Vector4(18, 14, -10, 10)   # добавка к стойке левой с ножом (обратный хват): выше и к центру
+const KNIFE_REV_ADD := Vector4(8, 14, -10, 10)   # добавка к стойке левой с ножом (обратный хват): к центру; 04:52 — ниже
 var knife_rev_w := 0.0
 const PUNCHES := {
 	"straight": [Vector4(55, 14, 2, 80), Vector4(100, 6, 0, 4)],
