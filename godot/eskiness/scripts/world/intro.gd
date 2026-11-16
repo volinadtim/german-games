@@ -14,6 +14,7 @@ const WAKE_POS := Vector3(-11.25, 0.05, -4.3)   # у западной стены
 
 const DOOR := Vector3(-6.0, 0.0, -1.6)          # проём из северо-западной комнаты в коридор
 const TRIGGER_R := 2.3                          # «почти подошёл к выходу»
+const TRIGGER_X := -5.0                         # граница участка у проёма (вместо невидимой стены, промпт 16.11 04:50)
 const CRAWL_FROM := Vector3(-10.8, 0.0, 1.15)   # глубже в конце коридора, у южной стенки (промпт 16.11 04:47)    # из-за угла коридора; заворачивает в комнату KILLBOX (промпт 16.11 03:49)
 # камера выскальзывает из глаз назад-влево, за плечо, и смотрит, как персонаж выглядывает из-за косяка (промпт 16.11 03:59)
 # (промпт 16.11 04:04) осторожно: прижался к стене сбоку от проёма, присел, медленно выглядывает головой
@@ -72,7 +73,6 @@ func start() -> void:
 	layer.add_child(fade)
 	_decor()
 	_spawn_crawler()
-	_barrier(true)
 	echo_snd = _slot_echo()
 	game.intro_done = false
 	game.shop_on = false
@@ -127,7 +127,8 @@ func _process(delta: float) -> void:
 				stage = "free"
 		"free":
 			var pp: Vector3 = p.global_position
-			if Vector2(pp.x - DOOR.x, pp.z - DOOR.z).length() < TRIGGER_R or pp.z > DOOR.z:
+			# (04:50) подошёл к проёму или перешёл в восточную половину комнаты (x > -5) — сразу кат-сцена
+			if Vector2(pp.x - DOOR.x, pp.z - DOOR.z).length() < TRIGGER_R or pp.z > DOOR.z or pp.x > TRIGGER_X:
 				_begin_cut()
 		"cut":
 			if is_instance_valid(crawler):
@@ -159,7 +160,6 @@ func _process(delta: float) -> void:
 				_end_side_cam()
 				_lock(false)
 				_show_hint()
-				_barrier(false)
 				if is_instance_valid(crawler):
 					crawler.set("calm", false)
 				stage = "hunt"
@@ -236,7 +236,7 @@ func _aim(point: Vector3, k: float) -> void:
 func _begin_cut() -> void:
 	stage = "cut"
 	var px: float = game.player.global_position.x
-	side = -1.0 if px < DOOR.x + 0.5 else 1.0   # за барьером (x > -5) игрок быть не может
+	side = -1.0 if px < DOOR.x else 1.0   # к ближнему косяку, проём не пересекает
 	peek_at = Vector3(DOOR.x + side * PEEK_DX, 0.0, PEEK_Z)
 	t = 0.0
 	_lock(true)
@@ -345,31 +345,8 @@ func _on_crawler_died(_e) -> void:
 		t = 0.0
 
 
-## Невидимая стена (промпт 16.11 04:47): до конца кат-сцены игрок не уходит в восточную половину комнаты.
-var wall: StaticBody3D
-
-
-func _barrier(on: bool) -> void:
-	if not on:
-		if is_instance_valid(wall):
-			wall.queue_free()
-		wall = null
-		return
-	wall = StaticBody3D.new()
-	wall.collision_layer = 1
-	wall.collision_mask = 0
-	var cs := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(0.2, 3.2, 7.4)
-	cs.shape = box
-	wall.add_child(cs)
-	wall.position = Vector3(-4.95, 1.6, -5.4)   # от северной стены (z −9) до стены с проёмом (z −1.75)
-	game.add_child(wall)
-
-
 func _finish() -> void:
 	_end_side_cam()
-	_barrier(false)
 	if is_instance_valid(crawler):
 		crawler.set("calm", false)
 	if game and not game.intro_done:
