@@ -305,6 +305,38 @@ func equip(idx: int, slot_: String) -> void:
 	play_ui("click", -10.0, 0.8)
 
 
+## Колесо мыши (промпт 04:53): левая ↔ правая. Обе руки уходят вниз, в нижней точке оружие меняется местами
+## (прочность и магазин пистолета — вместе с ним), руки поднимаются. Кулдаун — пока идёт анимация.
+func swap_hands() -> void:
+	if player == null or not alive or not player.active or player.swap_t > 0.0 or player.carrying 			or player.punching or player.charging >= 0:
+		return
+	if inv.equip["left"] == "" and inv.equip["right"] == "":
+		return
+	if gun and gun.armed() and (gun.reloading or gun.rmb or gun.ads or gun.hip or gun.aiming):
+		return   # прицел / перезарядку не сбиваем
+	player.start_swap(_do_swap_hands)
+	play_ui("click", -14.0, 0.6)
+
+
+func _do_swap_hands() -> void:
+	var l: String = inv.equip["left"]
+	var r: String = inv.equip["right"]
+	var dl = inv.equip_dur.get("left")
+	var dr = inv.equip_dur.get("right")
+	inv.equip["left"] = r
+	inv.equip["right"] = l
+	inv.equip_dur.erase("left")
+	inv.equip_dur.erase("right")
+	if r != "" and dr != null:
+		inv.equip_dur["left"] = dr
+	if l != "" and dl != null:
+		inv.equip_dur["right"] = dl
+	player.set_weapon(r, 0)
+	player.set_weapon(l, 1)
+	inv.notify()
+	play_ui("click", -12.0, 0.75)
+
+
 ## Снять в ячейку to (или в первую свободную). false — некуда.
 func unequip(slot_: String, to := -1) -> bool:
 	var id: String = inv.equip[slot_]

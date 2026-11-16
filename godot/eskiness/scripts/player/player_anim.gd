@@ -196,6 +196,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	_cam_wall_pullback()
 	var want_fov: float = fov_base * (gun.fov_mult() if gun else 1.0) + (7.0 if sprinting else 0.0)   # прицел — gun.gd
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
+	_swap_pose(delta)
 	_apply_bones()
 	if puppet:
 		_puppet_gun_aim()
@@ -637,3 +638,41 @@ func _puppet_tick(delta: float) -> void:
 	_update_crouch(delta)
 	var hv := Vector3(net_vel.x, 0, net_vel.z)
 	_animate(delta, global_transform.basis.inverse() * hv, net_sprint)
+
+
+# ---------- смена рук колесом (промпт 04:53) ----------
+const SWAP_DUR := 0.36
+var swap_t := 0.0          # >0 — идёт смена: сколько осталось
+var _swap_cb := Callable()  # что сделать в нижней точке (game.gd меняет оружие местами)
+
+## Начать: обе руки уходят вниз из кадра, в нижней точке вызывается cb, руки поднимаются. false — уже идёт.
+func start_swap(cb: Callable) -> bool:
+	if swap_t > 0.0:
+		return false
+	swap_t = SWAP_DUR
+	_swap_cb = cb
+	return true
+
+
+func _swap_pose(delta: float) -> void:
+	if swap_t <= 0.0:
+		return
+	swap_t = maxf(swap_t - delta, 0.0)
+	var k := 1.0 - swap_t / SWAP_DUR
+	if k >= 0.5 and _swap_cb.is_valid():
+		var cb := _swap_cb
+		_swap_cb = Callable()
+		cb.call()
+	if hands.size() < 2 or skel == null:
+		return
+	var w := smoothstep(0.0, 1.0, 1.0 - absf(k * 2.0 - 1.0) * 1.15)   # в середине — руки полностью внизу
+	if w <= 0.0:
+		return
+	var cb := (global_transform.affine_inverse() * cam.global_transform).basis.orthonormalized()
+	var tinv := Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw)).inverse()
+	for i in 2:
+		var side := -1.0 if i == 0 else 1.0
+		var sh := _shoulder_pos(i)
+		# вниз по взгляду и чуть назад — из кадра при любом наклоне головы
+		var t := sh - cb.y * 0.62 + cb.z * 0.18 + cb.x * side * 0.06
+		_arm_ik(i, t, sh, tinv, w)

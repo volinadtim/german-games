@@ -87,6 +87,7 @@ const CONTROLS := [
 	["loot_all", "Забрать всё", ["k:82"]],         # R
 	["reload", "Перезарядка", ["k:82"]],           # R — в мире (в окне лута R — «забрать всё»)
 	["mag_eject", "Извлечь магазин (держать)", ["k:4194309"]],   # Enter (gun.gd)
+	["swap_hands", "Поменять руки (левая ↔ правая)", ["m:4", "m:5"]],   # колесо вверх/вниз (game_items.gd)
 	["flashlight", "Фонарик", ["k:70"]],           # F
 	["quick_heal", "Быстрое лечение", ["k:81"]],   # Q
 	["gasmask", "Нюхич (противогаз)", ["k:71"]],           # G
@@ -105,7 +106,7 @@ const CONTROLS := [
 ## Разделы страницы «Управление» (промпт 22:53). Обзор стрелками (look_*) — не переназначается, ставит main.gd.
 const CTL_GROUPS := [
 	["Движение", ["move_forward", "move_back", "move_left", "move_right", "sprint", "jump", "crouch", "crouch_toggle"]],
-	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject"]],
+	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject", "swap_hands"]],
 	["Действия", ["interact", "carry", "loot_all", "flashlight", "quick_heal", "gasmask"]],
 	["Инвентарь", ["inventory", "inv_use", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
 	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat"]],
@@ -862,7 +863,7 @@ func _save() -> void:
 func _default_binds(action: String) -> Array:
 	for c in CONTROLS:
 		if c[0] == action:
-			return [c[2][0] if not c[2].is_empty() else "", ""]
+			return [c[2][0] if not c[2].is_empty() else "", c[2][1] if c[2].size() > 1 else ""]
 	return []
 
 

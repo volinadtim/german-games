@@ -299,6 +299,8 @@ func _unhandled_input(e: InputEvent) -> void:
 		flashlight.toggle()
 	elif e.is_action_pressed("quick_heal"):
 		_quick_heal()
+	elif e.is_action_pressed("swap_hands") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		swap_hands()   # колесо: левая ↔ правая (промпт 04:53)
 	else:
 		for k in 5:
 			if e.is_action_pressed("hot_%d" % (k + 1)):
