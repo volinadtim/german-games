@@ -206,6 +206,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 	_swap_pose(delta)
 	_apply_bones()
+	_stance_gun_wrist()
 	if puppet:
 		_puppet_gun_aim()
 
@@ -236,6 +237,23 @@ func _gun_pose(delta: float) -> void:
 		var fk := smoothstep(0.0, 1.0, throw_flick)
 		_arm_ik(sh_i, cock.lerp(out, fk), ss, tinv, clampf(maxf(throw_w, fk), 0.0, 1.0))
 	gun_rel_w = move_toward(gun_rel_w, 1.0 if gun_rel_k >= 0.0 and any else 0.0, delta * 6.0)
+	# боевая стойка с пистолетом (промпт 05:41): рука вытянута вперёд, ствол — в центр экрана (туда летит stance_fire),
+	# чуть сведён к центру; хват не ломаем — пистолет доворачивает сама кисть (_stance_gun_wrist). Без пистолета — кулак.
+	var two_st: bool = has[0] and has[1]
+	for i in 2:
+		var want := fist_blend if has[i] and gun_mode == 0 and gun_rel_w <= 0.0 				and not (punching and last_arm == i) and charge_arm != i else 0.0
+		gun_st_w[i] = move_toward(gun_st_w[i], want, delta * 6.0)
+		if gun_st_w[i] <= 0.0:
+			continue
+		var sd := -1.0 if i == 0 else 1.0
+		var ssh := _shoulder_pos(i)
+		var rl := elbows[i].position.length() + hands[i].position.length()
+		var st_t := eye - cb.z * 0.62 - cb.y * 0.17 + cb.x * sd * (0.1 if two_st else 0.07) - _gun_off(i)
+		for _k in 12:
+			if (st_t - ssh).length() <= rl * 0.97:
+				break
+			st_t += cb.z * 0.025
+		_arm_ik(i, st_t, ssh, tinv, smoothstep(0.0, 1.0, gun_st_w[i]))
 	if gun_hip_w <= 0.0 and gun_ads_w <= 0.0 and gun_rel_w <= 0.0:
 		return
 	var aim_pt := eye - cb.z * 20.0
@@ -278,6 +296,37 @@ func _gun_pose(delta: float) -> void:
 				_arm_ik(i, gp - _fist_off(i), sh, torso_inv, gun_ads_w)
 	if gun_rel_w > 0.0:
 		_reload_pose(eye, cb, torso_inv)
+
+
+## Стойка с пистолетом (05:41): кость кисти поворачивается так, чтобы пистолет (+X модели — ствол, +Y — верх, weapons.gd)
+## смотрел стволом в точку по центру экрана в 10 м, верхом вверх с лёгким завалом к центру. Пистолет висит на кисти
+## (BoneAttachment → fist_fx → хват _grip), поэтому его поворот относительно кости постоянен — рукоять остаётся в ладони.
+func _stance_gun_wrist() -> void:
+	if skel == null:
+		return
+	var sk := skel.global_transform
+	var sk_r := sk.basis.orthonormalized()
+	var cg := cam.global_transform
+	var aim_c := cg.origin - cg.basis.z.normalized() * 10.0
+	for i in 2:
+		var w: float = smoothstep(0.0, 1.0, gun_st_w[i])
+		var n = weapon_nodes[i]
+		if w <= 0.0 or weapon_ids[i] != "pistol" or n == null or not is_instance_valid(n):
+			continue
+		var hb := skel.find_bone(["hand_L", "hand_R"][i])
+		if hb == -1:
+			continue
+		var bg := skel.get_bone_global_pose(hb)
+		var rel := (fist_fx[i].transform * (n as Node3D).transform).basis.orthonormalized()   # пистолет в осях кости
+		var gun_w := sk * (bg * ((fist_fx[i].transform * (n as Node3D).transform) * Vector3(0.05, 0.1, 0)))
+		var fwd := (aim_c - gun_w).normalized()
+		var up := cg.basis.y.normalized()
+		up = (up - fwd * up.dot(fwd)).normalized()
+		up = up.rotated(fwd, -(-1.0 if i == 0 else 1.0) * 0.1)   # верх затвора чуть к центру — зеркально у рук
+		var want := Basis(fwd, up, fwd.cross(up))
+		var hand_g := sk_r.inverse() * want * rel.inverse()
+		var cur := bg.basis.orthonormalized()
+		_set_global_rot(hb, Basis(cur.get_rotation_quaternion().slerp(hand_g.get_rotation_quaternion(), w)))
 
 
 ## Перезарядка (промпт 16.11 02:37): пистолет перед грудью, вторая рука берёт магазин с пояса, вставляет в рукоять

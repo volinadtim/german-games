@@ -636,6 +636,8 @@ func _grip(arm: int, id: String) -> Transform3D:
 		# нож сдвинут по оси рукояти на 2.5 см в сторону клинка — торец не торчит из кулака с другой стороны
 		d2 = (-across * 1.0 - knuck * 0.25 + n * 0.35).normalized()
 		c += d2 * 0.025
+	if id == "pistol":
+		c -= d2 * 0.042   # 05:41: в кулаке середина рукояти (её низ — начало модели), а не её низ; спуск — у указательного
 	var xw := (knuck - d2 * knuck.dot(d2)).normalized()   # лезвие ребром к костяшкам — по направлению удара
 	var zw := xw.cross(d2).normalized()
 	return Transform3D(Basis(xw * unit, d2 * unit, zw * unit), c * unit)
