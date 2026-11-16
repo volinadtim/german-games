@@ -29,6 +29,7 @@ func save_state() -> Dictionary:
 		"version": 1,
 		"coins": inv.coins,
 		"bag": bag,
+		"bag_layout": inv.BAG_LAYOUT,
 		"equip": inv.equip.duplicate(),
 		"equip_dur": inv.equip_dur.duplicate(),
 		"hotbar": inv.hotbar.duplicate(),
@@ -96,16 +97,26 @@ func load_state(d: Dictionary) -> void:
 		if ed.has(k):
 			inv.equip_dur[k] = float(ed[k])
 		_apply_equip(k)
-	for i in inv.slots.size():
-		var s = bag[i] if i < bag.size() else null
+	# сумка 5×5 → 5×4 (промпт 03:44): старые номера ячеек сдвигаются, нижний ряд — куда влезет / на пол
+	var bag_extra: Array = []
+	if int(d.get("bag_layout", 1)) < inv.BAG_LAYOUT and bag.size() > 20:
+		var mg: Array = inv.migrate_bag(bag)
+		bag = mg[0]
+		bag_extra = mg[1]
+	var extra_in: Array = []
+	for i in inv.slots.size() + bag_extra.size():
+		var s = (bag[i] if i < bag.size() else null) if i < inv.slots.size() else bag_extra[i - inv.slots.size()]
 		if s is Dictionary and Items.ITEMS.has(String(s.get("id", ""))):
 			var e := {"id": String(s["id"]), "n": int(s.get("n", 1))}
 			if s.has("dur"):
 				e["dur"] = float(s["dur"])
 			if bool(s.get("r", false)):
 				e["r"] = true
-			inv.slots[i] = e
-	var spill: Array = inv.reflow()
+			if i < inv.slots.size():
+				inv.slots[i] = e
+			else:
+				extra_in.append(e)
+	var spill: Array = inv.reflow(extra_in)
 	var hb: Array = d.get("hotbar", [])
 	for k in 5:
 		inv.hotbar[k] = String(hb[k]) if k < hb.size() and hb[k] != null else ""
@@ -177,8 +188,8 @@ func load_state(d: Dictionary) -> void:
 		p.need_leave = bool(it.get("manual", it.get("dropped", false)))   # выброшенное игроком — только по E
 		p.life = float(it.get("ttl", Pickup.LIFE))
 	if not spill.is_empty():
-		drop_spilled(spill)   # старый сейв: крупные вещи не влезли в сетку 5×5
-		hud.toast("Сумка теперь сетка 5×5 — что не влезло, лежит на полу рядом", Color(0.95, 0.75, 0.45))
+		drop_spilled(spill)   # старый сейв: крупные вещи не влезли в сетку
+		hud.toast("Сумка теперь сетка 5×4 — что не влезло, лежит на полу рядом", Color(0.95, 0.75, 0.45))
 	if storage:
 		storage.contents = []
 		for it in d.get("storage", []):

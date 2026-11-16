@@ -59,7 +59,7 @@ const ITEMS := {
 		"icon": "repair_weapon", "color": Color(0.6, 0.2, 0.15), "repair": "weapon", "dur": 3},
 	"repair_gear": {"name": "Ремкомплект одежды", "desc": "3 заряда, каждый чинит одежду (голова, тело, ноги, обувь) на 50%. Нажать — самую потрёпанную; или перетащить на нужную.", "stack": 1,
 		"icon": "repair_gear", "color": Color(0.3, 0.42, 0.5), "repair": "gear", "dur": 3},
-	"backpack": {"name": "Рюкзак", "desc": "Спина: отдельный отсек 4×3 (12 ячеек). Снимешь — вещи из него переложатся в сумку.", "stack": 1,
+	"backpack": {"name": "Рюкзак", "desc": "Спина: отдельный отсек для вещей. Снимешь — вещи из него переложатся в сумку.", "stack": 1,
 		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": [4, 3]},
 	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 5,
 		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},

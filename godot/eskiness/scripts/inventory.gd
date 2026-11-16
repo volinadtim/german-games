@@ -1,5 +1,5 @@
 extends CanvasLayer
-## Инвентарь: сетка 5×5 (+ отсек рюкзака и карманы одежды; монеты — отдельный кошелёк), снаряжение на силуэте человека
+## Инвентарь: сетка 5×4 (+ отсек рюкзака и карманы одежды; монеты — отдельный кошелёк), снаряжение на силуэте человека
 ## (голова, лицо — противогаз, спина — рюкзак, тело, руки, ноги, обувь, левая и правая рука — оружие/щит), хотбар 1–5 и крафт.
 ## Tab / I — открыть/закрыть, игра не на паузе.
 ##   ЛКМ — использовать / надеть / снять; ПКМ — меню действий (промпт 14.11 19:07);
@@ -25,14 +25,16 @@ signal spilled(items: Array)   # не влезли после пропажи б�
 
 const Items := preload("res://scripts/items.gd")
 const Gun := preload("res://scripts/gun.gd")
-## Сетка (промпт 16.11 02:42): сумка 5×5 без зазоров, предметы занимают w×h ячеек (Items.SIZES),
+## Сетка (промпт 16.11 02:42): сумка 5×5 без зазоров (с 03:44 — 5×4), предметы занимают w×h ячеек (Items.SIZES),
 ## пробел при перетаскивании — повернуть. Предмет хранится в ячейке-якоре (левый верхний угол),
 ## остальные ячейки под ним — null; "r": true — повёрнут. Отдельные блоки: рюкзак и карманы одежды.
 ## Блок: [первая ячейка, макс. ширина, макс. высота, слот снаряжения ("" — сумка), подпись].
 ## Индексы фиксированы (ячейка = начало + y * макс.ширина + x), активна только часть, которую даёт вещь.
-const BLOCKS := [[0, 5, 5, "", "СУМКА"], [25, 5, 3, "back", "РЮКЗАК"], [40, 3, 2, "body", "КАРМАНЫ: ВЕРХ"], [46, 3, 2, "legs", "КАРМАНЫ: ШТАНЫ"]]
-const TOTAL := 52
-const BAG := 25                  # ячеек основной сумки
+## сумка 5×4 (промпт 16.11 03:44, было 5×5 — сейвы без "bag_layout" сдвигаются, см. migrate_bag)
+const BLOCKS := [[0, 5, 4, "", "СУМКА"], [20, 5, 3, "back", "РЮКЗАК"], [35, 3, 2, "body", "КАРМАНЫ: ВЕРХ"], [41, 3, 2, "legs", "КАРМАНЫ: ШТАНЫ"]]
+const TOTAL := 47
+const BAG := 20                  # ячеек основной сумки
+const BAG_LAYOUT := 2            # версия раскладки номеров ячеек в сейве
 const COLS := 5
 const SLOT := 76.0
 const CELL := 58.0               # ячейка сетки сумки
@@ -66,6 +68,7 @@ var drag_pv: Control = null
 var drop_rot := false            # поворот для unequip в ячейку (game.unequip читает)
 var bag_l: Label
 var craft_box: VBoxContainer
+var craft_open := -1            # раскрытый рецепт в списке крафта (-1 — все свёрнуты)
 var _press_key = null
 var game  # game.gd — чтобы не открываться поверх магазина
 var hold_key = null              # что выбрасываем удержанием ПКМ: номер ячейки или "coin"
@@ -524,7 +527,7 @@ func _build_ui() -> void:
 	var dc := VBoxContainer.new()
 	dc.add_theme_constant_override("separation", 10)
 	hb.add_child(dc)
-	dc.add_child(_label("СНАРЯЖЕНИЕ", 34, Color(0.86, 0.85, 0.8)))
+	# надпись «СНАРЯЖЕНИЕ» убрана (промпт 03:47)
 	var doll := Doll.new()
 	doll.custom_minimum_size = Vector2(290, 340)
 	dc.add_child(doll)
@@ -537,22 +540,24 @@ func _build_ui() -> void:
 		doll.add_child(s)
 		slot_nodes.append(s)
 
+	# слева — экипировка: силуэт, под ним рюкзак и карманы одежды (видны, только когда надето); справа — сумка 5×4
+	# (промпт 16.11 03:44)
+	var gear := HBoxContainer.new()
+	gear.add_theme_constant_override("separation", 12)
+	dc.add_child(gear)
+	var extra := VBoxContainer.new()
+	extra.add_theme_constant_override("separation", 4)
+	gear.add_child(extra)
+	var pockets := VBoxContainer.new()
+	pockets.add_theme_constant_override("separation", 8)
+	gear.add_child(pockets)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
 	hb.add_child(vb)
 	vb.add_child(_label("ИНВЕНТАРЬ", 34, Color(0.86, 0.85, 0.8)))
-	# сетка: сумка 5×5 слева, справа — рюкзак и карманы одежды (видны, только когда надето)
-	var grow := HBoxContainer.new()
-	grow.add_theme_constant_override("separation", 16)
-	vb.add_child(grow)
 	var mainc := VBoxContainer.new()
 	mainc.add_theme_constant_override("separation", 4)
-	grow.add_child(mainc)
-	var extra := VBoxContainer.new()
-	extra.add_theme_constant_override("separation", 4)
-	grow.add_child(extra)
-	var pockets := HBoxContainer.new()
-	pockets.add_theme_constant_override("separation", 12)
+	vb.add_child(mainc)
 	for bi in BLOCKS.size():
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", 3)
@@ -572,7 +577,6 @@ func _build_ui() -> void:
 			extra.add_child(col)
 		else:
 			pockets.add_child(col)
-	extra.add_child(pockets)
 	bag_l = block_ls[0]
 	update_blocks()
 	var wallet := HBoxContainer.new()
@@ -605,25 +609,44 @@ func _build_ui() -> void:
 	info_desc.custom_minimum_size = Vector2(COLS * CELL, 3 * 27)
 	info_desc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	vb.add_child(info_desc)
-	var hint_text := "F (навести) — использовать    ЛКМ — перетащить    ПКМ — действия    Tab — закрыть\nShift+ПКМ — выбросить 1 (держать — всю стопку)\nЗа окно — выбросить    На ячейки 1–5 внизу — хотбар"
+	# подсказки короче (промпт 03:46): без «ЛКМ — перетащить», «Tab — закрыть», «за окно — выбросить»
+	var hint_text := "F (навести) — использовать
+ПКМ — действия
+Shift+ПКМ — выбросить 1 (держать — всю стопку)
+Быстр. действие 1–5"
 	if preload("res://scripts/ui/touch_controls.gd").wanted():
-		hint_text = "Нажать — использовать    Подержать — действия
-Перетащить — переложить    Коснулся предмета + ячейка 1–5 внизу — хотбар"
+		hint_text = "Нажать — использовать
+Подержать — действия
+Перетащить — переложить
+Быстр. действие 1–5"
 	var hint := _label(hint_text, 14, Color(0.55, 0.55, 0.52))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # сумка узкая (5 клеток) — подсказка переносится
+	hint.custom_minimum_size.x = COLS * CELL
 	vb.add_child(hint)
 
+	# крафт — отдельная панель с рамкой и своим фоном (промпт 03:44)
+	var cpanel := PanelContainer.new()
+	var cst := StyleBoxFlat.new()
+	cst.bg_color = Color(0.13, 0.11, 0.08, 0.95)
+	cst.border_color = Color(0.85, 0.66, 0.38, 0.45)
+	cst.set_border_width_all(2)
+	cst.set_corner_radius_all(4)
+	cst.set_content_margin_all(12)
+	cpanel.add_theme_stylebox_override("panel", cst)
+	cpanel.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	hb.add_child(cpanel)
 	var cb := VBoxContainer.new()
 	cb.add_theme_constant_override("separation", 10)
 	cb.custom_minimum_size = Vector2(250, 0)
-	hb.add_child(cb)
+	cpanel.add_child(cb)
 	cb.add_child(_label("КРАФТ", 34, Color(0.86, 0.85, 0.8)))
-	# рецептов много (молоток и что им делается) — список прокручивается
+	# рецептов много — список названий прокручивается, рецепт раскрывается по нажатию
 	var cscroll := ScrollContainer.new()
-	cscroll.custom_minimum_size = Vector2(290, 380)
+	cscroll.custom_minimum_size = Vector2(290, 440)
 	cscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER   # длинные подписи не расширяют окно
 	cb.add_child(cscroll)
 	craft_box = VBoxContainer.new()
-	craft_box.add_theme_constant_override("separation", 8)
+	craft_box.add_theme_constant_override("separation", 4)
 	craft_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cscroll.add_child(craft_box)
 	for k in 5:
@@ -742,25 +765,60 @@ func _rebuild_craft() -> void:
 	for r in Items.RECIPES.size():
 		var rec: Dictionary = Items.RECIPES[r]
 		var out: String = rec["out"]
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 8)
-		var ic := Icon.new()
-		ic.id = out
-		ic.custom_minimum_size = Vector2(48, 48)
-		row.add_child(ic)
-		var on := _label(Items.item_name(out), 20, Color(0.92, 0.88, 0.75))
-		on.clip_text = true
-		on.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		on.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		on.custom_minimum_size.x = 60
-		row.add_child(on)
-		craft_box.add_child(row)
 		var ok := true
 		var need: Dictionary = rec["need"]
 		for id in need:
+			ok = ok and count(id) >= int(need[id])
+		var tid: String = rec.get("tool", "")
+		var have_t := tid == ""
+		if tid != "":
+			for t in Items.tool_ids(tid):
+				if count(t) > 0:
+					have_t = true
+					tid = t   # показываем тот, что есть (слесарный молоток)
+					break
+		ok = ok and have_t
+		var opened := craft_open == r
+		# строка-кнопка: иконка и название; нажатие раскрывает / сворачивает рецепт (промпт 03:44)
+		var head := Button.new()
+		head.focus_mode = Control.FOCUS_NONE
+		head.flat = not opened
+		head.toggle_mode = false
+		head.custom_minimum_size = Vector2(0, 52)
+		head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		head.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		head.pressed.connect(func():
+			craft_open = -1 if craft_open == r else r
+			_rebuild_craft())
+		var row := HBoxContainer.new()
+		row.set_anchors_preset(Control.PRESET_FULL_RECT)
+		row.offset_left = 4
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_theme_constant_override("separation", 8)
+		var ic := Icon.new()
+		ic.id = out
+		ic.custom_minimum_size = Vector2(44, 44)
+		ic.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(ic)
+		var on := _label(("▾ " if opened else "▸ ") + Items.item_name(out), 19, Color(0.92, 0.88, 0.75) if ok else Color(0.7, 0.68, 0.62))
+		on.clip_text = true
+		on.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		on.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		on.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		on.custom_minimum_size.x = 60
+		on.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(on)
+		head.add_child(row)
+		craft_box.add_child(head)
+		if not opened:
+			continue
+		var det := VBoxContainer.new()
+		det.add_theme_constant_override("separation", 6)
+		craft_box.add_child(det)
+		for id in need:
 			var have := count(id)
 			var n: int = need[id]
-			ok = ok and have >= n
 			var nr := HBoxContainer.new()
 			nr.add_theme_constant_override("separation", 6)
 			var ni := Icon.new()
@@ -769,18 +827,9 @@ func _rebuild_craft() -> void:
 			ni.custom_minimum_size = Vector2(30, 30)
 			nr.add_child(ni)
 			nr.add_child(_label("%s  %d/%d" % [Items.item_name(id), mini(have, n), n], 15, Color(0.7, 0.85, 0.6) if have >= n else Color(0.85, 0.5, 0.4)))
-			craft_box.add_child(nr)
-		if rec.has("tool"):
+			det.add_child(nr)
+		if tid != "":
 			# инструмент не тратится, но теряет прочность
-			var tid: String = rec["tool"]
-			var have_t := false
-			for t in Items.tool_ids(tid):
-				if count(t) > 0:
-					have_t = true
-					if t != tid:
-						tid = t   # показываем тот, что есть (слесарный молоток)
-					break
-			ok = ok and have_t
 			var trow := HBoxContainer.new()
 			trow.add_theme_constant_override("separation", 6)
 			var ti := Icon.new()
@@ -789,14 +838,15 @@ func _rebuild_craft() -> void:
 			ti.custom_minimum_size = Vector2(30, 30)
 			trow.add_child(ti)
 			trow.add_child(_label("%s (−%d прочности)" % [Items.item_name(tid), int(rec.get("wear", 1))], 15, Color(0.7, 0.85, 0.6) if have_t else Color(0.85, 0.5, 0.4)))
-			craft_box.add_child(trow)
+			det.add_child(trow)
 		var b := Button.new()
 		b.text = "Скрафтить"
 		b.focus_mode = Control.FOCUS_NONE
 		b.disabled = not ok
 		b.add_theme_font_size_override("font_size", 18)
 		b.pressed.connect(func(): craft_requested.emit(r))
-		craft_box.add_child(b)
+		det.add_child(b)
+		det.add_child(HSeparator.new())
 
 
 func _input(e: InputEvent) -> void:
@@ -1364,13 +1414,9 @@ func _use_key() -> String:
 
 
 ## «Размер 2×3» и карманы / отсек рюкзака — к описанию.
-func _size_note(id: String) -> String:
-	var d := Items.size_of(id)
-	var t := "  [%d×%d]" % [d.x, d.y]
-	var bd := Items.block_of(id)
-	if bd.x > 0:
-		t += "  %s %d×%d" % ["Отсек" if Items.equip_slot(id) == "back" else "Карманы", bd.x, bd.y]
-	return t
+## Подпись размера в описании убрана (промпт 03:46) — оставлено пустым, чтобы не трогать вызовы.
+func _size_note(_id: String) -> String:
+	return ""
 
 
 func _refresh() -> void:
@@ -1471,7 +1517,7 @@ func _swap_equip(a: String, b: String) -> void:
 ## Размер блока b сейчас (рюкзак / карманы — от надетой вещи; не надето — 0×0).
 func block_dim(b: int) -> Vector2i:
 	if b == 0:
-		return Vector2i(COLS, 5)
+		return Vector2i(COLS, int(BLOCKS[0][2]))
 	var d := Items.block_of(String(equip.get(BLOCKS[b][3], "")))
 	return Vector2i(mini(d.x, BLOCKS[b][1]), mini(d.y, BLOCKS[b][2]))
 
@@ -1622,6 +1668,27 @@ func reflow(extra: Array = []) -> Array:
 		if not placed:
 			left.append(s)
 	return left
+
+
+## Старая раскладка (сумка 5×5, 52 ячейки): номера ячеек → новые. Нижний ряд сумки (20..24) — в extra
+## (reflow положит куда влезет, остальное — на пол), рюкзак и карманы сдвигаются на 5.
+static func migrate_bag(old: Array) -> Array:
+	var out: Array = []
+	out.resize(TOTAL)
+	var extra: Array = []
+	for i in old.size():
+		var s = old[i]
+		if s == null:
+			continue
+		if i < 20:
+			out[i] = s
+		elif i < 25:
+			extra.append(s)
+		elif i - 5 < TOTAL:
+			out[i - 5] = s
+		else:
+			extra.append(s)
+	return [out, extra]
 
 
 func snapshot() -> Array:
