@@ -34,11 +34,13 @@ func _ready() -> void:
 	floor_snap_length = 0.3
 	_build()
 	voice = AudioStreamPlayer3D.new()
-	voice.unit_size = 4.0
+	voice.unit_size = 2.0
+	voice.max_distance = 20.0   # не слышно через пол-уровня (промпт 17.11 02:50)
 	voice.position.y = height * 0.8
 	add_child(voice)
 	body_snd = AudioStreamPlayer3D.new()
-	body_snd.unit_size = 4.0
+	body_snd.unit_size = 2.0
+	body_snd.max_distance = 16.0
 	body_snd.position.y = 1.0
 	add_child(body_snd)
 

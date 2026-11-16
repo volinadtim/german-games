@@ -1,6 +1,7 @@
 extends CharacterBody3D
 # Часть player.gd: константы, состояние, звук шагов, материалы.
 const Sfx := preload("res://scripts/core/sfx.gd")
+const Ambience := preload("res://scripts/core/ambience.gd")
 ## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы; по траве — step_grass.
 const STEP_DB := -23.0      # громкость шага относительно ходьбы (-10 дБ)
 
@@ -246,6 +247,7 @@ var step_noise_player: AudioStreamPlayer
 var step_noise: AudioStreamWAV
 var scuff_noise: Array[AudioStreamWAV] = []   # шарканье при повороте на месте
 var grass_steps: Array[AudioStreamWAV] = []   # шаги по траве (поверхность)
+var gravel_steps: Array[AudioStreamWAV] = []  # шаги по земле/гравию/асфальту снаружи
 var step_eq: AudioEffectEQ6
 var voice_player: AudioStreamPlayer
 var hit_player: AudioStreamPlayer
@@ -355,14 +357,23 @@ func _play_step(db: float, _pitch := 1.0, turn := false) -> void:
 		return
 	db -= 9.0 * crouch   # вприсядку шаги тише
 	_randomize_step_eq()
+	var kind := "" if turn else _ground_kind()
 	if turn:
 		# переступание на месте при повороте: не топот, а тихое шарканье подошвой (−11 дБ, выше)
 		step_noise_player.stream = scuff_noise[randi() % scuff_noise.size()]
 		step_noise_player.volume_db = db + STEP_DB - 11.0
 		step_noise_player.pitch_scale = randf_range(1.12, 1.25)
-	elif _ground_kind() == "grass":
+	elif kind == "grass":
 		step_noise_player.stream = grass_steps[randi() % grass_steps.size()]
 		step_noise_player.volume_db = db + STEP_DB + 3.0
+		step_noise_player.pitch_scale = randf_range(0.9, 1.1)
+	elif Ambience.out_k > 0.5 and kind != "concrete":
+		# снаружи под ногами не бетон бункера, а земля/гравий/асфальт (промпт 17.11 02:50)
+		if gravel_steps.is_empty():
+			for i in 4:
+				gravel_steps.append(_gravel(i))
+		step_noise_player.stream = gravel_steps[randi() % gravel_steps.size()]
+		step_noise_player.volume_db = db + STEP_DB + 1.0
 		step_noise_player.pitch_scale = randf_range(0.9, 1.1)
 	else:
 		step_noise_player.stream = step_noise
@@ -389,6 +400,36 @@ static func _scuff(variant: int) -> AudioStreamWAV:
 		var band := lp - lp2                       # срезаем бас — без «туп»
 		var env := sin(PI * clampf(t / dur, 0.0, 1.0))  # нарастает и спадает, без щелчка удара
 		buf[i] = band * env * env * (0.8 + 0.2 * sin(t * 140.0))
+	return Sfx._wav(buf, 0.5)
+
+
+## Шаг по земле с гравием: глухой мягкий «туп» + россыпь коротких щелчков камешков (хруст).
+static func _gravel(variant: int) -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1400 + variant
+	var n := int(Sfx.RATE * 0.3)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var lp1 := 0.0
+	var lp2 := 0.0
+	var hp := 0.0
+	var crunch := 0.0
+	var dur := rng.randf_range(0.14, 0.2)
+	for i in n:
+		var t := float(i) / Sfx.RATE
+		var w := rng.randf() * 2.0 - 1.0
+		lp1 += (w - lp1) * 0.06
+		lp2 += (lp1 - lp2) * 0.06
+		var thud := lp2 * 5.0 * minf(t / 0.006, 1.0) * exp(-t * 32.0)
+		# камешки: редкие импульсы, гуще в начале шага, затухают к перекату стопы
+		var dens := 0.02 * exp(-t / dur * 2.2)
+		if rng.randf() < dens:
+			crunch = rng.randf_range(0.4, 1.0) * (1.0 if rng.randf() < 0.5 else -1.0)
+		crunch *= 0.86
+		hp += (w - hp) * 0.35
+		var grit := (w - hp) * crunch
+		var hiss := (w - hp) * 0.08 * exp(-t / dur * 3.0)
+		buf[i] = thud + grit * 0.9 + hiss
 	return Sfx._wav(buf, 0.5)
 
 

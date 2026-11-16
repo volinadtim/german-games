@@ -24,7 +24,8 @@ func _ready() -> void:
 	collision_mask = 1
 	_build()
 	voice = AudioStreamPlayer3D.new()
-	voice.unit_size = 5.0
+	voice.unit_size = 2.5
+	voice.max_distance = 24.0   # не слышно через всю деревню (промпт 17.11 02:50)
 	voice.position.y = height * 0.8
 	add_child(voice)
 	strafe = -1.0 if randf() < 0.5 else 1.0
