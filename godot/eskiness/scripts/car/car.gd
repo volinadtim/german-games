@@ -143,7 +143,7 @@ func _process(delta: float) -> void:
 	if state == "start":
 		# тряска: при попытках стартера — мелкая дрожь, мотор схватил — рывок, потом ровная вибрация
 		var shake := 0.0
-		for c in [[0.0, 0.85], [1.25, 0.95], [2.55, 1.0]]:
+		for c in [[0.0, 0.85], [1.25, 0.95]]:
 			if st > float(c[0]) and st < float(c[0]) + float(c[1]):
 				shake = 0.004
 		if st >= Sfx2.STARTER_CATCH:

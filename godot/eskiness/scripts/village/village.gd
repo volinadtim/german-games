@@ -180,6 +180,7 @@ func _relocate(seat: int) -> void:
 
 func _after_card() -> void:
 	game.end_cinematic()
+	_force_gasmask()   # в салоне тоже отравленный воздух (gasmask.gd: _outside)
 	hint("В салоне что-то есть — осмотрись (E — взять).\nПосмотри на дверь и нажми E — выйти.", 9.0)
 
 

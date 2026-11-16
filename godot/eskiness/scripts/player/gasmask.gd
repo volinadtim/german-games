@@ -30,6 +30,8 @@ var breath_n := 0
 var breath := 0.0              # 0..1 после выдоха — конденсат по краям стекла
 var voice: AudioStreamPlayer
 var breaths: Array = []
+var breath_lp: AudioEffectLowPassFilter   # тембр дыхания меняется от вдоха к вдоху (шина «MaskBreath»)
+var breath_eq: AudioEffectEQ6
 
 
 func _ready() -> void:
@@ -56,6 +58,7 @@ func _ready() -> void:
 	add_child(voice)
 	var Sfx := preload("res://scripts/core/sfx.gd")
 	breaths = [Sfx.inhale(), Sfx.inhale(true)]
+	_breath_bus()
 	if not InputMap.has_action("gasmask"):
 		InputMap.add_action("gasmask")
 		var ev := InputEventKey.new()
@@ -63,9 +66,42 @@ func _ready() -> void:
 		InputMap.action_add_event("gasmask", ev)
 
 
+## Своя шина для дыхания: фильтр + эквалайзер, каждый вдох — чуть другой тембр.
+func _breath_bus() -> void:
+	var bi := AudioServer.get_bus_index("MaskBreath")
+	if bi < 0:
+		AudioServer.add_bus()
+		bi = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(bi, "MaskBreath")
+		AudioServer.set_bus_send(bi, "Master")
+		AudioServer.add_bus_effect(bi, AudioEffectLowPassFilter.new())
+		AudioServer.add_bus_effect(bi, AudioEffectEQ6.new())
+	for e in AudioServer.get_bus_effect_count(bi):
+		var fx := AudioServer.get_bus_effect(bi, e)
+		if fx is AudioEffectLowPassFilter:
+			breath_lp = fx
+		elif fx is AudioEffectEQ6:
+			breath_eq = fx
+	voice.bus = "MaskBreath"
+
+
+## Случайный тембр очередного вдоха: срез верхов, бубнение низов, «резина» в середине.
+func _vary_timbre() -> void:
+	if breath_lp:
+		breath_lp.cutoff_hz = randf_range(1300.0, 3200.0)
+		breath_lp.resonance = randf_range(0.5, 0.9)
+	if breath_eq:
+		breath_eq.set_band_gain_db(0, randf_range(-2.0, 3.0))    # 32 Гц
+		breath_eq.set_band_gain_db(1, randf_range(-1.0, 4.0))    # 100 Гц
+		breath_eq.set_band_gain_db(2, randf_range(-4.0, 3.0))    # 320 Гц
+		breath_eq.set_band_gain_db(3, randf_range(-5.0, 2.0))    # 1 кГц
+		breath_eq.set_band_gain_db(4, randf_range(-8.0, 0.0))    # 3.2 кГц
+		breath_eq.set_band_gain_db(5, randf_range(-12.0, -3.0))  # 10 кГц
+
+
 ## Вид изнутри «Нюхича» (промпт 14.11 18:30): две большие линзы плавно слиты в одну панорамную область
 ## (~80% экрана), чёрная резина только по краям и в углах, у переносицы — мягкая тень сверху и снизу, без линии.
-## Стекло: к краю темнеет и размывается, разводы и царапины, по краям — конденсат, который дышит вместе с тобой.
+## Стекло: к краю темнеет и мягко размывается (виньетка), размытые разводы-запотевания, по краям — конденсат, который дышит вместе с тобой.
 ## put — анимация надевания (рамка наезжает из-за краёв экрана, экран на миг темнеет), fog — запотевание.
 func _mask_shader() -> Shader:
 	var s := Shader.new()
@@ -136,24 +172,14 @@ void fragment() {
 	// разводы: мутные пятна от пальцев и высохших капель
 	float sm = smoothstep(0.55, 0.85, fbm(p * 6.0 + 3.7));
 	col = mix(col, col * 0.85 + vec3(0.06, 0.065, 0.06), sm * 0.3);
-	// следы капель
-	for (int i = 0; i < 9; i++) {
-		float fi = float(i);
-		vec2 dp = (vec2(hash1(fi * 5.1), hash1(fi * 9.3)) - 0.5) * vec2(1.5, 0.85);
-		float rr = 0.006 + 0.01 * hash1(fi * 2.7);
-		col += vec3(0.045) * smoothstep(0.0025, 0.0, abs(length(p - dp) - rr));
-	}
-	// царапины: тонкие штрихи по всему стеклу
-	for (int i = 0; i < 18; i++) {
-		float fi = float(i);
-		vec2 sa = (vec2(hash1(fi * 3.1), hash1(fi * 7.7)) - 0.5) * vec2(1.6, 0.9);
-		float ang = hash1(fi * 13.3) * 3.1416;
-		vec2 u = vec2(cos(ang), sin(ang));
-		float len = 0.015 + 0.06 * hash1(fi * 1.9);
-		float t = clamp(dot(p - sa, u), -len, len);
-		float dist = length(p - sa - u * t);
-		col += vec3(0.075) * smoothstep(0.0013, 0.0, dist) * (0.35 + 0.65 * hash1(fi));
-	}
+	// мягкое запотевание: размытые пятна-облака, без чётких линий и кружков
+	float haze = smoothstep(0.35, 0.9, fbm(p * 2.3 + vec2(1.7, 0.0) + vec2(0.0, TIME * 0.006)));
+	vec3 soft = textureLod(scr, uv, 3.0 + 2.0 * e).rgb;
+	col = mix(col, soft * 0.85 + vec3(0.05, 0.055, 0.05), haze * (0.18 + 0.25 * e));
+	// мягкая виньетка: к краю линзы сильнее размыто и чуть светлее от конденсата
+	float vig = smoothstep(0.45, 1.0, f);
+	vec3 edge = textureLod(scr, uv, 4.5).rgb * 0.7 + vec3(0.04, 0.045, 0.04);
+	col = mix(col, edge, vig * 0.55);
 	// мягкий блик сверху у края каждой линзы
 	float hl = smoothstep(0.1, 0.0, abs(fl - 0.88)) * smoothstep(0.0, -0.3, p.y - CY) * smoothstep(0.1, -0.35, p.x);
 	float hr = smoothstep(0.1, 0.0, abs(fr - 0.88)) * smoothstep(0.0, -0.3, p.y - CY) * smoothstep(-0.1, 0.35, p.x);
@@ -189,17 +215,19 @@ func set_worn(on: bool, instant := false) -> void:
 		return
 	worn = on
 	overlay.visible = true
+	if not visible:
+		return   # кат-сцена (game.gd: begin_escape) — без звуков маски
 	# надел — глубокий вдох через фильтр; снял — выдох
 	voice.stream = breaths[0 if worn else 1]
-	voice.volume_db = -13.0
-	voice.pitch_scale = 0.72 if worn else 0.9
+	_vary_timbre()
+	voice.volume_db = -17.0
+	voice.pitch_scale = (0.72 if worn else 0.9) * randf_range(0.95, 1.05)
 	voice.play()
 	breath_t = 1.4
 
 
 func _outside() -> float:
-	if game.car and game.car.my_seat >= 0:
-		return 0.0   # в салоне машины можно без маски (car_drive.gd)
+	# в салоне машины воздух тот же, что снаружи (промпт 16.11 02:43) — без маски травишься
 	if surface == null:
 		var level: Node = game.get_parent().get_node_or_null("Level")
 		if level:
@@ -253,18 +281,24 @@ func _process(delta: float) -> void:
 	fog = lerpf(fog, fog_want, 1.0 - exp(-delta * 1.2))
 	# дыхание в маске: вдох / выдох, на выдохе стекло запотевает по краям
 	breath = maxf(breath - delta * 0.55, 0.0)
-	if worn:
+	if not visible:
+		# кат-сцена (посадка / поездка / поломка) — маска молчит
+		if voice.playing:
+			voice.stop()
+	elif worn:
 		breath_t -= delta
 		if breath_t <= 0.0:
-			breath_t = lerpf(1.7, 1.15, fog)   # фильтр садится — дышишь чаще и тяжелее
 			breath_n += 1
 			var exhale := breath_n % 2 == 1
+			# реже и неровно: после выдоха пауза длиннее; фильтр садится — дышишь чаще и тяжелее
+			breath_t = lerpf(2.5 if exhale else 1.7, 1.4, fog) * randf_range(0.78, 1.3)
 			voice.stream = breaths[1 if exhale else 0]
-			voice.volume_db = lerpf(-22.0, -16.0, fog)
-			voice.pitch_scale = lerpf(0.8, 0.68, fog)
+			_vary_timbre()
+			voice.volume_db = lerpf(-29.0, -21.0, fog) + randf_range(-3.0, 2.0)
+			voice.pitch_scale = lerpf(0.8, 0.68, fog) * randf_range(0.92, 1.08)
 			voice.play()
 			if exhale:
-				breath = 1.0
+				breath = randf_range(0.7, 1.0)
 	mat.set_shader_parameter("breath", breath)
 	mat.set_shader_parameter("put", put)
 	mat.set_shader_parameter("fog", fog)
