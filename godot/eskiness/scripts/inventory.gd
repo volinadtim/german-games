@@ -104,6 +104,7 @@ class Slot extends Control:
 	var inv
 	var key
 	var px := 76.0
+	var mirror := false   # иконка части тела отзеркалена (левая колонка куклы)
 
 	func _ready() -> void:
 		custom_minimum_size = Vector2(px, px)
@@ -167,53 +168,94 @@ class Slot extends Control:
 			draw_string_outline(f, Vector2(5, 17), str(hk + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.8))
 			draw_string(f, Vector2(5, 17), str(hk + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.8, 0.4))
 
-	## Полупрозрачная белая иконка части тела в пустом слоте снаряжения (рисуется в рамке 64×64).
+	## Иконка части тела в пустом слоте снаряжения (промпт 04:33): простой силуэт с толстым светлым контуром,
+	## рисуется в рамке 64×64; mirror — левая колонка (кулак / кисть отзеркалены). Пальцы и костяшки — вниз.
+	## Фигура — список примитивов: ["c", центр, r], ["r", Rect2], ["l", [точки], ширина], ["p", [точки]];
+	## сначала все с запасом OUT (контур), потом заливка — без наложений полупрозрачного.
+	const OUT := 3.0
+	const C_OUT := Color(1, 1, 1, 0.5)
+	const C_FILL := Color(0.24, 0.23, 0.21, 0.92)
+	const C_CUT := Color(1, 1, 1, 0.5)
+
+	func _shape(ops: Array, grow: float, col: Color) -> void:
+		for o in ops:
+			match String(o[0]):
+				"c":
+					draw_circle(o[1], float(o[2]) + grow, col)
+				"r":
+					draw_rect((o[1] as Rect2).grow(grow), col)
+				"l":
+					var pts: Array = o[1]
+					var w: float = float(o[2]) + grow * 2.0
+					for i in pts.size():
+						draw_circle(pts[i], w / 2.0, col)
+						if i > 0:
+							draw_line(pts[i - 1], pts[i], col, w)
+				"p":
+					var pp := PackedVector2Array(o[1])
+					if grow > 0.0:
+						if Geometry2D.is_polygon_clockwise(pp):
+							pp.reverse()   # обход в одну сторону — иначе offset сжимает, а не расширяет
+						var g := Geometry2D.offset_polygon(pp, grow, Geometry2D.JOIN_ROUND)
+						if not g.is_empty():
+							pp = g[0]
+					draw_colored_polygon(pp, col)
+
 	func _draw_part(k: String) -> void:
-		var c := Color(1, 1, 1, 0.2)
 		var u := size.x / 64.0
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(u, u))
+		if mirror:
+			draw_set_transform(Vector2(size.x, 0), 0.0, Vector2(-u, u))
+		else:
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2(u, u))
+		var ops: Array = []
+		var cuts: Array = []   # светлые линии поверх заливки: [точки, ширина]
 		match k:
-			"head":   # голова с шеей и плечами
-				draw_circle(Vector2(32, 26), 14, c)
-				draw_rect(Rect2(27, 38, 10, 8), c)
-				draw_colored_polygon(PackedVector2Array([Vector2(14, 56), Vector2(22, 46), Vector2(42, 46), Vector2(50, 56)]), c)
-			"face":   # овал лица: глаза, нос, рот вырезаны тёмным
-				draw_set_transform(Vector2(32 * u, 32 * u), 0.0, Vector2(u * 0.82, u))
-				draw_circle(Vector2.ZERO, 22, c)
-				draw_set_transform(Vector2.ZERO, 0.0, Vector2(u, u))
-				var d := Color(0, 0, 0, 0.55)
-				draw_circle(Vector2(25, 27), 3, d)
-				draw_circle(Vector2(39, 27), 3, d)
-				draw_line(Vector2(32, 30), Vector2(30, 38), d, 2.0)
-				draw_line(Vector2(25, 44), Vector2(39, 44), d, 2.5)
-			"back":   # рюкзак: корпус, клапан, карман
-				draw_rect(Rect2(18, 16, 28, 38), c)
-				draw_rect(Rect2(22, 9, 20, 6), c)
-				draw_rect(Rect2(18, 16, 28, 10), Color(1, 1, 1, 0.12))
-				draw_rect(Rect2(24, 36, 16, 12), Color(0, 0, 0, 0.35))
-			"body":   # торс: плечи и талия
-				draw_colored_polygon(PackedVector2Array([Vector2(12, 14), Vector2(52, 14), Vector2(56, 24), Vector2(46, 28),
-					Vector2(44, 54), Vector2(20, 54), Vector2(18, 28), Vector2(8, 24)]), c)
-				draw_rect(Rect2(28, 10, 8, 5), c)
-			"hands":  # кисть: ладонь, четыре пальца, большой
-				draw_rect(Rect2(20, 30, 24, 22), c)
-				for i in 4:
-					draw_rect(Rect2(20 + i * 6.2, 12 + absf(i - 1.5) * 3.0, 5, 18 - absf(i - 1.5) * 3.0), c)
-				draw_colored_polygon(PackedVector2Array([Vector2(44, 34), Vector2(54, 26), Vector2(57, 30), Vector2(46, 44)]), c)
-			"left", "right":   # кулак: костяшки и большой палец
-				draw_rect(Rect2(16, 22, 32, 26), c)
-				var d2 := Color(0, 0, 0, 0.4)
-				for i in 3:
-					draw_line(Vector2(24 + i * 8, 22), Vector2(24 + i * 8, 34), d2, 1.5)
-				draw_rect(Rect2(16, 36, 22, 7), Color(1, 1, 1, 0.14))
-				draw_rect(Rect2(22, 48, 20, 8), c)
-			"legs":   # две ноги от таза
-				draw_rect(Rect2(18, 8, 28, 10), c)
-				draw_colored_polygon(PackedVector2Array([Vector2(18, 18), Vector2(31, 18), Vector2(29, 58), Vector2(20, 58)]), c)
-				draw_colored_polygon(PackedVector2Array([Vector2(33, 18), Vector2(46, 18), Vector2(44, 58), Vector2(35, 58)]), c)
-			"feet":   # ступня (ботинок сбоку)
-				draw_rect(Rect2(22, 12, 12, 30), c)
-				draw_colored_polygon(PackedVector2Array([Vector2(20, 40), Vector2(36, 40), Vector2(50, 46), Vector2(52, 54), Vector2(20, 54)]), c)
+			"head":   # голова, шея, плечи
+				ops = [["c", Vector2(32, 22), 14.0], ["r", Rect2(26, 32, 12, 14)],
+					["p", [Vector2(8, 60), Vector2(14, 48), Vector2(24, 44), Vector2(40, 44), Vector2(50, 48), Vector2(56, 60)]]]
+			"face":   # овал лица; глаза, нос, рот
+				var ov: Array = []
+				for i in 24:
+					var t := TAU * i / 24.0
+					ov.append(Vector2(32 + 17 * cos(t), 32 + 22 * sin(t)))
+				ops = [["p", ov]]
+				cuts = [[[Vector2(23, 27), Vector2(27, 27)], 4.0], [[Vector2(37, 27), Vector2(41, 27)], 4.0],
+					[[Vector2(32, 30), Vector2(30, 38), Vector2(33, 38)], 2.5], [[Vector2(25, 45), Vector2(32, 47), Vector2(39, 45)], 3.0]]
+			"back":   # рюкзак: ручка, корпус, клапан, карман, лямки по бокам
+				ops = [["l", [Vector2(26, 14), Vector2(27, 6), Vector2(37, 6), Vector2(38, 14)], 4.0],
+					["l", [Vector2(15, 20), Vector2(9, 50)], 5.0], ["l", [Vector2(49, 20), Vector2(55, 50)], 5.0],
+					["p", [Vector2(20, 12), Vector2(44, 12), Vector2(50, 20), Vector2(50, 58), Vector2(14, 58), Vector2(14, 20)]]]
+				cuts = [[[Vector2(14, 28), Vector2(32, 33), Vector2(50, 28)], 3.0], [[Vector2(32, 33), Vector2(32, 37)], 3.0],
+					[[Vector2(21, 41), Vector2(43, 41), Vector2(43, 53), Vector2(21, 53), Vector2(21, 41)], 2.5]]
+			"body":   # торс
+				ops = [["p", [Vector2(10, 12), Vector2(54, 12), Vector2(60, 26), Vector2(48, 30), Vector2(46, 58), Vector2(18, 58),
+					Vector2(16, 30), Vector2(4, 26)]]]
+				cuts = [[[Vector2(26, 12), Vector2(32, 20), Vector2(38, 12)], 3.0]]
+			"hands":  # кисть ладонью к нам: запястье сверху, пальцы вниз, большой палец к центру
+				ops = [["r", Rect2(24, 2, 18, 12)], ["p", [Vector2(18, 12), Vector2(46, 12), Vector2(48, 36), Vector2(16, 36)]],
+					["l", [Vector2(20, 34), Vector2(20, 52)], 7.0], ["l", [Vector2(28, 34), Vector2(28, 58)], 7.0],
+					["l", [Vector2(36, 34), Vector2(36, 57)], 7.0], ["l", [Vector2(44, 34), Vector2(44, 50)], 6.0],
+					["l", [Vector2(18, 18), Vector2(8, 34)], 7.0]]
+			"left", "right":   # кулак: запястье сверху, костяшки внизу, большой палец к центру
+				ops = [["r", Rect2(24, 2, 18, 14)], ["r", Rect2(16, 14, 32, 30)],
+					["c", Vector2(21, 44), 6.0], ["c", Vector2(29, 46), 6.0], ["c", Vector2(37, 46), 6.0], ["c", Vector2(44, 43), 5.0],
+					["l", [Vector2(16, 20), Vector2(10, 34), Vector2(24, 38)], 7.0]]
+				cuts = [[[Vector2(25, 40), Vector2(25, 48)], 2.5], [[Vector2(33, 41), Vector2(33, 49)], 2.5], [[Vector2(41, 40), Vector2(41, 47)], 2.5]]
+			"legs":   # таз и две ноги
+				ops = [["r", Rect2(16, 6, 32, 12)], ["p", [Vector2(16, 16), Vector2(31, 16), Vector2(29, 60), Vector2(19, 60)]],
+					["p", [Vector2(33, 16), Vector2(48, 16), Vector2(45, 60), Vector2(35, 60)]]]
+			"feet":   # пара ботинок сбоку, носками в разные стороны
+				for sx in [1.0, -1.0]:
+					var bx := func(x: float) -> float: return 32.0 + sx * (x - 32.0)
+					ops.append(["r", Rect2(minf(bx.call(35.0), bx.call(45.0)), 14, 10, 26)])
+					ops.append(["p", [Vector2(bx.call(34), 38), Vector2(bx.call(46), 38), Vector2(bx.call(58), 44),
+						Vector2(bx.call(60), 54), Vector2(bx.call(34), 54)]])
+		_shape(ops, OUT, C_OUT)
+		_shape(ops, 0.0, C_FILL)
+		for c in cuts:
+			var pts: Array = c[0]
+			for i in range(1, pts.size()):
+				draw_line(pts[i - 1], pts[i], C_CUT, float(c[1]))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func _gui_input(e: InputEvent) -> void:
@@ -587,6 +629,7 @@ func _build_ui() -> void:
 		s.key = k
 		s.px = 64.0
 		s.position = HANDS2 if k == "hands" and slot_nodes.size() >= EQUIP.size() else DOLL_POS[k]
+		s.mirror = s.position.x < 1.0 and k in ["hands", "left"]
 		doll.add_child(s)
 		slot_nodes.append(s)
 
