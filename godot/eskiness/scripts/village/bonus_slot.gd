@@ -23,9 +23,11 @@ const JACK_BASE := 150
 ## промпт 16.11 03:16: бонус-игра ×1.5 (было ×2); после первых 777 они перебрасываются с шансом SEVENS_REROLL
 const BONUS_MULT := 1.5
 const SEVENS_REROLL := 0.85
-const SPIN_T := 1.1
-const STEP_T := 0.38
-const TEASE_T := 1.5          # «интрига»: третий барабан крутится дольше
+const SlotSounds := preload("res://scripts/slot/slot_sounds.gd")   # общие звуки рычага/монет
+## крутка ×0.8 (промпт 16.11 04:18): было 1.1 / 0.38 / 1.5, скорость ленты 9 → 11.25, петля звука ×1.25
+const SPIN_T := 0.88
+const STEP_T := 0.3
+const TEASE_T := 1.2          # «интрига»: третий барабан крутится дольше
 const W := 480
 const H := 220
 
@@ -399,10 +401,10 @@ func interact(g) -> void:
 	msg = "БОНУС-ИГРА: ×1.5  (осталось %d)" % free_spins if bonus_game else "..."
 	msg_col = Color(0.95, 0.85, 0.5)
 	lever_t = 0.0
-	g.play_at("click", global_position + Vector3(0.5, 1.3, 0), -8.0, 0.7)
+	SlotSounds.play3d(self, SlotSounds.lever(), lever.global_position, -7.0, randf_range(1.0, 1.08))
 	snd.stream = sounds["spin"]
 	snd.volume_db = -10.0
-	snd.pitch_scale = 1.15 if bonus_game else 1.0
+	snd.pitch_scale = 1.44 if bonus_game else 1.25
 	snd.play()
 
 
@@ -427,9 +429,9 @@ func _process(delta: float) -> void:
 		for i in 3:
 			if reel_done[i]:
 				continue
-			var spd := 9.0 * (0.6 if teasing and i == 2 and t > _stop_at(2) - 0.5 else 1.0)
+			var spd := 11.25 * (0.6 if teasing and i == 2 and t > _stop_at(2) - 0.4 else 1.0)
 			reel_off[i] = fmod(reel_off[i] + delta * spd, 1.0)
-			if fmod(t, 0.07) < delta:
+			if fmod(t, 0.056) < delta:
 				shown[i] = SYMS[randi() % SYMS.size()]
 			if t > _stop_at(i):
 				reel_done[i] = true
@@ -453,7 +455,7 @@ func _process(delta: float) -> void:
 		coin_tick -= delta
 		if coin_tick <= 0.0 and game:
 			coin_tick = 0.07 if tier < 3 else 0.045
-			game.play_ui("coin", -14.0, randf_range(0.95, 1.25))
+			SlotSounds.play3d(self, SlotSounds.clink(), global_position + Vector3(0, 0.35, 0.36), -12.0, randf_range(0.92, 1.12))
 	screen.queue_redraw()
 
 

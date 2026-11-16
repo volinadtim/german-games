@@ -1,4 +1,6 @@
 extends StaticBody3D
+
+const SlotSounds := preload("res://scripts/slot/slot_sounds.gd")   # звуки монет в лотке и рычага (промпт 16.11 04:18)
 # Часть slot_machine.gd: константы, состояние, математика барабанов и выплат (static), процедурные звуки, примитивы мешей.
 const Sym := preload("res://scripts/slot/slot_symbols.gd")
 const PickupMesh := preload("res://scripts/world/pickup_mesh.gd")
@@ -350,7 +352,27 @@ static func _guarantee_one(g: Array, lv: int, sym: String) -> void:
 ## («липкость» STICK, шестёрки не липнут); затем гарантированные символы guar.
 ## 4+ семёрки или 4+ шестёрки в открытой области перебрасываем.
 ## rare7 — 777 уже выпадали: семёрки реже, 777 на линии чаще перебрасывается.
-static func roll_window(lv: int, guar, boosted: Array = [], rare7 := false) -> Array:
+## промпт 16.11 04:19: шанс любой выплаты ×0.9 — 10% выигрышных окон (без купленных гарантов)
+## заменяются проигрышными; пропорции между комбинациями сохраняются.
+const WIN_CUT := 0.1
+
+
+static func _is_win(g: Array, lv: int) -> bool:
+	var ev := evaluate(g, lv, lines_for(lv))
+	return int(ev["win"]) > 0 or bool(ev["sevens"])
+
+
+static func roll_window(lv: int, guar, boosted: Array = [], rare7 := false, cut := true) -> Array:
+	var g := _roll_window(lv, guar, boosted, rare7)
+	if cut and guar.is_empty() and randf() < WIN_CUT and _is_win(g, lv):
+		for k in 200:
+			var g2 := _roll_window(lv, guar, boosted, rare7)
+			if not _is_win(g2, lv) and count_open(g2, lv, "six") < 3:
+				return g2
+	return g
+
+
+static func _roll_window(lv: int, guar, boosted: Array = [], rare7 := false) -> Array:
 	var g: Array = []
 	for attempt in 200:
 		g = []

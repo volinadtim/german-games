@@ -140,7 +140,7 @@ func interact(g) -> void:
 	for row in hl_cells:
 		for c in row:
 			c.visible = false
-	g.play_at("coin", global_position + Vector3(0.0, 0.7, 0.0), -10.0)
+	SlotSounds.play3d(self, SlotSounds.lever(), lever.global_position, -7.0, randf_range(0.96, 1.04))   # промпт 16.11 04:18
 	var tw := create_tween()
 	tw.tween_property(lever, "rotation:x", 1.1, 0.18).set_trans(Tween.TRANS_QUAD)
 	tw.tween_property(lever, "rotation:x", 0.0, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -156,8 +156,8 @@ func interact(g) -> void:
 		var turns := 3.0 + i
 		target += TAU * ceil((cur - target) / TAU + turns)
 		var rt := create_tween()
-		rt.tween_interval(0.15 + i * 0.05)
-		rt.tween_property(reels[i], "rotation:x", target, 1.3 + i * 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		rt.tween_interval(0.12 + i * 0.04)   # крутка ×0.8 (промпт 16.11 04:18)
+		rt.tween_property(reels[i], "rotation:x", target, 1.04 + i * 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		rt.tween_callback(_reel_stopped.bind(i))
 
 
@@ -178,7 +178,7 @@ func _roll_stops() -> void:
 		for r in ROWS:
 			strip[(stops[i] + r - 1 + n) % n] = g[r][i]
 		strips[i] = strip
-	get_tree().create_timer(0.3).timeout.connect(_redraw_strips)
+	get_tree().create_timer(0.24).timeout.connect(_redraw_strips)
 
 
 ## Видимое окно: 3 ряда по 5 символов (сверху вниз), включая закрытые клетки.
@@ -246,7 +246,7 @@ func _process(delta: float) -> void:
 			if cell != last_cell[i]:
 				last_cell[i] = cell
 				if tick_t <= 0.0:
-					tick_t = 0.05
+					tick_t = 0.04
 					snd.stream = game.snd["tick"][0]
 					snd.volume_db = -14.5   # +25% (промпт 16.11 03:21)
 					snd.pitch_scale = randf_range(0.9, 1.1)
@@ -462,12 +462,13 @@ func _pour(win: int) -> void:
 	pour_tweens = pour_tweens.filter(func(x): return x and x.is_valid())
 	var gen := pour_gen
 	if game:
-		var rings := clampi(want - k0, 1, 5)
-		for r in rings:
-			var at := 0.5 + r * randf_range(0.05, 0.11)
+		# пачка звяков о металлический лоток (промпт 16.11 04:18); на крупный выигрыш — 2–3 пачки внахлёст
+		var packs := clampi(ceili((want - k0) / 4.0), 1, 3)
+		for r in packs:
+			var at := 0.5 + r * randf_range(0.12, 0.22)
 			get_tree().create_timer(at).timeout.connect(func():
 				if game and gen == pour_gen:
-					game.play_at("coin", tray_target.global_position, -12.0 - r, randf_range(0.9, 1.3)))
+					SlotSounds.play3d(self, SlotSounds.tray(), tray_target.global_position, -9.0 - r * 2.0, randf_range(0.93, 1.07)))
 
 
 ## Забрать всё из лотка в кошелёк.
