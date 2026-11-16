@@ -15,7 +15,9 @@ const WAKE_POS := Vector3(-11.25, 0.05, -4.3)   # у западной стены
 const DOOR := Vector3(-6.0, 0.0, -1.6)          # проём из северо-западной комнаты в коридор
 const TRIGGER_R := 2.3                          # «почти подошёл к выходу»
 const CRAWL_FROM := Vector3(-7.4, 0.0, 0.35)    # из-за угла коридора; заворачивает в комнату KILLBOX (промпт 16.11 03:49)
-const SIDE_CAM := Vector3(-4.6, 1.8, -8.4)       # ракурс — из той же комнаты, с противоположной стороны, через проём (промпт 16.11 03:48)
+# камера выскальзывает из глаз назад-влево, за плечо, и смотрит, как персонаж выглядывает из-за косяка (промпт 16.11 03:59)
+const SHOULDER := Vector3(-0.42, 0.12, 1.05)     # от глаз, в осях игрока (+Z — назад)
+const PEEK_AT := Vector3(-5.55, 0.0, -2.05)     # куда подходит выглядывать: у восточного косяка проёма, внутри комнаты
 const SIDE_T := 3.0                              # потом за 1.2 с камера плавно возвращается в глаза
 # по коридору к проёму комнаты с автоматом (x = -6, z = 1.6), по оси проёма внутрь; конец пути — стоп (~4 с)
 const CRAWL_PATH := [Vector3(-6.15, 0, 0.6), Vector3(-6.0, 0, 1.6), Vector3(-6.0, 0, 2.9)]
@@ -114,11 +116,20 @@ func _process(delta: float) -> void:
 				_begin_cut()
 		"cut":
 			if is_instance_valid(crawler):
+				# подходит к косяку и выглядывает: наклон корпуса и головы
+				var to := PEEK_AT - p.global_position
+				to.y = 0.0
+				p.global_position += to * (1.0 - exp(-4.0 * delta))
 				_aim(crawler.global_position + Vector3(0, 0.45, 0), 1.0 - exp(-3.0 * delta))
-				var side := Transform3D(Basis(), SIDE_CAM).looking_at(crawler.global_position + Vector3(0, 0.4, 0))
-				var kb := smoothstep(SIDE_T, CUT_T - 0.05, t)
-				cut_cam.global_transform = side.interpolate_with(p.cam.global_transform, kb)
-				p.set_head_visible(kb < 0.8)   # голова видна, пока камера снаружи
+				p.peek = smoothstep(0.4, 1.3, t) * (1.0 - smoothstep(2.9, 3.7, t))
+				var eye: Transform3D = p.cam.global_transform
+				var out := smoothstep(0.0, 0.9, t) * (1.0 - smoothstep(SIDE_T, CUT_T - 0.05, t))
+				var head_pt: Vector3 = eye.origin
+				var look: Vector3 = head_pt.lerp(crawler.global_position + Vector3(0, 0.4, 0), 0.55)
+				var sh_pos: Vector3 = eye.origin + Basis(Vector3.UP, p.rotation.y) * SHOULDER
+				var shoulder := Transform3D(Basis(), sh_pos).looking_at(look)
+				cut_cam.global_transform = eye.interpolate_with(shoulder, out)
+				p.set_head_visible(out > 0.2)   # голова видна, пока камера снаружи
 			if t >= CUT_T:
 				_end_side_cam()
 				_lock(false)
@@ -220,9 +231,8 @@ func _begin_cut() -> void:
 	cut_cam.fov = game.player.cam.fov
 	cut_cam.near = 0.05
 	game.add_child(cut_cam)
-	cut_cam.global_transform = Transform3D(Basis(), SIDE_CAM).looking_at(e.global_position + Vector3(0, 0.4, 0))
+	cut_cam.global_transform = game.player.cam.global_transform
 	cut_cam.current = true
-	game.player.set_head_visible(true)
 	# звук: скрежет ползущего тела, жалобный визг и глухой гул
 	var drag := AudioStreamPlayer3D.new()
 	drag.stream = _drag_snd()
@@ -264,6 +274,7 @@ func _end_side_cam() -> void:
 	if game and is_instance_valid(game.player):
 		game.player.cam.current = true
 		game.player.set_head_visible(false)
+		game.player.peek = 0.0
 
 
 func _on_crawler_died(_e) -> void:

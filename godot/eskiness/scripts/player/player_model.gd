@@ -414,6 +414,11 @@ func _apply_bones() -> void:
 			sway_p + breath * 0.012 - box * 0.08 - ck * 0.1 + aim_bend * 0.14 + 0.03 * rk,
 			breath * 0.035 - box * 0.06 - bounce * 0.03 - ck * 0.04 + aim_bend * 0.1 + 0.035 * rk]
 	var spine_z := [-weight * (0.03 + 0.03 * (1.0 - fist_blend)) * idle_amt + sway_r, sway_r - w_r * 0.025, sway_r * 0.5 - w_r * 0.015]
+	if peek != 0.0:
+		# выглядывает: корпус клонится вбок и чуть вперёд (вправо — отрицательный угол вокруг +Z)
+		for k in 3:
+			spine_z[k] -= peek * [0.1, 0.14, 0.16][k]
+			spine_x[k] += absf(peek) * 0.05
 	# корпус доворачивается за бьющей рукой, ключица выносит плечо вперёд
 	var twist := (reach[1] - reach[0]) * 2.2 + swing_twist
 	var dt := torso_off - leg_off
@@ -427,6 +432,8 @@ func _apply_bones() -> void:
 		var nk := Basis.IDENTITY
 		if fidget == "neck":
 			nk = Basis(Vector3.UP, 0.35 * fidget_side * sin(TAU * fidget_t) * fk) * Basis(Vector3.BACK, 0.3 * fidget_side * fk)
+		if peek != 0.0:
+			nk = nk * Basis(Vector3.BACK, -peek * 0.22)   # голова — ещё дальше вбок
 		_set_global_rot(neck_bone, rr * nk * rest_p.call(neck_bone))
 	for i in 2:
 		var side := -1.0 if i == 0 else 1.0
