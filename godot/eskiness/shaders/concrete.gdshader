@@ -87,15 +87,23 @@ void fragment() {
 		float fl = smoothstep(0.7, 0.95, up) * floor_detail;
 		if (fl > 0.0) {
 			vec2 q = wpos.xz + vec2(0.37, 0.81);
+			// дрожание линий: плавный сдвиг + мелкая рябь
+			q += (vec2(tri(noise_big, wpos, wnrm, 0.35), tri(noise_big, wpos + vec3(13.0, 0.0, 7.0), wnrm, 0.35)) - 0.5) * 0.09;
+			q += (vec2(texture(noise_fine, wpos.xz * 1.7).r, texture(noise_fine, wpos.zx * 1.7 + 0.5).r) - 0.5) * 0.015;
 			float row = floor(q.y / slab);
-			q.x += hash12(vec2(row, 3.1)) * slab;   // ряды плит со сдвигом
-			vec2 cell = floor(q / slab);
-			vec2 f = fract(q / slab) * slab;
-			vec2 e = min(f, vec2(slab) - f);
+			// в каждом ряду своя длина плит (0.7–1.3 размера) и сдвиг
+			float sx = slab * (0.7 + 0.6 * hash12(vec2(row, 7.7)));
+			q.x += hash12(vec2(row, 3.1)) * sx;
+			vec2 cell = vec2(floor(q.x / sx), row);
+			vec2 f = vec2(fract(q.x / sx) * sx, fract(q.y / slab) * slab);
+			vec2 e = min(f, vec2(sx, slab) - f);
 			float ed = min(e.x, e.y);
-			float sw = fwidth(ed) + 0.004;
-			float seam = 1.0 - smoothstep(0.012, 0.012 + sw, ed);
-			float edge = 1.0 - smoothstep(0.0, 0.09, ed);   // пыль набилась у шва
+			float sw = fwidth(ed) + 0.003;
+			// ширина плавает, местами шов пропадает (затёрт)
+			float wv = 0.003 + 0.006 * tri(noise_fine, wpos + vec3(3.0, 0.0, 17.0), wnrm, 0.6);
+			float gap = smoothstep(0.3, 0.5, tri(noise_big, wpos + vec3(29.0, 0.0, 61.0), wnrm, 0.4));
+			float seam = (1.0 - smoothstep(wv, wv + sw, ed)) * gap * 0.55;
+			float edge = (1.0 - smoothstep(0.0, 0.06, ed)) * gap * 0.6;   // пыль набилась у шва
 			float slab_t = hash12(cell) - 0.5;
 			float dirt = smoothstep(0.5, 0.8, tri_px(noise_big_px, wpos + vec3(71.0, 0.0, 13.0), wnrm, 0.05));
 			float spots = smoothstep(0.68, 0.8, tri_px(noise_fine_px, wpos + vec3(5.0, 0.0, 91.0), wnrm, 0.35));
