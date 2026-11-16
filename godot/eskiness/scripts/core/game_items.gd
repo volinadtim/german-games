@@ -473,9 +473,17 @@ func craft(r: int) -> void:
 			hud.toast("Не хватает: %s" % Items.item_name(id))
 			return
 	var tool_id: String = rec.get("tool", "")
-	if tool_id != "" and inv.count(tool_id) == 0:
-		hud.toast("Нужен инструмент: %s" % Items.item_name(tool_id))
-		return
+	if tool_id != "":
+		# слесарный молоток заменяет каменный (Items.tool_ids), он и тратится первым
+		var have := ""
+		for t in Items.tool_ids(tool_id):
+			if inv.count(t) > 0:
+				have = t
+				break
+		if have == "":
+			hud.toast("Нужен инструмент: %s" % Items.item_name(tool_id))
+			return
+		tool_id = have
 	for id in need:
 		inv.remove(id, int(need[id]))
 	if tool_id != "":

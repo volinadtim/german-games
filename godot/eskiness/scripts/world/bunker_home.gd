@@ -162,7 +162,7 @@ class Bench extends StaticBody3D:
 
 	func interact(g) -> void:
 		if g.shop and g.shop.has_method("open_tab"):
-			g.shop.open_tab(g, 4)
+			g.shop.open_tab(g, g.shop.TABS.find("Чертежи"))
 
 
 func _workbench() -> Node3D:

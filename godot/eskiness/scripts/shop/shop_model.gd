@@ -16,19 +16,23 @@ var tab := 0                  # открытая вкладка (TABS)
 var tab_btns: Array[Button] = []
 var content: VBoxContainer    # содержимое вкладки — пересобирается при переключении и покупке
 
-const TABS := ["Оружие", "Одежда", "Расходники", "Слот-Машина", "Чертежи"]
+const TABS := ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"]
+## «Инструменты» (промпт 16.11 02:42): фонарик, метла, нормальный молоток, топорик (рубит деревья на поляне — surface.gd)
+const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55]]
 ## расходники (промпт 14.11 17:21): [id, цена]. Батарейки и сухари — дёшево, хилки дороже.
 ## Экономика: старт 50 монет, кувшин даёт 1–4, хлам продаётся за 2–5.
 const CONSUMABLES := [["battery", 3], ["rusk", 2], ["water", 3], ["soda", 5], ["choco", 5], ["canned", 6],
 	["pills", 5], ["bandage", 6], ["medkit", 20], ["repair_weapon", 30], ["repair_gear", 25]]
 ## подвкладки «Одежды» (промпт 14.11 21:14): [название, товары]. Цены — Weapons.SHOP / CONSUMABLES (_price).
-## Обувь — в «Низ». Ремкомплект одежды — в «Снаряжении» (в «Расходниках» его нет).
+## Обувь — отдельная подвкладка «Ботинки»; ремкомплект одежды — в «Расходниках»; фонарик и метла — в «Инструментах»
+## (промпт 16.11 02:42). «Снаряжение» — последняя (CLOTHES[-1]).
 const CLOTHES := [
 	["Голова", ["ushanka", "helmet", "moto_helmet"]],
 	["Верх", ["kurtka", "jacket", "vest"]],
-	["Низ", ["jeans", "pants", "wpants", "sneakers", "boots"]],
+	["Низ", ["jeans", "pants", "wpants"]],
+	["Ботинки", ["sneakers", "boots"]],
 	["Перчатки", ["gloves", "tac_gloves"]],
-	["Снаряжение", ["gasmask", "filter", "flashlight", "backpack", "broom", "repair_gear"]],
+	["Снаряжение", ["gasmask", "filter", "backpack"]],
 ]
 var sub := 0                  # открытая подвкладка «Одежды» (CLOTHES)
 
@@ -311,6 +315,9 @@ static func _price(id: String) -> int:
 		if e[0] == id:
 			return int(e[1])
 	for e in CONSUMABLES:
+		if e[0] == id:
+			return int(e[1])
+	for e in TOOLS:
 		if e[0] == id:
 			return int(e[1])
 	return 0

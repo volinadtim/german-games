@@ -111,6 +111,11 @@ const ITEMS := {
 	# молоток: оружие на 6 ударов и инструмент — без него не скрафтить заточку, кастет и дубину
 	"hammer": {"name": "Молоток", "desc": "Камень на палке. Урон ×2.2, но всего 6 ударов. Инструмент: заточка, кастет, дубина (крафт тратит прочность).", "stack": 1,
 		"icon": "hammer", "color": Color(0.46, 0.45, 0.42), "weapon": true, "dur": 6},
+	# инструменты из магазина (промпт 16.11 02:42, вкладка «Инструменты»)
+	"steel_hammer": {"name": "Слесарный молоток", "desc": "Стальной боёк на крепкой ручке. Урон ×2.6, 40 ударов. Инструмент: заменяет каменный молоток в крафте.", "stack": 1,
+		"icon": "steel_hammer", "color": Color(0.55, 0.56, 0.58), "weapon": true, "dur": 40, "tool_of": "hammer"},
+	"hatchet": {"name": "Топорик", "desc": "Небольшой топор. Урон ×2.9. На поляне — руби сухие деревья и старые доски (ЛКМ с топориком в руке): деревяшки.", "stack": 1,
+		"icon": "hatchet", "color": Color(0.6, 0.62, 0.63), "weapon": true, "dur": 50},
 	"shiv": {"name": "Заточка", "desc": "Металлолом, отбитый молотком в острое жало. Урон ×2.7, быстрая.", "stack": 1,
 		"icon": "shiv", "color": Color(0.5, 0.48, 0.46), "weapon": true, "dur": 25},
 	"spiked_club": {"name": "Дубина с гвоздями", "desc": "Доски, сбитые гайками и болтами. Урон ×3.2, бьёт широко.", "stack": 1,
@@ -164,6 +169,16 @@ const POCKETS := {
 	"kurtka": [2, 1], "jacket": [2, 2], "vest": [3, 1],
 	"jeans": [2, 1], "pants": [2, 2], "wpants": [1, 2],
 }
+
+
+## Чем можно заменить инструмент рецепта: сам он и вещи с "tool_of" (слесарный молоток вместо каменного).
+static func tool_ids(tid: String) -> Array:
+	var out: Array = []
+	for id in ITEMS:
+		if String(ITEMS[id].get("tool_of", "")) == tid:
+			out.append(id)
+	out.append(tid)
+	return out
 
 
 static func size_of(id: String) -> Vector2i:
@@ -226,7 +241,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var s := minf(r.size.x, r.size.y)
 	var col: Color = ITEMS[id]["color"]
 	var dark := col.darkened(0.45)
-	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club", "pistol"]:
+	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
@@ -567,9 +582,9 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
 static func make_mesh(id: String) -> Node3D:
-	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club", "pistol"]:
+	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
 		var w := Weapons.make(id)
-		if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "shiv", "spiked_club"]:
+		if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club"]:
 			w.rotation.z = PI / 2   # на полу оружие лежит
 		elif id == "pistol":
 			# пистолет лежит на боку (модель — в плоскости XY): плоская сторона вниз, по центру коробки

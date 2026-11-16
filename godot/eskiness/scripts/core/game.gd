@@ -104,6 +104,7 @@ func setup(p: Player) -> void:
 		slot.set_reveal_pending(false)
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
 	_spawn_stone_piles()
+	preload("res://scripts/world/wood_source.gd").spawn_all(self)   # деревья и доски на поляне — топорик (промпт 16.11 02:42)
 	tape = TapeSpot.new()
 	tape.game = self
 	tape.position = Vector3(-7.05, 0.95, 8.813)   # на самой доске выплат (main.gd прижимает её к стене)

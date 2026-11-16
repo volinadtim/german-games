@@ -773,7 +773,13 @@ func _rebuild_craft() -> void:
 		if rec.has("tool"):
 			# инструмент не тратится, но теряет прочность
 			var tid: String = rec["tool"]
-			var have_t := count(tid) > 0
+			var have_t := false
+			for t in Items.tool_ids(tid):
+				if count(t) > 0:
+					have_t = true
+					if t != tid:
+						tid = t   # показываем тот, что есть (слесарный молоток)
+					break
 			ok = ok and have_t
 			var trow := HBoxContainer.new()
 			trow.add_theme_constant_override("separation", 6)

@@ -245,11 +245,15 @@ func _rebuild_tab() -> void:
 				# аптечки — только в магазине деревни (village_shop.gd), не в бункере (промпт 16.11 02:47)
 				if String(e[0]) == "medkit" and not "main_shop" in self:
 					continue
-				if not String(e[0]) in CLOTHES[4][1]:
+				if not String(e[0]) in CLOTHES[CLOTHES.size() - 1][1]:
 					_item_cell(grid, String(e[0]), int(e[1]))
 		3:
-			_build_slot_tab()
+			var grid := _grid()
+			for e in TOOLS:
+				_item_cell(grid, String(e[0]), _price(String(e[0])))
 		4:
+			_build_slot_tab()
+		5:
 			_build_blueprint_tab()
 
 

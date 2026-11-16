@@ -43,7 +43,7 @@ const FLAT := ["coin", "photo", "choco", "glass", "wallet", "nut", "gear", "tape
 const MODELS := ["coin", "bandage", "pills", "canned", "water", "soda", "rusk", "choco", "battery",
 	"nut", "gear", "wallet", "tape", "wood", "glass", "medkit", "photo", "scrap", "stone", "twine", "mag", "ammo"]
 ## Предметы с моделью weapons.gd (через Items.make_mesh).
-const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "shiv", "spiked_club", "pistol"]
+const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]
 
 static var _icon_cache := {}
 static var _gauze: ImageTexture
@@ -68,7 +68,7 @@ static func make(id: String) -> Array:
 	if id in WEAPON_LIKE:
 		var w := Items.make_mesh(id)
 		w.scale = Vector3.ONE * WEAPON_SCALE
-		var s := (Vector3(0.7, 0.06, 0.06) if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "shiv", "spiked_club"] else Vector3(0.2, 0.1, 0.2)) * WEAPON_SCALE
+		var s := (Vector3(0.7, 0.06, 0.06) if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club"] else Vector3(0.2, 0.1, 0.2)) * WEAPON_SCALE
 		if id == "pistol":
 			s = Vector3(0.2, 0.035, 0.15) * WEAPON_SCALE   # лежит на боку (items.gd: make_mesh)
 		w.position.y += LIFT

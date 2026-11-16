@@ -45,6 +45,9 @@ static func market(id: String) -> int:
 	for e in preload("res://scripts/shop/shop.gd").CONSUMABLES:
 		if e[0] == id:
 			return int(e[1])
+	for e in preload("res://scripts/shop/shop.gd").TOOLS:
+		if e[0] == id:
+			return int(e[1])
 	if Items.ITEMS[id].has("price"):
 		return int(Items.ITEMS[id]["price"]) * 2
 	return int(EXTRA_MARKET.get(id, 0))

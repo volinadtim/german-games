@@ -11,6 +11,8 @@ const WEAPONS := {
 	"knife": {"mult": 2.4, "reach": 1.25, "price": 0},     # крафт: деревяшка + стекло + изолента
 	# крафт с молотком (промпт 14.11 19:22)
 	"hammer": {"mult": 2.2, "reach": 1.3, "price": 0},     # камень + деревяшка + бечёвка; 6 ударов
+	"steel_hammer": {"mult": 2.6, "reach": 1.3, "price": 45},   # магазин, «Инструменты»; инструмент вместо каменного молотка
+	"hatchet": {"mult": 2.9, "reach": 1.35, "price": 55},       # магазин; рубит деревья и доски на поляне (world/wood_source.gd)
 	"shiv": {"mult": 2.7, "reach": 1.25, "price": 0},      # молоток + металлолом ×2
 	"spiked_club": {"mult": 3.2, "reach": 1.5, "price": 0}, # молоток + деревяшка ×2 + гайки ×3
 	"pistol": {"mult": 1.6, "reach": 1.15, "price": 0},     # стреляет gun.gd; это — удар рукоятью
@@ -129,6 +131,16 @@ static func make(id: String) -> Node3D:
 			root.add_child(st)
 			for k in 3:
 				_cyl(root, 0.019, 0.019, 0.012, 0.28 + k * 0.02, _m(Color(0.7, 0.6, 0.4)))
+		"steel_hammer":
+			# деревянная ручка, стальной боёк поперёк (промпт 16.11 02:42)
+			_cyl(root, 0.015, 0.013, 0.36, 0.12, _m(Color(0.55, 0.4, 0.24)))
+			_box(root, Vector3(0.13, 0.045, 0.045), Vector3(0.015, 0.31, 0), _m(Color(0.55, 0.56, 0.58), 0.8, 0.35))
+			_box(root, Vector3(0.03, 0.05, 0.05), Vector3(0.085, 0.31, 0), _m(Color(0.4, 0.41, 0.43), 0.85, 0.3))
+		"hatchet":
+			# топорище и лезвие сбоку
+			_cyl(root, 0.016, 0.014, 0.38, 0.13, _m(Color(0.5, 0.36, 0.2)))
+			_box(root, Vector3(0.05, 0.07, 0.03), Vector3(0.0, 0.31, 0), _m(Color(0.35, 0.36, 0.38), 0.8, 0.4))
+			_box(root, Vector3(0.09, 0.1, 0.012), Vector3(0.06, 0.305, 0), _m(Color(0.62, 0.64, 0.66), 0.9, 0.25))
 		"shiv":
 			# рукоять из тряпки, жало — заострённая ржавая пластина
 			_cyl(root, 0.016, 0.016, 0.11, 0.02, _m(Color(0.3, 0.26, 0.2)))
@@ -276,6 +288,19 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2, col: Color) -> void:
 			ci.draw_circle(hd, s * 0.15, col)
 			ci.draw_circle(hd + Vector2(-s * 0.04, -s * 0.04), s * 0.06, col.lightened(0.15))
 			ci.draw_line(hd + Vector2(-s * 0.1, s * 0.1), hd + Vector2(s * 0.02, s * 0.12), Color(0.7, 0.6, 0.4), w * 0.6)
+		"steel_hammer":
+			ci.draw_line(a, a.lerp(b, 0.8), Color(0.55, 0.4, 0.24), w * 1.1)
+			var hd2 := a.lerp(b, 0.82)
+			var perp := Vector2(s * 0.13, s * 0.13)
+			ci.draw_line(hd2 - perp, hd2 + perp, col, w * 2.4)
+			ci.draw_line(hd2 + perp * 0.6, hd2 + perp, col.darkened(0.3), w * 2.6)
+		"hatchet":
+			ci.draw_line(a, a.lerp(b, 0.85), Color(0.5, 0.36, 0.2), w * 1.1)
+			var hd3 := a.lerp(b, 0.78)
+			var blade := PackedVector2Array([hd3 + Vector2(-s * 0.04, -s * 0.04), hd3 + Vector2(s * 0.18, s * 0.02),
+				hd3 + Vector2(s * 0.2, s * 0.2), hd3 + Vector2(s * 0.04, s * 0.04)])
+			ci.draw_colored_polygon(blade, col)
+			ci.draw_line(hd3 + Vector2(s * 0.18, s * 0.02), hd3 + Vector2(s * 0.2, s * 0.2), col.lightened(0.35), maxf(1.0, w * 0.5))
 		"shiv":
 			ci.draw_line(a, a.lerp(b, 0.38), Color(0.3, 0.26, 0.2), w * 1.4)
 			var base2 := a.lerp(b, 0.38)
