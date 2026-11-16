@@ -11,7 +11,77 @@ func _ready() -> void:
 
 
 func get_prompt(_game) -> String:
+	if not powered:
+		return ""
 	return "[E] Trinkets Market"
+
+
+## Питание (промпт 16.11 04:30): в новой игре магазин выключен — экран, вывеска и свет погашены,
+## E не работает; включается со звуком, как KILLBOX, после первых круток (slot_machine.gd).
+var powered := true
+var _glow_e := {}
+
+
+func _power_parts() -> Array:
+	var mats: Array = []
+	var lights: Array = []
+	var stack: Array[Node] = [self]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		stack.append_array(n.get_children())
+		if n is Light3D:
+			lights.append(n)
+		elif n is MeshInstance3D:
+			var mi := n as MeshInstance3D
+			var list: Array = [mi.material_override]
+			if mi.mesh:
+				for i in mi.mesh.get_surface_count():
+					list.append(mi.get_surface_override_material(i))
+					list.append(mi.mesh.surface_get_material(i))
+			for m in list:
+				if m is StandardMaterial3D and (m as StandardMaterial3D).emission_enabled and not m in mats:
+					mats.append(m)
+	return [mats, lights]
+
+
+func set_powered(on: bool, fx := false) -> void:
+	if on == powered and not fx:
+		return
+	var parts := _power_parts()
+	if not on:
+		powered = false
+		if opened:
+			_close()
+		for m in parts[0]:
+			if not _glow_e.has(m):
+				_glow_e[m] = (m as StandardMaterial3D).emission_energy_multiplier
+			(m as StandardMaterial3D).emission_energy_multiplier = 0.0
+		for l in parts[1]:
+			(l as Light3D).visible = false
+		return
+	if not fx:
+		_power_apply(parts, true)
+		return
+	if game:
+		game.play_at("clunk", global_position + Vector3(0, 1.0, 0.4), -8.9, 0.8)
+		game.play_at("buzz", global_position + Vector3(0, 1.2, 0.4), -14.9, 0.9)
+	var tw := create_tween()
+	for k in [true, false, true, false]:
+		tw.tween_callback(_power_apply.bind(parts, k))
+		tw.tween_interval(0.07 if k else 0.12)
+	tw.tween_callback(_power_apply.bind(parts, true))
+	tw.tween_callback(func():
+		if game:
+			game.play_at("jingle", global_position + Vector3(0, 1.2, 0.4), -12.9)
+			game.hud.toast("Trinkets Market заработал", Color(0.55, 1.0, 0.6)))
+
+
+func _power_apply(parts: Array, on: bool) -> void:
+	powered = on
+	for m in parts[0]:
+		(m as StandardMaterial3D).emission_energy_multiplier = float(_glow_e.get(m, 1.0)) if on else 0.0
+	for l in parts[1]:
+		(l as Light3D).visible = on
 
 
 ## Открыть магазин сразу на вкладке i (верстак дома открывает «Чертежи»).
@@ -27,6 +97,8 @@ func open_tab(g, i: int) -> void:
 
 func interact(g) -> void:
 	game = g
+	if not powered and not opened:
+		return
 	if Time.get_ticks_msec() - _last_toggle < 350:
 		return
 	_last_toggle = Time.get_ticks_msec()

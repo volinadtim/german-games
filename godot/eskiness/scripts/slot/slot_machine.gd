@@ -89,6 +89,17 @@ func set_powered(on: bool, fx := false) -> void:
 	tw.tween_callback(_power_jingle)
 
 
+## Первые купленные крутки (3 или 6) прокручены — включается Trinkets Market (промпт 16.11 04:30).
+func _first_spins_check() -> void:
+	if game == null or credits > 0 or bool(game.get("shop_on")):
+		return
+	game.shop_on = true
+	game.call_deferred("save_now")
+	get_tree().create_timer(1.6, false).timeout.connect(func():
+		if game and game.shop and is_instance_valid(game.shop):
+			game.shop.set_powered(true, true))
+
+
 func _power_jingle() -> void:
 	if game:
 		game.play_at("jingle", global_position + Vector3(0, 1.2, 0.4), -12.9)
@@ -255,6 +266,7 @@ func _process(delta: float) -> void:
 
 func _payout() -> void:
 	busy = false
+	_first_spins_check()
 	var g := grid()
 	var res := evaluate(g, level, lines_for(level))
 	if res["six"] and shield > 0:

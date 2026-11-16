@@ -74,6 +74,9 @@ func start() -> void:
 	_spawn_crawler()
 	echo_snd = _slot_echo()
 	game.intro_done = false
+	game.shop_on = false
+	if game.shop and is_instance_valid(game.shop):
+		game.shop.set_powered(false)   # Trinkets Market включится после первых круток (slot_machine.gd)
 	if game.slot and is_instance_valid(game.slot):
 		game.slot.set_powered(false)   # KILLBOX выключен до убийства монстрика
 	_wake_pose(0.0)

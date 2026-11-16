@@ -55,6 +55,7 @@ const RESPAWN := 40.0
 const FAST_SHARE := 0.4   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
 
 var player: Player
+var shop_on := true      # Trinkets Market включён (промпт 16.11 04:30): в новой игре — после первых круток; сейв "shop_on"
 var intro_done := true   # вступление пройдено (world/intro.gd); автомат включён — в сейве "intro_done"
 var takedown   # world/takedown.gd — стелс-добивание мелких врагов сзади на E
 var hud: Hud
