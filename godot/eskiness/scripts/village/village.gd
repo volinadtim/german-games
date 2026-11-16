@@ -482,6 +482,7 @@ func to_save() -> Dictionary:
 		d["car"] = car.to_save()
 	if bonus_slot:
 		d["jackpot"] = bonus_slot.jackpot
+		d["sevens"] = bonus_slot.sevens_hit
 	return d
 
 
@@ -491,6 +492,7 @@ func from_save(d: Dictionary) -> void:
 	loot_done = bool(d.get("loot", false))
 	if bonus_slot and d.has("jackpot"):
 		bonus_slot.jackpot = int(d["jackpot"])
+		bonus_slot.sevens_hit = bool(d.get("sevens", false))
 	if car and d.has("car"):
 		car.from_save(d["car"])
 	if not loot_done and game and game.net == null:

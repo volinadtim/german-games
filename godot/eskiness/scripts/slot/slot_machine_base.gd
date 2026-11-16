@@ -13,14 +13,16 @@ const PACKS := [[3, 8], [6, 15]]
 ## Цены подобраны симуляцией: прибавка выигрыша за все крутки баффа меньше его цены. Шестёрка не продаётся.
 const LUCK := {
 	"cherry": [6, 6, 14, 16], "lemon": [6, 8, 15, 17], "plum": [6, 11, 18, 19],
-	"grape": [5, 13, 19, 20], "diamond": [4, 16, 20, 22], "seven": [3, 18, 23, 25],
+	"grape": [5, 13, 19, 20],
 }
+## промпт 16.11 03:16: гаранты/шансы на семёрки и алмазы не продаются
 const REELS := 5
 const ROWS := 3
 ## прокачка окна: LEVELS[ур-1] = [рядов, барабанов, цена перехода на этот уровень]
 ## упрощено (промпт 15.11 23:03): переходы дешевле — первая локация проходится быстрее
-const LEVELS := [[1, 3, 0], [2, 3, 25], [3, 3, 50], [3, 4, 80], [3, 5, 120]]
-const MAX_LEVEL := 5
+## промпт 16.11 03:19: после 1×3 сразу 3×3 (окна 2×3 больше нет; старые сейвы — slot_level_v2 в game_save.gd)
+const LEVELS := [[1, 3, 0], [3, 3, 45], [3, 4, 80], [3, 5, 120]]
+const MAX_LEVEL := 4
 ## лента барабана (одна на все барабаны, у каждого свой сдвиг): семёрки далеко друг от друга,
 ## поэтому в окне одного барабана больше одной семёрки не бывает
 const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
@@ -33,14 +35,14 @@ const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "d
 ## LEVEL_SYMS[ур-1] — сколько первых символов в игре. Шансы — WEIGHTS среди доступных.
 const SYM_ORDER := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"]
 ## алмазы — с 4-го уровня (3×4), промпт 15.11 22:53
-const LEVEL_SYMS := [3, 4, 4, 5, 7]
+const LEVEL_SYMS := [3, 4, 5, 7]
 ## гарантов одного символа за крутку максимум по уровню окна (промпт 14.11 18:08)
-const GUAR_MAX := [1, 1, 2, 2, 3]
+const GUAR_MAX := [1, 2, 2, 3]
 ## шанс комбинации (промпт 14.11 18:08): символ -> [круток, цена]. Пока действует, этот символ
 ## «липнет» к соседу слева с шансом STICK_BOOST вместо STICK — 3 в ряд выпадают заметно чаще.
 const BOOST := {
 	"cherry": [6, 8], "lemon": [6, 11], "plum": [6, 13],
-	"grape": [5, 14], "diamond": [4, 15], "seven": [3, 16],
+	"grape": [5, 14],
 }
 const STICK_BOOST := 0.45
 ## шанс, что клетка повторит символ соседа слева по ряду (чаще собираются комбинации)
@@ -57,11 +59,16 @@ const PAY := {
 }
 ## пара одинаковых соседних в ряду — только на 1-м уровне (1×3): любая, кроме вишни, +2 (промпт 15.11 22:53)
 const PAIR_MAX_LEVEL := 1
-const PAY2 := {"lemon": 2, "plum": 2, "grape": 2, "diamond": 2}
+## две вишни — 1 монета (промпт 16.11 03:19)
+const PAY2 := {"cherry": 1, "lemon": 2, "plum": 2, "grape": 2, "diamond": 2}
 ## множитель за серию (промпт 14.11 17:56): CHAIN[побед подряд перед этой круткой] — множитель выплаты.
 ## Проигрыш (и 666) сбрасывает серию; она живёт, пока крутишь: уход от автомата дальше CHAIN_DIST м
 ## или CHAIN_IDLE с без крутки — сброс.
-const CHAIN := [1.0, 1.25, 1.5, 2.0]
+## промпт 16.11 03:16: множитель порезан (был до ×2), потолок ×1.3
+const CHAIN := [1.0, 1.1, 1.2, 1.3]
+## 777 уже выпадали (флаг в сейве): семёрки в 4 раза реже, а 777 на линии перебрасывается с шансом SEVENS_REROLL
+const SEVENS_RARE_W := 0.25
+const SEVENS_REROLL := 0.85
 const CHAIN_DIST := 4.0
 const CHAIN_IDLE := 30.0
 const R := 0.19            # радиус барабана
@@ -88,6 +95,7 @@ var boost := {}                  # шанс комбинации: символ -
 var level := MAX_LEVEL           # прокачка окна (1..MAX_LEVEL), хранится в сейве; в меню — всё открыто
 var shutters: Array = []         # заслонки закрытых клеток: [ряд][барабан]
 var pack_up: Button              # кнопка прокачки в окне покупки круток
+var sevens_hit := false          # 777 уже выпадали (в сейве) — дальше они намного реже
 var streak := 0                  # побед подряд (множитель серии CHAIN)
 var last_spin_t := 0.0
 ## защита от 666 (промпт 14.11 19:23): скормленные гнилые яблоки; при «666» одно сгорает, монеты целы
@@ -120,6 +128,7 @@ var pack_open := false
 var pack_info: Label
 var reels: Array[Node3D] = []
 var strips: Array = []          # лента каждого барабана (12 символов), обновляется к каждой крутке
+var snap_gen := 0                # поколение снимка лент (_snap_strips)
 var strip_views: Array = []     # [SubViewport, Control] на барабан — перерисовка ленты
 var stops: Array[int] = [0, 0, 0, 0, 0]
 var last_cell: Array[int] = [0, 0, 0, 0, 0]
@@ -215,17 +224,21 @@ static func sym_level(sym: String) -> int:
 	return MAX_LEVEL
 
 
-static func _weighted_symbol(lv: int) -> String:
+static func _weighted_symbol(lv: int, rare7 := false) -> String:
 	var syms := syms_for(lv)
 	var total := 0.0
 	for k in syms:
-		total += float(WEIGHTS[k])
+		total += _w(k, rare7)
 	var r := randf() * total
 	for k in syms:
-		r -= float(WEIGHTS[k])
+		r -= _w(k, rare7)
 		if r <= 0.0:
 			return k
 	return "cherry"
+
+
+static func _w(sym: String, rare7: bool) -> float:
+	return float(WEIGHTS[sym]) * (SEVENS_RARE_W if rare7 and sym == "seven" else 1.0)
 
 
 static func _random_strip(lv: int) -> Array:
@@ -336,14 +349,15 @@ static func _guarantee_one(g: Array, lv: int, sym: String) -> void:
 ## Розыгрыш окна 3×5: каждая клетка — по весам WEIGHTS, иногда повторяет соседа слева
 ## («липкость» STICK, шестёрки не липнут); затем гарантированные символы guar.
 ## 4+ семёрки или 4+ шестёрки в открытой области перебрасываем.
-static func roll_window(lv: int, guar, boosted: Array = []) -> Array:
+## rare7 — 777 уже выпадали: семёрки реже, 777 на линии чаще перебрасывается.
+static func roll_window(lv: int, guar, boosted: Array = [], rare7 := false) -> Array:
 	var g: Array = []
 	for attempt in 200:
 		g = []
 		for r in ROWS:
 			var row: Array = []
 			for c in REELS:
-				var s := _weighted_symbol(lv)
+				var s := _weighted_symbol(lv, rare7)
 				if c > 0:
 					var left: String = row[c - 1]
 					if left != "six" and randf() < (STICK_BOOST if boosted.has(left) else STICK):
@@ -352,6 +366,8 @@ static func roll_window(lv: int, guar, boosted: Array = []) -> Array:
 			g.append(row)
 		for sym in guar:
 			_guarantee(g, lv, String(sym), int(guar[sym]) if guar is Dictionary else 1)
+		if rare7 and attempt < 199 and randf() < SEVENS_REROLL and evaluate(g, lv, lines_for(lv))["sevens"]:
+			continue
 		if count_open(g, lv, "seven") <= 3 and count_open(g, lv, "six") <= 3:
 			break
 	return g
@@ -409,7 +425,7 @@ static func evaluate(g: Array, lv: int, lines: Array) -> Dictionary:
 			if same:
 				sym = syms[0]
 				cells = line
-		# на 1×3: пара одинаковых соседних (не вишни) — маленькая награда PAY2
+		# на 1×3: пара одинаковых соседних (вишни — 1 монета) — маленькая награда PAY2
 		# (промпт 14.11 18:33; серию не продлевает). На галочках пар нет: там они были бы почти каждую крутку.
 		if sym == "" and kind == "row" and lv <= PAIR_MAX_LEVEL:
 			for k in syms.size() - 1:

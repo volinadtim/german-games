@@ -57,11 +57,13 @@ func save_state() -> Dictionary:
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
 		"slot_boost": slot.boost.duplicate(true) if slot else {},
 		"slot_level": slot.level if slot else 1,
+		"slot_level_v2": true,   # уровни без окна 2×3 (промпт 16.11 03:19)
 		"shop_bought": shop_bought.duplicate(),
 		"blueprints": home.to_save() if home else {},
 		"moved": carry.to_save() if carry else {},
 		"slot_tray": slot.tray_coins if slot else 0,
 		"slot_shield": slot.shield if slot else 0,
+		"slot_sevens": slot.sevens_hit if slot else false,
 		"slot_reveal": slot.reveal_pending if slot else false,
 		"play_time": play_time,
 		"village": village.to_save() if village else {},
@@ -204,9 +206,13 @@ func load_state(d: Dictionary) -> void:
 	if slot:
 		slot.credits = int(d.get("slot_credits", 0))
 		slot.load_buffs(d.get("slot_luck", {}), d.get("slot_boost", {}))
-		slot.set_level(int(d.get("slot_level", 1)))
+		var slv := int(d.get("slot_level", 1))
+		if not d.get("slot_level_v2", false) and slv >= 2:
+			slv = maxi(slv - 1, 2)   # старые 2×3 и 3×3 → 3×3, дальше сдвиг на 1
+		slot.set_level(slv)
 		slot.set_tray(int(d.get("slot_tray", 0)))
 		slot.set_shield(int(d.get("slot_shield", 0)))
+		slot.sevens_hit = bool(d.get("slot_sevens", d.get("safe_open", false)))
 		slot.set_reveal_pending(bool(d.get("slot_reveal", false)))
 		slot.screen.text = ""
 		slot._update_screen_hint()

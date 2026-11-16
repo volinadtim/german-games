@@ -29,6 +29,7 @@ func _ready() -> void:
 	for i in REELS:
 		stops[i] = randi() % STRIP.size()
 		reels[i].rotation.x = _angle_for(stops[i])
+	_snap_strips()
 
 
 func get_prompt(_game) -> String:
@@ -94,7 +95,7 @@ func _roll_stops() -> void:
 	var guar := {}
 	for k in luck:
 		guar[k] = int(luck[k]["k"])
-	var g := roll_window(level, guar, boost.keys())
+	var g := roll_window(level, guar, boost.keys(), sevens_hit)
 	var n := STRIP.size()
 	for i in REELS:
 		if not col_open(level, i):
@@ -122,7 +123,7 @@ func grid() -> Array:
 func _reel_stopped(i: int) -> void:
 	spinning[i] = false
 	if game:
-		game.play_at("clunk", reels[i].global_position, -8.0)
+		game.play_at("clunk", reels[i].global_position, -10.5)   # −25% (промпт 16.11 03:21)
 	if not spinning.has(true):
 		_payout()
 
@@ -157,7 +158,7 @@ func _process(delta: float) -> void:
 			screen.text = "СЕРИЯ СГОРЕЛА"
 			_update_screen_hint()
 	# свечение мерцает и переливается от янтарного к красному
-	var flick := 0.06 * sin(t * 2.3) + 0.04 * sin(t * 7.1) + (0.12 if randf() < 0.02 else 0.0)
+	var flick := 0.04 * sin(t * 2.3)   # без резких скачков — барабаны не мерцают
 	light.light_energy = 0.8 + flick + (0.35 * sin(t * 30.0) if party > 0.0 else 0.0)
 	light.light_color = Color.from_hsv(0.045 + 0.03 * sin(t * 0.6), 0.75, 1.0)
 	# тики при прохождении символов
@@ -172,7 +173,7 @@ func _process(delta: float) -> void:
 				if tick_t <= 0.0:
 					tick_t = 0.05
 					snd.stream = game.snd["tick"][0]
-					snd.volume_db = -17.0
+					snd.volume_db = -14.5   # +25% (промпт 16.11 03:21)
 					snd.pitch_scale = randf_range(0.9, 1.1)
 					snd.play()
 
@@ -212,6 +213,7 @@ func _payout() -> void:
 	hl_lines = res["lines"]
 	var msg := ""
 	if sevens:
+		sevens_hit = true
 		if game.open_safe():
 			msg = "СЕЙФ ОТКРЫТ"
 			game.hud.toast("777 — сейф открыт", Color(1.0, 0.85, 0.4))

@@ -20,6 +20,9 @@ const WEIGHT := {"cherry": 24.0, "lemon": 20.0, "plum": 16.0, "grape": 12.0, "di
 const PAY := {"cherry": 15, "lemon": 20, "plum": 25, "grape": 35, "diamond": 60, "seven": 100}
 const GIFTS := [["ammo", 4], ["filter", 1], ["bandage", 1], ["canned", 1], ["ammo", 6], ["coin", 8]]
 const JACK_BASE := 150
+## промпт 16.11 03:16: бонус-игра ×1.5 (было ×2); после первых 777 они перебрасываются с шансом SEVENS_REROLL
+const BONUS_MULT := 1.5
+const SEVENS_REROLL := 0.85
 const SPIN_T := 1.1
 const STEP_T := 0.38
 const TEASE_T := 1.5          # «интрига»: третий барабан крутится дольше
@@ -29,7 +32,8 @@ const H := 220
 var game
 var jackpot := JACK_BASE
 var free_spins := 0
-var bonus_game := false      # идёт бонус-игра (выигрыш ×2)
+var bonus_game := false      # идёт бонус-игра (выигрыш ×BONUS_MULT)
+var sevens_hit := false      # 777 уже выпадали (сейв — village.gd)
 var busy := false
 var t := 0.0
 var result := ["cherry", "lemon", "plum"]
@@ -383,11 +387,16 @@ func interact(g) -> void:
 	banner = ""
 	for i in 3:
 		result[i] = _roll()
+	if sevens_hit and result.count("seven") == 3 and randf() < SEVENS_REROLL:
+		result[2] = _roll()
+		while result[2] == "seven":
+			result[2] = _roll()
+	for i in 3:
 		reel_done[i] = false
 		win_mask[i] = false
 	# две короны / звезды / семёрки на первых барабанах — третий крутится дольше
 	tease = result[0] == result[1] and result[0] in ["jack", "bonus", "seven"]
-	msg = "БОНУС-ИГРА: ×2  (осталось %d)" % free_spins if bonus_game else "..."
+	msg = "БОНУС-ИГРА: ×1.5  (осталось %d)" % free_spins if bonus_game else "..."
 	msg_col = Color(0.95, 0.85, 0.5)
 	lever_t = 0.0
 	g.play_at("click", global_position + Vector3(0.5, 1.3, 0), -8.0, 0.7)
@@ -487,7 +496,7 @@ func _lights(delta: float) -> void:
 
 func _payout() -> void:
 	var r: Array = result
-	var mult := 2 if bonus_game else 1
+	var mult := BONUS_MULT if bonus_game else 1.0
 	var win := 0
 	var lines: Array = []
 	var jacks := r.count("jack")
@@ -503,7 +512,7 @@ func _payout() -> void:
 		tier = 3
 		banner = "ДЖЕКПОТ!!!"
 		if game:
-			game.hud.toast("ДЖЕКПОТ НА ФОРТУНЕ: +%d" % (win * mult), Color(1.0, 0.8, 0.3))
+			game.hud.toast("ДЖЕКПОТ НА ФОРТУНЕ: +%d" % roundi(win * mult), Color(1.0, 0.8, 0.3))
 	elif jacks == 2:
 		win += 25
 		lines.append("МИНИ-ДЖЕКПОТ")
@@ -515,6 +524,8 @@ func _payout() -> void:
 	if r[0] == r[1] and r[1] == r[2] and PAY.has(r[0]):
 		win += int(PAY[r[0]])
 		win_mask = [true, true, true]
+		if r[0] == "seven":
+			sevens_hit = true
 		if r[0] in ["seven", "diamond"] and tier < 2:
 			tier = 2
 			banner = "777" if r[0] == "seven" else "БРИЛЛИАНТЫ!"
@@ -525,7 +536,7 @@ func _payout() -> void:
 	if bonus == 3:
 		free_spins += 8
 		bonus_game = true
-		lines.append("БОНУС-ИГРА: 8 круток ×2")
+		lines.append("БОНУС-ИГРА: 8 круток ×1.5")
 		tier = maxi(tier, 2)
 		if banner == "":
 			banner = "БОНУС-ИГРА!"
@@ -547,7 +558,7 @@ func _payout() -> void:
 	if bonus >= 1:
 		for i in 3:
 			win_mask[i] = win_mask[i] or r[i] == "bonus"
-	win *= mult
+	win = roundi(win * mult)
 	if free_spins == 0:
 		bonus_game = false
 	if win > 0 and tier == 0:

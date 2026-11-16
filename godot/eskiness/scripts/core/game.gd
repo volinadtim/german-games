@@ -101,6 +101,7 @@ func setup(p: Player) -> void:
 		slot.credits = 0
 		slot.luck = {}
 		slot.boost = {}
+		slot.sevens_hit = false
 		slot.set_level(1)
 		slot.set_tray(0)
 		slot.set_shield(0)

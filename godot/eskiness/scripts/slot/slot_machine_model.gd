@@ -49,18 +49,21 @@ func _build() -> void:
 		var reel_mat := StandardMaterial3D.new()
 		reel_mat.albedo_texture = sv.get_texture()
 		reel_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST_WITH_MIPMAPS
-		reel_mat.albedo_color = Color(0.82, 0.8, 0.77)
-		reel_mat.roughness = 0.7
+		# промпт 16.11 03:21: контрастнее, без мерцания (текстура — снимок с мип-картами, см. _snap_strips)
+		reel_mat.albedo_color = Color(0.95, 0.93, 0.9)
+		reel_mat.roughness = 0.85
+		reel_mat.metallic_specular = 0.2
 		reel_mat.emission_enabled = true
 		reel_mat.emission_texture = sv.get_texture()
 		reel_mat.emission = Color(0.85, 0.8, 0.72)
-		reel_mat.emission_energy_multiplier = 0.16
+		reel_mat.emission_energy_multiplier = 0.22
 		reel_mats.append(reel_mat)
 	var mesh := _reel_mesh()
 	for i in REELS:
 		var r := MeshInstance3D.new()
 		r.mesh = mesh
 		r.material_override = reel_mats[i]
+		r.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		r.position = Vector3(_reel_x(i), REEL_Y, REEL_Z)
 		rig.add_child(r)
 		reels.append(r)
@@ -100,7 +103,7 @@ func _build() -> void:
 	_box(rig, Vector3(0.46, 0.14, 0.02), Vector3(0, 0.36, 0.45), trim)
 	# рычаг справа
 	lever = Node3D.new()
-	lever.position = Vector3(0.43 + EX, 0.9, 0.05)
+	lever.position = Vector3(0.47 + EX, 0.9, 0.05)   # правее — не уходит в корпус (промпт 16.11 03:21)
 	rig.add_child(lever)
 	var rod := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
@@ -119,7 +122,7 @@ func _build() -> void:
 	ball.material_override = _worn(Color(0.5, 0.07, 0.05), false, 0.15, 0.3, 0.3)
 	ball.position = Vector3(0.03, 0.46, 0)
 	lever.add_child(ball)
-	_box(rig, Vector3(0.06, 0.12, 0.12), Vector3(0.42 + EX, 0.9, 0.05), trim)
+	_box(rig, Vector3(0.1, 0.12, 0.12), Vector3(0.44 + EX, 0.9, 0.05), trim)
 
 	_build_grime()
 	_build_highlight()
@@ -130,6 +133,8 @@ func _build() -> void:
 	light.light_energy = 1.0
 	light.omni_range = 6.0
 	light.shadow_enabled = true
+	light.shadow_bias = 0.12          # без «ряби» теней на крутящихся барабанах
+	light.shadow_normal_bias = 2.5
 	light.position = Vector3(0, 1.3, 0.75)
 	rig.add_child(light)
 
@@ -160,14 +165,33 @@ func _draw_strip(art: Control, ri: int) -> void:
 	for k in 14:
 		var p := Vector2(gr.randi_range(0, TEX), gr.randi_range(0, TEX * strip.size()))
 		art.draw_line(p, p + Vector2(gr.randf_range(-12, 12), gr.randf_range(-4, 4)), Color(0.85, 0.8, 0.7, 0.35), 1.0)
-	# вуаль поверх ленты — символы чуть блеклые, выцветшие
-	art.draw_rect(Rect2(Vector2.ZERO, art.size), Color(0.55, 0.52, 0.48, 0.08))
+	# вуаль убрана (промпт 16.11 03:21) — символы контрастнее
 
 
 func _redraw_strips() -> void:
 	for v in strip_views:
 		(v[1] as Control).queue_redraw()
 		(v[0] as SubViewport).render_target_update_mode = SubViewport.UPDATE_ONCE
+	_snap_strips()
+
+
+## Снимок лент в ImageTexture с мип-картами: у ViewportTexture их нет — на удалении символы рябили.
+func _snap_strips() -> void:
+	snap_gen += 1
+	var gen := snap_gen
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	if gen != snap_gen or not is_inside_tree():
+		return
+	for i in mini(strip_views.size(), reels.size()):
+		var img: Image = (strip_views[i][0] as SubViewport).get_texture().get_image()
+		if img == null or img.is_empty():
+			continue
+		img.generate_mipmaps()
+		var tex := ImageTexture.create_from_image(img)
+		var m := reels[i].material_override as StandardMaterial3D
+		m.albedo_texture = tex
+		m.emission_texture = tex
 
 
 ## Подсветка выигрышных линий: 12 светящихся рамок на стекле, мигают по линиям по очереди.
