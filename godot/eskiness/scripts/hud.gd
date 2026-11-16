@@ -189,7 +189,14 @@ func _process(delta: float) -> void:
 	paint.queue_redraw()
 
 
-func set_hp(v: float, mx: float) -> void:
+func set_hp(v: float, mx: float, instant := false) -> void:
+	# загрузка сейва — сразу, без «догоняющей» полоски и «−N здоровья» (промпт 16.11 05:45)
+	if instant:
+		hp = v
+		hp_max = mx
+		hp_lag = v
+		dmg_acc = 0.0
+		return
 	# заметный удар (а не тиканье яда или кровотечения) — копим и показываем внизу «−N»
 	if v < hp - 0.5:
 		dmg_acc += hp - v

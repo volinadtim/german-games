@@ -122,7 +122,7 @@ func load_state(d: Dictionary) -> void:
 	for k in 5:
 		inv.hotbar[k] = String(hb[k]) if k < hb.size() and hb[k] != null else ""
 	hp = clampf(float(d.get("hp", MAX_HP)), 1.0, MAX_HP)
-	hud.set_hp(hp, MAX_HP)
+	hud.set_hp(hp, MAX_HP, true)
 	bleed_t = float(d.get("bleed", 0.0))
 	buffs = {}
 	var bf: Dictionary = d.get("buffs", {})
