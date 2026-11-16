@@ -13,9 +13,12 @@ extends CanvasLayer
 const Items := preload("res://scripts/items.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 ## рыночные цены вещей, которых нет в магазине и которые не хлам
-const EXTRA_MARKET := {"wood": 2, "glass": 2, "wallet": 10, "knuckles": 30, "stone": 2, "twine": 4,
+const EXTRA_MARKET := {"wallet": 10, "knuckles": 30, "twine": 4,
 	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20, "pistol": 120, "mag": 20, "ammo": 3}
 const NO_SELL := ["coin", "car_key"]
+## мусор, который магазин не берёт совсем (промпты 16.11 02:45, 02:46)
+const TRASH := ["glass", "wood", "stone"]
+const TRASH_MSG := "Этот мусор даже мы покупать не будем"
 
 var game
 var shop                        # shop.gd — пересобрать его после продажи
@@ -34,7 +37,7 @@ var panes := {}                 # side -> Pane (высоту подгоняем 
 
 ## Рыночная цена (0 — не продаётся).
 static func market(id: String) -> int:
-	if id in NO_SELL or not Items.ITEMS.has(id) or Items.ITEMS[id].get("quest", false):
+	if id in NO_SELL or id in TRASH or not Items.ITEMS.has(id) or Items.ITEMS[id].get("quest", false):
 		return 0
 	for e in Weapons.SHOP:
 		if e[0] == id:
@@ -72,7 +75,7 @@ class Cell extends Button:
 		custom_minimum_size = Vector2(70, 70)
 		focus_mode = Control.FOCUS_NONE
 		if id != "":
-			tooltip_text = Items.item_name(id) + ("" if dim else "\nПродать: %d за шт." % sw.unit_price(id, dur))
+			tooltip_text = Items.item_name(id) + (("\n" + sw.TRASH_MSG if id in sw.TRASH else "") if dim else "\nПродать: %d за шт." % sw.unit_price(id, dur))
 
 	func _draw() -> void:
 		if id == "":
@@ -93,6 +96,9 @@ class Cell extends Button:
 			draw_string(f, Vector2(4, 17), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.82, 0.4))
 		if dim:
 			draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
+			var mark := "мусор" if id in sw.TRASH else "нельзя"
+			draw_string_outline(f, Vector2(0, size.y / 2 + 5), mark, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, 4, Color(0, 0, 0, 0.9))
+			draw_string(f, Vector2(0, size.y / 2 + 5), mark, HORIZONTAL_ALIGNMENT_CENTER, size.x, 14, Color(0.95, 0.5, 0.4))
 
 	func _gui_input(e: InputEvent) -> void:
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and id != "":
@@ -257,11 +263,11 @@ func _src_items(side: String) -> Array:
 			for it in game.storage.contents:
 				out.append({"id": String(it[0]), "n": int(it[1]), "dur": float(it[2]) if it.size() > 2 else -1.0})
 		return out
-	for s in game.inv.slots:
-		if s == null:
-			out.append(null)
-		else:
-			out.append({"id": String(s["id"]), "n": int(s["n"]), "dur": float(s.get("dur", -1.0))})
+	# сумка — сетка с предметами разного размера: показываем только сами предметы, slot — ячейка-якорь
+	for i in game.inv.slots.size():
+		var s = game.inv.slots[i]
+		if s != null:
+			out.append({"id": String(s["id"]), "n": int(s["n"]), "dur": float(s.get("dur", -1.0)), "slot": i})
 	return out
 
 
@@ -276,7 +282,10 @@ func _take_src(side: String, idx: int, n: int) -> int:
 		if int(it[1]) <= 0:
 			game.storage.contents.remove_at(idx)
 		return k
-	var got: Array = game.inv.take_at(idx, n)
+	var bag := _src_items("bag")
+	if idx >= bag.size():
+		return 0
+	var got: Array = game.inv.take_at(int(bag[idx]["slot"]), n)
 	return int(got[1])
 
 
@@ -332,7 +341,7 @@ func click(side: String, idx: int, one: bool, to := "") -> void:
 			return
 		var id: String = s["id"]
 		if market(id) <= 0:
-			info_l.text = "%s магазин не берёт" % Items.item_name(id)
+			info_l.text = TRASH_MSG if id in TRASH else "%s магазин не берёт" % Items.item_name(id)
 			game.play_ui("buzz", -14.0)
 			return
 		var dur := float(s["dur"])
