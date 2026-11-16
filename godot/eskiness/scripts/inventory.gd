@@ -41,14 +41,12 @@ const CELL := 58.0               # ячейка сетки сумки
 const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left", "right"]
 const EQUIP_NAMES := {"head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
 	"left": "Левая", "right": "Правая"}
-## где слоты стоят на силуэте (вид со спины: левая рука слева)
-## (промпт 04:10) фигура ниже на DOLL_DY; «лицо» — на лице, «голова» — над ним; перчатки — на обеих ладонях
-## (HANDS2 — второй квадратик того же слота), «левая» / «правая» — под руками
-const DOLL_DY := 60.0
-const DOLL_POS := {"head": Vector2(113, 2), "face": Vector2(113, 68), "back": Vector2(222, 2), "body": Vector2(113, 150), "left": Vector2(15, 306), "right": Vector2(211, 306),
-	"hands": Vector2(211, 238), "legs": Vector2(113, 254), "feet": Vector2(113, 340)}
-const HANDS2 := Vector2(15, 238)
-const DOLL_LABELS := ["back", "left", "right"]   # подписи пустых слотов — только эти (промпт 04:10)
+## Слоты вплотную в форме тела, без фигуры и подписей (промпт 04:23; вид со спины: левая рука слева).
+## В пустом слоте — полупрозрачная иконка части тела (Slot._draw_part). Перчатки — на обеих кистях (HANDS2 —
+## второй квадратик того же слота).
+const DOLL_POS := {"head": Vector2(64, 0), "face": Vector2(64, 64), "back": Vector2(128, 64), "body": Vector2(64, 128),
+	"hands": Vector2(128, 128), "left": Vector2(0, 192), "right": Vector2(128, 192), "legs": Vector2(64, 192), "feet": Vector2(64, 256)}
+const HANDS2 := Vector2(0, 128)
 const HOLD_TIME := 0.4                  # Shift + держать ПКМ столько — выбросить всю стопку
 const TOUCH_HOLD := 0.5                 # палец: столько держать на ячейке — меню действий
 
@@ -129,8 +127,8 @@ class Slot extends Control:
 		var f := ThemeDB.fallback_font
 		var id := item_id()
 		if id == "":
-			if is_eq and key in inv.DOLL_LABELS:
-				draw_string(f, Vector2(0, size.y / 2 + 5), inv.EQUIP_NAMES[key], HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, Color(0.6, 0.55, 0.45, 0.75))
+			if is_eq:
+				_draw_part(String(key))
 			return
 		Items.draw_icon(self, id, r.grow(-12))
 		# полоска прочности
@@ -168,6 +166,55 @@ class Slot extends Control:
 		if hk >= 0:
 			draw_string_outline(f, Vector2(5, 17), str(hk + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.8))
 			draw_string(f, Vector2(5, 17), str(hk + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.8, 0.4))
+
+	## Полупрозрачная белая иконка части тела в пустом слоте снаряжения (рисуется в рамке 64×64).
+	func _draw_part(k: String) -> void:
+		var c := Color(1, 1, 1, 0.2)
+		var u := size.x / 64.0
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(u, u))
+		match k:
+			"head":   # голова с шеей и плечами
+				draw_circle(Vector2(32, 26), 14, c)
+				draw_rect(Rect2(27, 38, 10, 8), c)
+				draw_colored_polygon(PackedVector2Array([Vector2(14, 56), Vector2(22, 46), Vector2(42, 46), Vector2(50, 56)]), c)
+			"face":   # овал лица: глаза, нос, рот вырезаны тёмным
+				draw_set_transform(Vector2(32 * u, 32 * u), 0.0, Vector2(u * 0.82, u))
+				draw_circle(Vector2.ZERO, 22, c)
+				draw_set_transform(Vector2.ZERO, 0.0, Vector2(u, u))
+				var d := Color(0, 0, 0, 0.55)
+				draw_circle(Vector2(25, 27), 3, d)
+				draw_circle(Vector2(39, 27), 3, d)
+				draw_line(Vector2(32, 30), Vector2(30, 38), d, 2.0)
+				draw_line(Vector2(25, 44), Vector2(39, 44), d, 2.5)
+			"back":   # рюкзак: корпус, клапан, карман
+				draw_rect(Rect2(18, 16, 28, 38), c)
+				draw_rect(Rect2(22, 9, 20, 6), c)
+				draw_rect(Rect2(18, 16, 28, 10), Color(1, 1, 1, 0.12))
+				draw_rect(Rect2(24, 36, 16, 12), Color(0, 0, 0, 0.35))
+			"body":   # торс: плечи и талия
+				draw_colored_polygon(PackedVector2Array([Vector2(12, 14), Vector2(52, 14), Vector2(56, 24), Vector2(46, 28),
+					Vector2(44, 54), Vector2(20, 54), Vector2(18, 28), Vector2(8, 24)]), c)
+				draw_rect(Rect2(28, 10, 8, 5), c)
+			"hands":  # кисть: ладонь, четыре пальца, большой
+				draw_rect(Rect2(20, 30, 24, 22), c)
+				for i in 4:
+					draw_rect(Rect2(20 + i * 6.2, 12 + absf(i - 1.5) * 3.0, 5, 18 - absf(i - 1.5) * 3.0), c)
+				draw_colored_polygon(PackedVector2Array([Vector2(44, 34), Vector2(54, 26), Vector2(57, 30), Vector2(46, 44)]), c)
+			"left", "right":   # кулак: костяшки и большой палец
+				draw_rect(Rect2(16, 22, 32, 26), c)
+				var d2 := Color(0, 0, 0, 0.4)
+				for i in 3:
+					draw_line(Vector2(24 + i * 8, 22), Vector2(24 + i * 8, 34), d2, 1.5)
+				draw_rect(Rect2(16, 36, 22, 7), Color(1, 1, 1, 0.14))
+				draw_rect(Rect2(22, 48, 20, 8), c)
+			"legs":   # две ноги от таза
+				draw_rect(Rect2(18, 8, 28, 10), c)
+				draw_colored_polygon(PackedVector2Array([Vector2(18, 18), Vector2(31, 18), Vector2(29, 58), Vector2(20, 58)]), c)
+				draw_colored_polygon(PackedVector2Array([Vector2(33, 18), Vector2(46, 18), Vector2(44, 58), Vector2(35, 58)]), c)
+			"feet":   # ступня (ботинок сбоку)
+				draw_rect(Rect2(22, 12, 12, 30), c)
+				draw_colored_polygon(PackedVector2Array([Vector2(20, 40), Vector2(36, 40), Vector2(50, 46), Vector2(52, 54), Vector2(20, 54)]), c)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	func _gui_input(e: InputEvent) -> void:
 		# палец (мышь, эмулированная из касаний): долгое нажатие — как ПКМ, выбросить
@@ -432,17 +479,9 @@ class HotSlot extends Control:
 			inv.bind_hot(data["inv_key"], k)
 
 
-## Силуэт человека под слотами снаряжения.
+## Подложка под слотами снаряжения (фигуры больше нет, промпт 04:23).
 class Doll extends Control:
-	func _draw() -> void:
-		var c := Color(1, 1, 1, 0.07)
-		var dy: float = 60.0   # = DOLL_DY: фигура ниже (промпт 04:10)
-		draw_circle(Vector2(145, 40 + dy), 30, c)
-		draw_rect(Rect2(108, 76 + dy, 74, 104), c)
-		for sx in [-1.0, 1.0]:
-			draw_line(Vector2(145 + 40 * sx, 84 + dy), Vector2(145 + 92 * sx, 150 + dy), c, 16.0)
-			draw_line(Vector2(145 + 92 * sx, 150 + dy), Vector2(145 + 98 * sx, 210 + dy), c, 13.0)
-			draw_line(Vector2(145 + 18 * sx, 180 + dy), Vector2(145 + 24 * sx, 330 + dy), c, 22.0)
+	pass
 
 
 ## Картинка предмета (превью перетаскивания, крафт).
@@ -540,7 +579,7 @@ func _build_ui() -> void:
 	hb.add_child(dc)
 	# надпись «СНАРЯЖЕНИЕ» убрана (промпт 03:47)
 	var doll := Doll.new()
-	doll.custom_minimum_size = Vector2(290, 404)
+	doll.custom_minimum_size = Vector2(192, 320)
 	dc.add_child(doll)
 	for k in EQUIP + ["hands"]:
 		var s := Slot.new()
