@@ -627,13 +627,17 @@ func _build_ui() -> void:
 	st.border_color = Color(1, 1, 1, 0.14)
 	st.set_border_width_all(1)
 	st.set_corner_radius_all(3)
-	st.set_content_margin_all(14)
+	st.set_content_margin_all(10)   # компактнее (промпт 05:46)
 	panel.add_theme_stylebox_override("panel", st)
 	center.add_child(panel)
 	preload("res://scripts/ui/ui_fit.gd").attach(panel)   # окно в рамках экрана (промпт 00:32)
+	# окно: сверху колонки, снизу подсказки во всю ширину (промпт 05:46)
+	var outer := VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 6)
+	panel.add_child(outer)
 	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 28)
-	panel.add_child(hb)
+	hb.add_theme_constant_override("separation", 18)
+	outer.add_child(hb)
 
 	# снаряжение на силуэте
 	var dc := HBoxContainer.new()   # кукла, справа от неё рюкзак и карманы (промпт 05:40)
@@ -668,7 +672,7 @@ func _build_ui() -> void:
 	pockets.add_theme_constant_override("separation", 10)
 	gear.add_child(pockets)
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 10)
+	vb.add_theme_constant_override("separation", 6)
 	hb.add_child(vb)
 	# заголовок: «ИНВЕНТАРЬ» и рядом кнопка «Крафт» (промпт 04:07) — выкатывает панель крафта, повторно прячет
 	var title := HBoxContainer.new()
@@ -745,20 +749,15 @@ func _build_ui() -> void:
 	info_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_desc.custom_minimum_size = Vector2(300, 0)
 	tvb.add_child(info_desc)
-	# подсказки короче (промпт 03:46): без «ЛКМ — перетащить», «Tab — закрыть», «за окно — выбросить»
-	var hint_text := "F (навести) — использовать
-ПКМ — действия
-Shift+ПКМ — выбросить 1 (держать — всю стопку)
-Быстр. действие 1–5"
+	# подсказки (промпт 03:46 — короче; 05:46 — одной строкой во всю ширину окна через «·», мелко)
+	var hint_text := "F (навести) — использовать  ·  ПКМ — действия  ·  Shift+ПКМ — выбросить 1 (держать — всю стопку)  ·  Быстр. действие 1–5"
 	if preload("res://scripts/ui/touch_controls.gd").wanted():
-		hint_text = "Нажать — использовать
-Подержать — действия
-Перетащить — переложить
-Быстр. действие 1–5"
-	var hint := _label(hint_text, 14, Color(0.55, 0.55, 0.52))
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # сумка узкая (5 клеток) — подсказка переносится
-	hint.custom_minimum_size.x = COLS * CELL
-	vb.add_child(hint)
+		hint_text = "Нажать — использовать  ·  Подержать — действия  ·  Перетащить — переложить  ·  Быстр. действие 1–5"
+	var hint := _label(hint_text, 13, Color(0.55, 0.55, 0.52))
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # не шире окна: при нехватке места — вторая строка
+	hint.custom_minimum_size.x = 1
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	outer.add_child(hint)
 
 	# обёртка обрезает панель: её ширина плавно растёт от 0 (выкатывание)
 	craft_wrap = Control.new()
