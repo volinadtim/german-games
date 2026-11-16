@@ -46,6 +46,7 @@ func save_state() -> Dictionary:
 		"chest_pos": chest_pos,
 		"tape_taken": tape != null and not tape.ready_,
 		"stone_piles": stone_piles.map(func(sp): return sp.left),
+		"stone_pos": stone_piles.map(func(sp): return [sp.position.x, sp.position.y, sp.position.z]),   # места кучек случайные (промпт 03:18)
 		"jars": jars.filter(func(x): return is_instance_valid(x)).map(func(x): return x.to_save()),
 		"safe_open": safe != null and is_instance_valid(safe) and safe.opened,
 		"storage": storage.contents.duplicate(true) if storage else [],
@@ -136,6 +137,11 @@ func load_state(d: Dictionary) -> void:
 	if tape:
 		tape.set_taken(bool(d.get("tape_taken", false)))
 	var spl: Array = d.get("stone_piles", [])
+	if d.has("stone_pos"):
+		var spts: Array = []
+		for a in d["stone_pos"]:
+			spts.append(Vector3(float(a[0]), float(a[1]), float(a[2])))
+		make_stone_piles(spts, [])
 	for k in mini(spl.size(), stone_piles.size()):
 		stone_piles[k].set_left(int(spl[k]))
 	if d.has("jars"):

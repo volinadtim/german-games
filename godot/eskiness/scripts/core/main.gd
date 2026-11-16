@@ -93,7 +93,10 @@ func _ready() -> void:
 	# «Начать заново» после смерти (game.gd: restart) — сразу в игру, минуя меню
 	if Engine.has_meta("eskiness_autostart"):
 		Engine.remove_meta("eskiness_autostart")
-		_start_game.call_deferred()
+		# сразу в мир, меню не мелькает (промпт 03:18): тот же слот, новая игра; затемнение выше само уходит
+		menu.visible = false
+		in_game = true
+		_enter_game.call_deferred()
 
 
 func _process(delta: float) -> void:

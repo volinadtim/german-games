@@ -85,7 +85,7 @@ func on_game_setup(g) -> void:
 func _world_state(g) -> Dictionary:
 	var d: Dictionary = g.save_state()
 	var w := {}
-	for key in ["chest_pos", "chests", "jars", "glass", "stone_piles", "floor"]:
+	for key in ["chest_pos", "chests", "jars", "glass", "stone_piles", "stone_pos", "floor"]:
 		w[key] = d[key]
 	var jids: Array = []
 	for j in g.jars:

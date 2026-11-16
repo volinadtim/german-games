@@ -20,6 +20,7 @@ var has_light := false     # фонарик есть в инвентаре — �
 signal restart_pressed
 signal menu_pressed      # экран победы → «В главное меню»
 var restart_b: Button
+var death_menu_b: Button
 var knuckles := false
 var inv  # inventory.gd — для хотбара 1–5
 var bleed := 0.0          # сколько ещё течёт кровь (game.gd: _glass)
@@ -132,6 +133,21 @@ func _ready() -> void:
 	restart_b.visible = false
 	restart_b.pressed.connect(func(): restart_pressed.emit())
 	root.add_child(restart_b)
+	death_menu_b = Button.new()   # «Выйти в главное меню» под «Начать заново» (промпт 03:18)
+	death_menu_b.text = "Выйти в главное меню"
+	death_menu_b.add_theme_font_size_override("font_size", 26)
+	death_menu_b.anchor_left = 0.5
+	death_menu_b.anchor_right = 0.5
+	death_menu_b.anchor_top = 0.5
+	death_menu_b.anchor_bottom = 0.5
+	death_menu_b.focus_mode = Control.FOCUS_NONE
+	death_menu_b.visible = false
+	death_menu_b.offset_left = -170
+	death_menu_b.offset_right = 170
+	death_menu_b.offset_top = 156
+	death_menu_b.offset_bottom = 216
+	death_menu_b.pressed.connect(func(): menu_pressed.emit())
+	root.add_child(death_menu_b)
 
 
 func _process(delta: float) -> void:
@@ -243,6 +259,7 @@ func block_flash() -> void:
 
 func show_death(on: bool) -> void:
 	restart_b.visible = on
+	death_menu_b.visible = on
 	var tw := create_tween().set_parallel()
 	tw.tween_property(death_bg, "color:a", 0.75 if on else 0.0, 1.2 if on else 0.6)
 	tw.tween_property(death_l, "modulate:a", 1.0 if on else 0.0, 1.5 if on else 0.4)

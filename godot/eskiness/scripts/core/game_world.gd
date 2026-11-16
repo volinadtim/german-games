@@ -291,22 +291,61 @@ func _spawn_stone_piles() -> void:
 		for c in level.get_children():
 			if c.has_method("height"):
 				sf = c
-	var all: Array = []
-	for p in STONE_BUNKER:
-		all.append(p)
-	for p in STONE_SURFACE:
-		var q: Vector3 = p
-		q.y = sf.height(q.x, q.z) if sf else 6.0
-		all.append(q)
+	# каждую новую игру — в новых местах (промпт 03:18): в бункере 2–3 кучки, по одной на комнату,
+	# не в коридоре, не у проёмов и не на предметах; снаружи — около прежних точек со случайным сдвигом
 	_collect_obstacles()
-	for k in all.size():
-		all[k] = _free_spot_near(all[k], 0.32, sf)
+	var all: Array = []
+	var rooms := [0, 1, 2, 3]
+	rooms.shuffle()
+	for ri in randi_range(2, 3):
+		var sx := -1.0 if rooms[ri] % 2 == 0 else 1.0
+		var sz := -1.0 if rooms[ri] < 2 else 1.0
+		for t in 60:
+			var q := Vector3(sx * randf_range(0.8, 11.3), 0.0, sz * randf_range(2.5, 8.4))
+			if _stone_spot_ok(q, all):
+				all.append(q)
+				break
+	for p in STONE_SURFACE:
+		for t in 30:
+			var q: Vector3 = p + Vector3(randf_range(-3.5, 3.5), 0.0, randf_range(-3.5, 3.5))
+			if t == 29:
+				q = p
+			q.y = sf.height(q.x, q.z) if sf else 6.0
+			if t == 29 or not _on_object(q, 0.45):
+				all.append(q)
+				break
+	make_stone_piles(all, [])
+
+
+## Кучки камней в точках pts (сколько осталось — lefts, иначе 2–4). Из сейва и из сети — те же места.
+func make_stone_piles(pts: Array, lefts: Array) -> void:
+	for sp in stone_piles:
+		if is_instance_valid(sp):
+			sp.queue_free()
+	stone_piles = []
+	for k in pts.size():
 		var sp := StonePile.new()
 		sp.seed_ = k
-		sp.left = randi_range(2, 4)
-		sp.position = all[k]
+		sp.left = int(lefts[k]) if k < lefts.size() else randi_range(2, 4)
+		sp.position = pts[k]
 		add_child(sp)
 		stone_piles.append(sp)
+
+
+## Место для кучки в бункере: не на предмете, не у проёмов (двери коридора x = ±6, дверь между южными
+## комнатами z = 5.5) и не вплотную к другой кучке.
+func _stone_spot_ok(q: Vector3, others: Array) -> bool:
+	if _on_object(q, 0.45):
+		return false
+	for d in [Vector2(-6.0, -1.6), Vector2(6.0, -1.6), Vector2(-6.0, 1.6), Vector2(6.0, 1.6), Vector2(0.0, 5.5)]:
+		if Vector2(q.x, q.z).distance_to(d) < 2.0:
+			return false
+	if absf(q.x) < 0.9:
+		return false   # вдоль перегородки между комнатами
+	for o in others:
+		if (o as Vector3).distance_to(q) < 3.0:
+			return false
+	return true
 
 
 ## Магазин: закрыть все открытые ящики — при новом открытии в них будет новый лут. Сейф не трогаем.
