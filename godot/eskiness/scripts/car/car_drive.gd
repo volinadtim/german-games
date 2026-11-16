@@ -311,17 +311,17 @@ func _drive_tick(delta: float) -> void:
 		if not (hand and i >= 2):   # ручник — задние колёса стоят
 			wheels[i].rotation.x += speed / WHEEL_R * delta
 	for i in 2:
-		wheels[i].rotation.y = steer * lerpf(0.6, 0.2, clampf(absf(speed) / MAX_F, 0.0, 1.0))
+		wheels[i].rotation.y = steer * lerpf(0.6, 0.27, clampf(absf(speed) / MAX_F, 0.0, 1.0))
 	# подвеска: крен в повороте наружу, клевок при торможении, приседание при разгоне
-	var roll_want := clampf(speed * yaw_rate * 0.006, -0.07, 0.07)
-	var pitch_want := clampf(-acc_s * 0.005, -0.045, 0.045)
+	var roll_want := clampf(speed * yaw_rate * 0.0025, -0.03, 0.03)
+	var pitch_want := clampf(-acc_s * 0.002, -0.02, 0.02)
 	roll_vis = lerpf(roll_vis, roll_want, 1.0 - exp(-5.0 * delta))
 	pitch_vis = lerpf(pitch_vis, pitch_want, 1.0 - exp(-5.0 * delta))
 	rig.rotation = Vector3(pitch_vis, 0.0, roll_vis)
 	if engine_on and engine:
 		engine.volume_db = lerpf(engine.volume_db, minf(-20.0 + absf(speed) * 0.5 + absf(thr_s) * 2.0, -10.0), 1.0 - exp(-4.0 * delta))
 		engine.pitch_scale = 0.8 + absf(speed) * 0.07 + absf(thr_s) * 0.08
-		var vib := 0.004 + absf(speed) * 0.0008
+		var vib := 0.001 + absf(speed) * 0.00015   # лёгкая дрожь мотора (была сильная тряска, 05:44)
 		rig.position = Vector3(0, randf_range(-1, 1) * vib, 0)
 	_carry()
 
@@ -354,12 +354,12 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 			slip = 0.0
 	# руль: к центру возвращается быстрее, чем крутится
 	var back := st_in == 0.0 or signf(st_in) != signf(steer)
-	steer = move_toward(steer, st_in, delta * (4.0 if back else 2.4))
-	var ang := steer * lerpf(0.6, 0.2, clampf(absf(speed) / MAX_F, 0.0, 1.0))
+	steer = move_toward(steer, st_in, delta * (6.0 if back else 3.6))
+	var ang := steer * lerpf(0.6, 0.27, clampf(absf(speed) / MAX_F, 0.0, 1.0))
 	var want := speed * tan(ang) / WHEELBASE
 	# зад без сцепления — корму заносит сильнее; газ (передний привод) тянет нос по рулю
 	want *= 1.0 + (1.0 - grip_k) * (0.9 + 0.5 * maxf(thr_s, 0.0))
-	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(3.0, 9.0, grip_k) * delta))
+	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(3.0, 13.0, grip_k) * delta))
 
 
 func _move(delta: float) -> void:
@@ -402,9 +402,9 @@ func _move(delta: float) -> void:
 	if carried.is_empty() and absf(speed) > 0.3:
 		_grab_carried()
 	# подвеска: высоту догоняем плавно (кочки не дёргают кузов), но в землю не проваливаемся
-	var y := lerpf(position.y, target.origin.y, 1.0 - exp(-14.0 * delta))
-	y = clampf(y, target.origin.y - 0.04, target.origin.y + 0.12)
-	transform = Transform3D(transform.basis.slerp(target.basis, 1.0 - exp(-8.0 * delta)), Vector3(np.x, y, np.z))
+	var y := lerpf(position.y, target.origin.y, 1.0 - exp(-7.0 * delta))
+	y = clampf(y, target.origin.y - 0.06, target.origin.y + 0.1)
+	transform = Transform3D(transform.basis.slerp(target.basis, 1.0 - exp(-4.0 * delta)), Vector3(np.x, y, np.z))
 	for m in worn_mats:
 		m.set_shader_parameter("origin_shift", position - start_pos)
 
