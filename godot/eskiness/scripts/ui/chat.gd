@@ -24,8 +24,8 @@ func _ready() -> void:
 	box.anchor_bottom = 1.0
 	box.offset_left = 16
 	box.offset_right = 560
-	box.offset_top = -330
-	box.offset_bottom = -150
+	box.offset_top = -350
+	box.offset_bottom = -170
 	box.alignment = BoxContainer.ALIGNMENT_END
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(box)
@@ -33,12 +33,21 @@ func _ready() -> void:
 	edit.anchor_top = 1.0
 	edit.anchor_bottom = 1.0
 	edit.offset_left = 16
-	edit.offset_right = 560
-	edit.offset_top = -144
-	edit.offset_bottom = -112
-	edit.placeholder_text = "Сообщение… (Enter — отправить, Esc — закрыть)"
+	edit.offset_right = 16 + 462   # на 15% уже/ниже прежнего (544×32)
+	edit.offset_top = -164
+	edit.offset_bottom = -137
+	edit.placeholder_text = "Пишите."
 	edit.max_length = 200
-	edit.add_theme_font_size_override("font_size", 18)
+	edit.add_theme_font_size_override("font_size", 15)
+	edit.modulate.a = 0.9
+	# Без рамки: только полупрозрачный фон, фокус без обводки.
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0.35)
+	sb.set_border_width_all(0)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	for st in ["normal", "focus", "read_only"]:
+		edit.add_theme_stylebox_override(st, sb)
 	edit.visible = false
 	edit.text_submitted.connect(_submit)
 	add_child(edit)
@@ -84,6 +93,7 @@ func show_chat() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	edit.visible = true
 	edit.clear()
+	edit.set_deferred("text", "")   # без «t» от клавиши открытия
 	edit.grab_focus.call_deferred()
 
 
