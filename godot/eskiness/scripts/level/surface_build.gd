@@ -351,7 +351,8 @@ func _sky_and_sun() -> void:
 ## Палитра неба по высоте солнца: ночь → красный рассвет/закат → блёклый день.
 func _sky_pal(i: int) -> Color:
 	var c: Color = (SKY_NIGHT[i] as Color).lerp(SKY_DUSK[i], smoothstep(-0.28, 0.02, day_e))
-	return c.lerp(SKY_NOON[i], smoothstep(0.12, 0.75, day_e))
+	c = c.lerp(SKY_NOON[i], smoothstep(0.12, 0.75, day_e))
+	return Color(c.r * 1.06, c.g * 0.97, c.b * 0.9, c.a)   # лёгкий сдвиг в оранжево-красный
 
 
 ## Время суток: небо, положение и цвет солнца (ночью тот же свет — тусклая голубая луна).
