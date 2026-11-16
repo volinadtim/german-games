@@ -395,6 +395,8 @@ func _close_settings() -> void:
 
 
 func _show(which: String) -> void:
+	# в игре пауза и настройки — поверх чёрных переходов и кат-сцен (затемнения на слоях 10–40, промпт 05:45)
+	layer = 60 if in_game else 1
 	main_box.visible = which == "main"
 	pause_box.visible = which == "pause"
 	slots_box.visible = which == "slots"
