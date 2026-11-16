@@ -407,7 +407,7 @@ func _play_echo() -> void:
 	s.stream = echo_snd
 	s.unit_size = 9.0
 	s.max_distance = 60.0
-	s.volume_db = -5.0   # тише на 3.5 дБ (промпт 16.11 04:06)
+	s.volume_db = -13.0   # 04:06 −3.5 дБ; 04:32 «слишком громко» — ещё −8 дБ
 	s.attenuation_filter_cutoff_hz = 9000.0
 	game.add_child(s)
 	if game.slot and is_instance_valid(game.slot):
