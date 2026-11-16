@@ -4,6 +4,7 @@ extends CharacterBody3D
 signal died(enemy: Node)
 
 const Fx := preload("res://scripts/core/fx.gd")
+const Gibs := preload("res://scripts/world/gibs.gd")
 const Surface := preload("res://scripts/level/surface.gd")
 
 const SPEED := 2.1

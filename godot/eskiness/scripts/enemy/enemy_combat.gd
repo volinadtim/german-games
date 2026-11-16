@@ -266,33 +266,23 @@ func apply_hit(dmg: float, dir: Vector3) -> void:
 func _die(dir: Vector3) -> void:
 	_set_state("dead")
 	collision_layer = 0
-	knock = dir * 2.0
 	bar.visible = false
 	_play(body_snd, game.snd["thud"], -4.0, 0.9)
-	# падает назад, по направлению удара
-	var local_dir := global_transform.basis.inverse() * dir
-	var tw := create_tween().set_parallel()
-	tw.tween_property(vis, "rotation:x", PI / 2.0 * signf(local_dir.z if absf(local_dir.z) > 0.1 else 1.0), 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_property(vis, "position:y", 0.3, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_property(torso, "rotation:x", 0.0, 0.4)
-	tw.chain().tween_callback(func(): Fx.dust_burst(get_parent(), global_position + Vector3(0, 0.3, 0), Color(0.4, 0.38, 0.35), 30))
+	# разваливается на куски (world/gibs.gd), сам враг невидим и удаляется после растворения кусков
+	knock = Vector3.ZERO
+	Gibs.shatter(self, vis, dir)
+	Fx.dust_burst(get_parent(), global_position + Vector3(0, 0.5, 0), Color(0.4, 0.38, 0.35), 30)
 	# лут (промпт 14.11 18:08): тяжёлый — 0–2 предмета и 0–6 монет; быстрый — 1–3 предмета и 0–2 монеты
 	if net_puppet:
-		# лут и respawn — у хоста (лут придёт по сети); копия только падает и уходит в землю
-		var twp := create_tween()
-		twp.tween_interval(8.0)
-		twp.tween_property(self, "position:y", position.y - 0.8, 3.0)
-		twp.tween_callback(queue_free)
+		# лут и respawn — у хоста (лут придёт по сети); копия тоже разваливается (выше)
+		get_tree().create_timer(Gibs.LIFE + 3.0, false).timeout.connect(queue_free)
 		return
 	var pos := global_position + Vector3(0, height * 0.5, 0)
 	if not drop_only.is_empty():
 		for id in drop_only:
 			game.spawn_loot(String(id), 1, pos, Vector3(0, 2.5, 0), 1.0)
 		died.emit(self)
-		var tw3 := create_tween()
-		tw3.tween_interval(8.0)
-		tw3.tween_property(self, "position:y", position.y - 0.8, 3.0)
-		tw3.tween_callback(queue_free)
+		get_tree().create_timer(Gibs.LIFE + 3.0, false).timeout.connect(queue_free)
 		return
 	var coins := randi_range(0, 6) if kind == "heavy" else randi_range(0, 2)
 	if coins > 0:
@@ -305,7 +295,4 @@ func _die(dir: Vector3) -> void:
 	if randf() < 0.03:  # кошелёк — редкость (промпт 14.11 17:21)
 		game.spawn_loot("wallet", 1, pos, Vector3(0, 2.5, 0), 1.2)
 	died.emit(self)
-	var tw2 := create_tween()
-	tw2.tween_interval(8.0)
-	tw2.tween_property(self, "position:y", position.y - 0.8, 3.0)
-	tw2.tween_callback(queue_free)
+	get_tree().create_timer(Gibs.LIFE + 3.0, false).timeout.connect(queue_free)

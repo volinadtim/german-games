@@ -352,11 +352,11 @@ func _die(_dir: Vector3) -> void:
 	bar.visible = false
 	_set_alpha(1.0)
 	_growl(0.6)
-	var tw := create_tween().set_parallel()
-	tw.tween_property(vis, "rotation:x", PI / 2.0, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.tween_property(vis, "position:y", 0.25, 0.6)
-	tw.chain().tween_interval(6.0)
-	tw.chain().tween_callback(queue_free)
+	# разваливается на куски (world/gibs.gd), куски растворяются через 8 с
+	var back := global_transform.basis.z
+	Gibs.shatter(self, vis, _dir if _dir.length() > 0.01 else Vector3(back.x, 0, back.z).normalized())
+	Fx.dust_burst(get_parent(), global_position + Vector3(0, 0.5, 0), Color(0.4, 0.38, 0.35), 30)
+	get_tree().create_timer(Gibs.LIFE + 3.0, false).timeout.connect(queue_free)
 	if not net_puppet:
 		var at := global_position + Vector3(0, 0.8, 0)
 		game.spawn_loot("coin", randi_range(3, 9), at, Vector3(0, 2.5, 0), 1.5)

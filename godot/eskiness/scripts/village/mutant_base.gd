@@ -4,6 +4,7 @@ extends CharacterBody3D
 signal died(m: Node)
 
 const Fx := preload("res://scripts/core/fx.gd")
+const Gibs := preload("res://scripts/world/gibs.gd")
 const G := 4.0
 
 ## Параметры видов: здоровье, скорость, рост, цвет кожи, свечение
