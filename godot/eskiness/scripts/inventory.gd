@@ -1389,13 +1389,9 @@ func set_hover(k) -> void:
 		id = slots[k]["id"]
 		n = slots[k]["n"]
 	if id != "":
-		info_name.text = "%s  ×%d" % [Items.item_name(id), n] if n > 1 else Items.item_name(id)
+		# при наведении — только название (промпт 03:50: без «×количество» и «[F — использовать]»)
+		info_name.text = Items.item_name(id)
 		info_desc.text = Items.ITEMS[id]["desc"] + _size_note(id)
-		# подсказка при наведении: «F — использовать» (клавиша — из управления)
-		if k is String:
-			info_name.text += "    [%s — снять]" % _use_key()
-		elif _use_label(id) != "":
-			info_name.text += "    [%s — использовать]" % _use_key()
 	else:
 		info_name.text = " "
 		info_desc.text = " "

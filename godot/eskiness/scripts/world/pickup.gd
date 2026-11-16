@@ -161,7 +161,7 @@ func get_prompt(_g) -> String:
 	if taken:
 		return ""
 	var nm := Items.item_name(id)
-	return "[E] Взять: %s ×%d" % [nm, n] if n > 1 else "[E] Взять: %s" % nm
+	return "[E] Взять: %s" % nm   # без «×количество» (промпт 03:50)
 
 
 ## E: в инвентарь. Не влезло ничего — сообщение «Инвентарь полон», предмет остаётся лежать.
