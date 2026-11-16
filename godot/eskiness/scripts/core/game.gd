@@ -275,6 +275,19 @@ func window_open() -> bool:
 		or (loot_window != null and loot_window.open)
 
 
+## Закрыть все окна (инвентарь, магазин с продажей, наборы KILLBOX, лут) — перед кат-сценой (промпт 16.11 21:40).
+## Вызывать ДО блокировки игрока: _close магазина/наборов возвращают player.active = true.
+func close_windows() -> void:
+	if inv != null and inv.open:
+		inv.close()
+	if shop != null and shop.opened:
+		shop._close()
+	if slot != null and slot.pack_open:
+		slot.close_packs()
+	if loot_window != null and loot_window.open:
+		loot_window.close()
+
+
 ## Открыть окно лута: obj с полем contents [[id, n], ...] (ящик, сейф, сундук, кувшин…).
 func open_loot(c) -> void:
 	if not alive or (window_open() and not (loot_window and loot_window.open)):
@@ -347,6 +360,7 @@ func _glass(delta: float) -> void:
 
 ## Сел в машину (car.gd): игрок больше не управляется, враги и отрава его не трогают, HUD прячется.
 func begin_escape() -> void:
+	close_windows()
 	alive = false
 	won = true
 	player.active = false

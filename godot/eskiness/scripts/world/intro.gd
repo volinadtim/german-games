@@ -85,6 +85,8 @@ func start() -> void:
 
 func _lock(on: bool) -> void:
 	var p = game.player
+	if on:
+		game.close_windows()   # кат-сцена закрывает любые окна (промпт 16.11 21:40)
 	p.set_lock("intro", on)   # независимая блокировка (консоль и чат её не снимают, промпт 16.11 04:51)
 	game.hud.set_cinematic(on)
 	p.cinematic_stance(on)
