@@ -149,11 +149,12 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 				p += CHARGE_OTHER * ck
 		# рука качается навстречу противоположной ноге
 		var arm_swing := clampf(-foot[1 - i].z * 1.1, -0.6, 0.6) * (1.0 - fist_blend)
-		# бег: согнутые в локтях руки машут вперёд-назад в противофазе ногам (вперёд сильнее, чем назад)
+		# бег: согнутые ~90° руки машут вдоль корпуса в противофазе ногам. Вперёд — умеренно (кулак на пике
+		# не выше груди, не в кадре; промпт 05:06), назад — сильнее; на махе вперёд локоть чуть раскрыт
 		var rka := run_k * (1.0 - fist_blend)
 		var rs := run_d * (1.0 if i == 1 else -1.0)   # >0 — рука впереди
-		arm_swing = lerpf(arm_swing, rs * (0.8 if rs > 0.0 else 0.55) + 0.12, rka)
-		var run_el := rka * deg_to_rad(68.0 + 22.0 * rs)
+		arm_swing = lerpf(arm_swing, rs * (0.4 if rs > 0.0 else 0.65), rka)
+		var run_el := rka * deg_to_rad(80.0 - 8.0 * rs)
 		var guard_bob := deg_to_rad(sin(phase + float(i)) * 1.5 * amt * fist_blend + box_ph * 1.3)   # промпт 03:38: вдвое слабее
 		# дыхание чуть разводит руки, в покое они слегка покачиваются
 		var rest_sway := (sin(idle_time * 0.9 + float(i) * 2.0) * 0.03 + sin(idle_time * 0.37 + float(i)) * 0.015) * idle_amt * (1.0 - fist_blend)
