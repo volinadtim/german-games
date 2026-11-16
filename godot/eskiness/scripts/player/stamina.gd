@@ -23,6 +23,8 @@ var ui: Control
 
 func _ready() -> void:
 	player = get_parent()
+	# в машине игрок выключен (car_drive.gd: PROCESS_MODE_DISABLED) — выносливость всё равно тикает (промпт 16.11 21:41)
+	process_mode = Node.PROCESS_MODE_PAUSABLE
 	layer = CanvasLayer.new()
 	layer.layer = 1
 	add_child(layer)
@@ -68,6 +70,8 @@ func tick(delta: float, sprinting: bool, moving: bool) -> void:
 
 
 func _process(delta: float) -> void:
+	if player != null and player.process_mode == Node.PROCESS_MODE_DISABLED:
+		tick(delta, false, false)   # сидит в машине — отдыхает, как стоя
 	var show: bool = value < 0.999 and player != null and bool(player.active)
 	alpha = move_toward(alpha, 1.0 if show else 0.0, delta * (4.0 if show else 1.2))
 	ui.visible = alpha > 0.01

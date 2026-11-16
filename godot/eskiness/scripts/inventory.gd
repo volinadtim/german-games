@@ -77,6 +77,7 @@ var craft_tab: Button
 var craft_wrap: Control
 var craft_panel: PanelContainer
 var craft_shown := false
+var hint_l: Label   # подсказки внизу окна: при выкаченном крафте ширина закреплена — высота окна не меняется
 var craft_tw: Tween
 var craft_open := -1            # раскрытый рецепт в списке крафта (-1 — все свёрнуты)
 var _press_key = null
@@ -744,6 +745,7 @@ func _build_ui() -> void:
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # не шире окна: при нехватке места — вторая строка
 	hint.custom_minimum_size.x = 1
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_l = hint
 	outer.add_child(hint)
 
 	# обёртка обрезает панель: её ширина плавно растёт от 0 (выкатывание)
@@ -1517,9 +1519,25 @@ func toggle_craft() -> void:
 
 
 func set_craft(on: bool, instant := false) -> void:
+	# крафт выкатывается только вправо, высота окна прежняя (промпт 16.11 21:41): подсказки внизу переносились
+	# по-другому в широком окне — закрепляем их ширину по окну без крафта, пока панель выкачена
+	if hint_l and on and not craft_shown and hint_l.size.x > 1.0:
+		hint_l.custom_minimum_size.x = hint_l.size.x
+		hint_l.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	craft_shown = on
 	craft_tab.set_pressed_no_signal(on)
 	craft_tw = _slide(craft_wrap, craft_panel, on, instant, craft_tw, false)
+	if not on:
+		if craft_tw:
+			craft_tw.tween_callback(_unpin_hint)   # после того как панель уехала
+		else:
+			_unpin_hint()
+
+
+func _unpin_hint() -> void:
+	if hint_l and not craft_shown:
+		hint_l.custom_minimum_size.x = 1
+		hint_l.size_flags_horizontal = Control.SIZE_FILL
 
 
 ## Кнопка-вкладка в заголовке окна (нажата — панель выкачена).
