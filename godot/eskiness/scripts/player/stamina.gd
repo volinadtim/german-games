@@ -3,9 +3,8 @@ extends Node
 ## Бег (Shift) тратит, прыжок — немного. На нуле бег заблокирован до UNLOCK.
 ## Восстановление после короткой паузы, стоя быстрее, чем на ходу.
 ## Полоска над хотбаром: появляется при трате, плавно гаснет, когда полная. F10 прячет (CanvasLayer).
-## Тяжёлое дыхание при истощении — тихое; в противогазе глуше и ниже (шина «MaskBreath» из gasmask.gd).
+## Звука дыхания нет (убран, промпт 04:14).
 
-const Sfx := preload("res://scripts/core/sfx.gd")
 const DRAIN := 1.0 / 7.0        # полная полоска — ~7 с бега
 const JUMP_COST := 0.07
 const REGEN_WALK := 1.0 / 10.0  # на ходу — ~10 с до полной
@@ -18,13 +17,8 @@ var value := 1.0
 var exhausted := false
 var delay := 0.0
 var alpha := 0.0
-var pant := 0.0                 # 0..1 — насколько тяжело дышим
 var layer: CanvasLayer
 var ui: Control
-var voice: AudioStreamPlayer
-var breaths: Array = []
-var breath_t := 0.0
-var breath_n := 0
 
 
 func _ready() -> void:
@@ -41,10 +35,6 @@ func _ready() -> void:
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui.draw.connect(_draw_bar)
 	layer.add_child(ui)
-	voice = AudioStreamPlayer.new()
-	voice.max_polyphony = 2
-	add_child(voice)
-	breaths = [Sfx.inhale(), Sfx.inhale(true)]
 
 
 func can_sprint() -> bool:
@@ -75,9 +65,6 @@ func tick(delta: float, sprinting: bool, moving: bool) -> void:
 		value = minf(value + (REGEN_WALK if moving else REGEN_IDLE) * delta, 1.0)
 	if exhausted and value >= UNLOCK:
 		exhausted = false
-	# дыхание: тяжёлое при истощении, затихает по мере восстановления
-	var want := 1.0 if exhausted else clampf((0.3 - value) / 0.3, 0.0, 0.6)
-	pant = move_toward(pant, want, delta * (1.5 if want > pant else 0.12))
 
 
 func _process(delta: float) -> void:
@@ -86,33 +73,13 @@ func _process(delta: float) -> void:
 	ui.visible = alpha > 0.01
 	if ui.visible:
 		ui.queue_redraw()
-	_breathe(delta)
 
 
-func _breathe(delta: float) -> void:
-	if pant < 0.05:
-		breath_t = 0.0
-		return
-	breath_t -= delta
-	if breath_t > 0.0:
-		return
-	breath_n += 1
-	var exhale := breath_n % 2 == 0
-	breath_t = lerpf(1.3, 0.42, pant) * randf_range(0.85, 1.15)
-	var gm = player.game.gasmask if player != null and player.game != null else null
-	var masked: bool = gm != null and bool(gm.worn)
-	voice.bus = "MaskBreath" if masked and AudioServer.get_bus_index("MaskBreath") >= 0 else "Master"
-	voice.stream = breaths[1 if exhale else 0]
-	voice.volume_db = lerpf(-36.0, -24.0, pant) + (2.0 if masked else 0.0) + randf_range(-2.0, 1.5)
-	voice.pitch_scale = (0.74 if masked else 1.05) * lerpf(1.0, 1.25, pant) * randf_range(0.93, 1.07)
-	voice.play()
-
-
-## Тонкая полоска чуть выше хотбара (хотбар hud.gd: ячейки 64, отступ 18; заряд удара — выше, player_combat.gd).
+## Тонкая полоска чуть выше хотбара (хотбар hud.gd: ячейки 64, отступ 18; заряд удара — под прицелом, player_combat.gd).
 func _draw_bar() -> void:
 	var sz := ui.size
 	var w := 160.0
-	var h := 3.0
+	var h := 4.5
 	var x0 := sz.x / 2.0 - w / 2.0
 	var y0 := sz.y - 64.0 - 18.0 - 8.0
 	var a := alpha * 0.8

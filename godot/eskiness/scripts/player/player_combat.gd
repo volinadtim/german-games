@@ -167,22 +167,22 @@ func _make_charge_ui() -> void:
 	cl.add_child(charge_ui)
 
 
-## Тонкая белая полоска над хотбаром (хотбар hud.gd: ячейки 64, отступ снизу 18).
+## Тонкая полупрозрачная красноватая полоска заряда — под прицелом, выше хотбара (промпт 04:13).
 func _charge_draw() -> void:
 	var sz := charge_ui.size
 	var w := 240.0
 	var h := 5.0
 	var x0 := sz.x / 2.0 - w / 2.0
-	var y0 := sz.y - 64.0 - 18.0 - 16.0
-	var a := charge_ui_a
+	var y0 := sz.y * 0.64
+	var a := charge_ui_a * 0.6
 	var full := charge_ui_k >= 0.999
-	charge_ui.draw_rect(Rect2(x0 - 2, y0 - 2, w + 4, h + 4), Color(0, 0, 0, 0.55 * a))
-	charge_ui.draw_rect(Rect2(x0, y0, w, h), Color(1, 1, 1, 0.12 * a))
-	charge_ui.draw_rect(Rect2(x0, y0, w * charge_ui_k, h), Color(1, 1, 1, 0.9 * a))
+	charge_ui.draw_rect(Rect2(x0 - 2, y0 - 2, w + 4, h + 4), Color(0, 0, 0, 0.45 * a))
+	charge_ui.draw_rect(Rect2(x0, y0, w, h), Color(1, 0.5, 0.45, 0.12 * a))
+	charge_ui.draw_rect(Rect2(x0, y0, w * charge_ui_k, h), Color(0.95, 0.38, 0.32, 0.9 * a))
 	if full:
 		# максимум: пульсирующее свечение вокруг
 		var p := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 3.0)
-		charge_ui.draw_rect(Rect2(x0 - 4, y0 - 4, w + 8, h + 8), Color(1, 1, 1, (0.25 + 0.45 * p) * a), false, 2.0)
+		charge_ui.draw_rect(Rect2(x0 - 4, y0 - 4, w + 8, h + 8), Color(1, 0.45, 0.4, (0.25 + 0.45 * p) * a), false, 2.0)
 
 
 ## arm = -1 — рука выбирается сама (чередование; старый код). charge — заряд удара 0..1.
