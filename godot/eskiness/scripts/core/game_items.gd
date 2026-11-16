@@ -613,9 +613,38 @@ func drop_coins(n: int) -> void:
 	play_ui("coin", -11.0, 0.9)
 
 
+## Новая одежда/снаряжение (промпт 05:37): сразу в свободный подходящий слот экипировки. true — надето.
+func auto_equip(id: String, dur := -1.0) -> bool:
+	var k := Items.equip_slot(id)
+	if k == "" or k == "hand" or not inv.equip.has(k) or inv.equip[k] != "":
+		return false
+	inv.equip[k] = id
+	inv.equip_dur[k] = dur if dur >= 0.0 else Items.max_dur(id)
+	inv.update_blocks()
+	_apply_equip(k)
+	inv.notify()
+	play_ui("click", -10.0, 0.8)
+	return true
+
+
+## Выдать вещь (покупка): надеть в свободный слот → в сумку → на пол рядом. "equip" / "bag" / "floor".
+func give_gear(id: String, dur := -1.0) -> String:
+	if auto_equip(id, dur):
+		return "equip"
+	if inv.add(id, 1, dur) == 0:
+		return "bag"
+	var e := {"id": id, "n": 1}
+	if dur >= 0.0:
+		e["dur"] = dur
+	drop_spilled([e])
+	return "floor"
+
+
 ## Вызывается лежащим предметом, когда игрок рядом. Возвращает, сколько не влезло.
 func collect(id: String, n: int, from: Node = null) -> int:
 	var d: float = float(from.get_meta("dur", -1.0)) if from != null else -1.0
+	if n == 1 and auto_equip(id, d):
+		return 0
 	var left: int = inv.add(id, n, d)
 	var got := n - left
 	if got > 0:

@@ -659,7 +659,7 @@ func take(i: int, quiet := false) -> void:
 		return
 	var it: Array = src.contents[i]
 	var want := int(it[1])
-	var left: int = game.inv.add(String(it[0]), want, e_dur(it))
+	var left: int = 0 if want == 1 and game.auto_equip(String(it[0]), e_dur(it)) 		else game.inv.add(String(it[0]), want, e_dur(it))   # одежда — сразу в свободный слот (05:37)
 	var got := want - left
 	if got <= 0:
 		if not quiet:

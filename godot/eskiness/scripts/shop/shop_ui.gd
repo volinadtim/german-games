@@ -326,9 +326,7 @@ func _can_pay(price: int) -> bool:
 
 func _item_cell(grid: GridContainer, id: String, price: int) -> void:
 	var reason := ""
-	if Items.ITEMS[id].has("equip") and game.inv.count(id) > 0:
-		reason = "Уже есть."
-	elif not _can_pay(price):
+	if not _can_pay(price):
 		reason = "Не хватает монет."
 	_cell(grid, func(ci: Control, r: Rect2): Items.draw_icon(ci, id, r), price,
 		Items.item_name(id) + (" ×%d" % AMMO_PACK if id == "ammo" else ""), Items.ITEMS[id]["desc"], reason, func(): _buy(id, price))
@@ -682,10 +680,19 @@ func _buy(id: String, price: int) -> void:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
 		return
-	if Items.ITEMS[id].has("equip") and game.inv.count(id) > 0:
-		info_l.text = "%s уже есть" % Items.item_name(id)
-		return
 	game.inv.remove("coin", price)
+	if Items.ITEMS[id].has("equip"):
+		# одежда/снаряжение (промпт 05:37): без лимита; надеть → в сумку → на пол, покупку не отменяем
+		if id == "gasmask" and game.gasmask:
+			game.gasmask.on_bought()
+		var where: String = game.give_gear(id)
+		info_l.text = "Куплено: %s%s" % [Items.item_name(id),
+			{"equip": " — надето", "bag": " — в сумке", "floor": " — на полу"}[where]]
+		game.shop_bought.append(id)
+		_vend(id)
+		game.play_ui("coin", -10.0)
+		_refresh()
+		return
 	var qty: int = AMMO_PACK if id == "ammo" else 1   # патроны — набором (05:11)
 	var left: int = game.inv.add(id, qty, 0.0 if id == "mag" else -1.0)   # магазин продаётся пустым (05:11)
 	if left > 0:
