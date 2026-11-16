@@ -61,6 +61,7 @@ var hover = null                 # int — ячейка сумки, String — �
 var root: Control
 var info_name: Label
 var info_desc: Label
+var tip: PanelContainer          # всплывающая подсказка (название + описание) у курсора
 var slot_nodes: Array = []
 var grids: Array = []            # BagGrid на каждый блок BLOCKS
 var block_ls: Array = []         # подписи блоков
@@ -173,9 +174,9 @@ class Slot extends Control:
 	## Фигура — список примитивов: ["c", центр, r], ["r", Rect2], ["l", [точки], ширина], ["p", [точки]];
 	## сначала все с запасом OUT (контур), потом заливка — без наложений полупрозрачного.
 	const OUT := 3.0
-	const C_OUT := Color(1, 1, 1, 0.5)
-	const C_FILL := Color(0.24, 0.23, 0.21, 0.92)
-	const C_CUT := Color(1, 1, 1, 0.5)
+	const C_OUT := Color(1, 1, 1, 0.16)    # тусклее, без «свечения» (промпт 04:41)
+	const C_FILL := Color(0.13, 0.12, 0.11, 0.9)
+	const C_CUT := Color(1, 1, 1, 0.16)
 
 	func _shape(ops: Array, grow: float, col: Color) -> void:
 		for o in ops:
@@ -699,20 +700,29 @@ func _build_ui() -> void:
 	wb.pressed.connect(open_drop_dialog.bind("coin"))
 	wallet.add_child(wb)
 	vb.add_child(wallet)
-	# название и описание фиксированного размера (промпт 14.11 19:28): окно не прыгает при наведении
-	info_name = _label(" ", 21, Color(0.9, 0.82, 0.62))
-	info_name.clip_text = true
-	info_name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	info_name.custom_minimum_size = Vector2(COLS * CELL, 30)
-	vb.add_child(info_name)
-	info_desc = _label(" ", 16, Color(0.72, 0.71, 0.67))
+	# название и описание — во всплывающей подсказке у курсора (промпт 04:41), постоянной панели нет
+	tip = PanelContainer.new()
+	var tst := StyleBoxFlat.new()
+	tst.bg_color = Color(0.05, 0.05, 0.05, 0.94)
+	tst.border_color = Color(1, 1, 1, 0.18)
+	tst.set_border_width_all(1)
+	tst.set_corner_radius_all(3)
+	tst.set_content_margin_all(8)
+	tip.add_theme_stylebox_override("panel", tst)
+	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tip.visible = false
+	var tvb := VBoxContainer.new()
+	tvb.add_theme_constant_override("separation", 4)
+	tvb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tip.add_child(tvb)
+	info_name = _label(" ", 19, Color(0.9, 0.82, 0.62))
+	info_name.custom_minimum_size = Vector2(300, 0)
+	info_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tvb.add_child(info_name)
+	info_desc = _label(" ", 15, Color(0.72, 0.71, 0.67))
 	info_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	info_desc.max_lines_visible = 3
-	info_desc.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	info_desc.clip_text = true
-	info_desc.custom_minimum_size = Vector2(COLS * CELL, 3 * 27)
-	info_desc.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	vb.add_child(info_desc)
+	info_desc.custom_minimum_size = Vector2(300, 0)
+	tvb.add_child(info_desc)
 	# подсказки короче (промпт 03:46): без «ЛКМ — перетащить», «Tab — закрыть», «за окно — выбросить»
 	var hint_text := "F (навести) — использовать
 ПКМ — действия
@@ -766,6 +776,7 @@ Shift+ПКМ — выбросить 1 (держать — всю стопку)
 		hs.k = k
 		root.add_child(hs)
 		hot_nodes.append(hs)
+	root.add_child(tip)   # поверх окна
 	_build_drop_dialog()
 	_build_menu()
 
@@ -980,6 +991,9 @@ func _input(e: InputEvent) -> void:
 		else:
 			close()
 		get_viewport().set_input_as_handled()
+	elif open and not dlg.visible and e.is_action_pressed("interact") and not e.is_echo():
+		close()   # E тоже закрывает инвентарь (промпт 04:41)
+		get_viewport().set_input_as_handled()
 	elif open and hold_key != null and e is InputEventMouseButton and not e.pressed and e.button_index == MOUSE_BUTTON_RIGHT:
 		_finish_hold()
 	elif open and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_SPACE:
@@ -1191,6 +1205,8 @@ func start_hold(key, _mx: int) -> void:
 
 
 func _process(delta: float) -> void:
+	if open:
+		_place_tip()
 	_touch_hold(delta)
 	if hold_key == null:
 		return
@@ -1526,10 +1542,27 @@ func set_hover(k) -> void:
 		# при наведении — только название (промпт 03:50: без «×количество» и «[F — использовать]»)
 		info_name.text = Items.item_name(id)
 		info_desc.text = Items.ITEMS[id]["desc"] + _size_note(id)
+		tip.visible = true
+		tip.reset_size()
+		_place_tip()
 	else:
-		info_name.text = " "
-		info_desc.text = " "
+		tip.visible = false
 	_refresh()
+
+
+## Подсказка у курсора, в пределах экрана.
+func _place_tip() -> void:
+	if tip == null or not tip.visible:
+		return
+	var vp := root.get_viewport_rect().size
+	var m := root.get_global_mouse_position()
+	var sz := tip.get_combined_minimum_size()
+	var p := m + Vector2(18, 18)
+	if p.x + sz.x > vp.x:
+		p.x = m.x - sz.x - 12
+	if p.y + sz.y > vp.y:
+		p.y = m.y - sz.y - 12
+	tip.position = p.max(Vector2.ZERO)
 
 
 ## Название клавиши действия inv_use (по умолчанию F).
