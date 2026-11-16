@@ -19,7 +19,7 @@ const CAP := 8                   # патронов в магазине
 const DMG := 40.0                # по бетоннику (95 HP) — 3 попадания
 const RANGE := 80.0
 const FIRE_CD := 0.28
-const RELOAD_T := 1.5
+const RELOAD_T := 1.7             # фазы анимации — player_anim.gd: _reload_pose, звуки — REL_EVENTS
 const HEAR_R := 28.0             # радиус, в котором враги слышат выстрел
 const EJECT_T := 0.5             # столько держать Enter — извлечь магазин
 const AIM_FOV := 0.7             # множитель поля зрения в прицеле
@@ -56,6 +56,17 @@ const SLOTS := ["left", "right"]
 var next_hand := 1
 var _hand := 1                   # из какого стреляли последним (вспышка, гильза)
 var _reload_h := 1               # какой перезаряжается
+## Перезарядка (промпт 16.11 02:37): фаза 0..1 → player.gun_rel_k; звуки по фазе: защёлка и выход магазина,
+## вставка, затвор назад, затвор вперёд. Магазин в руке — отдельный меш, старый магазин падает на пол.
+const REL_EVENTS := [[0.02, "release"], [0.55, "insert"], [0.79, "rack_back"], [0.87, "rack_fwd"]]
+var _rel_t := 0.0
+var _rel_had := false
+var _rel_ev := 0
+var _rel_mag: MeshInstance3D
+var snd_release: AudioStreamWAV
+var snd_insert: AudioStreamWAV
+var snd_rack_back: AudioStreamWAV
+var snd_rack_fwd: AudioStreamWAV
 
 
 ## dur пистолета → патроны / есть ли магазин (см. шапку).
@@ -77,6 +88,14 @@ func _ready() -> void:
 	snd_shot = _shot_sound()
 	snd_click = _click_sound(0.035, 2600.0)
 	snd_mag = _click_sound(0.06, 900.0)
+	snd_release = _layered([[0.0, "tick", 0.02, 3400.0, 0.7], [0.004, "ring", 0.12, 4100.0, 0.25],
+			[0.03, "scrape", 0.09, 2200.0, 0.55], [0.11, "thump", 0.08, 260.0, 0.35]])
+	snd_insert = _layered([[0.0, "scrape", 0.07, 1800.0, 0.5], [0.07, "thump", 0.09, 170.0, 1.0],
+			[0.07, "tick", 0.025, 2300.0, 0.9], [0.072, "ring", 0.1, 3300.0, 0.3], [0.1, "tick", 0.012, 4200.0, 0.45]])
+	snd_rack_back = _layered([[0.0, "tick", 0.015, 2900.0, 0.6], [0.005, "scrape", 0.08, 3000.0, 0.65],
+			[0.08, "tick", 0.02, 2000.0, 0.7], [0.082, "ring", 0.08, 5200.0, 0.2]])
+	snd_rack_fwd = _layered([[0.0, "scrape", 0.025, 3500.0, 0.4], [0.025, "tick", 0.03, 2600.0, 1.0],
+			[0.025, "thump", 0.07, 210.0, 0.8], [0.027, "ring", 0.22, 3700.0, 0.35], [0.027, "ring", 0.16, 6100.0, 0.18]])
 	ui = CanvasLayer.new()
 	ui.layer = 1
 	add_child(ui)
@@ -200,6 +219,7 @@ func _process(delta: float) -> void:
 		else:
 			count_l.text = "%s  %d / %d" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", r, CAP]
 		count_l.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35) if r == 0 else Color(0.95, 0.88, 0.7))
+	_reload_tick(delta)
 	_aim()
 	Hud.gun_cross = armed() and game.alive
 	cross.queue_redraw()
@@ -249,6 +269,8 @@ func aim_dir() -> Vector3:
 func _draw_cross() -> void:
 	if not armed() or not game.alive or game.player == null or game.inv.open:
 		return
+	if not Hud.show_crosshair:
+		return   # «Настройки» → «Прицел» выключен — прицела пистолета тоже нет (промпт 02:37)
 	var cam: Camera3D = game.player.cam
 	var c: Vector2 = cross.size / 2.0
 	var pt := cam.global_position + aim_dir() * 20.0
@@ -280,13 +302,10 @@ func _aim() -> void:
 		return
 	var p = game.player
 	var w: float = maxf(clampf(p.gun_hip_w + p.gun_ads_w, 0.0, 1.0), aim_k)
-	if w <= 0.0:
+	if w <= 0.0 and p.gun_rel_w <= 0.0:
 		return
-	var two := dual()
 	var cb: Basis = p.cam.global_transform.basis.orthonormalized()
 	for h in hands():
-		if reloading and h == _reload_h:
-			continue
 		var n = p.weapon_nodes[h]
 		if n == null or not is_instance_valid(n) or not (n as Node3D).is_inside_tree():
 			continue
@@ -296,10 +315,16 @@ func _aim() -> void:
 		var b := Basis(-cb.z, cb.y, cb.x).rotated(cb.x, -0.06 * tilt).rotated(cb.y, 0.05 * tilt * side)   # +X модели — вперёд, +Y — вверх
 		b = b.rotated(cb.y, -sway.x).rotated(cb.x, sway.y)   # ствол качается с шагами — туда же уходит пуля
 		var gt: Transform3D = (n as Node3D).global_transform
-		b = gt.basis.orthonormalized().slerp(b, w)
+		var wh := w
+		if h == _reload_h and p.gun_rel_w > 0.0:
+			# перезарядка: рукоять наклонена шахтой магазина ко второй руке, ствол чуть вверх
+			var rb := Basis(-cb.z, cb.y, cb.x).rotated(cb.z, -side * 0.6).rotated(cb.x, 0.3)
+			var rw := smoothstep(0.0, 1.0, p.gun_rel_w)
+			b = b.slerp(rb, rw) if w > 0.0 else rb
+			wh = maxf(w, rw)
+		b = gt.basis.orthonormalized().slerp(b, wh)
 		gt.basis = Basis(b.x * sc.x, b.y * sc.y, b.z * sc.z)
-		if aim_k > 0.0:
-			gt.origin = gt.origin.lerp(ads_point(p.cam.global_position, cb, h, two, sc.y), aim_k)
+		# положение не трогаем: пистолет висит на кисти (рукоять в кулаке), к точке прицела его ведёт IK руки (player_anim.gd)
 		(n as Node3D).global_transform = gt
 
 
@@ -537,16 +562,19 @@ func reload() -> void:
 		return
 	reloading = true
 	_reload_h = rh
-	_play(snd_mag, -6.0, 0.8)
-	_reload_anim(rh)
+	_rel_t = 0.0
+	_rel_ev = 0
+	_rel_had = had
+	game.player.gun_rel_h = rh
+	game.player.gun_rel_k = 0.0
 	await get_tree().create_timer(RELOAD_T).timeout
 	reloading = false
+	_reload_end()
 	if game.inv.equip[slot] != "pistol":
 		return
 	if best >= game.inv.slots.size():
 		return
 	insert_mag(best, slot, false)
-	_play(snd_mag, -5.0, 1.25)
 
 
 ## Вставить магазин из ячейки mag_idx в пистолет (слот "right"/"left" или номер ячейки с пистолетом).
@@ -606,18 +634,106 @@ func eject(target) -> void:
 	inv.notify()
 
 
-## Пистолет уходит вниз и поворачивается, потом возвращается.
-func _reload_anim(h := 1) -> void:
-	var n = game.player.weapon_nodes[h]
-	if n == null or not is_instance_valid(n):
+## Ход перезарядки: фаза для позы рук, звуки по фазе, магазин во второй руке, старый магазин падает.
+func _reload_tick(delta: float) -> void:
+	var p = game.player
+	if not reloading or p == null:
+		_reload_end()
 		return
-	var t0: Transform3D = n.transform
-	var tw: Tween = n.create_tween()
-	tw.tween_property(n, "rotation:z", n.rotation.z - 0.9, 0.3).set_trans(Tween.TRANS_SINE)
-	tw.tween_interval(0.5)
-	tw.tween_callback(func(): _play(snd_click, -8.0, 0.7))
-	tw.tween_interval(0.35)
-	tw.tween_property(n, "transform", t0, 0.3).set_trans(Tween.TRANS_SINE)
+	_rel_t += delta
+	var k := clampf(_rel_t / RELOAD_T, 0.0, 1.0)
+	p.gun_rel_k = k
+	while _rel_ev < REL_EVENTS.size() and k >= float(REL_EVENTS[_rel_ev][0]):
+		var ev: String = REL_EVENTS[_rel_ev][1]
+		_rel_ev += 1
+		match ev:
+			"release":
+				if _rel_had:
+					_play(snd_release, 2.0, randf_range(0.97, 1.03))
+					_drop_old_mag()
+			"insert":
+				_play(snd_insert, 3.0, randf_range(0.97, 1.03))
+			"rack_back":
+				_play(snd_rack_back, 2.0, randf_range(0.97, 1.03))
+			"rack_fwd":
+				_play(snd_rack_fwd, 4.0, randf_range(0.97, 1.03))
+	# новый магазин: виден в свободной руке, пока его несут от пояса и вставляют
+	var j := 1 - _reload_h
+	var gn = p.weapon_nodes[_reload_h]
+	var show: bool = k > 0.24 and k < 0.6 and p.weapon_ids[j] == "" and gn != null and is_instance_valid(gn) \
+			and (gn as Node3D).is_inside_tree() and j < p.fist_fx.size()
+	if not show:
+		if _rel_mag != null and is_instance_valid(_rel_mag):
+			_rel_mag.visible = false
+		return
+	if _rel_mag == null or not is_instance_valid(_rel_mag):
+		_rel_mag = _mag_mesh()
+		game.add_child(_rel_mag)
+	_rel_mag.visible = true
+	var gb: Basis = (gn as Node3D).global_transform.basis.orthonormalized()
+	# магазин в кулаке, выровнен по рукояти (наклон рукояти — weapons.gd), верх — к шахте
+	var mb := gb * Basis(Vector3.BACK, -0.25)
+	_rel_mag.global_transform = Transform3D(mb, p.fist_fx[j].global_position + mb.y * 0.03)
+
+
+func _reload_end() -> void:
+	if _rel_mag != null and is_instance_valid(_rel_mag):
+		_rel_mag.queue_free()
+	_rel_mag = null
+	if game != null and game.player != null:
+		game.player.gun_rel_k = -1.0
+
+
+## Магазин: тёмная коробка с торчащим патроном (центр — середина, вверх — +Y).
+static func _mag_mesh() -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.026, 0.085, 0.018)
+	mi.mesh = bm
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.2, 0.2, 0.2)
+	m.metallic = 0.7
+	m.roughness = 0.5
+	mi.material_override = m
+	var c := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.0045
+	cm.bottom_radius = 0.0045
+	cm.height = 0.016
+	c.mesh = cm
+	var bm2 := StandardMaterial3D.new()
+	bm2.albedo_color = Color(0.8, 0.62, 0.25)
+	bm2.metallic = 0.9
+	c.material_override = bm2
+	c.rotation.z = PI / 2
+	c.position = Vector3(0.004, 0.046, 0)
+	mi.add_child(c)
+	return mi
+
+
+## Старый магазин выскальзывает из рукояти и падает (только картинка — сам он ложится в сумку).
+func _drop_old_mag() -> void:
+	var p = game.player
+	var gn = p.weapon_nodes[_reload_h]
+	if gn == null or not is_instance_valid(gn) or not (gn as Node3D).is_inside_tree():
+		return
+	var b := RigidBody3D.new()
+	b.collision_layer = 0
+	b.collision_mask = 1
+	b.mass = 0.1
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = Vector3(0.026, 0.085, 0.018)
+	cs.shape = sh
+	b.add_child(cs)
+	b.add_child(_mag_mesh())
+	game.add_child(b)
+	var g: Transform3D = (gn as Node3D).global_transform
+	var gb := g.basis.orthonormalized() * Basis(Vector3.BACK, -0.25)
+	b.global_transform = Transform3D(gb, g * Vector3(-0.02, -0.04, 0))
+	b.linear_velocity = -gb.y * 1.2
+	b.angular_velocity = Vector3(randf_range(-4, 4), randf_range(-4, 4), randf_range(-4, 4))
+	get_tree().create_timer(5.0).timeout.connect(b.queue_free)
 
 
 ## «Снарядить» в меню магазина или патроны, перетащенные на магазин: набить патронами из сумки.
@@ -676,6 +792,61 @@ static func _shot_sound() -> AudioStreamWAV:
 			lp2 += (dry[i] - lp2) * 0.18     # отражения глуше
 			out[i + off] += lp2 * float(e[1])
 	return _wav(out, 0.9)
+
+
+## Многослойный механический звук: слои [начало с, вид, длина с, частота, громкость].
+## tick — короткий металлический щелчок, ring — звон металла (неровные обертоны), scrape — скольжение металла
+## по металлу (полосовой шум), thump — глухой удар корпусом.
+static func _layered(layers: Array) -> AudioStreamWAV:
+	var total := 0.0
+	for l in layers:
+		total = maxf(total, float(l[0]) + float(l[2]))
+	var n := int(RATE * (total + 0.03))
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var r := RandomNumberGenerator.new()
+	r.seed = 77
+	for l in layers:
+		var st := int(RATE * float(l[0]))
+		var ln := int(RATE * float(l[2]))
+		var kind: String = l[1]
+		var f: float = l[3]
+		var amp: float = l[4]
+		var lp := 0.0
+		var lp2 := 0.0
+		var a := clampf(f / RATE * TAU, 0.01, 0.95)
+		for i in ln:
+			if st + i >= n:
+				break
+			var t := float(i) / RATE
+			var u := float(i) / ln
+			var v := 0.0
+			match kind:
+				"tick":
+					var w := r.randf() * 2.0 - 1.0
+					lp += (w - lp) * 0.6
+					v = (w - lp) * 0.7 * exp(-t * 260.0) + sin(TAU * f * t) * exp(-t * 180.0) * 0.6
+				"ring":
+					v = (sin(TAU * f * t) + 0.6 * sin(TAU * f * 1.47 * t + 0.4) + 0.35 * sin(TAU * f * 2.31 * t + 1.1)) \
+							* exp(-t * 4.0 / float(l[2])) * 0.5
+				"scrape":
+					var w2 := r.randf() * 2.0 - 1.0
+					lp += (w2 - lp) * a
+					lp2 += (lp - lp2) * a * 0.5
+					var grit := 0.6 + 0.4 * sin(TAU * 140.0 * t + r.randf() * 0.3)
+					v = (lp - lp2) * 2.5 * sin(PI * u) * grit
+				"thump":
+					var w3 := r.randf() * 2.0 - 1.0
+					lp += (w3 - lp) * 0.08
+					v = (sin(TAU * f * t * (1.0 - 0.3 * u)) + lp * 1.5) * exp(-t * 45.0)
+			buf[st + i] += v * amp
+	# тесное эхо бункера
+	var out := buf.duplicate()
+	for e in [[0.045, 0.22], [0.09, 0.12]]:
+		var off := int(RATE * float(e[0]))
+		for i in range(n - off):
+			out[i + off] += buf[i] * float(e[1])
+	return _wav(out, 0.95)
 
 
 static func _click_sound(len_s: float, freq: float) -> AudioStreamWAV:

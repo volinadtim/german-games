@@ -208,31 +208,93 @@ func _gun_pose(delta: float) -> void:
 		var out := ss - cb.z * 0.5 + cb.y * 0.05
 		var fk := smoothstep(0.0, 1.0, throw_flick)
 		_arm_ik(sh_i, cock.lerp(out, fk), ss, tinv, clampf(maxf(throw_w, fk), 0.0, 1.0))
-	if gun_hip_w <= 0.0 and gun_ads_w <= 0.0:
+	gun_rel_w = move_toward(gun_rel_w, 1.0 if gun_rel_k >= 0.0 and any else 0.0, delta * 6.0)
+	if gun_hip_w <= 0.0 and gun_ads_w <= 0.0 and gun_rel_w <= 0.0:
 		return
 	var aim_pt := eye - cb.z * 20.0
 	var two: bool = has[0] and has[1]
-	var tsum := gun_hip_w + gun_ads_w
+	var tsum := maxf(gun_hip_w + gun_ads_w, 0.0001)
 	var k_ads := gun_ads_w / tsum
-	var w_all := clampf(tsum, 0.0, 1.0)
+	var w_all := clampf(gun_hip_w + gun_ads_w, 0.0, 1.0)
 	var torso_inv := Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw)).inverse()
 	var main := 1 if has[1] else 0
-	var main_t := Vector3.ZERO
 	for i in [main, 1 - main]:
 		var sh := _shoulder_pos(i)
 		var reach_len := elbows[i].position.length() + hands[i].position.length()
 		if has[i]:
 			var hip_t := sh + (aim_pt - sh).normalized() * reach_len * 0.92
-			var g := GunS.ads_point(eye, cb, i, two)
-			var ads_t := g - (g - sh).normalized() * 0.08   # gun.gd держит пистолет в 8 см от кисти (fist_fx)
+			# от бедра (промпт 02:36): кисть дальше вперёд на 25% и выше на столько же — пистолет виднее в кадре
+			var fwd_d := maxf(-(hip_t - eye).dot(cb.z), 0.0)
+			hip_t += (-cb.z + cb.y) * fwd_d * 0.25
+			# прицел: пистолет висит на кисти (рукоять в кулаке), поэтому кисть ставим так, чтобы пистолет пришёл в точку прицела
+			var ads_t := GunS.ads_point(eye, cb, i, two) - _gun_off(i)
 			var t := hip_t.lerp(ads_t, k_ads)
-			if i == main:
-				main_t = t
-			_arm_ik(i, t, sh, torso_inv, w_all)
+			if w_all > 0.0:
+				_arm_ik(i, t, sh, torso_inv, w_all)
 		elif i != main and weapon_ids[i] == "" and gun_ads_w > 0.0:
-			# прицел с одним пистолетом: вторая рука поддерживает снизу-сбоку
+			# прицел с одним пистолетом: вторая рука обхватывает рукоять снизу-сбоку поверх стреляющей
 			var side := -1.0 if i == 0 else 1.0
-			_arm_ik(i, main_t + cb.x * side * 0.05 - cb.y * 0.035 + cb.z * 0.01, sh, torso_inv, gun_ads_w)
+			var gn = weapon_nodes[main]
+			if gn != null and is_instance_valid(gn) and (gn as Node3D).is_inside_tree():
+				var gp := to_local((gn as Node3D).global_transform * Vector3(-0.005, 0.015, side * 0.035)) - cb.y * 0.015
+				_arm_ik(i, gp - _fist_off(i), sh, torso_inv, gun_ads_w)
+	if gun_rel_w > 0.0:
+		_reload_pose(eye, cb, torso_inv)
+
+
+## Перезарядка (промпт 16.11 02:37): пистолет перед грудью, вторая рука берёт магазин с пояса, вставляет в рукоять
+## снизу и досылает затвор (тянет назад и отпускает). Фазы — gun_rel_k (gun.gd), точки — в осях пистолета.
+func _reload_pose(eye: Vector3, cb: Basis, torso_inv: Basis) -> void:
+	var h := gun_rel_h
+	var j := 1 - h
+	var w := smoothstep(0.0, 1.0, gun_rel_w)
+	var side := -1.0 if h == 0 else 1.0
+	var gun_pos := eye - cb.z * 0.36 - cb.y * 0.24 - cb.x * side * 0.03
+	_arm_ik(h, gun_pos - _gun_off(h), _shoulder_pos(h), torso_inv, w)
+	if weapon_ids[j] != "":
+		return
+	var gn = weapon_nodes[h]
+	if gn == null or not is_instance_valid(gn) or not (gn as Node3D).is_inside_tree():
+		return
+	var g: Transform3D = (gn as Node3D).global_transform
+	var gl := func(p: Vector3) -> Vector3: return to_local(g * p)
+	var sj := _shoulder_pos(j)
+	var belt := sj - cb.y * 0.5 + cb.x * side * 0.02 - cb.z * 0.08
+	var under: Vector3 = gl.call(Vector3(-0.02, -0.07, 0))       # магазин под рукоятью
+	var inside: Vector3 = gl.call(Vector3(-0.02, -0.015, 0))     # вставлен, ладонь подбивает снизу
+	var slide: Vector3 = gl.call(Vector3(-0.015, 0.14, 0))       # пальцы на задней части затвора
+	var back: Vector3 = gl.call(Vector3(-0.065, 0.14, 0))
+	var k := clampf(gun_rel_k, 0.0, 1.0)
+	var keys := [[0.0, belt], [0.28, belt], [0.5, under], [0.6, inside], [0.66, inside], [0.76, slide],
+			[0.84, back], [0.9, back], [1.0, belt]]
+	var p: Vector3 = belt
+	for n in keys.size() - 1:
+		var a: Array = keys[n]
+		var b: Array = keys[n + 1]
+		if k <= float(b[0]):
+			var f := smoothstep(0.0, 1.0, (k - float(a[0])) / maxf(float(b[0]) - float(a[0]), 0.001))
+			p = (a[1] as Vector3).lerp(b[1], f)
+			break
+	# к поясу рука идёт плавно из текущей позы, назад — уходит с весом
+	var wj := w * (1.0 - smoothstep(0.9, 1.0, k))
+	_arm_ik(j, p - _fist_off(j), sj, torso_inv, wj)
+
+
+## Смещение точки кулака (fist_fx, 8 см по кисти) от кости кисти руки i, оси игрока.
+func _fist_off(i: int) -> Vector3:
+	var b := skel.find_bone(["hand_L", "hand_R"][i])
+	if b == -1:
+		return Vector3.ZERO
+	return to_local(fist_fx[i].global_position) - to_local(skel.global_transform * skel.get_bone_global_pose(b).origin)
+
+
+## Смещение пистолета в руке i (его начала — рукояти) от кости кисти, оси игрока.
+func _gun_off(i: int) -> Vector3:
+	var n = weapon_nodes[i]
+	var b := skel.find_bone(["hand_L", "hand_R"][i])
+	if n == null or not is_instance_valid(n) or not (n as Node3D).is_inside_tree() or b == -1:
+		return Vector3.ZERO
+	return to_local((n as Node3D).global_position) - to_local(skel.global_transform * skel.get_bone_global_pose(b).origin)
 
 
 ## Плечо руки i в осях игрока (по кости модели, с наклоном корпуса и приседом).

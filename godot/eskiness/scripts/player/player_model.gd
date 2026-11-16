@@ -211,6 +211,10 @@ func _build_model() -> void:
 	LEG_L1 = bp.call("thigh_L").distance_to(bp.call("calf_L"))
 	LEG_L2 = bp.call("calf_L").distance_to(bp.call("foot_L"))
 	GROUND_Y = bp.call("foot_L").y - HIP_Y
+	# в позе покоя модели ноги чуть согнуты/расставлены — по вертикали бедро→стопа короче ноги, и IK сгибал колени
+	# всегда. Поднимаем модель так, чтобы стоя нога была почти прямой (98.5% длины), стопа — на том же полу.
+	LEG_LIFT = clampf((LEG_L1 + LEG_L2) * 0.985 + GROUND_Y, 0.0, 0.1)
+	GROUND_Y -= LEG_LIFT
 	for i in 2:
 		foot[i] = Vector3(0, GROUND_Y, 0)
 
@@ -365,7 +369,7 @@ func _apply_bones() -> void:
 	var torso_off := angle_difference(rotation.y, torso_yaw)
 	var leg_rot := Basis(Vector3.UP, leg_off)
 	model_root.rotation.y = PI + leg_off
-	model_root.position = leg_rot * (Vector3(0, 0, MODEL_Z) + _hip())
+	model_root.position = leg_rot * (Vector3(0, LEG_LIFT, MODEL_Z) + _hip())
 	var rr := (leg_rot * rig_rel).inverse()
 	var rest_p := func(b: int) -> Basis: return rig_rel * skel.get_bone_global_rest(b).basis.orthonormalized()
 	# idle: дыхание, наклон таза на опорную ногу, покачивание корпуса, редкие движения
