@@ -43,6 +43,10 @@ const GRIP_CURL := {"bat": 0.6, "spiked_club": 0.58, "pipe": 0.68, "crowbar": 0.
 		"knife": 0.7, "shiv": 0.76, "pistol": 0.78, "stone": 0.5, "shield": 0.8}
 const KNIFE_REV_ADD := Vector4(28, -19, -36, -10)   # добавка к стойке левой с ножом (обратный хват); 04:58 — на ~3–4 см левее и ниже; 05:02 — пересчитана под новую стойку, итоговая поза ножа прежняя (74, 26, 20, 66)
 var knife_rev_w := 0.0
+# 05:50: оружие ближнего боя в стойке — рука чуть ниже, оружие по диагонали вперёд к цели (не вертикально), кромкой вперёд
+const MELEE_ST_ADD := Vector4(-18, 0, 0, -2)
+const MELEE_ST_SKIP := ["", "pistol", "shield", "stone", "flashlight"]
+var melee_st_w: Array[float] = [0.0, 0.0]
 const PUNCHES := {
 	"straight": [Vector4(55, 14, 2, 80), Vector4(100, 6, 0, 4)],
 	"hook": [Vector4(82, -30, 8, 40), Vector4(96, 32, 0, 28)],

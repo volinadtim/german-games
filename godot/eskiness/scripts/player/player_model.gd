@@ -513,6 +513,7 @@ func _flex_weapons() -> void:
 		var grip: Transform3D = w.get_meta("grip")
 		if absf(wrist_flex[i]) < 0.001:
 			w.transform = grip
+			_melee_stance_rot(i, w)
 			continue
 		var s: String = ["_L", "_R"][i]
 		var sk := skel.global_transform
@@ -525,6 +526,35 @@ func _flex_weapons() -> void:
 			continue
 		var ax_l := (par.basis.inverse() * axis.normalized()).normalized()
 		w.transform = Transform3D(Basis(ax_l, wrist_flex[i]) * grip.basis, grip.origin)
+		_melee_stance_rot(i, w)
+
+
+## Можно ли держать оружие в руке i диагональю стойки (05:50): ближний бой, кроме ножа/заточки в левой (обратный хват).
+func _melee_stance_ok(i: int) -> bool:
+	var id: String = weapon_ids[i]
+	if id in MELEE_ST_SKIP:
+		return false
+	return not (i == 0 and id in ["knife", "shiv"])
+
+
+## Стойка с оружием (05:50): вместо «торчит вверх» — ось оружия вперёд-вверх ~68° от вертикали (иначе конец уходит
+## выше середины кадра), конец к цели и чуть
+## к центру, кромка (ось X модели) — вперёд-вниз к цели. Задаётся в осях тела; в махе вес уходит в 0 (melee_st_w).
+func _melee_stance_rot(i: int, w: Node3D) -> void:
+	var k := melee_st_w[i] * fist_blend
+	if k < 0.001:
+		return
+	var side := -1.0 if i == 0 else 1.0
+	var d := Vector3(-0.14 * side, 0.36, -0.92).normalized()
+	var f := Vector3(0, 0, -1)
+	var e := (f - d * f.dot(d)).normalized()
+	var tb := Basis(e, d, e.cross(d))
+	var body := global_basis.orthonormalized() * Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw))
+	var par: Basis = w.get_parent().global_basis
+	var sc := w.transform.basis.get_scale()
+	var target_q := (par.orthonormalized().inverse() * (body * tb)).get_rotation_quaternion()
+	var cur_q := w.transform.basis.orthonormalized().get_rotation_quaternion()
+	w.transform = Transform3D(Basis(cur_q.slerp(target_q, k)).scaled(sc), w.transform.origin)
 
 
 ## Поворот кости в пространстве скелета -> локальный поворот относительно родителя.
