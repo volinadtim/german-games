@@ -50,6 +50,13 @@ var sway := Vector2.ZERO         # качание ствола от шагов �
 var sway_t := 0.0
 var cross: Control
 var _ready_told := false
+## Инерция оружия в прицеле (промпт 02:49): поворот пистолета и рук догоняет камеру с лагом.
+## Камера и попадание (по центру) — без задержки. lag_b — поворот «лаг относительно камеры» в мировых осях.
+const LAG_SPEED := 14.0
+const LAG_MAX := 0.1             # рад — дальше оружие не отстаёт
+var lag_q := Quaternion.IDENTITY
+var lag_b := Basis.IDENTITY
+var _lag_init := false
 ## Два пистолета (промпт 16.11 02:04): управление то же, стреляют по очереди, у каждого свой магазин.
 ## Рука h: 0 — левая, 1 — правая (как player.weapon_nodes).
 const SLOTS := ["left", "right"]
@@ -162,13 +169,13 @@ func loaded() -> bool:
 	return false
 
 
-## Где пистолет в режиме прицела (eye/cb — камера): один — мушка по центру чуть ниже глаза
-## (ствол — 0.11 над рукоятью, см. _muzzle); два — обе руки вытянуты вперёд, пистолеты по бокам.
+## Где пистолет в режиме прицела (eye/cb — камера): руки вытянуты вперёд (промпт 02:49); один — мушка
+## (верх затвора — ~0.13 над рукоятью, weapons.gd) ровно на линии взгляда по центру; два — пистолеты по бокам.
 static func ads_point(eye: Vector3, cb: Basis, h: int, two: bool, scy := 1.0) -> Vector3:
 	if two:
 		var side := -1.0 if h == 0 else 1.0
-		return eye - cb.z * 0.5 - cb.y * 0.17 + cb.x * side * 0.12
-	return eye - cb.z * 0.36 - cb.y * (0.11 * scy + 0.035)
+		return eye - cb.z * 0.55 - cb.y * 0.15 + cb.x * side * 0.1
+	return eye - cb.z * 0.5 - cb.y * 0.132 * scy
 
 
 func fov_mult() -> float:
@@ -194,6 +201,7 @@ func _process(delta: float) -> void:
 	if p != null:
 		p.gun_mode = (2 if ads else (1 if hip else 0)) if can else 0   # поза рук (player_anim.gd: _gun_pose), уходит в сеть
 	_update_sway(delta)
+	_update_lag(delta)
 	# зажать Enter — извлечь магазин (с двумя — сначала из правого)
 	var ej: bool = InputMap.has_action("mag_eject") and Input.is_action_pressed("mag_eject")
 	if can and loaded() and not reloading and ej and not _eject_lock:
@@ -258,6 +266,22 @@ func _update_sway(delta: float) -> void:
 	sway = sway.lerp(want, 1.0 - exp(-14.0 * delta))
 
 
+## Оружие догоняет поворот камеры: сглаженный поворот, отставание не больше LAG_MAX; в силе — по aim_k.
+func _update_lag(delta: float) -> void:
+	var p = game.player
+	if p == null or p.cam == null:
+		return
+	var cq := Quaternion(p.cam.global_transform.basis.orthonormalized())
+	if not _lag_init:
+		_lag_init = true
+		lag_q = cq
+	lag_q = lag_q.slerp(cq, 1.0 - exp(-LAG_SPEED * delta)).normalized()
+	var ang := lag_q.angle_to(cq)
+	if ang > LAG_MAX:
+		lag_q = cq.slerp(lag_q, LAG_MAX / ang).normalized()
+	lag_b = Basis(Quaternion.IDENTITY.slerp((lag_q * cq.inverse()).normalized(), aim_k))
+
+
 ## Куда смотрит ствол (камера + качание).
 func aim_dir() -> Vector3:
 	var cb: Basis = game.player.cam.global_transform.basis.orthonormalized()
@@ -304,7 +328,7 @@ func _aim() -> void:
 	var w: float = maxf(clampf(p.gun_hip_w + p.gun_ads_w, 0.0, 1.0), aim_k)
 	if w <= 0.0 and p.gun_rel_w <= 0.0:
 		return
-	var cb: Basis = p.cam.global_transform.basis.orthonormalized()
+	var cb: Basis = lag_b * p.cam.global_transform.basis.orthonormalized()   # с инерцией в прицеле
 	for h in hands():
 		var n = p.weapon_nodes[h]
 		if n == null or not is_instance_valid(n) or not (n as Node3D).is_inside_tree():

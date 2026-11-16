@@ -218,6 +218,11 @@ func _gun_pose(delta: float) -> void:
 	var w_all := clampf(gun_hip_w + gun_ads_w, 0.0, 1.0)
 	var torso_inv := Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw)).inverse()
 	var main := 1 if has[1] else 0
+	# прицел: руки догоняют камеру с инерцией (gun.gd: lag_b — в мировых осях, переводим в оси игрока)
+	var acb := cb
+	if gun != null and not puppet:
+		var gb := global_basis.orthonormalized()
+		acb = (gb.inverse() * gun.lag_b * gb) * cb
 	for i in [main, 1 - main]:
 		var sh := _shoulder_pos(i)
 		var reach_len := elbows[i].position.length() + hands[i].position.length()
@@ -227,7 +232,7 @@ func _gun_pose(delta: float) -> void:
 			var fwd_d := maxf(-(hip_t - eye).dot(cb.z), 0.0)
 			hip_t += (-cb.z + cb.y) * fwd_d * 0.25
 			# прицел: пистолет висит на кисти (рукоять в кулаке), поэтому кисть ставим так, чтобы пистолет пришёл в точку прицела
-			var ads_t := GunS.ads_point(eye, cb, i, two) - _gun_off(i)
+			var ads_t := GunS.ads_point(eye, acb, i, two) - _gun_off(i)
 			var t := hip_t.lerp(ads_t, k_ads)
 			if w_all > 0.0:
 				_arm_ik(i, t, sh, torso_inv, w_all)
