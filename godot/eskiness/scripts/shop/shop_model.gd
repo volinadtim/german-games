@@ -47,7 +47,7 @@ const CLOTHES := [
 ]
 var sub := 0                  # открытая подвкладка «Одежды» (CLOTHES)
 ## магазин первого тира (бункер): без аптечек, тушёнки, газировки и лучшей одежды — они только в деревне (промпт 16.11 03:13)
-const TIER1_HIDE := ["medkit", "canned", "soda", "moto_helmet", "vest", "wpants", "tac_gloves"]
+const TIER1_HIDE := ["medkit", "canned", "soda", "moto_helmet", "vest", "wpants", "tac_gloves", "crowbar", "machete"]   # + монтировка и мачете (промпт 16.11 04:35)
 
 
 ## Товар есть в этом магазине: в бункере (не village_shop.gd) — без TIER1_HIDE.
