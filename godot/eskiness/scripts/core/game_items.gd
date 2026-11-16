@@ -315,7 +315,7 @@ func swap_hands() -> void:
 	if gun and gun.armed() and (gun.reloading or gun.rmb or gun.ads or gun.hip or gun.aiming):
 		return   # прицел / перезарядку не сбиваем
 	player.start_swap(_do_swap_hands)
-	play_ui("click", -14.0, 0.6)
+	play_ui("click", -21.0, 0.6)   # свап колесом тише (04:57)
 
 
 func _do_swap_hands() -> void:
@@ -334,7 +334,7 @@ func _do_swap_hands() -> void:
 	player.set_weapon(r, 0)
 	player.set_weapon(l, 1)
 	inv.notify()
-	play_ui("click", -12.0, 0.75)
+	play_ui("click", -19.0, 0.75)   # свап колесом тише (04:57)
 
 
 ## Снять в ячейку to (или в первую свободную). false — некуда.
