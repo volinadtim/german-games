@@ -71,6 +71,7 @@ func start() -> void:
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(fade)
 	_decor()
+	_spawn_crawler()
 	echo_snd = _slot_echo()
 	game.intro_done = false
 	if game.slot and is_instance_valid(game.slot):
@@ -83,6 +84,7 @@ func _lock(on: bool) -> void:
 	p.active = not on
 	game.inv.enabled = not on
 	game.hud.set_cinematic(on)
+	p.cinematic_stance(on)
 	if not on:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
@@ -231,6 +233,22 @@ func _begin_cut() -> void:
 	peek_at = Vector3(DOOR.x + side * PEEK_DX, 0.0, PEEK_Z)
 	t = 0.0
 	_lock(true)
+	if not is_instance_valid(crawler):
+		_spawn_crawler()
+	var e = crawler
+	e.crawl_wait = false          # кат-сцена запускает его движение
+	cut_cam = Camera3D.new()
+	cut_cam.fov = game.player.cam.fov
+	cut_cam.near = 0.05
+	game.add_child(cut_cam)
+	cut_cam.global_transform = game.player.cam.global_transform
+	cut_cam.current = true
+	_cut_sounds(e)
+
+
+## Монстрик стоит у угла коридора с самого начала новой игры (промпт 16.11 04:27): копошится на месте
+## и не замечает игрока, пока кат-сцена не запустит его движение.
+func _spawn_crawler() -> void:
 	var e := Enemy.new()
 	e.game = game
 	e.kind = "fast"
@@ -248,13 +266,11 @@ func _begin_cut() -> void:
 	e.died.connect(_on_crawler_died)
 	if game.takedown:
 		game.takedown.killed.connect(_on_takedown)
+	e.crawl_wait = true
 	crawler = e
-	cut_cam = Camera3D.new()
-	cut_cam.fov = game.player.cam.fov
-	cut_cam.near = 0.05
-	game.add_child(cut_cam)
-	cut_cam.global_transform = game.player.cam.global_transform
-	cut_cam.current = true
+
+
+func _cut_sounds(e) -> void:
 	# звук: скрежет ползущего тела, жалобный визг и глухой гул
 	var drag := AudioStreamPlayer3D.new()
 	drag.stream = _drag_snd()

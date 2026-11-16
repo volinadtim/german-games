@@ -17,6 +17,26 @@ func toggle_fists() -> void:
 		voice_player.play()
 
 
+## Кат-сцена (промпт 16.11 04:28): стойка опускается без звука, после — поднимается обратно, если была.
+func cinematic_stance(on: bool) -> void:
+	var want := false
+	if on:
+		if not fists:
+			return
+		stance_saved = true
+	else:
+		if not stance_saved or fists:
+			stance_saved = false
+			return
+		stance_saved = false
+		want = true
+	fists = want
+	var tw := create_tween().set_parallel()
+	tw.tween_property(self, "fist_blend", 1.0 if fists else 0.0, 0.3).set_trans(Tween.TRANS_SINE)
+	for i in 2:
+		tw.tween_method(_pose_setter(i), arm_pose[i], GUARDS[i] if fists else REST, 0.3).set_trans(Tween.TRANS_SINE)
+
+
 ## Удар рукой arm (0 — левая, ЛКМ; 1 — правая, ПКМ) без заряда. Кулаки опущены — только поднимает их.
 ## В руке оружие (или щит) — бьёт им.
 func attack(arm: int) -> void:

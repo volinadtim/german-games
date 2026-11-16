@@ -202,6 +202,8 @@ var crawl_i := 0
 
 
 func _crawl(delta: float, d: float, ppos: Vector3) -> Vector3:
+	if crawl_wait:
+		return Vector3.ZERO
 	var pl = tg.player
 	var pv := Vector2(pl.velocity.x, pl.velocity.z).length()
 	var loud_r := 0.0 if bool(pl.get("crouched")) or pv < 0.6 else (5.0 if pv > 4.0 else 2.5)   # шаг 2.5 м, бег 5 м

@@ -346,6 +346,7 @@ func begin_escape() -> void:
 	if loot_window and loot_window.open:
 		loot_window.close()
 	hud.set_cinematic(true)
+	player.cinematic_stance(true)
 	if gasmask:
 		gasmask.visible = false
 	for n in get_parent().get_children():
@@ -358,6 +359,7 @@ func end_cinematic() -> void:
 	alive = true
 	inv.enabled = true
 	hud.set_cinematic(false)
+	player.cinematic_stance(false)
 	if gasmask:
 		gasmask.visible = true
 	for n in get_parent().get_children():

@@ -153,6 +153,7 @@ var wrist_flex: Array[float] = [0.0, 0.0]   # сгиб кисти в махе: �
 var swing_twist := 0.0                  # поворот корпуса в махе оружием (+ — правое плечо вперёд)
 var last_swing := [-1, -1]
 var fists := false
+var stance_saved := false   # стойка была поднята до кат-сцены (cinematic_stance)
 # --- модель с ригом ---
 var skel: Skeleton3D
 var rig_rel: Basis                 # поворот скелета относительно игрока (без масштаба)
