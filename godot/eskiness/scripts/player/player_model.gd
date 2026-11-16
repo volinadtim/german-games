@@ -605,6 +605,9 @@ func _grip(arm: int, id: String) -> Transform3D:
 		n = -n                                         # сторона ладони (туда сгибаются пальцы)
 	var c := (idx + pnk) * 0.5 - knuck * 0.016 + n * 0.016 - Vector3(0, 0.08, 0)
 	var d2 := (across * cos(GRIP_TILT) + knuck * sin(GRIP_TILT) - n * GRIP_OUT).normalized()
+	if id == "knife" and arm == 0:
+		# левая рука (промпт 04:40): обратный (тактический) хват — лезвие выходит у мизинца и идёт вниз вдоль предплечья
+		d2 = (-across * 0.6 - knuck * 0.75 - n * 0.12).normalized()
 	var xw := (knuck - d2 * knuck.dot(d2)).normalized()   # лезвие ребром к костяшкам — по направлению удара
 	var zw := xw.cross(d2).normalized()
 	return Transform3D(Basis(xw * unit, d2 * unit, zw * unit), c * unit)
