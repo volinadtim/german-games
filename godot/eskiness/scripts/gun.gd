@@ -673,14 +673,14 @@ func _reload_tick(delta: float) -> void:
 		match ev:
 			"release":
 				if _rel_had:
-					_play(snd_release, 2.0, randf_range(0.97, 1.03))
+					_rel_play(snd_release, 2.0, randf_range(0.97, 1.03))
 					_drop_old_mag()
 			"insert":
-				_play(snd_insert, 3.0, randf_range(0.97, 1.03))
+				_rel_play(snd_insert, 3.0, randf_range(0.97, 1.03))
 			"rack_back":
-				_play(snd_rack_back, 2.0, randf_range(0.97, 1.03))
+				_rel_play(snd_rack_back, 2.0, randf_range(0.97, 1.03))
 			"rack_fwd":
-				_play(snd_rack_fwd, 4.0, randf_range(0.97, 1.03))
+				_rel_play(snd_rack_fwd, 4.0, randf_range(0.97, 1.03))
 	# новый магазин: виден в свободной руке, пока его несут от пояса и вставляют
 	var j := 1 - _reload_h
 	var gn = p.weapon_nodes[_reload_h]
@@ -781,6 +781,13 @@ func fill_mag(idx: int) -> void:
 
 
 # ---------- звуки (процедурные) ----------
+
+## Звуки перезарядки пока выключены (промпт 16.11 05:10) — вернуть: RELOAD_SND = true.
+const RELOAD_SND := false
+func _rel_play(s: AudioStream, db: float, pitch: float) -> void:
+	if RELOAD_SND:
+		_play(s, db, pitch)
+
 
 func _play(s: AudioStream, db: float, pitch: float) -> void:
 	var a := AudioStreamPlayer.new()

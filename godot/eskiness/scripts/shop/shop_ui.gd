@@ -686,7 +686,7 @@ func _buy(id: String, price: int) -> void:
 		info_l.text = "%s уже есть" % Items.item_name(id)
 		return
 	game.inv.remove("coin", price)
-	var left: int = game.inv.add(id, 1)
+	var left: int = game.inv.add(id, 1, 0.0 if id == "mag" else -1.0)   # магазин продаётся пустым (05:11)
 	if left > 0:
 		game.inv.add("coin", price)
 		info_l.text = "Инвентарь полон"
