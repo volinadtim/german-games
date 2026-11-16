@@ -174,8 +174,8 @@ func loaded() -> bool:
 static func ads_point(eye: Vector3, cb: Basis, h: int, two: bool, scy := 1.0) -> Vector3:
 	if two:
 		var side := -1.0 if h == 0 else 1.0
-		return eye - cb.z * 0.55 - cb.y * 0.15 + cb.x * side * 0.1
-	return eye - cb.z * 0.5 - cb.y * 0.132 * scy
+		return eye - cb.z * 0.64 - cb.y * 0.15 + cb.x * side * 0.1
+	return eye - cb.z * 0.6 - cb.y * 0.132 * scy
 
 
 func fov_mult() -> float:

@@ -455,7 +455,7 @@ func _apply_bones() -> void:
 			back += 0.14 * sin(TAU * fidget_t * 0.5 + 0.3) * fk
 		# расслабленно плечи чуть опущены
 		up -= 0.03 * rk
-		_set_global_rot(c, rr * Basis(Vector3.UP, torso_off + side * reach[i] * 2.5 + twist + idle_tw - side * back)
+		_set_global_rot(c, rr * Basis(Vector3.UP, torso_off + side * (reach[i] + 0.06 * gun_ads_w) * 2.5 + twist + idle_tw - side * back)
 				* Basis(Vector3.BACK, side * up) * rest_p.call(c))
 	var torso_rot := Basis(Vector3.UP, torso_off)
 	for e in bone_map:

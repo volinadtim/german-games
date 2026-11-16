@@ -260,6 +260,12 @@ func _gun_pose(delta: float) -> void:
 			hip_t += (-cb.z + cb.y) * fwd_d * 0.25
 			# прицел: пистолет висит на кисти (рукоять в кулаке), поэтому кисть ставим так, чтобы пистолет пришёл в точку прицела
 			var ads_t := GunS.ads_point(eye, acb, i, two) - _gun_off(i)
+			# 05:22: если рука не дотягивается, точку не тянем к плечу (пистолет уезжал вбок от центра),
+			# а сдвигаем по линии взгляда ближе к глазу — мушка всегда по центру экрана
+			for _k in 12:
+				if (ads_t - sh).length() <= reach_len * 0.97:
+					break
+				ads_t += acb.z * 0.025
 			var t := hip_t.lerp(ads_t, k_ads)
 			if w_all > 0.0:
 				_arm_ik(i, t, sh, torso_inv, w_all)
