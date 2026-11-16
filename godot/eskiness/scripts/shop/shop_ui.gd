@@ -605,7 +605,7 @@ func _draw_window(ci: Control, r: Rect2, lv: int, cur: int) -> void:
 
 func _luck_left(slot, sym: String) -> int:
 	if slot and slot.luck.has(sym):
-		return int(slot.luck[sym]["left"])
+		return slot.luck_total(sym)
 	return 0
 
 

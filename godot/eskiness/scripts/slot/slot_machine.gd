@@ -18,6 +18,7 @@ extends "res://scripts/slot/slot_machine_board.gd"
 func _ready() -> void:
 	_build()
 	_build_board()
+	_build_buff_panel()
 	snd = AudioStreamPlayer3D.new()
 	snd.position = Vector3(0, 1.0, 0.3)
 	snd.unit_size = 4.0
@@ -73,6 +74,7 @@ func set_powered(on: bool, fx := false) -> void:
 		for l in parts[1]:
 			(l as Light3D).visible = false
 		screen.visible = false
+		_update_buff_panel()
 		return
 	if not fx:
 		_power_apply(parts, true)
@@ -112,6 +114,7 @@ func _power_apply(parts: Array, on: bool) -> void:
 	for l in parts[1]:
 		(l as Light3D).visible = on
 	screen.visible = on
+	_update_buff_panel()
 
 
 func get_prompt(_game) -> String:
@@ -142,7 +145,12 @@ func interact(g) -> void:
 	_roll_stops()
 	for k in luck.keys():
 		if int(luck[k]["left"]) <= 0:
-			luck.erase(k)
+			var q: Array = luck[k].get("q", [])
+			if q.is_empty():
+				luck.erase(k)
+			else:   # очередь: следующий купленный гарант начинается на свои крутки
+				var nx: Array = q.pop_front()
+				luck[k] = {"left": int(nx[1]), "k": int(nx[0]), "q": q}
 	for k in boost.keys():
 		if int(boost[k]) <= 0:
 			boost.erase(k)
@@ -216,6 +224,10 @@ func _process(delta: float) -> void:
 	if not powered:
 		return
 	t += delta
+	_bp_t -= delta
+	if _bp_t <= 0.0:
+		_bp_t = 0.25
+		_update_buff_panel()
 	# лампочки: бегущий огонёк, при выигрыше — быстро мигают все
 	party = maxf(party - delta, 0.0)
 	_update_highlight(delta)
@@ -368,15 +380,37 @@ func _input(e: InputEvent) -> void:
 			close_packs()
 
 
-## Магазин: гарантированный символ ×k. Повторная покупка того же символа добавляет крутки,
-## число штук за крутку — большее из старого и нового (не больше GUAR_MAX уровня).
+## Магазин: гарантированный символ ×k. Гаранты одного символа идут очередью (промпт 16.11 04:32):
+## сначала докручивается текущий, потом начинается следующий; тот же ×k подряд — просто добавляет круток.
 func add_luck(sym: String, k := 1) -> void:
 	if not LUCK.has(sym):
 		return
-	var cur: Dictionary = luck.get(sym, {"left": 0, "k": 1})
-	luck[sym] = {"left": int(cur["left"]) + int(LUCK[sym][0]), "k": maxi(int(cur["k"]), k)}
+	var n := int(LUCK[sym][0])
+	if not luck.has(sym):
+		luck[sym] = {"left": n, "k": k, "q": []}
+	else:
+		var cur: Dictionary = luck[sym]
+		var q: Array = cur.get("q", [])
+		if q.is_empty() and int(cur["k"]) == k:
+			cur["left"] = int(cur["left"]) + n
+		elif not q.is_empty() and int(q[-1][0]) == k:
+			q[-1] = [k, int(q[-1][1]) + n]
+		else:
+			q.append([k, n])
+		cur["q"] = q
 	screen.text = ""
 	_update_screen_hint()
+	_update_buff_panel()
+
+
+## Сколько всего круток гаранта символа осталось (текущий + очередь).
+func luck_total(sym: String) -> int:
+	if not luck.has(sym):
+		return 0
+	var n := int(luck[sym]["left"])
+	for e in luck[sym].get("q", []):
+		n += int(e[1])
+	return n
 
 
 ## Магазин: шанс комбинации символа на BOOST[sym][0] круток.
@@ -386,6 +420,7 @@ func add_boost(sym: String) -> void:
 	boost[sym] = int(boost.get(sym, 0)) + int(BOOST[sym][0])
 	screen.text = ""
 	_update_screen_hint()
+	_update_buff_panel()
 
 
 ## Сейв: гаранты и шансы. Старые сейвы: гарант — число круток или [вес, круток].
@@ -396,15 +431,20 @@ func load_buffs(lk: Dictionary, bst: Dictionary) -> void:
 			continue
 		var v = lk[k]
 		if v is Dictionary:
-			luck[k] = {"left": int(v.get("left", 0)), "k": int(v.get("k", 1))}
+			var q: Array = []
+			for e in v.get("q", []):
+				if e is Array and e.size() >= 2:
+					q.append([int(e[0]), int(e[1])])
+			luck[k] = {"left": int(v.get("left", 0)), "k": int(v.get("k", 1)), "q": q}
 		elif v is Array:
-			luck[k] = {"left": int(v[1]), "k": 1}
+			luck[k] = {"left": int(v[1]), "k": 1, "q": []}
 		else:
-			luck[k] = {"left": int(v), "k": 1}
+			luck[k] = {"left": int(v), "k": 1, "q": []}
 	boost = {}
 	for k in bst:
 		if BOOST.has(k):
 			boost[k] = int(bst[k])
+	_update_buff_panel()
 
 
 func _tray_target_count(n: int) -> int:

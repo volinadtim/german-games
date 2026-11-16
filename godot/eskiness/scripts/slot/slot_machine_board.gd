@@ -177,22 +177,73 @@ func _mult_str(m: float) -> String:
 	return ("%.2f" % m).trim_suffix("0").trim_suffix("0").trim_suffix(".")
 
 
-## Экран автомата между крутками: сколько круток осталось, множитель серии и гарантированные символы.
+## Экран автомата между крутками: сколько круток осталось и множитель серии.
 func _update_screen_hint() -> void:
-	if credits <= 0 and luck.is_empty() and boost.is_empty() and streak <= 0 and shield <= 0:
+	if credits <= 0 and streak <= 0:
 		return
 	var parts := PackedStringArray()
 	if streak > 0:
 		parts.append("СЕРИЯ %d → ×%s" % [streak, _mult_str(chain_mult(streak))])
 	if credits > 0:
 		parts.append("КРУТОК: %d" % credits)
-	for k in luck:
-		parts.append("%s ГАРАНТ ×%d (%d)" % [Sym.NAMES[k].to_upper(), int(luck[k]["k"]), int(luck[k]["left"])])
-	for k in boost:
-		parts.append("%s ЧАЩЕ (%d)" % [Sym.NAMES[k].to_upper(), int(boost[k])])
-	if shield > 0:
-		parts.append("ЗАЩИТА 666 ×%d" % shield)
+	# баффы — на табличке на стене (промпт 16.11 04:32), здесь только крутки
 	screen.text = (screen.text + "\n" if screen.text != "" else "") + " · ".join(parts)
+
+
+# ---------- табличка баффов (промпт 16.11 04:32) ----------
+
+## Табличка на стене между автоматом и магазином (магазин — слева, локальный x < 0).
+func _build_buff_panel() -> void:
+	var p := Node3D.new()
+	p.position = Vector3(-1.2, 1.55, -0.3)
+	add_child(p)
+	var frame := _worn(Color(0.62, 0.5, 0.26), true, 0.0, 0.6, 0.5)
+	var back := _worn(Color(0.06, 0.05, 0.04), false, 0.2, 0.4, 0.5)
+	var w := 0.78
+	var h := 0.9
+	_box(p, Vector3(w, h, 0.03), Vector3(0, 0, -0.012), back)
+	for sy in [-1.0, 1.0]:
+		_box(p, Vector3(w + 0.03, 0.03, 0.04), Vector3(0, h / 2.0 * sy, 0), frame)
+	for sx in [-1.0, 1.0]:
+		_box(p, Vector3(0.03, h + 0.03, 0.04), Vector3(w / 2.0 * sx, 0, 0), frame)
+	var l := Label3D.new()
+	l.font_size = 36
+	l.pixel_size = 0.0011
+	l.outline_size = 6
+	l.modulate = Color(1.0, 0.8, 0.35)
+	l.width = (w - 0.08) / l.pixel_size
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	l.position = Vector3(0, h / 2.0 - 0.05, 0.012)
+	l.shaded = false
+	p.add_child(l)
+	buff_panel = l
+	_update_buff_panel()
+
+
+## Список баффов: активный гарант каждого символа и его очередь, шансы, защита от 666.
+func _update_buff_panel() -> void:
+	if buff_panel == null:
+		return
+	var vis: bool = bool(get("powered")) and game != null
+	buff_panel.get_parent().visible = vis
+	if not vis:
+		return
+	var lines := PackedStringArray(["БАФФЫ KILLBOX", ""])
+	for k in luck:
+		var nm: String = Sym.NAMES[k].to_upper()
+		lines.append("▶ %s ГАРАНТ ×%d — %d кр." % [nm, int(luck[k]["k"]), int(luck[k]["left"])])
+		for e in luck[k].get("q", []):
+			lines.append("   ждёт: %s ×%d — %d кр." % [nm, int(e[0]), int(e[1])])
+	for k in boost:
+		lines.append("▶ %s ЧАЩЕ — %d кр." % [Sym.NAMES[k].to_upper(), int(boost[k])])
+	if shield > 0:
+		lines.append("▶ ЗАЩИТА ОТ 666 ×%d" % shield)
+	if lines.size() == 2:
+		lines.append("нет активных")
+	var txt := "\n".join(lines)
+	if buff_panel.text != txt:
+		buff_panel.text = txt
 
 
 # ---------- покупка круток (окно) ----------

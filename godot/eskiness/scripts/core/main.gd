@@ -49,7 +49,7 @@ func _ready() -> void:
 	# магазин оружия — слева от автомата (если смотреть на автомат)
 	var shop := preload("res://scripts/shop/shop.gd").new()
 	shop.name = "Shop"
-	shop.position = SLOT_POS + Vector3(1.95, 0.0, 0.0)
+	shop.position = SLOT_POS + Vector3(2.15, 0.0, 0.0)   # промпт 16.11 04:32: место под табличку баффов
 	shop.rotation.y = PI
 	add_child(shop)
 
