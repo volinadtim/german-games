@@ -123,20 +123,21 @@ static func make(id: String) -> Node3D:
 			# коллиматор на затворе (промпт 18.11 01:23): рамка, стекло и красная точка; центр линзы —
 			# на высоте gun.gd: OPTIC_H над рукоятью, по ней целится персонаж в режиме прицела
 			var frame := _m(Color(0.17, 0.17, 0.18), 0.6, 0.45)
-			_box(root, Vector3(0.042, 0.01, 0.026), Vector3(0.072, 0.133, 0), frame)   # основание
+			# 18.11 01:33: приземистый, над затвором всего ~2 см
+			_box(root, Vector3(0.042, 0.007, 0.026), Vector3(0.072, 0.132, 0), frame)   # основание
 			for sz in [-1.0, 1.0]:
-				_box(root, Vector3(0.04, 0.034, 0.004), Vector3(0.072, 0.155, 0.011 * sz), frame)
-			_box(root, Vector3(0.04, 0.005, 0.026), Vector3(0.072, 0.173, 0), frame)   # перекладина сверху
+				_box(root, Vector3(0.038, 0.016, 0.004), Vector3(0.072, 0.1435, 0.011 * sz), frame)
+			_box(root, Vector3(0.038, 0.004, 0.026), Vector3(0.072, 0.1535, 0), frame)   # перекладина сверху
 			var lens := _m(Color(0.35, 0.55, 0.6, 0.35), 0.4, 0.1)
 			lens.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			lens.cull_mode = BaseMaterial3D.CULL_DISABLED
-			_box(root, Vector3(0.003, 0.028, 0.019), Vector3(0.087, 0.158, 0), lens)
+			_box(root, Vector3(0.003, 0.016, 0.019), Vector3(0.087, 0.1435, 0), lens)
 			var dot := _m(Color(1.0, 0.15, 0.1))
 			dot.emission_enabled = true
 			dot.emission = Color(1.0, 0.2, 0.12)
 			dot.emission_energy_multiplier = 3.0
 			dot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			_box(root, Vector3(0.004, 0.004, 0.004), Vector3(0.08, 0.158, 0), dot)
+			_box(root, Vector3(0.004, 0.004, 0.004), Vector3(0.08, 0.1435, 0), dot)
 		"hammer":
 			# палка, на конце камень, примотанный бечёвкой
 			_cyl(root, 0.016, 0.014, 0.42, 0.13, _m(Color(0.5, 0.36, 0.2)))
