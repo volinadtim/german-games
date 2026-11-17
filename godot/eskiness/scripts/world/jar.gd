@@ -94,23 +94,22 @@ func _hide_body() -> void:
 			c.set_deferred("disabled", true)
 
 
-## Лут кувшина (промпты 14.11 17:35 и 17:49): монеты — в 50% случаев, 3–6 штук;
-## плюс до 3 разных предметов (без повторов) по 1–2 штуки. Каждый из 3 «слотов» выпадает с шансом
-## от 35% у самого маленького кувшина до 80% у самого большого — в больших лута заметно больше.
+## Лут кувшина (промпт 18.11 01:08): всего 1–3 предмета, все разные и по одной штуке
+## (монеты — тоже один из предметов, кучкой 3–6). В больших кувшинах чаще 3, в маленьких — 1.
 func _roll(r: RandomNumberGenerator) -> Array:
 	var out: Array = []
-	if r.randf() < 0.5:
-		out.append(["coin", r.randi_range(3, 6)])
-	if r.randf() < 0.2:   # бечёвка (промпт 14.11 19:22)
-		out.append(["twine", 1])
 	var pool: Array = []
 	for row in Chest.LOOT:
 		if row[0] != "coin":
 			pool.append(row)
-	var p_item := lerpf(0.35, 0.8, clampf(inverse_lerp(0.65, 1.6, size), 0.0, 1.0))
-	for k in 3:
-		if r.randf() >= p_item:
-			continue
+	pool.append(["twine", 6])   # бечёвка (промпт 14.11 19:22)
+	pool.append(["coin", 14])
+	var big := clampf(inverse_lerp(0.65, 1.6, size), 0.0, 1.0)
+	var count := 1
+	for k in 2:
+		if r.randf() < lerpf(0.25, 0.65, big):
+			count += 1
+	for k in count:
 		var total := 0
 		for row in pool:
 			total += int(row[1])
@@ -120,7 +119,8 @@ func _roll(r: RandomNumberGenerator) -> Array:
 		for i in pool.size():
 			pick -= int(pool[i][1])
 			if pick < 0:
-				out.append([pool[i][0], r.randi_range(1, 2)])
+				var pid := String(pool[i][0])
+				out.append([pid, r.randi_range(3, 6) if pid == "coin" else 1])
 				pool.remove_at(i)
 				break
 	return out

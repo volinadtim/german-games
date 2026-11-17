@@ -305,7 +305,8 @@ func _die(dir: Vector3) -> void:
 	var coins := randi_range(0, 6) if kind == "heavy" else randi_range(0, 2)
 	if coins > 0:
 		game.spawn_loot("coin", coins, pos, Vector3(0, 2.5, 0), 1.6)
-	var extra: Array = ["bandage", "pills", "choco", "rusk", "battery", "scrap"]   # без гаек (промпт 16.11 02:47)
+	# все материалы для крафта снова падают (промпт 18.11 01:08): гайки, изолента, деревяшка, стекло, железки
+	var extra: Array = ["bandage", "pills", "choco", "rusk", "battery", "scrap", "nut", "tape", "wood", "glass"]
 	for k in (randi_range(0, 2) if kind == "heavy" else randi_range(1, 3)):
 		game.spawn_loot(extra[randi() % extra.size()], 1, pos, Vector3(0, 2.5, 0), 1.2)
 	if randf() < 0.2:   # бечёвка — для молотка и кастета (промпт 14.11 19:22)

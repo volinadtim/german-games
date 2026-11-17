@@ -24,9 +24,9 @@ func _random_jars() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	var placed: Array = []      # [[pos, радиус], ...]
-	# в бункере — ровно 8–10 кувшинов (промпт 14.11 18:47), группами по 1–3 у стен
+	# в бункере — 6–8 кувшинов (было 8–10, на 20% меньше — промпт 18.11 01:08), группами по 1–3 у стен
 	var made := 0
-	var want := rng.randi_range(8, 10)
+	var want := rng.randi_range(6, 8)
 	var tries := 0
 	while made < want and tries < 400:
 		tries += 1
