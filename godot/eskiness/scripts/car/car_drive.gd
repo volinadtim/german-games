@@ -728,7 +728,7 @@ func refuel() -> void:
 
 func to_save() -> Dictionary:
 	return {"escaped": escaped, "pos": [position.x, position.y, position.z], "yaw": yaw, "fuel": fuel,
-		"seat": my_seat if seat_dir == 0 else -1}
+		"seat": my_seat if seat_dir == 0 else -1, "trunk": trunk.contents.duplicate(true)}
 
 
 func from_save(d: Dictionary) -> void:
@@ -743,6 +743,48 @@ func from_save(d: Dictionary) -> void:
 	if game and game.inv.count("car_key") > 0:
 		game.inv.remove("car_key", game.inv.count("car_key"))
 	fuel = float(d.get("fuel", 0.0))
+	set_trunk(d.get("trunk", []))
 	var s := int(d.get("seat", -1))
 	if s >= 0 and s < 4:
 		seat_local.call_deferred(s, true)
+
+
+# ---------- багажник (промпт 18.11 00:47) ----------
+
+## Игрок снаружи стоит у задней части машины.
+func at_trunk(g) -> bool:
+	if state != "parked" or my_seat >= 0 or g == null or g.player == null:
+		return false
+	var l: Vector3 = global_transform.affine_inverse() * g.player.global_position
+	return l.z < -1.5 and l.z > -3.6 and absf(l.x) < 1.3
+
+
+func open_trunk(g) -> void:
+	trunk.car = self
+	g.play_at("creak", global_position + global_transform.basis * Vector3(0, 0.9, -2.0), -14.0, 0.8)
+	g.open_loot(trunk)
+
+
+## Окно закрыто — содержимое остальным игрокам (VillageNet.v_trunk).
+func trunk_closed() -> void:
+	if game:
+		game.play_at("thud", global_position + global_transform.basis * Vector3(0, 0.9, -2.0), -12.0, 1.1)
+	if vnet():
+		vnet().rpc("v_trunk", trunk.contents.duplicate(true))
+
+
+## Содержимое из сейва / от другого игрока (тот же массив — открытое окно увидит изменения).
+func set_trunk(items: Array) -> void:
+	trunk.car = self
+	trunk.contents.clear()
+	for it in items:
+		if not (it is Array) or it.size() < 2:
+			continue
+		var e: Array = [String(it[0]), int(it[1])]
+		if it.size() > 2:
+			e.append(float(it[2]))
+		if it.size() > 4:   # ячейка и поворот в сетке
+			e.append_array([int(it[3]), bool(it[4])])
+		trunk.contents.append(e)
+	if game and game.loot_window and game.loot_window.open and game.loot_window.src == trunk:
+		game.loot_window.redraw()

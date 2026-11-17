@@ -100,6 +100,18 @@ var fuel_l: Label
 var drive_t := 0.0                    # время езды — для шума сцепления задних колёс
 var brake_k := 0.0                    # насколько жмём тормоз (S на ходу вперёд) 0..1
 var drift_on := false                 # идёт занос (для случайности на его старте)
+## Багажник (промпт 18.11 00:47): хранилище сзади машины, окно как у сундука (loot_window, kind = storage).
+class Trunk extends RefCounted:
+	var contents: Array = []
+	var kind := "storage"
+	var loot_title := "БАГАЖНИК"
+	var car
+
+	func on_loot_closed() -> void:
+		if car and is_instance_valid(car):
+			car.trunk_closed()
+
+var trunk := Trunk.new()
 var drift_dir := 1.0                  # куда ехали на старте заноса (+1 вперёд): вращение не разворачивается после 90°
 var drift_mul := 1.0                  # случайный коэффициент этого заноса (0.8..1.2)
 var grip_noise := 0.0                 # плавающее сцепление задних колёс (среднее), -1..1

@@ -42,6 +42,8 @@ func get_prompt(g) -> String:
 		if seat_dir == 0 and _looking_at_door():
 			return "[E] Открыть дверь и выйти"
 		return "[E] Пересесть за руль" if can_take_wheel() else ""
+	if at_trunk(g):
+		return "[E] Багажник (%d)" % trunk.contents.size() if not trunk.contents.is_empty() else "[E] Багажник"
 	if g.inv.count("fuel") > 0 and fuel < 0.9:
 		return "[E] Залить бензин (канистра)"
 	var s := _free_seat_near(g.player.global_position)
@@ -79,6 +81,9 @@ func interact(g) -> void:
 			exit_local()
 		elif can_take_wheel():
 			take_wheel()
+		return
+	if at_trunk(g):
+		open_trunk(g)
 		return
 	if g.inv.count("fuel") > 0 and fuel < 0.9:
 		refuel()

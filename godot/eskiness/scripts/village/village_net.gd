@@ -73,6 +73,14 @@ func v_car_hurt(dmg: float) -> void:
 		c.car_hurt(dmg)
 
 
+## Багажник машины: кто закрыл окно — шлёт содержимое всем (промпт 18.11 00:47).
+@rpc("any_peer", "call_remote", "reliable")
+func v_trunk(items: Array) -> void:
+	var c = _car()
+	if c:
+		c.set_trunk(items)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func v_fuel(f: float) -> void:
 	var c = _car()
