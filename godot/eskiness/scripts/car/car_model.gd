@@ -125,6 +125,14 @@ var grip_noise := 0.0                 # плавающее сцепление з
 var grip_k := 1.0                     # сцепление задней оси 0..1: ручник срывает, отпустил — плавно возвращается
 var car_vel := Vector3.ZERO           # скорость машины в мире (для удара по мобам)
 var wheel_spin := 0.0                 # задний привод: пробуксовка задних колёс, м/с (только вид)
+var wheel_rim: Node3D                 # обод руля: крутится по steer (промпт 18.11 01:20)
+var wheel_hands: Array[Node3D] = []   # кисти на руле: видны, когда водитель держит руль
+var hands_k := 0.0                    # руки на руле 0..1 (плавно)
+var lean := 0.0                       # высунулся из окна 0..1 (промпт 18.11 01:20)
+var lean_on := false                  # держит клавишу «высунуться»
+var lean_kick := 0.0                  # накопленный толчок заноса, пока высунут
+const LEAN_T := 0.35                  # время высовывания, с
+const LEAN_OUT := 0.44                # на сколько глаза уходят в окно, м
 var village                          # village.gd
 
 
@@ -235,12 +243,35 @@ func _build() -> void:
 	tor.outer_radius = 0.18
 	tor.rings = 16
 	tor.ring_segments = 6
+	# руль на наклонной рулевой колонке: крутится вместе с рулём (wheel_rim), на нём — руки водителя
+	var col := Node3D.new()
+	col.position = Vector3(0.36, 1.04, 0.46)
+	col.rotation.x = -1.05
+	rig.add_child(col)
+	wheel_rim = Node3D.new()
+	col.add_child(wheel_rim)
 	var wheel_mi := MeshInstance3D.new()
 	wheel_mi.mesh = tor
 	wheel_mi.material_override = dark
-	wheel_mi.position = Vector3(0.36, 1.04, 0.46)
-	wheel_mi.rotation.x = -1.05
-	rig.add_child(wheel_mi)
+	wheel_rim.add_child(wheel_mi)
+	for sa in [0.0, TAU / 3.0, TAU * 2.0 / 3.0]:
+		var sp := _box(Vector3(0.155, 0.014, 0.02), Vector3.ZERO, dark, Vector3.ZERO, wheel_rim)
+		sp.position = Vector3(cos(sa), 0.0, -sin(sa)) * 0.082
+		sp.rotation.y = sa
+	_box(Vector3(0.05, 0.02, 0.05), Vector3.ZERO, chrome, Vector3.ZERO, wheel_rim)
+	# кисти на руле (видны водителю от первого лица), прячутся, когда руки заняты — car_drive.gd
+	var skin := _mat(Color(0.64, 0.47, 0.37), 0.0, 0.85)
+	var sleeve := _mat(Color(0.26, 0.24, 0.21), 0.0, 0.9)
+	wheel_hands.clear()
+	for sx in [-1.0, 1.0]:
+		var hd := Node3D.new()
+		hd.position = Vector3(0.16 * sx, 0.015, 0.0)
+		wheel_rim.add_child(hd)
+		_box(Vector3(0.075, 0.075, 0.1), Vector3.ZERO, skin, Vector3.ZERO, hd)
+		_box(Vector3(0.05, 0.045, 0.07), Vector3(0.0, -0.045, 0.02), skin, Vector3(0.4, 0.0, 0.0), hd)
+		_box(Vector3(0.085, 0.085, 0.14), Vector3(0.05 * sx, 0.02, 0.07), sleeve, Vector3.ZERO, hd)
+		wheel_hands.append(hd)
+		hd.visible = false
 	_box(Vector3(0.03, 0.03, 0.22), Vector3(0.36, 1.0, 0.56), dark, Vector3(-0.5, 0, 0))
 	_build_ign_key(chrome)
 	# водитель — тёмный силуэт, появляется в кат-сцене

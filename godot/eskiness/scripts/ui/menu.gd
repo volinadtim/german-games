@@ -108,6 +108,7 @@ const CONTROLS := [
 	["chat", "Чат", ["k:84"]],                             # T (ui/chat.gd)
 	["handbrake", "Ручник (машина)", ["k:32"]],            # Пробел (car_drive.gd)
 	["seat_switch", "Пересесть на соседнее место", ["k:90"]],   # Z (car_drive.gd, промпт 18.11 01:00)
+	["car_lean", "Высунуться из окна (держать)", ["k:86"]],     # V (car_drive.gd, промпт 18.11 01:20)
 ]
 
 ## Разделы страницы «Управление» (промпт 22:53). Обзор стрелками (look_*) — не переназначается, ставит main.gd.
@@ -117,7 +118,7 @@ const CTL_GROUPS := [
 	["Действия", ["interact", "carry", "loot_all", "flashlight", "quick_heal", "gasmask"]],
 	["Инвентарь", ["inventory", "inv_use", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
 	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat"]],
-	["Машина", ["handbrake", "seat_switch"]],
+	["Машина", ["handbrake", "seat_switch", "car_lean"]],
 ]
 
 

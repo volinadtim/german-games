@@ -402,16 +402,16 @@ func car_seat() -> int:
 	return int(c.my_seat)
 
 
-## Водитель рулит: газ/тормоз/руль/ручник нажаты.
+## Водитель держит руль двумя руками: крутит руль (A/D) или держит ручник.
+## Газ и тормоз (W/S) — ноги, руки свободны: можно есть, лечиться, стрелять (промпт 18.11 01:20).
 static func steering() -> bool:
-	return Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2 \
+	return absf(Input.get_axis("move_left", "move_right")) > 0.2 \
 			or Input.is_action_pressed("handbrake" if InputMap.has_action("handbrake") else "jump")
 
 
-## Можно стрелять из машины: пассажир — всегда, водитель — пока не рулит (стоит или катится сам).
+## Стрелять из машины можно в любом положении — и на ходу, и в повороте (промпт 18.11 01:20).
 func car_can() -> bool:
-	var s := car_seat()
-	return s > 0 or (s == 0 and not steering())
+	return car_seat() >= 0
 
 
 ## Пистолет у камеры в салоне: от бедра — внизу сбоку, в прицеле — мушкой к глазу, водитель рулит — опущен.
@@ -436,8 +436,6 @@ func _car_view(delta: float) -> void:
 		n.visible = true
 		var two := hs.size() == 2
 		var want := Vector3(0.2 * side, -0.27, -0.4).lerp(Vector3(0.07 * side if two else 0.0, -0.145, -0.32), aim_k)
-		if not car_can():
-			want = Vector3(0.24 * side, -0.48, -0.3)
 		if reloading and h == _reload_h:
 			want += Vector3(-0.06 * side, -0.12, 0.06) * sin(clampf(_rel_t / RELOAD_T, 0.0, 1.0) * PI)
 		n.position = n.position.lerp(want, 1.0 - exp(-12.0 * delta))

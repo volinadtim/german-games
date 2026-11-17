@@ -69,7 +69,12 @@ func _looking_at_door() -> bool:
 # ---------- места ----------
 
 func seat_eye_world(i: int) -> Vector3:
-	return global_transform * SEAT_EYE[i]
+	var e: Vector3 = SEAT_EYE[i]
+	if i == my_seat and lean > 0.001:
+		# высунулся из окна (промпт 18.11 01:20): глаза уходят наружу и вверх, за линию борта
+		var k := smoothstep(0.0, 1.0, lean)
+		e += Vector3(signf(SEAT_EYE[i].x) * LEAN_OUT * k, 0.14 * k, 0.0)
+	return global_transform * e
 
 
 ## Посадить своего игрока на место i. instant — без анимации (кат-сцена, загрузка).
@@ -165,6 +170,7 @@ func _place_player(eye: Vector3) -> void:
 
 
 func _seat_tick(delta: float) -> void:
+	_lean_tick(delta)
 	if my_seat < 0:
 		return
 	var p = game.player
@@ -209,7 +215,9 @@ func _seat_tick(delta: float) -> void:
 			_stand_up()
 	else:
 		_place_player(seat_eye_world(my_seat))
-		if game.focus == null and can_take_wheel() and not _looking_at_door():
+		if lean > 0.5:
+			game.hud.prompt.call_deferred("Высунулся из окна — отпусти, чтобы сесть ровно")
+		elif game.focus == null and can_take_wheel() and not _looking_at_door():
 			game.hud.prompt.call_deferred("[E] Пересесть за руль")
 		elif game.focus == null and next_seat() >= 0 and not game.window_open():
 			game.hud.prompt.call_deferred("[Z] Пересесть %s" % _seat_name(next_seat()))
@@ -259,6 +267,37 @@ func _fuel_ui_tick() -> void:
 	fuel_bar.size.x = 218.0 * clampf(fuel, 0.0, 1.0)
 	fuel_bar.color = Color(0.85, 0.3, 0.2) if fuel < 0.2 else Color(0.85, 0.7, 0.3)
 	fuel_l.text = "Бензин %d%%" % roundi(fuel * 100.0) if fuel > 0.0 else "Бак пуст — нужна канистра"
+
+
+## Высунуться из окна (держать V): голова за бортом, видно дорогу и можно стрелять назад.
+## Водитель при этом держит руль одной рукой — машину ведёт и может занести (промпт 18.11 01:20).
+func _lean_tick(delta: float) -> void:
+	var can: bool = my_seat >= 0 and seat_dir == 0 and game != null and game.alive 			and not game.window_open() and not game.inv.open
+	lean_on = can and InputMap.has_action("car_lean") and Input.is_action_pressed("car_lean")
+	lean = move_toward(lean, 1.0 if lean_on else 0.0, delta / LEAN_T)
+
+
+## Руль крутится по steer, на нём — кисти водителя: обе руки, когда просто держит; одна, когда
+## другая занята (пистолет, предмет) или пока высунут в окно; руль пустой, если за ним никого.
+func _wheel_vis(delta: float) -> void:
+	if wheel_rim == null or not is_instance_valid(wheel_rim):
+		return
+	wheel_rim.rotation.y = -steer * 2.1
+	var driver_in: bool = seats[0] != 0
+	var busy := false
+	if my_seat == 0 and game != null:
+		var g = game.get("gun")
+		busy = g != null and is_instance_valid(g) and g.armed() 				and (bool(g.get("ads")) or bool(g.get("hip")) or bool(g.get("rmb")) or bool(g.get("reloading")))
+	hands_k = move_toward(hands_k, 1.0 if driver_in else 0.0, delta * 6.0)
+	for i in wheel_hands.size():
+		var n: Node3D = wheel_hands[i]
+		if not is_instance_valid(n):
+			continue
+		# левая кисть (i == 0) остаётся на руле всегда; правая уходит, когда рука занята
+		var on := hands_k > 0.5 and (i == 0 or not (busy or (my_seat == 0 and lean > 0.3)))
+		n.visible = on
+		if on:
+			n.position.y = 0.015 + 0.012 * sin(drive_t * 3.0 + i * 2.1) * clampf(absf(speed) / MAX_F, 0.0, 1.0)
 
 
 ## Куда смотрит видимый кузов (поворот вокруг вертикали).
@@ -413,6 +452,7 @@ func _drive_tick(delta: float) -> void:
 				game.hud.toast("Бензин кончился", Color(0.95, 0.7, 0.45))
 		var v0 := speed
 		_physics(delta, thr, st_in)
+		_lean_slip(delta)
 		if engine_on:
 			fuel = maxf(fuel - delta * FUEL_USE * (0.25 + 0.75 * absf(thr_s)), 0.0)
 		if absf(speed) > 0.05 or absf(slip) > 0.05 or absf(yaw_rate) > 0.01:
@@ -444,6 +484,7 @@ func _drive_tick(delta: float) -> void:
 			wheels[i].rotation.x += (speed + (wheel_spin if i >= 2 else 0.0)) / WHEEL_R * delta
 	for i in 2:
 		wheels[i].rotation.y = steer * lerpf(0.6, 0.27, clampf(absf(speed) / MAX_F, 0.0, 1.0))
+	_wheel_vis(delta)
 	# подвеска: крен в повороте наружу, клевок при торможении, приседание при разгоне
 	var roll_want := clampf(speed * yaw_rate * 0.0025, -0.03, 0.03)
 	var pitch_want := clampf(-acc_s * 0.002, -0.02, 0.02)
@@ -554,6 +595,22 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	if drift > 0.05 and thr_s > 0.01:
 		var a := ACC * thr_s * drift * delta
 		speed = minf(speed + a * 0.45, maxf(MAX_F, speed))
+
+
+## Водитель высунулся: руль держит одной рукой — сцепление хуже и машину дёргает в сторону.
+func _lean_slip(delta: float) -> void:
+	if lean < 0.25 or my_seat != 0:
+		return
+	var vt := Vector2(speed, slip).length()
+	if vt < 2.0:
+		return
+	var k := lean * clampf(vt / MAX_F, 0.0, 1.0)
+	grip_k = minf(grip_k, lerpf(1.0, 0.45, k))
+	lean_kick -= delta
+	if lean_kick <= 0.0:
+		lean_kick = randf_range(0.4, 1.2)
+		yaw_rate += randf_range(-1.0, 1.0) * 0.55 * k
+	steer = clampf(steer, -0.75, 0.75)   # одной рукой руль до упора не вывернуть
 
 
 func _move(delta: float) -> void:
