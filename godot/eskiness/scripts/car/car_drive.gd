@@ -175,14 +175,15 @@ func _seat_tick(delta: float) -> void:
 			seat_dir = 0
 			open_door(my_seat, false)
 	elif seat_dir == 2:
-		# пересадка с пассажирского за руль: пригнувшись, через рычаг передач
+		# пересадка на соседнее место (за руль — через рычаг передач): пригнувшись
 		seat_anim = minf(seat_anim + delta / SWITCH_T, 1.0)
 		var k := smoothstep(0.0, 1.0, seat_anim)
 		p.rotation.y = lerp_angle(p.rotation.y, vy + PI, 1.0 - exp(-7.0 * delta))
-		_place_player(seat_eye_world(1).lerp(seat_eye_world(0), k) - global_transform.basis.y * sin(k * PI) * 0.12)
+		_place_player(seat_eye_world(switch_from).lerp(seat_eye_world(my_seat), k) - global_transform.basis.y * sin(k * PI) * 0.12)
 		if seat_anim >= 1.0:
 			seat_dir = 0
-			_driver_in()
+			if my_seat == 0:
+				_driver_in()
 	elif seat_dir == -1:
 		seat_anim = maxf(seat_anim - delta / 0.9, 0.0)
 		var k := smoothstep(0.0, 1.0, seat_anim)
@@ -196,6 +197,8 @@ func _seat_tick(delta: float) -> void:
 		_place_player(seat_eye_world(my_seat))
 		if game.focus == null and can_take_wheel() and not _looking_at_door():
 			game.hud.prompt.call_deferred("[E] Пересесть за руль")
+		elif game.focus == null and next_seat() >= 0 and not game.window_open():
+			game.hud.prompt.call_deferred("[Z] Пересесть %s" % _seat_name(next_seat()))
 
 
 ## Шкала бензина внизу экрана, пока сидишь в машине (промпт 16.11 05:55).
@@ -258,18 +261,57 @@ func can_take_wheel() -> bool:
 func take_wheel() -> void:
 	if not can_take_wheel():
 		return
+	switch_to(0)
+
+
+## Свободное соседнее место (промпт 18.11 01:00): из двух соседей — то, куда больше смотришь. -1 — некуда.
+## Водитель на ходу не пересаживается (как и не выходит).
+func next_seat() -> int:
+	if my_seat < 0 or seat_dir != 0 or (my_seat == 0 and absf(speed) > 1.5):
+		return -1
+	var fwd: Vector3 = -game.player.cam.global_transform.basis.z
+	var eye := seat_eye_world(my_seat)
+	var best := -1
+	var bd := -INF
+	for j in NEXT_SEATS[my_seat]:
+		if seats[j] != 0:
+			continue
+		var d := fwd.dot((seat_eye_world(j) - eye).normalized())
+		if d > bd:
+			bd = d
+			best = j
+	return best
+
+
+func _seat_name(i: int) -> String:
+	if i == 0:
+		return "за руль"
+	if (i < 2) == (my_seat < 2):
+		return "на соседнее место"
+	return "назад" if i >= 2 else "вперёд"
+
+
+## Пересесть на место i без выхода (занятое — нельзя). Сеть: v_seat переносит игрока на новое место у всех.
+func switch_to(i: int) -> void:
+	if i < 0 or i > 3 or seats[i] != 0 or my_seat < 0 or seat_dir != 0:
+		return
 	var p = game.player
-	seats[1] = 0
-	seats[0] = my_id()
-	my_seat = 0
-	p.set_meta("car_seat", 0)
+	if my_seat == 0:
+		speed = 0.0 if absf(speed) < 1.5 else speed
+		_engine(false)
+	switch_from = my_seat
+	seats[my_seat] = 0
+	seats[i] = my_id()
+	my_seat = i
+	p.set_meta("car_seat", i)
 	seat_dir = 2
 	seat_anim = 0.0
-	net_drive = false
-	speed = 0.0 if absf(speed) < 0.5 else speed
-	game.play_at("whoosh", seat_eye_world(0), -20.0, 0.7)
+	if i == 0:
+		net_drive = false
+		speed = 0.0 if absf(speed) < 0.5 else speed
+	game.play_at("whoosh", seat_eye_world(i), -20.0, 0.7)
 	if vnet():
-		vnet().rpc("v_seat", my_id(), 0)
+		vnet().rpc("v_seat", my_id(), i)
 
 
 ## Своё тело в салоне прячем: оно стоит в позе «стоя» и торчало бы сквозь пол и крышу перед камерой.
@@ -320,6 +362,17 @@ func _unhandled_input(e: InputEvent) -> void:
 	# пересесть за руль — E, когда не смотришь на дверь (если луч попал в машину, это делает interact)
 	if e.is_action_pressed("interact") and not e.is_echo() and game.focus != self and can_take_wheel() 			and not _looking_at_door() and not game.window_open():
 		take_wheel()
+		get_viewport().set_input_as_handled()
+		return
+	if InputMap.has_action("seat_switch") and e.is_action_pressed("seat_switch") and not e.is_echo() \
+			and not game.window_open() and game.alive:
+		var j := next_seat()
+		if j >= 0:
+			switch_to(j)
+		elif seat_dir == 0 and my_seat == 0 and absf(speed) > 1.5:
+			game.hud.toast("Сначала останови машину")
+		elif seat_dir == 0:
+			game.hud.toast("Рядом нет свободного места")
 		get_viewport().set_input_as_handled()
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED

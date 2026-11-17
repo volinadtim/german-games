@@ -25,6 +25,7 @@ const DEFAULT := {
 	"flashlight": "b:4",                               # Back (нажать и отпустить)
 	"hot_5": "c:11", "gasmask": "c:12", "carry": "c:13", "swap_hands": "c:14",
 	"mag_eject": "c:10", "crouch": "c:1", "toggle_ping": "c:3", "hide_ui": "c:9",
+	"seat_switch": "c:2",                               # Back + X — пересесть в машине
 }
 
 const DZ := 0.18             # мёртвая зона стиков
