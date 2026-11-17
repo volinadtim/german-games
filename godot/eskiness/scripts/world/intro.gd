@@ -2,6 +2,8 @@ extends Node
 ## Начало новой игры (промпт 16.11 03:13). Только новая игра / новый сейв; в сети — только у хоста.
 ##   1. Игрок просыпается полулёжа у западной стены северо-западной комнаты, рядом битое стекло
 ##      и разбитая бутылка; веки моргают, он садится и встаёт (камера — без управления).
+##   1a. Встал — замечает у себя в руке мятую записку «Выиграй всё», быстро читает и выкидывает её
+##      (промпт 18.11 01:54). Эта сцена короткая и НЕ скипается — играет и после пропуска пробуждения.
 ##   2. Почти дошёл до проёма в коридор — короткая сцена: камера сама поворачивается, из-за угла
 ##      выползает заблудший мелкий монстрик («Шныга», половина здоровья) и ползёт прочь по коридору.
 ##      Единственная подсказка эпизода — «Красться — C». Добить его — сзади на E (world/takedown.gd).
@@ -39,6 +41,10 @@ const SIDE_T := 4.7                              # потом камера пл�
 # по коридору к проёму комнаты с автоматом (x = -6, z = 1.6), по оси проёма внутрь; конец пути — стоп (~4 с)
 const CRAWL_PATH := [Vector3(-7.2, 0, 0.85), Vector3(-6.0, 0, 1.6), Vector3(-6.0, 0, 2.9)]
 const CRAWL_SPEED := 1.1   # ~6 м за ~5.5 с — к концу кат-сцены уже в комнате
+# ---------- записка в руке (промпт 18.11 01:54) ----------
+const NOTE_TEXT := "Выиграй всё"
+const NOTE_T := 4.3        # поднял в кадр → прочитал → отвёл руку → выкинул
+const NOTE_TOSS := 3.05    # на этой секунде бумажка летит из руки на пол
 const WAKE_T := 7.6
 const CUT_T := 6.2
 const CUE_T := 3.0
@@ -65,6 +71,9 @@ var spot := 0            # номер места пробуждения (сет�
 var pending_cut := false # сеть: кат-сцену запустил другой игрок, пока этот ещё просыпался
 var cut_sent := false    # хост: кат-сцена уже разослана; клиент: уже попросил
 var cue_sent := false    # хост: смерть монстрика уже разослана
+var want_note := false   # новая игра: после пробуждения — нескипаемая сцена с запиской
+var note: Node3D         # записка в руке (ребёнок камеры игрока)
+var note_tossed := false
 var done := false
 var keep_t := 0.0
 
@@ -112,6 +121,7 @@ func start(new_game := true, skip_wake := false) -> void:
 		spot = clampi(maxi(ids.find(multiplayer.get_unique_id()), 0), 0, SPOTS.size() - 1)
 	if new_game:
 		_starter_kit()
+		want_note = true   # записку находит в руке только в новой игре
 	if not skip_wake:   # загрузка после пробуждения — игрок остаётся там, где сохранился
 		p.global_position = SPOTS[spot][0]
 		p.rotation.y = float(SPOTS[spot][1])   # лицом в комнату
@@ -227,6 +237,10 @@ func _process(delta: float) -> void:
 				p._play_step(-22.0)
 			if t >= WAKE_T:
 				_end_wake()
+		"note":
+			_note_pose(t)
+			if t >= NOTE_T:
+				_end_note()
 		"free":
 			var pp: Vector3 = p.global_position
 			# (04:50) подошёл к проёму или перешёл в восточную половину комнаты (x > -5) — сразу кат-сцена
@@ -352,14 +366,177 @@ func _end_wake() -> void:
 			(c as Node3D).visible = true
 	hidden.clear()
 	fade.visible = false
-	_lock(false)
-	stage = "free"
 	if not game.intro_wake_done:
 		game.intro_wake_done = true
 		game.save_now()   # пробуждение показано — при следующем входе его не будет
 	if pending_cut:
 		pending_cut = false
+		want_note = false
+		_lock(false)
+		stage = "free"
 		_begin_cut()
+		return
+	if want_note:
+		_begin_note()
+		return
+	_lock(false)
+	stage = "free"
+
+
+# ---------- записка «Выиграй всё» в руке ----------
+
+## Нескипаемая сцена (can_skip() на стадии "note" даёт false): рука с мятой запиской поднимается
+## в кадр, персонаж читает её пару секунд и выкидывает — бумажка падает на пол рядом.
+func _begin_note() -> void:
+	want_note = false
+	note_tossed = false
+	stage = "note"
+	t = 0.0
+	_lock(true)
+	game.player.head.rotation.x = 0.0
+	note = _note_mesh()
+	game.player.cam.add_child(note)
+	_note_pose(0.0)
+	_paper(-14.0, 1.05)
+
+
+## Записка дочитана и выкинута — управление возвращается (в сети кат-сцена могла подождать).
+func _end_note() -> void:
+	if note and is_instance_valid(note):
+		note.queue_free()
+	note = null
+	if is_instance_valid(game.player):
+		game.player.head.rotation.x = 0.0
+	_lock(false)
+	stage = "free"
+	t = 0.0
+	if pending_cut:
+		pending_cut = false
+		_begin_cut()
+
+
+## Поза руки с запиской в осях камеры: поднял → читает (лёгкая дрожь) → замах → бросок.
+func _note_pose(tt: float) -> void:
+	var p = game.player
+	var up := smoothstep(0.0, 0.85, tt)            # рука поднимает записку в кадр
+	var away := smoothstep(2.6, NOTE_TOSS, tt)     # отвёл в сторону перед броском
+	if note and is_instance_valid(note):
+		var low := Vector3(0.26, -0.44, -0.55)
+		var read := Vector3(0.015, -0.055, -0.3)
+		var side_pos := Vector3(-0.26, -0.16, -0.42)
+		var pos: Vector3 = low.lerp(read, up).lerp(side_pos, away)
+		var rl := Vector3(-1.15, 0.35, 0.55)
+		var rr := Vector3(-0.13, 0.0, 0.04)
+		var rs := Vector3(0.12, 0.65, -0.5)
+		var rot: Vector3 = rl.lerp(rr, up).lerp(rs, away)
+		var shake := (1.0 - away) * up * 0.004
+		pos += Vector3(sin(tt * 7.3), cos(tt * 5.1), 0.0) * shake
+		rot.z += sin(tt * 4.3) * shake * 3.0
+		note.position = pos
+		note.rotation = rot
+	# голова чуть опущена к записке, к концу — обратно
+	var look := up * (1.0 - smoothstep(NOTE_TOSS, NOTE_T - 0.4, tt))
+	p.head.rotation.x = lerpf(0.0, -0.24, look)
+	if tt >= NOTE_TOSS and not note_tossed:
+		_toss_note()
+
+
+## Бросок: записка исчезает из руки и падает на пол отдельной бумажкой (остаётся лежать).
+func _toss_note() -> void:
+	note_tossed = true
+	var p = game.player
+	if note and is_instance_valid(note):
+		note.queue_free()
+		note = null
+	var fwd: Vector3 = -p.cam.global_transform.basis.z
+	var right: Vector3 = p.cam.global_transform.basis.x
+	var rb := RigidBody3D.new()
+	rb.mass = 0.04
+	rb.gravity_scale = 0.5          # бумага падает медленно
+	rb.linear_damp = 1.4
+	rb.angular_damp = 1.8
+	var col := CollisionShape3D.new()
+	var bs := BoxShape3D.new()
+	bs.size = Vector3(0.11, 0.015, 0.15)
+	col.shape = bs
+	rb.add_child(col)
+	rb.add_child(_note_mesh())
+	game.add_child(rb)
+	rb.global_position = p.cam.global_position + fwd * 0.4 - Vector3(0, 0.25, 0) - right * 0.15
+	rb.linear_velocity = fwd * 1.5 - right * 0.9 + Vector3(0, 0.3, 0)
+	rb.angular_velocity = Vector3(randf_range(-3.0, 3.0), randf_range(-4.0, 4.0), randf_range(-3.0, 3.0))
+	_paper(-12.0, 0.9)
+
+
+## Мятый листок с надписью «Выиграй всё» (Node3D: бумага двумя изломанными половинками + текст).
+func _note_mesh() -> Node3D:
+	var root := Node3D.new()
+	root.name = "Note"
+	var paper := StandardMaterial3D.new()
+	paper.albedo_color = Color(0.84, 0.81, 0.71)
+	paper.roughness = 0.96
+	paper.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for i in 2:
+		var q := QuadMesh.new()
+		q.size = Vector2(0.112, 0.077)
+		q.material = paper
+		var mi := MeshInstance3D.new()
+		mi.mesh = q
+		mi.position = Vector3(0, 0.0385 if i == 0 else -0.0385, 0.0)
+		mi.rotation = Vector3(0.1 if i == 0 else -0.08, 0.0, 0.0)   # излом по сгибу
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		root.add_child(mi)
+	var l := Label3D.new()
+	l.text = NOTE_TEXT
+	l.font = _note_font()
+	l.font_size = 48
+	l.pixel_size = 0.00052
+	l.width = 180.0
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
+	l.modulate = Color(0.13, 0.15, 0.3)
+	l.outline_size = 0
+	l.shaded = false
+	l.position = Vector3(0, 0.0, 0.003)
+	root.add_child(l)
+	return root
+
+
+static var _note_f: SystemFont
+static func _note_font() -> SystemFont:
+	if _note_f == null:
+		_note_f = SystemFont.new()
+		_note_f.font_names = PackedStringArray(["Segoe Script", "Comic Sans MS", "Gabriola", "sans-serif"])
+	return _note_f
+
+
+## Шорох бумаги в руке.
+func _paper(db: float, pitch: float) -> void:
+	var p = game.player
+	var pl := AudioStreamPlayer3D.new()
+	pl.stream = _paper_snd()
+	pl.volume_db = db
+	pl.pitch_scale = pitch
+	pl.unit_size = 2.0
+	game.add_child(pl)
+	pl.global_position = p.cam.global_position
+	pl.finished.connect(pl.queue_free)
+	pl.play()
+
+
+static func _paper_snd() -> AudioStreamWAV:
+	var r := Sfx.RATE
+	var n := int(r * 0.55)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 991
+	var hp := Sfx.Svf.new(3200.0, 0.8)
+	for i in n:
+		var ts := float(i) / r
+		var ph := fmod(ts, 0.14) / 0.14
+		var env := sin(clampf(ph / 0.55, 0.0, 1.0) * PI) * exp(-ts * 2.2)
+		buf[i] = hp.bp(rng.randf() * 2.0 - 1.0) * env * 0.8
+	return Sfx._wav(buf, 0.5)
 
 
 # ---------- сеть: кат-сцена и финал одни на всех ----------
@@ -403,7 +580,7 @@ func rq_cut() -> void:
 func net_cut() -> void:
 	if done:
 		return
-	if stage == "wake":
+	if stage == "wake" or stage == "note":
 		pending_cut = true
 	elif stage == "free":
 		_begin_cut()
@@ -415,7 +592,10 @@ func net_cue() -> void:
 		return
 	if stage == "wake":
 		pending_cut = false
+		want_note = false
 		_end_wake()
+	elif stage == "note":
+		_end_note()
 	_on_crawler_died(null)
 
 
@@ -552,6 +732,9 @@ func _on_crawler_died(_e) -> void:
 
 func _finish() -> void:
 	_end_side_cam()
+	if note and is_instance_valid(note):
+		note.queue_free()
+	note = null
 	if game and is_instance_valid(game.player):
 		game.player.set_lock("intro", false)
 		game.player.set_lock("intro_cue", false)
@@ -759,4 +942,6 @@ func _decor() -> void:
 		root.add_child(mi)
 	# осколок, который можно подобрать (материал для ножика); в сети — один, у хоста (остальным рассылается)
 	if _owner():
-		game._make_pickup("glass", 1, base + Vector3(0.2, 0.1, -0.35), Vector3.ZERO)
+		# в сторону от лица лежащего игрока (промпт 18.11 01:54): раньше висел прямо перед камерой,
+		# будто осколок у него в руке
+		game._make_pickup("glass", 1, base + Vector3(0.25, 0.1, 0.5), Vector3.ZERO)
