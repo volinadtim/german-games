@@ -11,7 +11,7 @@ var glass_mat: StandardMaterial3D
 var glint_mat: StandardMaterial3D
 
 ## места, где кучки не ставим (старт, автоматы, сейф, ящики, манекен)
-const AVOID := [Vector3(-10.5, 0, 0), Vector3(-6.0, 0, 8.5), Vector3(-4.0, 0, 8.4), Vector3(11.5, 0, 7.0),
+const AVOID := [Vector3(-10.5, 0, 0), Vector3(-6.0, 0, 8.5), Vector3(-4.0, 0, 8.4), Vector3(-11.5, 0, 5.6),
 	Vector3(-3.0, 0, -8.5), Vector3(9.0, 0, -8.5), Vector3(-11.5, 0, 3.2), Vector3(2.2, 0, -2.15),
 	Vector3(2.2, 0, 2.15), Vector3(-2.75, 0, 7.75), Vector3(-7.0, 0, 8.7), Vector3(-1.35, 0, 8.55),
 	Vector3(-10.8, 0, -4.3), Vector3(-9.0, 0, -3.0), Vector3(-7.7, 0, -7.6), Vector3(-10.6, 0, -6.0)]   # + места пробуждения в сети (intro.gd SPOTS)
