@@ -161,7 +161,7 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 			_face(to, delta)
 			if st > 0.35 and hits_done == 0:
 				hits_done = 1
-				if d < 1.8:
+				if d < 1.8 and _clear(ppos):   # сквозь стены не бьёт (промпт 18.11 01:03)
 					tg.damage_player(SWIPE_DMG, global_position)
 			if st > 0.7:
 				hits_done = 0
@@ -175,7 +175,7 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 				_set_state("charge")
 		"charge":
 			var v := charge_dir * CHARGE_SPEED
-			if d < 1.5 and hits_done == 0 and tg.alive:
+			if d < 1.5 and hits_done == 0 and tg.alive and _clear(ppos):
 				hits_done = 1
 				tg.damage_player(CHARGE_DMG, global_position)
 				if tg == game:
@@ -209,7 +209,7 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 			if st > 0.7:
 				for a in arms:
 					a.rotation.x = 0.3
-				if d < 2.4:
+				if d < 2.4 and _clear(ppos):
 					tg.damage_player(SLAM_DMG, global_position)
 				Fx.dust_burst(game, global_position - global_transform.basis.z * 1.0, Color(0.4, 0.37, 0.33), 18)
 				cool = 2.2
@@ -220,7 +220,7 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 			_face(to, delta)
 			if (hits_done == 0 and st > 0.25) or (hits_done == 1 and st > 0.6):
 				hits_done += 1
-				if d < 1.8:
+				if d < 1.8 and _clear(ppos):
 					tg.damage_player(STALK_DMG, global_position)
 			if st > 0.9:
 				hits_done = 0
@@ -290,7 +290,13 @@ func _wander(delta: float) -> Vector3:
 func _clear(to: Vector3) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, height * 0.8, 0), to + Vector3(0, 1.4, 0))
 	q.collision_mask = 1
-	q.exclude = [get_rid(), game.player.get_rid()]
+	# другие мутанты и сам игрок-цель обзор не загораживают; стены и заборы — да
+	var ex: Array[RID] = [get_rid(), game.player.get_rid()]
+	if tg != null and tg.player != null:
+		ex.append(tg.player.get_rid())
+	for m in get_tree().get_nodes_in_group("mutants"):
+		ex.append(m.get_rid())
+	q.exclude = ex
 	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
 
 

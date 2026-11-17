@@ -208,7 +208,7 @@ func _strike(d: float, to: Vector3) -> void:
 	_play(body_snd, game.snd["whoosh"], -6.0 if kind == "heavy" else -9.0, 0.7 if kind == "heavy" else 1.15)
 	cool = cool_t
 	var fwd := -global_transform.basis.z
-	if tg.alive and d < hit_range and fwd.dot(to.normalized()) > 0.3:
+	if tg.alive and d < hit_range and fwd.dot(to.normalized()) > 0.3 and _clear(global_position, tg.player.global_position):
 		tg.damage_player(damage, global_position)
 
 

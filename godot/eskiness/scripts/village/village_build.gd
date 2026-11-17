@@ -506,14 +506,42 @@ func _house(r: Rect2, door_side: float, hole_floor := Rect2()) -> Array:
 		b.rotation.y = rng.randf() * TAU
 	# забор у дома, местами повален
 	var fx := front + door_side * 3.0
+	# коллизия — сплошной щит на каждый отрезок стоящих досок; повален (пропуск) — там можно пройти;
+	# напротив двери — калитка (промпт 18.11 01:03: сквозь забор проходили)
 	var fz := z0 - 1.0
+	var run0 := INF
+	var run1 := 0.0
 	while fz < z1 + 1.0:
-		if rng.randf() < 0.75:
+		var stand := rng.randf() < 0.75
+		var tilt := 0.0
+		if stand and rng.randf() < 0.25:
+			tilt = rng.randf_range(-0.6, 0.6)
+		var gate := fz > dz0 - 0.5 and fz < dz0 + 1.6
+		if stand and not gate:
 			var b := _box(Vector3(fx - 0.04, G - 0.2, fz - 0.06), Vector3(fx + 0.04, G + 1.1, fz + 0.06), wood_dark, false)
-			if rng.randf() < 0.25:
-				b.rotation.x = rng.randf_range(-0.6, 0.6)
+			b.rotation.x = tilt
+			if run0 == INF:
+				run0 = fz
+			run1 = fz
+		elif run0 != INF:
+			_fence_col(fx, run0, run1)
+			run0 = INF
 		fz += 0.45
+	if run0 != INF:
+		_fence_col(fx, run0, run1)
 	return spots
+
+
+## Невидимый щит забора вдоль Z от za до zb (доски толщиной 0.08, шаг 0.45).
+func _fence_col(fx: float, za: float, zb: float) -> void:
+	var body := StaticBody3D.new()
+	body.position = Vector3(fx, G + 0.45, (za + zb) / 2.0)
+	add_child(body)
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = Vector3(0.14, 1.5, zb - za + 0.14)
+	cs.shape = sh
+	body.add_child(cs)
 
 
 ## Дом с подвалом: люк в полу у задней стены, лестница вниз, подвал — бетонная комната (другая, чем бункер):
