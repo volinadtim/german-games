@@ -6,13 +6,14 @@
 mod data;
 
 use data::{read_json, short_path, tail_lines, Kind, Sess};
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Padding, Paragraph, Wrap};
 use ratatui::Frame;
 use serde_json::Value;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -43,6 +44,8 @@ struct App {
     log: Vec<String>,
     tick: usize,
     quit: bool,
+    list_area: Cell<Rect>,  // где нарисован список сессий (для клика мышью)
+    max_scroll: Cell<u16>,  // сколько строк можно прокрутить вверх в текущей ленте
 }
 
 fn now() -> u64 {
@@ -94,6 +97,8 @@ impl App {
             log: vec![],
             tick: 0,
             quit: false,
+            list_area: Cell::new(Rect::default()),
+            max_scroll: Cell::new(0),
         }
     }
 
@@ -242,6 +247,35 @@ impl App {
         self.toast(msg);
     }
 
+    /// Прокрутка ленты: d > 0 — вверх (к старому), d < 0 — вниз; 0 от низа = следить за хвостом.
+    fn scroll_by(&mut self, d: i32) {
+        let zone = self.sel_zone().unwrap_or_default();
+        let max = self.max_scroll.get() as i32;
+        let s = self.scroll.entry(zone).or_default();
+        *s = (*s as i32 + d).clamp(0, max) as u16;
+    }
+
+    fn mouse(&mut self, kind: MouseEventKind, x: u16, y: u16) {
+        match kind {
+            MouseEventKind::ScrollUp => self.scroll_by(3),
+            MouseEventKind::ScrollDown => self.scroll_by(-3),
+            MouseEventKind::Down(MouseButton::Left) => {
+                // клик по списку слева: 2 строки на диспетчер, пустая, дальше по 2 строки на сессию
+                let a = self.list_area.get();
+                if x < a.x || x >= a.right() || y <= a.y || y + 1 >= a.bottom() {
+                    return;
+                }
+                let r = (y - a.y - 1) as usize;
+                if r < 2 {
+                    self.sel = 0;
+                } else if r >= 3 && (r - 3) / 2 < self.sessions.len() {
+                    self.sel = (r - 3) / 2 + 1;
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn key(&mut self, code: KeyCode, m: KeyModifiers) {
         let n = self.sessions.len() + 1;
         let zone = self.sel_zone().unwrap_or_default();
@@ -255,13 +289,10 @@ impl App {
                 }
             }
             KeyCode::Char('o') if m.contains(KeyModifiers::CONTROL) => self.open_chat(),
-            KeyCode::Up | KeyCode::BackTab => self.sel = (self.sel + n - 1) % n,
-            KeyCode::Down | KeyCode::Tab => self.sel = (self.sel + 1) % n,
-            KeyCode::PageUp => *self.scroll.entry(zone).or_default() += 15,
-            KeyCode::PageDown => {
-                let s = self.scroll.entry(zone).or_default();
-                *s = s.saturating_sub(15);
-            }
+            KeyCode::Up => self.sel = (self.sel + n - 1) % n,
+            KeyCode::Down => self.sel = (self.sel + 1) % n,
+            KeyCode::PageUp => self.scroll_by(15),
+            KeyCode::PageDown => self.scroll_by(-15),
             KeyCode::End if self.input.is_empty() => {
                 self.scroll.insert(zone, 0);
             }
@@ -362,24 +393,26 @@ fn draw_list(f: &mut Frame, app: &App, area: Rect) {
         l.push(Line::from(g));
     }
     let b = Block::new().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::new().fg(DIM)).title(" сессии ");
+    app.list_area.set(area);
     f.render_widget(Paragraph::new(l).block(b), area);
 }
 
+// Лента без рамки: на месте рамки пустое поле той же ширины, заголовок — в верхней строке.
 fn feed_block(title: Line<'static>) -> Block<'static> {
-    Block::new().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::new().fg(VIOLET)).title(title)
+    Block::new().padding(Padding::new(1, 1, 0, 1)).title(title)
 }
 
 fn render_scrolled(f: &mut Frame, app: &App, key: &str, text: Text, block: Block, area: Rect) {
     let p = Paragraph::new(text).wrap(Wrap { trim: false });
-    let inner_w = area.width.saturating_sub(2);
-    let inner_h = area.height.saturating_sub(2) as usize;
-    let total = p.line_count(inner_w);
-    let back = *app.scroll.get(key).unwrap_or(&0) as usize;
-    let max = total.saturating_sub(inner_h);
-    let y = max.saturating_sub(back);
+    let inner = block.inner(area);
+    let total = p.line_count(inner.width);
+    let max = total.saturating_sub(inner.height as usize);
+    app.max_scroll.set(max.min(u16::MAX as usize) as u16);
+    let back = (*app.scroll.get(key).unwrap_or(&0) as usize).min(max);
+    let y = max - back;
     let mut block = block;
     if back > 0 {
-        block = block.title_bottom(Line::styled(format!(" ↑ прокрутка {} · End — к хвосту ", back.min(max)), Style::new().fg(YELLOW)).right_aligned());
+        block = block.title(Line::styled(format!(" ↑ прокрутка {back} · End — к хвосту "), Style::new().fg(YELLOW)).right_aligned());
     }
     f.render_widget(p.block(block).scroll((y.min(u16::MAX as usize) as u16, 0)), area);
 }
@@ -442,56 +475,99 @@ fn draw_session(f: &mut Frame, app: &App, s: &Sess, area: Rect) {
     render_scrolled(f, app, &s.zone, Text::from(lines), feed_block(Line::from(title)), area);
 }
 
+fn status_style(st: &str) -> (Color, &'static str) {
+    match st {
+        "работает" => (GREEN, "●"),
+        "очередь" => (YELLOW, "◌"),
+        "пауза" => (YELLOW, "‖"),
+        "готово" | "возобновлён" => (CYAN, "✓"),
+        "упал" | "ошибка" | "прерван" | "СЛОЖНО" => (RED, "✗"),
+        _ => (Color::Gray, "·"),
+    }
+}
+
 fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
     let mut lines: Vec<Line> = vec![];
     let jobs = app.jobs();
-    if jobs.is_empty() {
-        lines.push(Line::styled("  задач в jobs.json нет (или диспетчер старой версии) — ниже лог", Style::new().fg(DIM)));
-    } else {
-        lines.push(Line::styled(
-            format!("  {:<3} {:<11} {:<8} {:<9} {:<11} {:>6} {:>5} {:>6}  задача → результат", "#", "промпт", "зона", "агент", "статус", "время", "ктх", "$"),
-            Style::new().fg(DIM),
-        ));
-        for j in jobs.iter().rev().take(25).collect::<Vec<_>>().into_iter().rev() {
-            let st = j["status"].as_str().unwrap_or("");
-            let c = match st {
-                "работает" => GREEN,
-                "очередь" | "пауза" => YELLOW,
-                "упал" | "ошибка" | "прерван" | "СЛОЖНО" => RED,
-                _ => Color::Gray,
-            };
-            let ctx = j["ctx"].as_u64().map(|x| format!("{}k", x / 1000)).unwrap_or_default();
-            let cost = j["cost"].as_f64().map(|x| format!("{x:.2}")).unwrap_or_default();
-            let res = j["result"].as_str().unwrap_or("");
-            let title = j["title"].as_str().unwrap_or("");
-            lines.push(Line::from(vec![
-                Span::styled(
-                    format!(
-                        "  {:<3} {:<11} {:<8} {:<9} ",
-                        j["id"].as_u64().unwrap_or(0),
-                        cut(j["at"].as_str().unwrap_or(""), 11),
-                        j["zone"].as_str().unwrap_or(""),
-                        j["agent"].as_str().unwrap_or("")
-                    ),
-                    Style::new().fg(Color::Gray),
-                ),
-                Span::styled(format!("{:<11} ", st), Style::new().fg(c)),
-                Span::styled(format!("{:>6} {:>5} {:>6}  ", j["dur"].as_str().unwrap_or(""), ctx, cost), Style::new().fg(DIM)),
-                Span::raw(cut(title, 70)),
-                Span::styled(if res.is_empty() { String::new() } else { format!(" → {}", cut(res, 120)) }, Style::new().fg(DIM)),
-            ]));
-        }
-    }
+    let width = area.width.saturating_sub(2) as usize;
+
+    // сводка
+    let count = |st: &[&str]| jobs.iter().filter(|j| st.contains(&j["status"].as_str().unwrap_or(""))).count();
+    let cost: f64 = jobs.iter().filter_map(|j| j["cost"].as_f64()).sum();
+    let chip = |n: usize, label: &str, c: Color| {
+        vec![
+            Span::styled(format!(" {n} "), Style::new().fg(Color::Black).bg(c).bold()),
+            Span::styled(format!(" {label}   "), Style::new().fg(c)),
+        ]
+    };
+    let mut sum = vec![];
+    sum.extend(chip(count(&["работает"]), "работают", GREEN));
+    sum.extend(chip(count(&["очередь", "пауза"]), "ждут", YELLOW));
+    sum.extend(chip(count(&["готово", "возобновлён"]), "готово", CYAN));
+    sum.extend(chip(count(&["упал", "ошибка", "прерван", "СЛОЖНО"]), "сбой", RED));
+    sum.push(Span::styled(format!("${cost:.2} за {} задач", jobs.len()), Style::new().fg(DIM)));
+    lines.push(Line::from(sum));
     lines.push(Line::raw(""));
-    lines.push(Line::styled("  ЛОГ", Style::new().fg(VIOLET).bold()));
-    for l in &app.log {
-        let c = if l.contains("упал") || l.contains("ошибка") || l.contains("прерван") { RED } else { Color::Gray };
-        lines.push(Line::styled(format!("  {l}"), Style::new().fg(c)));
+
+    if jobs.is_empty() {
+        lines.push(Line::styled("задач пока нет (или диспетчер старой версии)", Style::new().fg(DIM)));
+    }
+    // карточки промптов, новые внизу — как в чате
+    for j in jobs.iter().rev().take(30).collect::<Vec<_>>().into_iter().rev() {
+        let st = j["status"].as_str().unwrap_or("");
+        let (c, icon) = status_style(st);
+        let g = |k: &str| j[k].as_str().unwrap_or("").to_string();
+        lines.push(Line::styled("─".repeat(width), Style::new().fg(Color::Rgb(55, 55, 65))));
+        let mut head = vec![
+            Span::styled(format!(" {icon} {} ", st.to_uppercase()), Style::new().fg(Color::Black).bg(c).bold()),
+            Span::styled(format!("  #{}  ", j["id"].as_u64().unwrap_or(0)), Style::new().fg(Color::White).bold()),
+            Span::styled(format!("{}  ", g("at")), Style::new().fg(DIM)),
+            Span::styled(g("zone"), Style::new().fg(PINK).bold()),
+            Span::styled(
+                format!(" · {} · {}", g("agent"), if j["resume"].is_string() { "возобновление" } else if g("mode") == "continue" { "продолжение" } else { "новый" }),
+                Style::new().fg(DIM),
+            ),
+        ];
+        let mut meta = vec![];
+        if !g("dur").is_empty() {
+            meta.push(format!("⏱ {}", g("dur")));
+        }
+        if let Some(x) = j["ctx"].as_u64() {
+            meta.push(format!("ctx {}k", x / 1000));
+        }
+        if let Some(x) = j["cost"].as_f64() {
+            meta.push(format!("${x:.2}"));
+        }
+        if !meta.is_empty() {
+            head.push(Span::styled(format!("   {}", meta.join("  ")), Style::new().fg(DIM)));
+        }
+        lines.push(Line::from(head));
+        lines.push(Line::from(vec![Span::styled("   ", Style::new()), Span::styled(g("title"), Style::new().fg(Color::White).bold())]));
+        let text = g("text");
+        for t in text.lines().filter(|l| !l.trim().is_empty()).take(6) {
+            lines.push(Line::from(vec![Span::styled("   │ ", Style::new().fg(VIOLET)), Span::styled(t.to_string(), Style::new().fg(Color::Gray))]));
+        }
+        let (rc, rt) = match st {
+            "работает" => (GREEN, format!("{} работает…", SPIN[app.tick % SPIN.len()])),
+            "очередь" => (YELLOW, "ждёт, пока освободится агент зоны".to_string()),
+            _ => (if c == RED { RED } else { Color::Rgb(160, 200, 170) }, g("result")),
+        };
+        if !rt.is_empty() {
+            lines.push(Line::from(vec![Span::styled("   ╰ ", Style::new().fg(rc)), Span::styled(rt, Style::new().fg(rc))]));
+        }
+        lines.push(Line::raw(""));
+    }
+
+    lines.push(Line::styled("─".repeat(width), Style::new().fg(Color::Rgb(55, 55, 65))));
+    lines.push(Line::styled("ЛОГ", Style::new().fg(VIOLET).bold()));
+    for l in app.log.iter().rev().take(10).collect::<Vec<_>>().into_iter().rev() {
+        let c = if l.contains("упал") || l.contains("ошибка") || l.contains("прерван") { RED } else { DIM };
+        lines.push(Line::styled(l.clone(), Style::new().fg(c)));
     }
     let (st, col) = app.disp_state();
     let title = Line::from(vec![
-        Span::styled(" диспетчер ", Style::new().fg(PINK).bold()),
-        Span::styled(format!("· {st} "), Style::new().fg(col)),
+        Span::styled("диспетчер ", Style::new().fg(PINK).bold()),
+        Span::styled(format!("· {st}"), Style::new().fg(col)),
     ]);
     render_scrolled(f, app, "", Text::from(lines), feed_block(title), area);
 }
@@ -500,7 +576,7 @@ fn draw_input(f: &mut Frame, app: &App, area: Rect) {
     let b = Block::new().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::new().fg(CYAN));
     let inner = b.inner(area);
     let line = if app.input.is_empty() {
-        Line::from(vec![Span::styled("> ", Style::new().fg(PINK).bold()), Span::styled("задача диспетчеру · /stop /kill /resume · ↑↓ сессии · PgUp/PgDn · Ctrl+O чат · Ctrl+Q выход", Style::new().fg(DIM))])
+        Line::from(vec![Span::styled("> ", Style::new().fg(PINK).bold()), Span::styled("задача диспетчеру · /stop /kill /resume · ↑↓ сессии · колесо — прокрутка · Ctrl+O чат · Ctrl+Q выход", Style::new().fg(DIM))])
     } else {
         // горизонтальная прокрутка, чтобы курсор был виден
         let w = inner.width.saturating_sub(3) as usize;
@@ -545,15 +621,16 @@ fn main() -> std::io::Result<()> {
     let mut app = App::new();
     app.refresh();
     let mut term = ratatui::init();
+    let _ = ratatui::crossterm::execute!(std::io::stdout(), EnableMouseCapture);
     let mut last = Instant::now();
     let res = (|| -> std::io::Result<()> {
         while !app.quit {
             term.draw(|f| draw(f, &app))?;
             if event::poll(Duration::from_millis(120))? {
-                if let Event::Key(k) = event::read()? {
-                    if k.kind == KeyEventKind::Press {
-                        app.key(k.code, k.modifiers);
-                    }
+                match event::read()? {
+                    Event::Key(k) if k.kind == KeyEventKind::Press => app.key(k.code, k.modifiers),
+                    Event::Mouse(m) => app.mouse(m.kind, m.column, m.row),
+                    _ => {}
                 }
             }
             if last.elapsed() >= Duration::from_millis(1000) {
@@ -564,6 +641,7 @@ fn main() -> std::io::Result<()> {
         }
         Ok(())
     })();
+    let _ = ratatui::crossterm::execute!(std::io::stdout(), DisableMouseCapture);
     ratatui::restore();
     res
 }
