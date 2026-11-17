@@ -1,6 +1,6 @@
 extends CanvasLayer
 ## Меню: главное («Играть», «Настройки», «Выход»), пауза по Esc («Продолжить», «Настройки», «Выход в меню»)
-## и настройки (громкость, яркость, гамма, контраст, постеризация). В углу — звук и полный экран.
+## и настройки (громкость, яркость, гамма, постеризация). В углу — звук и полный экран.
 ## Работает и на паузе (process_mode = ALWAYS). Настройки сохраняются в user://settings.cfg.
 
 signal play_pressed
@@ -15,9 +15,8 @@ const PlayerScript := preload("res://scripts/player/player.gd")
 const SETTINGS := {
 	"volume": ["Громкость", 0.0, 100.0, 1.0, 80.0],
 	"voice_volume": ["Громкость голоса", 0.0, 100.0, 1.0, 60.0],   # голоса игроков в сети (voip.gd, промпт 16.11 22:11)
-	"brightness": ["Яркость", 0.5, 1.6, 0.01, 1.0],
-	"gamma": ["Гамма", 0.6, 1.8, 0.01, 1.0],
-	"contrast": ["Контраст", 0.6, 1.6, 0.01, 1.0],
+	"brightness": ["Яркость", 0.8, 1.2, 0.01, 1.0],
+	"gamma": ["Гамма", 0.8, 1.3, 0.01, 1.0],
 	"posterize": ["Постеризация", 0.0, 1.0, 1.0, 1.0],   # галочка: вкл — 50%, выкл — 0 (промпт 00:30 16.11)
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
 	"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],   # градусы; 75 — прежний FOV камеры игрока
@@ -218,7 +217,7 @@ func _ready() -> void:
 	for key in GENERAL_KEYS:
 		grows.add_child(setting_row(key))
 
-	# «Экран и графика»: режим экрана, яркость/гамма/контраст/постеризация, пресет и каждый эффект
+	# «Экран и графика»: режим экрана, яркость/гамма/постеризация, пресет и каждый эффект
 	gfx_box = VBoxContainer.new()
 	pages.add_child(gfx_box)
 	var rows := _page_rows(gfx_box, 360)
@@ -803,7 +802,6 @@ func apply_settings() -> void:
 	if post_mat:
 		post_mat.set_shader_parameter("brightness", values["brightness"])
 		post_mat.set_shader_parameter("gamma", values["gamma"])
-		post_mat.set_shader_parameter("contrast", values["contrast"])
 		# галочка: вкл — всегда 50% (34 уровня), выкл — 0% (64 уровня, постеризации почти нет)
 		post_mat.set_shader_parameter("levels", lerpf(64.0, 4.0, 0.5) if values["posterize"] > 0.5 else 64.0)
 

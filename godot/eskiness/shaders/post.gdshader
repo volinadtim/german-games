@@ -18,7 +18,6 @@ uniform float blur_radius = 0.22;
 uniform float toxic = 0.0;   // отравление наверху без противогаза: искажения и зелёный оттенок
 uniform float brightness = 1.0;
 uniform float gamma = 1.0;
-uniform float contrast = 1.0;
 
 vec3 sample_lens(vec2 uv) {
 	uv += vec2(sin(uv.y * 23.0 + TIME * 2.1), cos(uv.x * 19.0 + TIME * 1.7)) * 0.007 * toxic;
@@ -47,8 +46,7 @@ void fragment() {
 	}
 	c *= mix(vec3(1.0), vec3(0.8, 1.0, 0.62), toxic * 0.7);
 	c *= 1.0 - toxic * 0.35 * smoothstep(0.2, 0.9, length(SCREEN_UV - 0.5) * 1.41);
-	c = c * brightness;
-	c = clamp((c - 0.5) * contrast + 0.5, 0.0, 1.0);
+	c = clamp(c * brightness, 0.0, 1.0);
 	c = pow(c, vec3(1.0 / gamma));
 	float r = length(SCREEN_UV - 0.5) * 1.41;
 	c *= 1.0 - vignette * smoothstep(0.35, 1.0, r);

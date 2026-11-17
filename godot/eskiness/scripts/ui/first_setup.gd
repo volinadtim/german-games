@@ -37,19 +37,20 @@ static func done() -> bool:
 
 
 ## Общий ползунок t (0..1, середина — по умолчанию) -> [гамма, яркость].
+## Промпт 18.11 01:29: диапазон сужен (без контраста), чтобы в темноте оставался вайб и фонарик был нужен.
 static func curve(t: float) -> Vector2:
 	if t < 0.5:
 		var k := t * 2.0
-		return Vector2(lerpf(0.7, 1.0, k), lerpf(0.85, 1.0, k))
+		return Vector2(lerpf(0.8, 1.0, k), lerpf(0.9, 1.0, k))
 	var k2 := (t - 0.5) * 2.0
-	return Vector2(lerpf(1.0, 1.6, k2), lerpf(1.0, 1.25, k2))
+	return Vector2(lerpf(1.0, 1.3, k2), lerpf(1.0, 1.2, k2))
 
 
 ## Обратно: положение ползунка по текущей гамме.
 static func from_gamma(g: float) -> float:
 	if g < 1.0:
-		return clampf((g - 0.7) / 0.3 * 0.5, 0.0, 0.5)
-	return clampf(0.5 + (g - 1.0) / 0.6 * 0.5, 0.5, 1.0)
+		return clampf((g - 0.8) / 0.2 * 0.5, 0.0, 0.5)
+	return clampf(0.5 + (g - 1.0) / 0.3 * 0.5, 0.5, 1.0)
 
 
 func _init(m) -> void:
@@ -126,7 +127,7 @@ func _on_slider(t: float, apply := true) -> void:
 	_update_refs()
 
 
-## Цвет значков — как его выдаст post.gdshader при текущих яркости, контрасте и гамме.
+## Цвет значков — как его выдаст post.gdshader при текущих яркости и гамме.
 func _update_refs() -> void:
 	for i in refs.size():
 		refs[i].lum = _post(REF[i])
@@ -136,8 +137,7 @@ func _update_refs() -> void:
 
 func _post(x: float) -> float:
 	var v: Dictionary = menu.values
-	var c: float = x * float(v["brightness"])
-	c = clampf((c - 0.5) * float(v["contrast"]) + 0.5, 0.0, 1.0)
+	var c: float = clampf(x * float(v["brightness"]), 0.0, 1.0)
 	return pow(c, 1.0 / float(v["gamma"]))
 
 
