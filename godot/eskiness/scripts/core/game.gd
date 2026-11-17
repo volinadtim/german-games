@@ -63,6 +63,13 @@ func setup(p: Player) -> void:
 		d.game = self
 		d.position = DUMMY_POS
 		add_child(d)
+		# в стартовой комнате — манекен со стеклянным ножом в боку (промпт 18.11 01:07)
+		var kd := Dummy.new()
+		kd.game = self
+		kd.knife = true
+		kd.position = KNIFE_DUMMY_POS
+		add_child(kd)
+		knife_dummy = kd
 	if USE_ENEMIES and (net == null or net.is_host()):   # в сети враги — у хоста, клиенту приходят копии
 		for s in ENEMY_SPOTS:
 			_spawn_enemy(s)

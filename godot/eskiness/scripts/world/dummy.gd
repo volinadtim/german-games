@@ -11,6 +11,8 @@ var combo := 0.0
 var combo_t := 0.0
 var label: Label3D
 var game                       # game.gd — износ оружия
+var knife := false             # в боку торчит стеклянный нож — E: вытащить (стартовая комната, промпт 18.11 01:07)
+var knife_node: Node3D
 
 
 func _ready() -> void:
@@ -65,6 +67,13 @@ func _ready() -> void:
 	cs.position.y = 0.95
 	add_child(cs)
 
+	if knife:
+		# ножик воткнут в бок мешка лезвием внутрь, рукоять наружу и чуть вниз
+		knife_node = preload("res://scripts/weapons.gd").make("knife")
+		sway.add_child(knife_node)
+		knife_node.position = Vector3(-0.36, 1.3, 0.04)
+		knife_node.rotation = Vector3(0.15, 0.25, -PI / 2 - 0.25)
+
 	label = Label3D.new()
 	label.text = "МАНЕКЕН"
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
@@ -74,6 +83,28 @@ func _ready() -> void:
 	label.modulate = Color(0.85, 0.82, 0.74, 0.7)
 	label.position.y = 2.15
 	add_child(label)
+
+
+func get_prompt(_g) -> String:
+	return "[E] Вытащить: Ножик" if knife else ""
+
+
+## E: вытащить нож (один раз, флаг в сейве — game.dummy_knife_taken).
+func interact(g) -> void:
+	if not knife:
+		return
+	if g.collect("knife", 1, null) > 0:
+		return   # некуда взять — нож остаётся в манекене
+	remove_knife()
+	g.dummy_knife_taken = true
+	g.play_ui("pickup", -10.0, 0.9)
+
+
+func remove_knife() -> void:
+	knife = false
+	if knife_node and is_instance_valid(knife_node):
+		knife_node.queue_free()
+	knife_node = null
 
 
 func _part(parent: Node3D, mesh: Mesh, pos: Vector3, m: Material) -> MeshInstance3D:
