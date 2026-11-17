@@ -66,6 +66,44 @@ func _looking_at_door() -> bool:
 	return loc.x * float(DOORS[my_seat][0]) > 0.45
 
 
+
+## Куда снаружи смотрит игрок (прицел попал по машине): "fuel" — лючок бака, "door0".."door3" —
+## дверь места i, "trunk" — задок, "hood" — капот, "body" — просто кузов, "" — мимо машины.
+## Промпт 18.11 01:46: место выбирается дверью под прицелом, а не тем, где ближе стоишь.
+func aim_zone() -> String:
+	if game == null or game.player == null or game.player.cam == null:
+		return ""
+	var cam: Node3D = game.player.cam
+	var from: Vector3 = cam.global_position
+	var q := PhysicsRayQueryParameters3D.create(from, from - cam.global_transform.basis.z * 2.4)
+	q.collision_mask = 1
+	q.exclude = [game.player.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty() or hit.collider != self:
+		return ""
+	var l: Vector3 = global_transform.affine_inverse() * (hit.position as Vector3)
+	if l.distance_to(FUEL_CAP) < 0.33:
+		return "fuel"
+	if l.z < -1.5:
+		return "trunk"
+	if l.z > 1.05:
+		return "hood"
+	if l.z < 0.9 and l.z > -1.15:
+		if absf(l.x) > 0.6 and l.y < 1.02:
+			return "door%d" % ((0 if l.z > -0.23 else 2) + (0 if l.x > 0.0 else 1))
+		# попали внутрь салона через выбитое окно: дверь — та, с какой стороны смотрим
+		var dl: Vector3 = global_transform.basis.inverse() * (-cam.global_transform.basis.z)
+		if l.y > 0.8 and absf(dl.x) > 0.25:
+			return "door%d" % ((0 if l.z > -0.23 else 2) + (0 if dl.x < 0.0 else 1))
+	return "body"
+
+
+## Место, к двери которого смотрит игрок (-1 — прицел не на двери).
+func aimed_seat(zone := "") -> int:
+	var z := zone if zone != "" else aim_zone()
+	return int(z.substr(4)) if z.begins_with("door") else -1
+
+
 # ---------- места ----------
 
 func seat_eye_world(i: int) -> Vector3:
@@ -411,14 +449,14 @@ func _stand_up() -> void:
 		village.on_exit_car()
 
 
-## Свободное место, к двери которого ближе всего игрок (водительское — если игрок с той стороны).
+## Запасной выбор места, когда прицел не на двери: свободное место с ближайшей дверью.
 func _free_seat_near(pos: Vector3) -> int:
 	var best := -1
 	var bd := INF
 	for i in 4:
 		if seats[i] != 0:
 			continue
-		var d := pos.distance_to(_exit_point(i)) - (0.5 if i == 0 else 0.0)
+		var d := pos.distance_to(_exit_point(i))
 		if d < bd:
 			bd = d
 			best = i

@@ -44,6 +44,8 @@ const SEAT_HIP := [Vector3(0.36, 0.86, -0.12), Vector3(-0.36, 0.86, -0.12), Vect
 ## двери: [сторона, петля z, длина]; дверь i — у места i
 const DOORS := [[1.0, 0.86, 1.08], [-1.0, 0.86, 1.08], [1.0, -0.24, 0.86], [-1.0, -0.24, 0.86]]
 const EXIT := [Vector3(1.45, 0, 0.25), Vector3(-1.45, 0, 0.25), Vector3(1.45, 0, -0.7), Vector3(-1.45, 0, -0.7)]
+## лючок бензобака — слева сзади, за задней аркой: заправка только с прицела на него (car.gd, промпт 18.11 01:46)
+const FUEL_CAP := Vector3(-0.83, 0.58, -1.68)
 const DOOR_OPEN := 1.15         # на сколько радиан открывается дверь
 const MAX_F := 13.0             # скорость вперёд, м/с
 const MAX_R := 4.0              # назад
@@ -233,6 +235,10 @@ func _build() -> void:
 		var sx := signf(wp.x)
 		_box(Vector3(0.008, 0.2, 0.72), Vector3(0.802 * sx, 0.5, wp.z), dark)
 		_box(Vector3(0.01, 0.05, 0.78), Vector3(0.803 * sx, 0.61, wp.z), rust)
+	# лючок бензобака: в него надо навести прицел, чтобы залить канистру
+	_box(Vector3(0.006, 0.21, 0.21), Vector3(0.802 * signf(FUEL_CAP.x), FUEL_CAP.y, FUEL_CAP.z), dark)
+	_box(Vector3(0.016, 0.17, 0.17), Vector3(0.808 * signf(FUEL_CAP.x), FUEL_CAP.y, FUEL_CAP.z), chrome)
+	_box(Vector3(0.02, 0.05, 0.05), Vector3(0.812 * signf(FUEL_CAP.x), FUEL_CAP.y + 0.01, FUEL_CAP.z), dark)
 	# дыры от ржавчины на порогах и низу дверей
 	_box(Vector3(0.01, 0.07, 0.3), Vector3(0.803, 0.39, -0.45), rust)
 	_box(Vector3(0.01, 0.05, 0.18), Vector3(0.804, 0.38, -0.47), dark)

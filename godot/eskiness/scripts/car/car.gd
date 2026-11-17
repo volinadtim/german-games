@@ -9,6 +9,8 @@ extends "res://scripts/car/car_drive.gd"
 ## за рулём тот, кто взял ключ (village_net.gd: v_escape).
 ## Дальше машина — обычная: двери, места, бензин, вождение (car_drive.gd); положение — в сейве (village).
 ## Перед машины — +Z, водительская сторона — +X. Интерфейс взаимодействия: get_prompt(game), interact(game).
+## Промпт 18.11 01:46: что сделает [E], решает прицел (car_drive.gd aim_zone): дверь под прицелом — то
+## место и занимаем; лючок бака — заправка канистрой; вскрыть ключом — только с водительской двери.
 
 const BOARD_T := 3.2            # посадка: подойти, открыть дверь, сесть, захлопнуть
 const Figure := preload("res://scripts/car/car_figure.gd")
@@ -55,22 +57,33 @@ func skip_shared() -> bool:
 
 func get_prompt(g) -> String:
 	if state == "idle":
-		if g.inv.count("car_key") > 0:
-			return "[E] Сесть и уехать"
-		return "Заперто. Нужен ключ"
+		if g.inv.count("car_key") <= 0:
+			return "Заперто. Нужен ключ"
+		if aim_zone() == "door0":
+			return "[E] Открыть ключом и уехать"
+		return "Заперто. Ключ — к водительской двери"
 	if state != "parked":
 		return ""
 	if my_seat >= 0:
 		if seat_dir == 0 and _looking_at_door():
 			return "[E] Открыть дверь и выйти"
 		return "[E] Пересесть за руль" if can_take_wheel() else ""
-	if at_trunk(g):
+	var zone := aim_zone()
+	if zone == "fuel":
+		if fuel >= 0.9:
+			return "Бак полный"
+		if g.inv.count("fuel") > 0:
+			return "[E] Залить бензин (канистра)"
+		return "Бак: %d%%. Нужна канистра" % roundi(fuel * 100.0)
+	if at_trunk(g) and zone != "hood":
 		return "[E] Багажник (%d)" % trunk.contents.size() if not trunk.contents.is_empty() else "[E] Багажник"
 	if can_repair(g) and hammer_id() != "":
 		return "[E] Починить кузов молотком (%d%%)" % roundi(car_hp / CAR_MAX_HP * 100.0)
-	if g.inv.count("fuel") > 0 and fuel < 0.9:
-		return "[E] Залить бензин (канистра)"
-	var s := _free_seat_near(g.player.global_position)
+	var s := aimed_seat(zone)
+	if s >= 0 and seats[s] != 0:
+		return "Место занято"
+	if s < 0:
+		s = _free_seat_near(g.player.global_position)
 	if s < 0:
 		return "Мест нет"
 	var note := ""
@@ -86,6 +99,11 @@ func interact(g) -> void:
 		if g.inv.count("car_key") <= 0:
 			g.hud.toast("Заперто. Нужен ключ")
 			g.play_at("clunk", global_position + global_transform.basis * Vector3(0.8, 0.8, 0.2), -10.0, 1.4)
+			return
+		# вскрыть можно только с водительской двери: туда замок под ключ (промпт 18.11 01:46)
+		if aim_zone() != "door0":
+			g.hud.toast("Замок — в водительской двери")
+			g.play_at("clunk", door_world(0), -10.0, 1.4)
 			return
 		# ключ остаётся в зажигании (виден в салоне) и уходит из инвентаря — не занимает слот
 		g.inv.remove("car_key", 1)
@@ -111,16 +129,28 @@ func interact(g) -> void:
 		elif can_take_wheel():
 			take_wheel()
 		return
-	if at_trunk(g):
+	var zone := aim_zone()
+	if zone == "fuel":
+		# заправка — только когда прицел на лючке бака
+		if fuel >= 0.9:
+			g.hud.toast("Бак полный")
+		elif g.inv.count("fuel") > 0:
+			refuel()
+		else:
+			g.hud.toast("Нужна канистра с бензином")
+		return
+	if at_trunk(g) and zone != "hood":
 		open_trunk(g)
 		return
 	if can_repair(g) and hammer_id() != "":
 		repair_hit()
 		return
-	if g.inv.count("fuel") > 0 and fuel < 0.9:
-		refuel()
+	var s := aimed_seat(zone)
+	if s >= 0 and seats[s] != 0:
+		g.hud.toast("Место занято")
 		return
-	var s := _free_seat_near(g.player.global_position)
+	if s < 0:
+		s = _free_seat_near(g.player.global_position)
 	if s >= 0:
 		seat_local(s)
 
