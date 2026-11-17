@@ -9,6 +9,14 @@ const Surface := preload("res://scripts/level/surface.gd")
 
 const SPEED := 2.1
 const SIGHT := 9.0
+## Чувства (промпт 16.11 21:54): видит в конусе ±FOV_DEG на SIGHT м, сквозь стены — нет; вприсядку игрока
+## видно с SIGHT_CROUCH доли расстояния; ближе NEAR_FEEL замечает в любую сторону. Слышит в радиусе шума
+## игрока (player_base.gd noise_r), через стену — вдвое ближе. Потерял — идёт туда, где видел/слышал
+## последний раз (last_known), озирается и уходит. Шум издалека — идёт проверить (investigate).
+const FOV_DEG := 65.0
+const SIGHT_CROUCH := 0.55
+const NEAR_FEEL := 1.8
+const MEM_T := 12.0
 const ATTACK_RANGE := 1.35
 const HIT_RANGE := 1.8
 const DAMAGE := 16.0       # было 12 (промпт 19:15: сильнее и крепче, +35%)
@@ -69,6 +77,8 @@ var stuck_t := 0.0
 var stuck_pos := Vector3.ZERO
 var in_door := false       # сейчас проходит проём (_through_door) — без «усов», по оси
 var throw_vel := Vector3.ZERO
+var last_known := Vector3.ZERO   # где последний раз видел / слышал игрока (погоня по памяти)
+var mem_t := 0.0                 # сколько уже не чувствует игрока в погоне
 var probe := Vector3.ZERO  # камень игрока упал здесь — идёт проверить (hear_stone)
 var probe_wait := 0.0
 @warning_ignore("unused_private_class_variable")
@@ -143,6 +153,9 @@ func _part(parent: Node3D, mesh: Mesh, pos: Vector3, m: Material) -> MeshInstanc
 
 
 func _set_state(s: String) -> void:
+	if s == "chase" and state in ["idle", "return", "investigate", "crawl"] and tg != null and tg.player != null:
+		last_known = tg.player.global_position   # заметил / ударили — знает, где игрок
+		mem_t = 0.0
 	state = s
 	st = 0.0
 

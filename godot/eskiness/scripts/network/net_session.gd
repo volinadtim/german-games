@@ -133,6 +133,9 @@ func join(ip: String, p: int) -> Error:
 		status.emit("Не удалось подключиться к %s:%d" % [ip, p], true)
 		return err
 	multiplayer.multiplayer_peer = peer
+	last_ip = ip
+	last_port = p
+	rtt = {}
 	joining = true
 	join_t = 10.0
 	status.emit("Подключаемся к %s:%d…" % [ip, p], false)

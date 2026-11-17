@@ -170,8 +170,7 @@ func setup(p: Player) -> void:
 	save_slot = Save.slot()
 	if net:
 		net.on_game_setup(self)   # сетевая сессия в слоты сохранений не пишет; мир у клиента — от хоста
-		if net.is_host():
-			_start_intro()
+		_start_intro()   # у всех: одна комната, своё место, одна кат-сцена (промпт 16.11 22:04)
 	elif Engine.get_meta("eskiness_load", false) and Save.exists(save_slot):
 		var sd: Dictionary = Save.read(save_slot)
 		load_state(sd)
@@ -187,8 +186,20 @@ func setup(p: Player) -> void:
 func _start_intro(new_game := true) -> void:
 	var intro = preload("res://scripts/world/intro.gd").new()
 	intro.game = self
+	intro.name = "Intro"   # одинаковый путь у всех игроков — для rpc кат-сцены
 	add_child(intro)
 	intro.start(new_game)
+
+
+## Первое закрытие магазина (shop_ui.gd _close, промпт 16.11 21:55): камера к выходу на улицу, оттуда звуки монстров.
+func shop_cue() -> void:
+	if shop_cue_done or not alive or player == null or not player.input_locks.is_empty() or window_open():
+		return
+	shop_cue_done = true
+	var cue = preload("res://scripts/world/shop_cue.gd").new()
+	cue.game = self
+	add_child(cue)
+	cue.start()
 
 
 # ---------- взаимодействие ----------

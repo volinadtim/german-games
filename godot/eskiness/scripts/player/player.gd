@@ -196,6 +196,7 @@ func _physics_process(delta: float) -> void:
 	elif jump_now and stamina.can_jump():
 		velocity.y = JUMP
 		stamina.jump()
+		make_noise(NOISE_JUMP)
 		on_floor = false
 
 	var inp := Vector2.ZERO
@@ -213,6 +214,7 @@ func _physics_process(delta: float) -> void:
 	if sprinting and not stamina.can_sprint():
 		sprinting = false   # выдохся — только шаг до UNLOCK (stamina.gd)
 	stamina.tick(delta, sprinting, moving)
+	_noise_tick(delta, moving and Vector3(velocity.x, 0, velocity.z).length() > 0.4, sprinting)
 
 	if sprinting:
 		sprint_carry = 1.0

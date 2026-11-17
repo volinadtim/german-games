@@ -19,16 +19,27 @@ var _prev_mouse := Input.MOUSE_MODE_CAPTURED
 
 func _ready() -> void:
 	layer = 80
+	# Лента в обрезающей рамке над полем ввода; растёт вверх, лишнее срезается сверху —
+	# на строку ввода не налезает (промпт 16.11 22:11).
+	var clip := Control.new()
+	clip.anchor_top = 1.0
+	clip.anchor_bottom = 1.0
+	clip.offset_left = 16
+	clip.offset_right = 560
+	clip.offset_top = -380
+	clip.offset_bottom = -172
+	clip.clip_contents = true
+	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(clip)
 	box = VBoxContainer.new()
+	box.anchor_left = 0.0
+	box.anchor_right = 1.0
 	box.anchor_top = 1.0
 	box.anchor_bottom = 1.0
-	box.offset_left = 16
-	box.offset_right = 560
-	box.offset_top = -350
-	box.offset_bottom = -170
+	box.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	box.alignment = BoxContainer.ALIGNMENT_END
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(box)
+	clip.add_child(box)
 	edit = LineEdit.new()
 	edit.anchor_top = 1.0
 	edit.anchor_bottom = 1.0

@@ -11,6 +11,8 @@ func _close() -> void:
 	if game and game.player:
 		game.player.active = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if not from_bench and game.has_method("shop_cue"):
+			game.call_deferred("shop_cue")   # первый раз — камера к улице и звуки монстров (промпт 16.11 21:55)
 
 
 ## Окно в стиле лавки (промпт 15.11 23:10): полосатый навес с вывеской и крестиком справа сверху,

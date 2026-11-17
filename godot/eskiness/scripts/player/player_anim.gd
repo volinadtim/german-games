@@ -706,6 +706,7 @@ func _puppet_tick(delta: float) -> void:
 	head.rotation.x = lerpf(head.rotation.x, net_pitch, 1.0 - exp(-14.0 * delta))
 	_update_crouch(delta)
 	var hv := Vector3(net_vel.x, 0, net_vel.z)
+	_noise_tick(delta, hv.length() > 0.4, net_sprint)   # шум другого игрока — по его скорости (враги у хоста)
 	_animate(delta, global_transform.basis.inverse() * hv, net_sprint)
 
 

@@ -216,6 +216,7 @@ func punch(arm := -1, charge := 0.0) -> void:
 		return
 	punching = true
 	strike_charge = charge
+	make_noise(NOISE_PUNCH)
 	var i := arm
 	if i < 0:
 		# рука: с шансом 75% другая, чем в прошлый раз

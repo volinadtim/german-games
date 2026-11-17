@@ -74,9 +74,11 @@ func _physics_process(delta: float) -> void:
 		"idle":
 			if hunter and tg.alive:
 				_set_state("chase")
-			elif tg.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos)) and _clear(global_position, ppos):
+			elif (not surface or Surface.on_meadow(ppos)) and _sees(ppos, d):
 				_set_state("chase")
 				_growl()
+			elif (not surface or Surface.on_meadow(ppos)) and _hears(ppos, d):
+				_heard(ppos, d)
 			elif surface and _zone(global_position) != 0:
 				_set_state("return")
 			elif surface:
@@ -87,10 +89,17 @@ func _physics_process(delta: float) -> void:
 			growl_t -= delta
 			if growl_t <= 0.0:
 				_growl()
+			# в погоне видит дальше; не видит и не слышит — идёт по памяти (last_known)
+			var sensed := hunter or d < NEAR_FEEL or _sees(ppos, d, SIGHT * 1.6) or _hears(ppos, d)
+			if sensed:
+				last_known = ppos
+				mem_t = 0.0
+			else:
+				mem_t += delta
 			if surface and not hunter:
 				# видит — агро держится; не видит дольше LOSE_T — сдаётся
 				# пока идёт в зону игрока (лестница, бункер), «потерю» не считаем — он идёт по следу
-				if d < SIGHT * 1.6 and _clear(global_position, ppos):
+				if sensed:
 					lost_t = 0.0
 					blind_t = 0.0
 				else:
@@ -101,6 +110,16 @@ func _physics_process(delta: float) -> void:
 				lost_t = 0.0
 				blind_t = 0.0
 				_set_state("return" if surface and _zone(global_position) != 0 else "idle")
+			elif not sensed:
+				var lk := Vector2(last_known.x - global_position.x, last_known.z - global_position.z).length()
+				if lk < 1.0 or mem_t > MEM_T:
+					# дошёл до места, где видел последний раз, — никого: озирается и уходит (investigate)
+					probe = last_known
+					probe_wait = 0.0
+					think = 0.0
+					_set_state("investigate")
+				else:
+					want = _steer(last_known, delta) * speed * 0.9
 			elif _try_ability(d, ppos):
 				pass
 			else:
@@ -157,9 +176,11 @@ func _physics_process(delta: float) -> void:
 				_set_state("chase")
 		"investigate":
 			# услышал камень (hear_stone): идёт к месту падения, стоит там, озирается, потом назад
-			if tg.alive and d < SIGHT and (not surface or Surface.on_meadow(ppos) or _zone(global_position) == _zone(ppos)) and _clear(global_position, ppos):
+			if (not surface or Surface.on_meadow(ppos) or _zone(global_position) == _zone(ppos)) and _sees(ppos, d):
 				_set_state("chase")
 				_growl()
+			elif (not surface or Surface.on_meadow(ppos) or _zone(global_position) == _zone(ppos)) and _hears(ppos, d) and probe.distance_to(ppos) > 1.5:
+				_heard(ppos, d)
 			elif st > 20.0 or probe_wait > 2.6:
 				_set_state("return" if surface and _zone(global_position) != 0 else "idle")
 			elif probe_wait <= 0.0 and Vector2(probe.x - global_position.x, probe.z - global_position.z).length() > 0.9:
@@ -172,9 +193,11 @@ func _physics_process(delta: float) -> void:
 				_set_state("chase")
 		"return":
 			# назад на поляну: через лестницу и будку; увидел игрока — снова в погоню
-			if tg.alive and d < SIGHT and _clear(global_position, ppos):
+			if _sees(ppos, d):
 				_set_state("chase")
 				_growl()
+			elif _hears(ppos, d):
+				_heard(ppos, d)
 			elif _zone(global_position) == 0:
 				wander_t = 0.0
 				_set_state("idle")
@@ -192,6 +215,21 @@ func _physics_process(delta: float) -> void:
 	vis_step = clampf(vis_step, -0.5, 0.5) * exp(-10.0 * delta)
 	_animate(delta, want.length())
 	_footsteps(delta)
+
+
+## Услышал игрока: рядом — сразу погоня, издалека — идёт проверить место шума.
+func _heard(ppos: Vector3, d: float) -> void:
+	if d < 3.0:
+		_set_state("chase")
+		_growl()
+		return
+	probe = ppos
+	probe_wait = 0.0
+	think = 0.0
+	if state != "investigate":
+		_set_state("investigate")
+	else:
+		st = 0.0
 
 
 ## Заблудший (world/intro.gd, начало новой игры): ползёт по crawl_path и в конце замирает, игрока не ищет.

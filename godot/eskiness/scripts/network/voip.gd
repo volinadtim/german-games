@@ -8,6 +8,8 @@ extends Node
 const RATE := 16000.0
 const BUS := "VoipMic"
 
+static var voice_vol := 0.6   # ползунок «Громкость голоса» (menu.gd), 0..1
+
 var net                       # /root/Net
 var mic: AudioStreamPlayer
 var capture: AudioEffectCapture
@@ -114,11 +116,11 @@ func voice_pkt(data: PackedByteArray) -> void:
 		g.buffer_length = 0.4
 		sp.stream = g
 		sp.position.y = 1.6
-		sp.volume_db = 4.0
-		sp.unit_size = 6.0
-		sp.max_distance = 45.0
+		sp.unit_size = 2.5      # тише и быстрее затухает с расстоянием (промпт 16.11 22:11)
+		sp.max_distance = 22.0
 		pp.add_child(sp)
 		pp.set_meta("voice", sp)
+	sp.volume_db = linear_to_db(maxf(voice_vol, 0.0001))
 	if not sp.playing:
 		sp.play()
 	var pb := sp.get_stream_playback() as AudioStreamGeneratorPlayback

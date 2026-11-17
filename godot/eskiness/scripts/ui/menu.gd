@@ -13,6 +13,7 @@ const PlayerScript := preload("res://scripts/player/player.gd")
 # имя -> [подпись, мин, макс, шаг, по умолчанию]
 const SETTINGS := {
 	"volume": ["Громкость", 0.0, 100.0, 1.0, 80.0],
+	"voice_volume": ["Громкость голоса", 0.0, 100.0, 1.0, 60.0],   # голоса игроков в сети (voip.gd, промпт 16.11 22:11)
 	"brightness": ["Яркость", 0.5, 1.6, 0.01, 1.0],
 	"gamma": ["Гамма", 0.6, 1.8, 0.01, 1.0],
 	"contrast": ["Контраст", 0.6, 1.6, 0.01, 1.0],
@@ -59,7 +60,7 @@ var cat_btns := {}                # категория -> кнопка слев�
 var ctl_tabs: Array = []          # кнопки-вкладки разделов «Управления»
 var ctl_groups: Array = []        # бинды каждого раздела (виден только активный)
 ## Категория «Основное»; всё остальное из SETTINGS — в «Экран и графика».
-const GENERAL_KEYS := ["volume", "sensitivity", "fov", "ui_scale", "crosshair"]
+const GENERAL_KEYS := ["volume", "voice_volume", "sensitivity", "fov", "ui_scale", "crosshair"]
 var net_box: Control              # страница «Сетевая игра» (net_lobby.gd, промпт 14.11 19:37)
 var ctl_rows := {}                # действие -> [кнопка основной клавиши, кнопка альтернативной]
 var binds := {}                   # действие -> [основная, альтернативная]: "k:<physical_keycode>" | "m:<кнопка мыши>" | "" (только изменённые)
@@ -117,6 +118,8 @@ const CTL_GROUPS := [
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# игра называется THE LEAK (промпт 16.11 21:58); config/name в project.godot прежний — от него зависит папка сейвов
+	get_tree().root.title = "THE LEAK"
 	get_tree().root.size_changed.connect(_apply_ui_scale)
 	_load()
 	_apply_binds()
@@ -153,7 +156,7 @@ func _ready() -> void:
 	right.add_child(right_col)
 	# --- главное меню
 	main_box = _vbox(right_col)
-	main_box.add_child(_title("eskiNess", 104))
+	main_box.add_child(_title("THE LEAK", 104))   # название игры (промпт 16.11 21:58)
 	main_box.add_child(_subtitle("no luck. no fun."))
 	main_box.add_child(_gap(34))
 	main_box.add_child(_button("Играть", _open_slots))
@@ -685,7 +688,7 @@ func _fmt(key: String, v: float) -> String:
 		return "вкл" if v > 0.5 else "выкл"
 	if key == "g_scale" or key == "g_grass" or key == "g_particles":
 		return "%d%%" % int(v)
-	if key == "volume" or key == "ui_scale":
+	if key == "volume" or key == "voice_volume" or key == "ui_scale":
 		return "%d%%" % int(v)
 	return "%.2f" % v
 
@@ -749,6 +752,7 @@ func apply_settings() -> void:
 	preload("res://scripts/hud.gd").show_crosshair = values.get("crosshair", 1.0) > 0.5
 	var vol: float = values["volume"] / 100.0
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(vol, 0.0001)))
+	preload("res://scripts/network/voip.gd").voice_vol = float(values.get("voice_volume", 60.0)) / 100.0
 	if post_mat:
 		post_mat.set_shader_parameter("brightness", values["brightness"])
 		post_mat.set_shader_parameter("gamma", values["gamma"])
