@@ -231,7 +231,7 @@ func _reel_stopped(i: int) -> void:
 ## всё ещё нет — 100 монет и надпись по центру. Общая для KILLBOX и ФОРТУНЫ (bonus_slot.gd).
 const PITY_COINS := 100
 static func pity(g) -> void:
-	if g == null or g.inv.count("gasmask") > 0:
+	if g == null or g.inv.count("gasmask") + g.inv.count("gasmask2") > 0:
 		return
 	g.inv.add("coin", PITY_COINS)
 	g.hud.toast("Удача сегодня не на твоей стороне! +%d монет" % PITY_COINS, Color(1.0, 0.85, 0.4), true)

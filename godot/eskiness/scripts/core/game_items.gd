@@ -203,7 +203,7 @@ func use_item(idx: int, no_channel := false) -> void:
 	elif def.has("buff"):
 		# еда и питьё — не через противогаз (промпт 16.11 21:46); в машине — тоже можно, и водителю (18.11 00:49):
 		# ввод из салона идёт сюда же (game._unhandled_input, инвентарь), игрок при этом выключен — это не мешает
-		if inv.equip["face"] == "gasmask":
+		if GasMask.is_mask(inv.equip["face"]):
 			var in_car: bool = car != null and is_instance_valid(car) and int(car.my_seat) >= 0
 			hud.toast("В противогазе не поесть и не попить%s — сними его (G)" % (" даже в машине" if in_car else ""), Color(0.95, 0.7, 0.45))
 			return
@@ -262,11 +262,11 @@ func use_item(idx: int, no_channel := false) -> void:
 		equip(idx, hand)
 	elif Items.equip_slot(id) != "":
 		equip(idx, Items.equip_slot(id))
-	elif id == "filter":
+	elif id == "filter" or id == "filter2":
 		if casual():
 			hud.toast("Фильтр ставится сам")
 		elif gasmask:
-			gasmask.change_filter()
+			gasmask.change_filter(id)
 	elif id == "coin":
 		pass
 	elif id == "car_key":
@@ -420,8 +420,8 @@ func _apply_equip(slot_: String) -> void:
 		"face":
 			# противогаз — в слоте «Лицо», каска при этом остаётся на голове
 			if gasmask:
-				gasmask.set_worn(id == "gasmask", loading)
-			if id != "" and id != "gasmask" and not loading:
+				gasmask.set_worn(GasMask.is_mask(id), loading)
+			if id != "" and not GasMask.is_mask(id) and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 		"back":
 			# рюкзак: свой блок ячеек (промпт 16.11 02:42; вещи из него при снятии — inv.reflow)
@@ -445,12 +445,15 @@ func _apply_equip(slot_: String) -> void:
 
 ## G: надеть противогаз из сумки / снять его.
 func toggle_gasmask() -> void:
-	if inv.equip["face"] == "gasmask":
+	if GasMask.is_mask(inv.equip["face"]):
 		unequip("face")
 		return
-	var i := inv.bag_index("gasmask")
+	# сначала армейский «Шлемыч» (обзор лучше), потом «Нюхич»
+	var i := inv.bag_index("gasmask2")
 	if i < 0:
-		hud.toast("Нюхича нет")
+		i = inv.bag_index("gasmask")
+	if i < 0:
+		hud.toast("Противогаза нет")
 		return
 	equip(i, "face")
 

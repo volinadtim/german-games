@@ -124,12 +124,17 @@ func spawn_village_loot() -> void:
 	_put("ammo", r.randi_range(6, 10), _spot(houses[3], r))
 	_put("mag", 1, _spot(houses[4], r), 2.0)
 	_put("filter", 1, _spot(houses[5 % houses.size()], r))
+	# армейский «Шлемыч» и большие фильтры на 200 с — находки второй локации (промпт 18.11 01:28)
+	_put("filter2", 1, _spot(houses[2 % houses.size()], r))
+	_put("filter2", 1, _spot(houses[4 % houses.size()], r))
 	_put("canned", 1, _spot(houses[1], r))   # вторая локация — тушёнка можно
 	for k in 3:
 		_put("coin", r.randi_range(6, 14), _spot(houses[k], r))
 	# подвал — запасы на полках
 	_put("ammo", 8, _spot(0, r))
 	_put("filter", 2, _spot(0, r))
+	_put("gasmask2", 1, _spot(0, r))
+	_put("filter2", 2, _spot(0, r))
 	_put("coin", 20, _spot(0, r))
 
 
@@ -261,16 +266,19 @@ func on_exit_car() -> void:
 
 
 func _force_gasmask() -> void:
-	if game.inv.equip["face"] == "gasmask":
+	var GasMask := preload("res://scripts/player/gasmask.gd")
+	if GasMask.is_mask(game.inv.equip["face"]):
 		return
-	if game.inv.count("gasmask") == 0:
+	if game.inv.count("gasmask") + game.inv.count("gasmask2") == 0:
 		if game.inv.add("gasmask", 1) > 0:
 			game.drop_spilled([{"id": "gasmask", "n": 1}])
 		game.hud.toast("В бардачке нашёлся Нюхич", Color(0.7, 0.85, 0.6))
 	if game.gasmask and game.gasmask.filter_left <= 0.0:
-		if game.inv.count("filter") > 0:
-			game.inv.remove("filter", 1)
-			game.gasmask.filter_left = preload("res://scripts/player/gasmask.gd").FILTER_TIME
+		var fid := "filter" if game.inv.count("filter") > 0 else ("filter2" if game.inv.count("filter2") > 0 else "")
+		if fid != "":
+			game.inv.remove(fid, 1)
+			game.gasmask.filter_max = GasMask.filter_cap(fid)
+			game.gasmask.filter_left = game.gasmask.filter_max
 		else:
 			game.gasmask.filter_left = 60.0
 	game.toggle_gasmask()

@@ -78,7 +78,7 @@ func _has_mask(g) -> bool:
 		return true
 	if g.gasmask and g.gasmask.worn:
 		return true
-	return g.inv != null and g.inv.count("gasmask") > 0
+	return g.inv != null and g.inv.count("gasmask") + g.inv.count("gasmask2") > 0
 
 
 func _set_open(on: bool) -> void:

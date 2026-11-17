@@ -133,6 +133,11 @@ const ITEMS := {
 		"icon": "gasmask", "color": Color(0.22, 0.25, 0.2), "equip": "face"},
 	"filter": {"name": "Фильтр", "desc": "Сменный фильтр для Нюхича: 100 секунд наверху.", "stack": 10,
 		"icon": "filter", "color": Color(0.36, 0.38, 0.3)},
+	# армейский противогаз и большие фильтры к нему — находки второй локации (деревня)
+	"gasmask2": {"name": "Шлемыч", "desc": "Армейский противогаз из деревни: панорамное стекло, чистая резина — обзор куда шире, чем у Нюхича. Лицо (вместе с каской). G — надеть/снять.", "stack": 1, "price": 45,
+		"icon": "gasmask", "color": Color(0.3, 0.34, 0.22), "equip": "face"},
+	"filter2": {"name": "Большой фильтр", "desc": "Армейский фильтр из деревни: 200 секунд наверху. Ставится в любой противогаз.", "stack": 10, "price": 15,
+		"icon": "filter", "color": Color(0.5, 0.45, 0.22)},
 	# ключ от ржавой машины на поляне (car.gd) — лежит в сейфе; завести машину и уехать = победа
 	"car_key": {"name": "Ключ от машины", "desc": "От старой легковушки на поляне. Подойди к ней — [E] завести и уехать.", "stack": 1,
 		"icon": "car_key", "color": Color(0.7, 0.55, 0.25), "quest": true},
@@ -158,7 +163,7 @@ const SIZES := {
 	"pistol": [2, 2], "medkit": [2, 2], "shield": [2, 2], "fuel": [2, 2], "backpack": [2, 2], "sack": [2, 2], "tshirt": [2, 1],
 	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
 	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
-	"flashlight": [1, 2], "water": [1, 2], "soda": [1, 2], "wood": [1, 2], "gasmask": [2, 2],
+	"flashlight": [1, 2], "water": [1, 2], "soda": [1, 2], "wood": [1, 2], "gasmask": [2, 2], "gasmask2": [2, 2],
 	"repair_weapon": [2, 1], "repair_gear": [2, 1], "canned": [1, 1],
 	"helmet": [2, 2], "moto_helmet": [2, 2], "ushanka": [2, 1],
 	"jacket": [2, 2], "kurtka": [2, 2], "vest": [2, 2],
@@ -619,6 +624,11 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
 static func make_mesh(id: String) -> Node3D:
+	# армейские версии (деревня) — те же модели, что у обычных
+	if id == "gasmask2":
+		id = "gasmask"
+	elif id == "filter2":
+		id = "filter"
 	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
 		var w := Weapons.make(id)
 		if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club"]:

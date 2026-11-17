@@ -52,6 +52,7 @@ func save_state() -> Dictionary:
 		"light_charge": flashlight.charge if flashlight else 0.0,
 		"light_on": flashlight.on if flashlight else false,
 		"filter": gasmask.filter_left if gasmask else 0.0,
+		"filter_max": gasmask.filter_max if gasmask else 100.0,
 		"tox": gasmask.tox if gasmask else 0.0,
 		"chests": cs,
 		"chest_pos": chest_pos,
@@ -170,6 +171,7 @@ func load_state(d: Dictionary) -> void:
 			flashlight.light.visible = true
 	if gasmask:
 		gasmask.filter_left = float(d.get("filter", 0.0))
+		gasmask.filter_max = float(d.get("filter_max", 100.0))
 		gasmask.tox = float(d.get("tox", 0.0))
 	# расстановка ящиков из сейва (старые сейвы без chest_pos — остаётся новая случайная)
 	if d.has("chest_pos"):

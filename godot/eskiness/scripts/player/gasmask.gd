@@ -7,7 +7,10 @@ extends CanvasLayer
 ## Промпт 14.11 18:03 / 18:30: панорамная маска (широкий обзор, линзы слиты без шва), царапины, разводы,
 ## конденсат от дыхания, плавное надевание/снятие и плавные эффекты.
 
+const Items := preload("res://scripts/items.gd")
+
 const FILTER_TIME := 100.0
+const FILTER_TIME2 := 200.0    # большой армейский фильтр (деревня, промпт 18.11 01:28)
 const TOX_UP := 1.0 / 3.0      # до полного отравления ~3 с (дебаффы нарастают быстро)
 const TOX_DOWN := 1.0 / 12.0   # спадает ~12 с
 const PUT_TIME := 0.7          # надеть / снять, с
@@ -16,6 +19,7 @@ const FILTER_LOW := 12.0       # за столько секунд до конц�
 var game
 var worn := false
 var filter_left := 0.0
+var filter_max := FILTER_TIME   # ёмкость стоящего фильтра: 100 (обычный) или 200 (большой)
 var tox := 0.0
 var tox_vis := 0.0             # сглаженное отравление для экрана (без рывков)
 var put := 0.0                 # 0 — маски нет на лице, 1 — надета (анимация)
@@ -118,6 +122,7 @@ uniform sampler2D scr : hint_screen_texture, filter_linear_mipmap;
 uniform float put = 1.0;     // 0..1 надевание
 uniform float fog = 0.0;     // 0..1 запотевание (фильтр садится)
 uniform float breath = 0.0;  // 0..1 выдох — конденсат по краям
+uniform float wide = 0.0;    // 1 — армейский «Шлемыч»: панорамное стекло, чище и шире обзор
 // две большие линзы, плавно слитые в одну панорамную (промпт 14.11 18:30: обзор шире, без линии по центру)
 const vec2 RAD = vec2(0.6, 0.53);   // полуоси линзы (доля высоты экрана)
 const float CX = 0.34;              // центры линз по горизонтали
@@ -150,7 +155,7 @@ void fragment() {
 	vec2 p = SCREEN_UV - 0.5;
 	p.x *= asp;
 	// надевание: маска «наезжает» на лицо — рамка приходит из-за краёв экрана
-	p /= mix(2.6, 1.0, a);
+	p /= mix(2.6, 1.0, a) * mix(1.0, 1.32, wide);   // армейская маска — стекло шире
 	p.y += (1.0 - a) * 0.05;
 	vec2 cl = vec2(-CX, CY);
 	vec2 cr = vec2(CX, CY);
@@ -161,7 +166,7 @@ void fragment() {
 	float w = smoothstep(-0.25, 0.25, p.x);
 	vec2 c = mix(cl, cr, w);
 	// у переносицы: мягкая тень сверху и снизу посередине (без жёсткой перемычки)
-	float nose = smoothstep(0.22, 0.0, abs(p.x)) * (smoothstep(0.22, 0.5, p.y) * 0.85 + smoothstep(-0.3, -0.5, p.y) * 0.5);
+	float nose = smoothstep(0.22, 0.0, abs(p.x)) * (smoothstep(0.22, 0.5, p.y) * 0.85 + smoothstep(-0.3, -0.5, p.y) * 0.5) * (1.0 - 0.85 * wide);
 	float glass = 1.0 - smoothstep(0.86, 1.04, f);   // 1 — стекло, 0 — резина, переход мягкий
 	// резина по краям: почти чёрная, с лёгкой фактурой
 	float tex = fbm(p * 38.0) * 0.5 + fbm(p * vec2(4.0, 14.0)) * 0.5;
@@ -170,7 +175,7 @@ void fragment() {
 	float e = smoothstep(0.5, 1.0, f);            // 0 в середине, 1 у края
 	float cn = fbm(p * 9.0 + vec2(0.0, TIME * 0.02));
 	float cond = smoothstep(0.6 - 0.5 * fog - 0.1 * breath, 1.05, e + cn * 0.3) * (0.15 + 0.4 * breath + 0.6 * fog);
-	cond = clamp(cond, 0.0, 0.95);
+	cond = clamp(cond, 0.0, 0.95) * (1.0 - 0.5 * wide);
 	vec2 cuv = vec2(c.x / asp, c.y) + 0.5;
 	vec2 uv = SCREEN_UV + (cuv - SCREEN_UV) * 0.035 * e * e;   // лёгкое стягивание к центрам линз
 	uv += (vec2(fbm(p * 22.0), fbm(p * 22.0 + 5.3)) - 0.5) * 0.006 * cond;
@@ -179,15 +184,15 @@ void fragment() {
 	col = mix(col, col * 0.6 + vec3(0.16, 0.17, 0.16), cond);
 	// разводы: мутные пятна от пальцев и высохших капель
 	float sm = smoothstep(0.55, 0.85, fbm(p * 6.0 + 3.7));
-	col = mix(col, col * 0.85 + vec3(0.06, 0.065, 0.06), sm * 0.3);
+	col = mix(col, col * 0.85 + vec3(0.06, 0.065, 0.06), sm * 0.3 * (1.0 - 0.75 * wide));
 	// мягкое запотевание: размытые пятна-облака, без чётких линий и кружков
 	float haze = smoothstep(0.35, 0.9, fbm(p * 2.3 + vec2(1.7, 0.0) + vec2(0.0, TIME * 0.006)));
 	vec3 soft = textureLod(scr, uv, 3.0 + 2.0 * e).rgb;
-	col = mix(col, soft * 0.85 + vec3(0.05, 0.055, 0.05), haze * (0.18 + 0.25 * e));
+	col = mix(col, soft * 0.85 + vec3(0.05, 0.055, 0.05), haze * (0.18 + 0.25 * e) * (1.0 - 0.7 * wide));
 	// мягкая виньетка: к краю линзы сильнее размыто и чуть светлее от конденсата
 	float vig = smoothstep(0.45, 1.0, f);
 	vec3 edge = textureLod(scr, uv, 4.5).rgb * 0.7 + vec3(0.04, 0.045, 0.04);
-	col = mix(col, edge, vig * 0.55);
+	col = mix(col, edge, vig * 0.55 * (1.0 - 0.45 * wide));
 	// мягкий блик сверху у края каждой линзы
 	float hl = smoothstep(0.1, 0.0, abs(fl - 0.88)) * smoothstep(0.0, -0.3, p.y - CY) * smoothstep(0.1, -0.35, p.x);
 	float hr = smoothstep(0.1, 0.0, abs(fr - 0.88)) * smoothstep(0.0, -0.3, p.y - CY) * smoothstep(-0.1, 0.35, p.x);
@@ -201,27 +206,64 @@ void fragment() {
 	return s
 
 
+## Противогазы: "gasmask" — самодельный Нюхич, "gasmask2" — армейский Шлемыч (лучше обзор), оба в слот «Лицо».
+static func is_mask(id: String) -> bool:
+	return id == "gasmask" or id == "gasmask2"
+
+
+## Есть ли у игрока хоть какой-то противогаз.
+func has_mask() -> bool:
+	return game != null and game.inv != null and game.inv.count("gasmask") + game.inv.count("gasmask2") > 0
+
+
+## Какой противогаз надет ("" — никакой).
+func mask_id() -> String:
+	if game == null or game.inv == null:
+		return ""
+	var id := String(game.inv.equip["face"])
+	return id if is_mask(id) else ""
+
+
+## Сколько фильтров в сумке (любых).
+func filters_left() -> int:
+	return game.inv.count("filter") + game.inv.count("filter2")
+
+
+## Какой фильтр поставить следующим: сначала обычные, большие — в запас.
+func _next_filter() -> String:
+	if game.inv.count("filter") > 0:
+		return "filter"
+	return "filter2" if game.inv.count("filter2") > 0 else ""
+
+
+static func filter_cap(fid: String) -> float:
+	return FILTER_TIME2 if fid == "filter2" else FILTER_TIME
+
+
 func on_bought() -> void:
+	filter_max = FILTER_TIME
 	filter_left = FILTER_TIME
 	game.hud.toast("Нюхич с фильтром. G — надеть", Color(0.7, 0.85, 0.6))
 
 
 ## Сменить фильтр вручную (режимы «Реализм» и «По умолчанию», промпт 18.11 00:52): «Сменить фильтр» у фильтра
 ## в инвентаре или хотбар. Остаток старого фильтра пропадает.
-func change_filter() -> void:
-	if game.inv.count("gasmask") == 0:
-		game.hud.toast("Нет Нюхича — фильтр некуда ставить")
+func change_filter(fid := "filter") -> void:
+	if not has_mask():
+		game.hud.toast("Нет противогаза — фильтр некуда ставить")
 		return
-	if game.inv.count("filter") == 0:
+	if game.inv.count(fid) == 0:
 		game.hud.toast("Нет фильтров")
 		return
-	if filter_left >= FILTER_TIME - 0.5:
+	var cap := filter_cap(fid)
+	if filter_left >= cap - 0.5:
 		game.hud.toast("Фильтр и так новый")
 		return
-	game.inv.remove("filter", 1)
+	game.inv.remove(fid, 1)
 	_drop_old_filter()
-	filter_left = FILTER_TIME
-	game.hud.toast("Фильтр заменён (осталось %d)" % game.inv.count("filter"), Color(0.75, 0.85, 0.7))
+	filter_max = cap
+	filter_left = cap
+	game.hud.toast("%s: %d с (осталось %d)" % [Items.item_name(fid), int(cap), game.inv.count(fid)], Color(0.75, 0.85, 0.7))
 	game.play_ui("click", -8.0, 0.5)
 
 
@@ -269,7 +311,7 @@ func _outside() -> float:
 func _process(delta: float) -> void:
 	if game == null or game.player == null:
 		return
-	if worn and game.inv.count("gasmask") == 0:
+	if worn and not has_mask():
 		worn = false
 	# анимация надевания / снятия
 	put = move_toward(put, 1.0 if worn else 0.0, delta / PUT_TIME)
@@ -280,11 +322,13 @@ func _process(delta: float) -> void:
 		filter_left -= delta
 		if filter_left <= 0.0:
 			# казуальный режим — следующий фильтр ставится сам; реализм и по умолчанию — вручную (change_filter)
-			if game.casual() and game.inv.count("filter") > 0:
-				game.inv.remove("filter", 1)
-				filter_left = FILTER_TIME
+			var nf := _next_filter()
+			if game.casual() and nf != "":
+				game.inv.remove(nf, 1)
+				filter_max = filter_cap(nf)
+				filter_left = filter_max
 				_drop_old_filter()
-				game.hud.toast("Новый фильтр (осталось %d)" % game.inv.count("filter"), Color(0.75, 0.85, 0.7))
+				game.hud.toast("Новый фильтр: %d с (осталось %d)" % [int(filter_max), game.inv.count(nf)], Color(0.75, 0.85, 0.7))
 				game.play_ui("click", -8.0, 0.5)
 			else:
 				filter_left = 0.0
@@ -332,6 +376,7 @@ func _process(delta: float) -> void:
 	mat.set_shader_parameter("breath", breath)
 	mat.set_shader_parameter("put", put)
 	mat.set_shader_parameter("fog", fog)
+	mat.set_shader_parameter("wide", 1.0 if mask_id() == "gasmask2" else 0.0)
 	_status(out, protected)
 
 
@@ -419,15 +464,15 @@ func _status(out: bool, protected: bool) -> void:
 	var col := Color.WHITE
 	if out and not protected:
 		kind = "bad" if not worn else "empty"
-		text = "ВОЗДУХ ОТРАВЛЕН — вернись в бункер или надень Нюхич (G)" if not worn else "ФИЛЬТР КОНЧИЛСЯ — купи фильтры"
-		if worn and game.inv.count("filter") > 0:
+		text = "ВОЗДУХ ОТРАВЛЕН — вернись в бункер или надень противогаз (G)" if not worn else "ФИЛЬТР КОНЧИЛСЯ — купи фильтры"
+		if worn and filters_left() > 0:
 			text = "ФИЛЬТР КОНЧИЛСЯ — смени фильтр (инвентарь: «Сменить фильтр»)"
 		col = Color(1.0, 0.45, 0.35)
 	elif worn and game.mode == game.MODE_REAL:
 		pass   # реализм: без счётчика фильтра — о конце предупреждает запотевание стекла
 	elif worn:
 		kind = "low" if filter_left < FILTER_LOW and out else "filter"
-		text = "Фильтр: %d с%s" % [int(ceil(filter_left)), "" if game.inv.count("filter") == 0 else "  (+%d)" % game.inv.count("filter")]
+		text = "Фильтр: %d с%s" % [int(ceil(filter_left)), "" if filters_left() == 0 else "  (+%d)" % filters_left()]
 		col = Color(0.95, 0.75, 0.45) if kind == "low" else Color(0.75, 0.85, 0.7)
 	elif tox > 0.05:
 		kind = "heal"
