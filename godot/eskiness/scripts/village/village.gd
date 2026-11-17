@@ -11,6 +11,7 @@ const Pickup := preload("res://scripts/world/pickup.gd")
 const BonusSlot := preload("res://scripts/village/bonus_slot.gd")
 const Mutant := preload("res://scripts/village/mutant.gd")
 const VillageShop := preload("res://scripts/village/village_shop.gd")
+const ChestScript := preload("res://scripts/world/chest.gd")
 
 var game                             # game.gd
 var car                              # car.gd
@@ -29,6 +30,9 @@ var poll_t := 0.0
 var mutants: Array = []
 var mut_seq := 0
 var shop                             # village_shop.gd — второй Trinkets Market в подвале
+## Свой сундук во втором бункере (подвале) — отдельный от сундука первого (промпт 18.11 00:47), в сейве village.storage
+var storage                          # chest.gd (kind "storage")
+const STORAGE_POS := Vector3(38.9, B, 350.6)   # у южной стены, слева от «ФОРТУНЫ»
 ## Деревню не видно, пока туда нельзя уехать (промпт 16.11 00:17): дома, подвал, автомат, мутанты спрятаны
 ## до ключа от машины / отъезда / подхода к деревне пешком. Земля и дорога видны всегда.
 var revealed := false
@@ -70,6 +74,12 @@ func _ready() -> void:
 	shop.position = SHOP_POS
 	shop.rotation.y = PI
 	add_child(shop)
+	storage = ChestScript.new()
+	storage.name = "VillageStorage"
+	storage.kind = "storage"
+	storage.position = STORAGE_POS
+	storage.rotation.y = PI
+	add_child(storage)
 	for k in range(first, get_child_count()):
 		var n := get_child(k)
 		if n is Node3D:
@@ -82,6 +92,7 @@ func setup_game(g) -> void:
 	game = g
 	bonus_slot.game = g
 	shop.game = g
+	storage.game = g
 	if g.net == null or g.net.is_host():
 		for s in MUT_SPOTS:
 			_spawn_mutant(s[0], s[1])
@@ -485,6 +496,8 @@ func to_save() -> Dictionary:
 	if bonus_slot:
 		d["jackpot"] = bonus_slot.jackpot
 		d["sevens"] = bonus_slot.sevens_hit
+	if storage:
+		d["storage"] = storage.contents.duplicate(true)
 	return d
 
 
@@ -497,5 +510,14 @@ func from_save(d: Dictionary) -> void:
 		bonus_slot.sevens_hit = bool(d.get("sevens", false))
 	if car and d.has("car"):
 		car.from_save(d["car"])
+	if storage:
+		storage.contents = []
+		for it in d.get("storage", []):
+			var e: Array = [String(it[0]), int(it[1])]
+			if it.size() > 2:
+				e.append(float(it[2]))
+			if it.size() > 4:   # ячейка и поворот в сетке сундука (loot_window)
+				e.append_array([int(it[3]), bool(it[4])])
+			storage.contents.append(e)
 	if not loot_done and game and game.net == null:
 		spawn_village_loot()   # старые сейвы — без лута деревни
