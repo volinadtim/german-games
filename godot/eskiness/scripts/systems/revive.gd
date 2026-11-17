@@ -7,6 +7,7 @@ extends Node
 ## - Лечение и подъём не мгновенные: полоска прогресса, прерывается движением или уроном.
 
 const Items := preload("res://scripts/items.gd")
+const Gun := preload("res://scripts/gun.gd")
 const REVIVE_R := 2.6       # м, с какого расстояния можно поднять
 const REVIVE_MULT := 1.2    # здоровье поднятого = лечение предмета × это
 const DEATH_SCREEN := 1.6   # с, через сколько после падения показывать экран смерти
@@ -367,11 +368,13 @@ func _channel_tick(delta: float) -> void:
 	# бинт можно на ходу, но не на бегу (промпт 16.11 05:12); остальное — стоя
 	var walk_ok: bool = ch_walk and not Input.is_action_pressed("sprint") 			and Vector2(p.velocity.x, p.velocity.z).length() < p.WALK * maxf(1.0, float(p.speed_mult)) + 0.6   # с баффами скорости одежды (05:39)
 	var moving: bool = Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2 			or Vector2(p.velocity.x, p.velocity.z).length() > 1.2
-	# в машине (car_drive.gd) игрок стоит, а едет машина: пассажиру ничего не мешает, водителю — руль и газ
+	# в машине (car_drive.gd) игрок стоит, а едет машина: пассажиру ничего не мешает (бинтуется на ходу),
+	# водителю — руль, газ, ручник и пересадка за руль: начал рулить — перевязка отменяется (промпт 18.11 00:49)
 	var seat: int = p.get_meta("car_seat", -1)
 	if seat >= 0:
 		walk_ok = true
-		moving = seat == 0 and Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2
+		var car = game.get("car")
+		moving = seat == 0 and (Gun.steering() or (car != null and is_instance_valid(car) and int(car.seat_dir) == 2))
 		if moving:
 			walk_ok = false
 	if seat < 0 and Input.is_action_just_pressed("jump") or (moving and not walk_ok):
