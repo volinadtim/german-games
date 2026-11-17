@@ -346,11 +346,13 @@ func _sees(ppos: Vector3, d: float, rng := SIGHT) -> bool:
 	if not tg.alive:
 		return false
 	var pl = tg.player
-	if bool(pl.get("crouched")):
+	var crouch := bool(pl.get("crouched"))
+	if crouch:
 		rng *= SIGHT_CROUCH
+	rng *= _light_mult()
 	if d > rng:
 		return false
-	if d > NEAR_FEEL:
+	if d > (NEAR_FEEL_CROUCH if crouch else NEAR_FEEL):
 		var fwd := -global_transform.basis.z
 		fwd.y = 0.0
 		var to := ppos - global_position
@@ -358,6 +360,50 @@ func _sees(ppos: Vector3, d: float, rng := SIGHT) -> bool:
 		if fwd.length() > 0.01 and to.length() > 0.01 and fwd.normalized().dot(to.normalized()) < cos(deg_to_rad(FOV_DEG)):
 			return false
 	return _clear(global_position, ppos)
+
+
+## Свет: фонарик игрока включён — видно дальше; выключен в бункере (темно) — ближе.
+func _light_mult() -> float:
+	if tg.player == game.player and game.get("flashlight") != null and game.flashlight.on:
+		return 1.3
+	return 0.75 if _zone(global_position) == 2 else 1.0
+
+
+## Постепенное обнаружение: видит — копит подозрение (быстрее вблизи), не видит — остывает. true — заметил.
+func _notice(ppos: Vector3, d: float, delta: float) -> bool:
+	if hunter:
+		suspicion = 1.0
+	elif _sees(ppos, d):
+		var rng := SIGHT * _light_mult() * (SIGHT_CROUCH if bool(tg.player.get("crouched")) else 1.0)
+		var t := lerpf(NOTICE_NEAR, NOTICE_FAR, clampf(d / maxf(rng, 0.1), 0.0, 1.0))
+		suspicion = minf(suspicion + delta / t, 1.0)
+		if suspicion > 0.45:
+			var to := ppos - global_position
+			to.y = 0.0
+			_face(to, delta * 0.5)   # насторожился — поворачивается посмотреть
+	else:
+		suspicion = maxf(suspicion - delta * 0.35, 0.0)
+	_sus_show()
+	return suspicion >= 1.0
+
+
+func _sus_show() -> void:
+	var show := suspicion > 0.05 and suspicion < 1.0 and state in ["idle", "investigate", "return"]
+	if sus_label == null:
+		if not show:
+			return
+		sus_label = Label3D.new()
+		sus_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		sus_label.font_size = 64
+		sus_label.pixel_size = 0.006
+		sus_label.outline_size = 10
+		sus_label.no_depth_test = true
+		sus_label.position = Vector3(0, height + 0.55, 0)
+		add_child(sus_label)
+	sus_label.visible = show
+	if show:
+		sus_label.text = "?" if suspicion < 0.6 else "!"
+		sus_label.modulate = Color(1.0, 1.0 - suspicion * 0.8, 0.3 - suspicion * 0.3, 0.35 + suspicion * 0.65)
 
 
 ## Слышит игрока: дистанция меньше его шума (через стену — вдвое меньше).

@@ -14,8 +14,16 @@ const SIGHT := 9.0
 ## игрока (player_base.gd noise_r), через стену — вдвое ближе. Потерял — идёт туда, где видел/слышал
 ## последний раз (last_known), озирается и уходит. Шум издалека — идёт проверить (investigate).
 const FOV_DEG := 65.0
-const SIGHT_CROUCH := 0.55
+const SIGHT_CROUCH := 0.4   # было 0.55 (промпт 18.11 01:06: больше стелса)
 const NEAR_FEEL := 1.8
+const NEAR_FEEL_CROUCH := 0.9   # вприсядку сзади/сбоку замечает только вплотную
+## Стелс (промпт 18.11 01:06): заметить — не мгновенно, копится подозрение (suspicion 0..1, над головой «?»/«!»):
+## чем ближе и чем светлее (фонарик), тем быстрее. Спокойного врага со спины — урон ×BACKSTAB, вприсядку — насмерть.
+const NOTICE_NEAR := 0.3    # с за сколько секунд замечает вплотную
+const NOTICE_FAR := 2.2     # … и на краю дальности зрения
+const BACKSTAB := 2.5
+var suspicion := 0.0
+var sus_label: Label3D
 const MEM_T := 12.0
 const ATTACK_RANGE := 1.35
 const HIT_RANGE := 1.8

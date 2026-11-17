@@ -76,7 +76,7 @@ func _physics_process(delta: float) -> void:
 		"idle":
 			if hunter and tg.alive:
 				_set_state("chase")
-			elif (not surface or Surface.on_meadow(ppos)) and _sees(ppos, d):
+			elif (not surface or Surface.on_meadow(ppos)) and _notice(ppos, d, delta):
 				_set_state("chase")
 				_growl()
 			elif (not surface or Surface.on_meadow(ppos)) and _hears(ppos, d):
@@ -178,7 +178,7 @@ func _physics_process(delta: float) -> void:
 				_set_state("chase")
 		"investigate":
 			# услышал камень (hear_stone): идёт к месту падения, стоит там, озирается, потом назад
-			if (not surface or Surface.on_meadow(ppos) or _zone(global_position) == _zone(ppos)) and _sees(ppos, d):
+			if (not surface or Surface.on_meadow(ppos) or _zone(global_position) == _zone(ppos)) and _notice(ppos, d, delta):
 				_set_state("chase")
 				_growl()
 			elif (not surface or Surface.on_meadow(ppos) or _zone(global_position) == _zone(ppos)) and _hears(ppos, d) and probe.distance_to(ppos) > 1.5:
@@ -195,7 +195,7 @@ func _physics_process(delta: float) -> void:
 				_set_state("chase")
 		"return":
 			# назад на поляну: через лестницу и будку; увидел игрока — снова в погоню
-			if _sees(ppos, d):
+			if _notice(ppos, d, delta):
 				_set_state("chase")
 				_growl()
 			elif _hears(ppos, d):

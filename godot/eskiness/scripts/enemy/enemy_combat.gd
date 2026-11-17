@@ -229,11 +229,29 @@ func take_hit(dmg: float, dir: Vector3) -> void:
 	if state == "dead" or calm:
 		return
 	game.weapon_hit()
+	dmg = _sneak_dmg(dmg, dir)
 	if net_puppet:
 		_hit_fx(dmg, dir)
 		game.net.enemy_hit(self, dmg, dir)
 		return
 	apply_hit(dmg, dir)
+
+
+## Удар по не заметившему врагу (промпт 18.11 01:06): со спины ×BACKSTAB, со спины вприсядку — насмерть; сбоку/спереди ×1.5.
+func _sneak_dmg(dmg: float, dir: Vector3) -> float:
+	if hunter or not state in ["idle", "investigate", "return"] or suspicion >= 1.0:
+		return dmg
+	var fwd := -global_transform.basis.z
+	fwd.y = 0.0
+	var fl := Vector3(dir.x, 0, dir.z)
+	var behind := fwd.length() > 0.01 and fl.length() > 0.01 and fwd.normalized().dot(fl.normalized()) > 0.3
+	if not behind:
+		return dmg * 1.5
+	if bool(game.player.get("crouched")):
+		game.hud.toast("Скрытное убийство")
+		return maxf(dmg * BACKSTAB, hp + 1.0)
+	game.hud.toast("Удар в спину")
+	return dmg * BACKSTAB
 
 
 func _hit_fx(dmg: float, dir: Vector3) -> void:

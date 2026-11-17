@@ -138,7 +138,7 @@ var net_vel := Vector3.ZERO
 ## стоит — 0; прыжок, удар, выстрел — короткие всплески (make_noise). Враги: enemy.gd _hears.
 const NOISE_WALK := 5.0
 const NOISE_SPRINT := 10.0
-const NOISE_CROUCH := 1.2
+const NOISE_CROUCH := 0.5   # было 1.2 (промпт 18.11 01:06: стелс)
 const NOISE_JUMP := 6.0
 const NOISE_PUNCH := 5.0
 const NOISE_SHOT := 25.0
