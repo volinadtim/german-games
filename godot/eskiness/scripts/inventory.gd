@@ -1546,7 +1546,7 @@ func _unpin_hint() -> void:
 		hint_l.size_flags_horizontal = Control.SIZE_FILL
 
 
-## Яркая кнопка крафта: оранжевая плашка с рамкой, тёмный жирный текст, подсветка при наведении/нажатии.
+## Кнопка крафта: приглушённая красно-коричневая плашка с рамкой, без свечения, жирный светлый текст (промпт 18.11 00:56).
 func _bright_button(b: Button, fs: int) -> void:
 	b.add_theme_font_size_override("font_size", fs)
 	b.custom_minimum_size = Vector2(maxf(b.custom_minimum_size.x, 120), maxf(b.custom_minimum_size.y, 38))
@@ -1554,26 +1554,27 @@ func _bright_button(b: Button, fs: int) -> void:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = bg
 		sb.border_color = border
-		sb.set_border_width_all(3)
-		sb.set_corner_radius_all(6)
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(5)
 		sb.content_margin_left = 14
 		sb.content_margin_right = 14
 		sb.content_margin_top = 4
 		sb.content_margin_bottom = 4
-		sb.shadow_color = Color(1.0, 0.6, 0.1, 0.45)
-		sb.shadow_size = 6
 		return sb
-	b.add_theme_stylebox_override("normal", mk.call(Color(0.95, 0.6, 0.12), Color(1.0, 0.88, 0.45)))
-	b.add_theme_stylebox_override("hover", mk.call(Color(1.0, 0.72, 0.25), Color(1.0, 0.97, 0.7)))
-	b.add_theme_stylebox_override("pressed", mk.call(Color(1.0, 0.8, 0.3), Color(1.0, 1.0, 0.85)))
-	b.add_theme_stylebox_override("hover_pressed", mk.call(Color(1.0, 0.85, 0.4), Color(1.0, 1.0, 0.9)))
-	var dis: StyleBoxFlat = mk.call(Color(0.32, 0.27, 0.22), Color(0.45, 0.4, 0.33))
-	dis.shadow_size = 0
-	b.add_theme_stylebox_override("disabled", dis)
+	b.add_theme_stylebox_override("normal", mk.call(Color(0.42, 0.26, 0.2), Color(0.6, 0.43, 0.33)))
+	b.add_theme_stylebox_override("hover", mk.call(Color(0.5, 0.32, 0.24), Color(0.7, 0.53, 0.4)))
+	b.add_theme_stylebox_override("pressed", mk.call(Color(0.56, 0.36, 0.27), Color(0.76, 0.6, 0.45)))
+	b.add_theme_stylebox_override("hover_pressed", mk.call(Color(0.6, 0.4, 0.3), Color(0.8, 0.64, 0.48)))
+	b.add_theme_stylebox_override("disabled", mk.call(Color(0.27, 0.22, 0.19), Color(0.38, 0.32, 0.27)))
 	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
-		b.add_theme_color_override(k, Color(0.12, 0.07, 0.02))
-	b.add_theme_color_override("font_disabled_color", Color(0.6, 0.56, 0.5))
-	b.add_theme_constant_override("outline_size", 0)
+		b.add_theme_color_override(k, Color(0.95, 0.87, 0.74))
+	b.add_theme_color_override("font_disabled_color", Color(0.58, 0.53, 0.47))
+	# жирный шрифт: тот же шрифт окна с утолщением (берём, когда кнопка уже в дереве — с темой окна)
+	b.tree_entered.connect(func():
+		var fv := FontVariation.new()
+		fv.base_font = b.get_theme_font("font")
+		fv.variation_embolden = 1.0
+		b.add_theme_font_override("font", fv), CONNECT_ONE_SHOT)
 
 
 ## Кнопка-вкладка в заголовке окна (нажата — панель выкачена).
