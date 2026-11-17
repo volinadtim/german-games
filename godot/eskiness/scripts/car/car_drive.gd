@@ -288,24 +288,30 @@ func _lean_tick(delta: float) -> void:
 	lean = move_toward(lean, 1.0 if lean_on else 0.0, delta / LEAN_T)
 
 
-## Руль крутится по steer, на нём — кисти водителя: обе руки, когда просто держит; одна, когда
-## другая занята (пистолет, предмет) или пока высунут в окно; руль пустой, если за ним никого.
+## Руль крутится по steer, на нём — кисти водителя: обе руки, когда просто держит; рука с
+## пистолетом держит пистолет, а не руль (промпт 18.11 01:44); левая уходит, пока высунут в окно;
+## руль пустой, если за ним никого (или если в обеих руках по пистолету).
 func _wheel_vis(delta: float) -> void:
 	if wheel_rim == null or not is_instance_valid(wheel_rim):
 		return
 	wheel_rim.rotation.y = -steer * 2.1
 	var driver_in: bool = seats[0] != 0
-	var busy := false
-	if my_seat == 0 and game != null:
+	# занята ли рука пистолетом: [0] — левая, [1] — правая (как слоты в inventory/gun.gd)
+	var gun_hand: Array[bool] = [false, false]
+	if my_seat == 0 and game != null and not game.inv.open:
 		var g = game.get("gun")
-		busy = g != null and is_instance_valid(g) and g.armed() 				and (bool(g.get("ads")) or bool(g.get("hip")) or bool(g.get("rmb")) or bool(g.get("reloading")))
+		if g != null and is_instance_valid(g) and g.armed():
+			for h in g.hands():
+				gun_hand[int(h)] = true
 	hands_k = move_toward(hands_k, 1.0 if driver_in else 0.0, delta * 6.0)
 	for i in wheel_hands.size():
 		var n: Node3D = wheel_hands[i]
 		if not is_instance_valid(n):
 			continue
-		# левая кисть (i == 0) остаётся на руле всегда; правая уходит, когда рука занята
-		var on := hands_k > 0.5 and (i == 0 or not (busy or (my_seat == 0 and lean > 0.3)))
+		# кисть i == 0 — к центру салона (правая рука), i == 1 — к водительской двери (левая)
+		var hand: int = 1 - i
+		# рука с пистолетом снята с руля; левая ещё и когда высунулся в окно
+		var on := hands_k > 0.5 and not gun_hand[hand] 				and not (i == 1 and my_seat == 0 and lean > 0.3)
 		n.visible = on
 		if on:
 			n.position.y = 0.015 + 0.012 * sin(drive_t * 3.0 + i * 2.1) * clampf(absf(speed) / MAX_F, 0.0, 1.0)
