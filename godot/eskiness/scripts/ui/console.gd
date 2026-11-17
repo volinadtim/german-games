@@ -30,6 +30,7 @@ func _ready() -> void:
 	register("money", "/money [кол-во] — выдать монеты (по умолчанию 100)", _cmd_money)
 	register("get", "/get [предмет] [кол-во] — выдать предмет (Tab — подсказки, места нет — под ноги)", _cmd_get)
 	register("clear", "очистить лог", func(_a: PackedStringArray): log_l.clear())
+	register("noclip", "/noclip — полёт сквозь стены вкл/выкл (WASD, Пробел — вверх, Ctrl — вниз, Shift — быстрее)", _cmd_noclip)
 	print_line("[color=#9a9]Консоль. /help — список команд.[/color]")
 
 
@@ -200,6 +201,15 @@ func _cmd_money(a: PackedStringArray) -> void:
 	if game.has_method("save_now"):
 		game.save_now()
 	print_line("[color=#9e9]Монеты %+d → %d[/color]" % [n, game.inv.coins])
+
+
+func _cmd_noclip(_a: PackedStringArray) -> void:
+	if game == null or game.player == null:
+		return
+	var p = game.player
+	p.noclip = not p.noclip
+	p.velocity = Vector3.ZERO
+	print_line("[color=#9e9]Noclip: %s[/color]" % ("вкл" if p.noclip else "выкл"))
 
 
 # ---------- /get ----------

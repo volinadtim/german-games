@@ -174,12 +174,33 @@ func _process(delta: float) -> void:
 		_draw_trail(i)
 
 
+## Noclip (консоль /noclip): летим куда смотрит камера, сквозь стены. Пробел — вверх, Ctrl — вниз, Shift — быстрее.
+func _noclip_tick(delta: float) -> void:
+	velocity = Vector3.ZERO
+	if not active:
+		return
+	var inp := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var b: Basis = cam.global_transform.basis
+	var dir: Vector3 = b.x * inp.x + b.z * inp.y
+	if Input.is_action_pressed("jump"):
+		dir += Vector3.UP
+	if Input.is_action_pressed("crouch"):
+		dir += Vector3.DOWN
+	if dir.length() > 1.0:
+		dir = dir.normalized()
+	var spd := 8.0 * (3.0 if Input.is_action_pressed("sprint") else 1.0)
+	global_position += dir * spd * delta
+
+
 func _physics_process(delta: float) -> void:
 	if puppet:
 		_puppet_tick(delta)
 		_death_tick(delta)
 		return
 	_key_look(delta)
+	if noclip:
+		_noclip_tick(delta)
+		return
 	_unstick_moves()
 	if stamina == null:
 		stamina = preload("res://scripts/player/stamina.gd").new()
