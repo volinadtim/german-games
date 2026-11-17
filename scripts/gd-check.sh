@@ -4,6 +4,7 @@
 # --import — сначала переимпорт ресурсов (нужно после добавления моделей/текстур/звуков).
 P="${1:-godot/eskiness}"; [ "$P" = "--import" ] && { P=godot/eskiness; IMP=1; }
 [ "${2:-}" = "--import" ] && IMP=1
+[ -d "$P/.godot" ] || IMP=1   # свежий worktree — сначала импорт
 LOG=$(mktemp)
 [ -n "${IMP:-}" ] && timeout 300 godot --headless --path "$P" --import >/dev/null 2>&1
 timeout 150 godot --headless --path "$P" --quit-after 120 >"$LOG" 2>&1
