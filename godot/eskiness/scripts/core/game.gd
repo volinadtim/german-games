@@ -59,17 +59,13 @@ func setup(p: Player) -> void:
 
 	if USE_DUMMY:
 		# манекен — в комнате с KILLBOX (юго-западная), слева от магазина, рядом с сундуком (промпт 16.11 03:13)
+		# в боку торчит стеклянный нож (промпт 18.11 01:07/01:38 — второй манекен убран, нож в этом же)
 		var d := Dummy.new()
 		d.game = self
+		d.knife = true
 		d.position = DUMMY_POS
 		add_child(d)
-		# в стартовой комнате — манекен со стеклянным ножом в боку (промпт 18.11 01:07)
-		var kd := Dummy.new()
-		kd.game = self
-		kd.knife = true
-		kd.position = KNIFE_DUMMY_POS
-		add_child(kd)
-		knife_dummy = kd
+		knife_dummy = d
 	if USE_ENEMIES and (net == null or net.is_host()):   # в сети враги — у хоста, клиенту приходят копии
 		for s in ENEMY_SPOTS:
 			_spawn_enemy(s)

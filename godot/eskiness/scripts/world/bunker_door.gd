@@ -1,13 +1,14 @@
 extends AnimatableBody3D
-## Дверь в проёме к лестнице на поверхность (промпт 18.11 01:05). E — открыть/закрыть.
+## Дверь на самом выходе из бункера на поверхность — в проёме будки после лестницы (промпт 18.11 01:38,
+## было неверно: стояла в начале лестницы, у таблички про противогаз). E — открыть/закрыть.
 ## Пока у игрока нет Нюхича (в сумке или на лице) и дверь ни разу не открывалась — не открывается:
 ## по центру экрана «Я не хочу открывать это, пока не получу противогаз». Враги подходят — дверь распахивается сама.
-## Проём: level_geometry.gd X1 12, T 0.3, DOOR_W 1.7, DOOR_H 2.3. Создаётся из game.gd.
+## Проём: surface_build.gd X_OUT 21, G 4 (пол площадки), TW 1.1 (полуширина). Создаётся из game.gd.
 
-const HINGE := Vector3(12.0, 0.0, -0.85)
-const W := 1.66
-const H := 2.26
-const OPEN_ANG := -PI / 2.0 * 0.92   # створка открывается в коридор (−X): к лестнице мешают ступени
+const HINGE := Vector3(21.0, 4.0, -1.1)
+const W := 2.14
+const H := 2.3
+const OPEN_ANG := -PI / 2.0 * 0.92   # створка открывается внутрь будки (−X), там после лестницы ровный пол
 
 var game
 var is_open := false
@@ -104,7 +105,7 @@ func _physics_process(delta: float) -> void:
 	if is_open or check_t > 0.0:
 		return
 	check_t = 0.2
-	var c := Vector3(12.0, 0.0, 0.0)
+	var c := Vector3(21.0, 4.0, 0.0)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e is Node3D and is_instance_valid(e) and (e as Node3D).global_position.distance_to(c) < 3.0:
 			_set_open(true)
