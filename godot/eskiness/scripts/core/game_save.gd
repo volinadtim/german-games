@@ -136,6 +136,14 @@ func load_state(d: Dictionary) -> void:
 				e["dur"] = float(s["dur"])
 			if bool(s.get("r", false)):
 				e["r"] = true
+			# лимиты стаков (промпт 18.11 01:09): лишнее — отдельными стопками в свободные клетки, не влезло — на пол
+			var mx: int = maxi(1, int(Items.ITEMS[e["id"]]["stack"]))
+			while int(e["n"]) > mx:
+				var part := {"id": e["id"], "n": mini(mx, int(e["n"]) - mx)}
+				if e.has("dur"):
+					part["dur"] = e["dur"]
+				e["n"] = int(e["n"]) - int(part["n"])
+				extra_in.append(part)
 			if i < inv.slots.size():
 				inv.slots[i] = e
 			else:
