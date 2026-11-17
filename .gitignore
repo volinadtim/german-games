@@ -29,3 +29,7 @@ desktop.ini
 *.apk
 *.aab
 *.idsig
+
+# временные файлы агентов
+zz_*
+_t.gd
