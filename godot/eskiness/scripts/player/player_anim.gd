@@ -265,7 +265,6 @@ func _gun_pose(delta: float) -> void:
 		_arm_ik(i, st_t, ssh, tinv, smoothstep(0.0, 1.0, gun_st_w[i]))
 	if gun_hip_w <= 0.0 and gun_ads_w <= 0.0 and gun_rel_w <= 0.0:
 		return
-	var aim_pt := eye - cb.z * 20.0
 	var two: bool = has[0] and has[1]
 	var tsum := maxf(gun_hip_w + gun_ads_w, 0.0001)
 	var k_ads := gun_ads_w / tsum
@@ -281,18 +280,15 @@ func _gun_pose(delta: float) -> void:
 		var sh := _shoulder_pos(i)
 		var reach_len := elbows[i].position.length() + hands[i].position.length()
 		if has[i]:
-			var hip_t := sh + (aim_pt - sh).normalized() * reach_len * 0.92
-			# от бедра (промпт 02:36): кисть дальше вперёд на 25% и выше на столько же — пистолет виднее в кадре
-			var fwd_d := maxf(-(hip_t - eye).dot(cb.z), 0.0)
-			hip_t += (-cb.z + cb.y) * fwd_d * 0.25
-			# прицел: пистолет висит на кисти (рукоять в кулаке), поэтому кисть ставим так, чтобы пистолет пришёл в точку прицела
-			var ads_t := GunS.ads_point(eye, acb, i, two) - _gun_off(i)
-			# 05:22: если рука не дотягивается, точку не тянем к плечу (пистолет уезжал вбок от центра),
-			# а сдвигаем по линии взгляда ближе к глазу — мушка всегда по центру экрана
-			for _k in 12:
-				if (ads_t - sh).length() <= reach_len * 0.97:
-					break
-				ads_t += acb.z * 0.025
+			var goff := _gun_off(i)
+			# от бедра (промпт 18.11 01:23): точку считаем от глаза, а не от плеча — пистолет всегда в кадре,
+			# чуть ниже центра и сведён к центру; рука разогнута настолько, насколько хватает длины
+			var hip_side := (0.1 if two else 0.07) * (-1.0 if i == 0 else 1.0)
+			var hip_t := _gun_reach_point(eye, cb, sh, goff, reach_len, GunS.HIP_H, hip_side, 0.3, 0.62)
+			# прицел: пистолет висит на кисти (рукоять в кулаке), поэтому кисть ставим так, чтобы пистолет пришёл в точку прицела.
+			# 18.11 01:23: руки полностью разогнуты и держат пистолет ровно вперёд, коллиматор — на линии взгляда
+			var ads_side := (0.1 * (-1.0 if i == 0 else 1.0)) if two else 0.0
+			var ads_t := _gun_reach_point(eye, acb, sh, goff, reach_len, GunS.OPTIC_H, ads_side, 0.32, 0.75)
 			var t := hip_t.lerp(ads_t, k_ads)
 			if w_all > 0.0:
 				_arm_ik(i, t, sh, torso_inv, w_all)
@@ -385,6 +381,21 @@ func _fist_off(i: int) -> Vector3:
 
 
 ## Смещение пистолета в руке i (его начала — рукояти) от кости кисти, оси игрока.
+## Куда вести кисть, чтобы пистолет стоял перед глазом (промпт 18.11 01:23): пистолет на высоте h_down ниже
+## линии взгляда и со сдвигом side в сторону, а вперёд — настолько, чтобы рука была разогнута полностью
+## (решаем |точка - плечо| = длина руки). Так ни коллиматор, ни ствол не уезжают вниз при коротком замахе.
+func _gun_reach_point(eye: Vector3, cb: Basis, sh: Vector3, goff: Vector3, reach: float,
+		h_down: float, side: float, d_min: float, d_max: float) -> Vector3:
+	var base := eye - cb.y * h_down + cb.x * side - goff
+	var dir := -cb.z
+	var a := base - sh
+	var r := reach * 0.99
+	var b := a.dot(dir)
+	var disc := b * b - a.length_squared() + r * r
+	var d := (-b + sqrt(disc)) if disc > 0.0 else -b
+	return base + dir * clampf(d, d_min, d_max)
+
+
 func _gun_off(i: int) -> Vector3:
 	var n = weapon_nodes[i]
 	var b := skel.find_bone(["hand_L", "hand_R"][i])
