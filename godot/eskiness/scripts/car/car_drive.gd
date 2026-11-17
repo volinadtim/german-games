@@ -370,9 +370,11 @@ func _drive_tick(delta: float) -> void:
 		yaw_rate = 0.0
 		acc_s = 0.0
 		hand = false
+		wheel_spin = 0.0
 	for i in wheels.size():
 		if not (hand and i >= 2):   # ручник — задние колёса стоят
-			wheels[i].rotation.x += speed / WHEEL_R * delta
+			# задний привод: под газом задние крутятся быстрее хода (пробуксовка)
+			wheels[i].rotation.x += (speed + (wheel_spin if i >= 2 else 0.0)) / WHEEL_R * delta
 	for i in 2:
 		wheels[i].rotation.y = steer * lerpf(0.6, 0.27, clampf(absf(speed) / MAX_F, 0.0, 1.0))
 	# подвеска: крен в повороте наружу, клевок при торможении, приседание при разгоне
@@ -417,7 +419,22 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 		g_want = 0.0
 	elif brake_k > 0.0:
 		g_want = 1.0 - 0.22 * brake_k * clampf(vt / MAX_F, 0.0, 1.0)
+	# задний привод (промпт 18.11 00:25): тяга только на задние колёса — газ в повороте срывает зад
+	# (избыточная поворачиваемость), а с места полный газ + руль — пробуксовка и разворот кормой
+	if thr_s > 0.55 and not hand:
+		var pk := (thr_s - 0.55) / 0.45
+		var lat := absf(speed * yaw_rate)   # боковое ускорение в повороте, м/с²
+		var pw := clampf((lat - 5.0) / 9.0, 0.0, 1.0) * pk
+		if speed > 3.0 and pw > 0.0:
+			g_want = minf(g_want, 1.0 - 0.6 * pw)
+		if speed > 0.8 and speed < 6.0:
+			var launch := (1.0 - speed / 6.0) * absf(steer) * pk
+			g_want = minf(g_want, 1.0 - 0.45 * launch)
 	grip_k = move_toward(grip_k, g_want, delta * (5.0 if g_want < grip_k else 1.1))
+	var spin_want := maxf(thr_s, 0.0) * (1.0 - grip_k) * 9.0
+	if thr_s > 0.9 and absf(speed) < 3.0 and not hand:
+		spin_want += (1.0 - absf(speed) / 3.0) * 5.0   # старт с пробуксовкой
+	wheel_spin = move_toward(wheel_spin, spin_want, delta * 20.0)
 	# случайность заноса: на старте — свой коэффициент срыва и небольшой угловой толчок
 	if not drift_on and grip_k < 0.85:
 		drift_on = true
@@ -451,16 +468,16 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	if drift > 0.05:
 		ang = steer * lerpf(0.6, 0.4, clampf(vt / MAX_F, 0.0, 1.0))
 	var want := vs * tan(ang) / WHEELBASE
-	# зад без сцепления — корму заносит сильнее; газ (передний привод) тянет нос по рулю
-	want *= 1.0 + drift * (0.6 + 0.6 * maxf(thr_s, 0.0)) * (drift_mul if drift_on else 1.0) + 0.2 * brake_k
+	# зад без сцепления — корму заносит сильнее; газ (задний привод) выталкивает корму ещё дальше
+	want *= 1.0 + drift * (0.6 + 1.1 * maxf(thr_s, 0.0)) * (drift_mul if drift_on else 1.0) + 0.2 * brake_k
 	want = clampf(want, -lerpf(9.0, DRIFT_YAW, drift), lerpf(9.0, DRIFT_YAW, drift))
 	# в заносе вращение по инерции живёт дольше (плавно крутится, а не дёргается)
 	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(2.3, 13.0, grip_k) * delta))
-	# передний привод в заносе: тяга по направлению передних колёс — газом держишь дугу
+	# задний привод в заносе: тяга вдоль кузова (задние колёса прямые), часть уходит в пробуксовку —
+	# скорость держится, но нос по рулю газ не вытягивает: из заноса выходят сбросом газа и контррулём
 	if drift > 0.05 and thr_s > 0.01:
 		var a := ACC * thr_s * drift * delta
-		speed = minf(speed + a * cos(ang) * 0.6, maxf(MAX_F, speed))
-		slip += a * sin(ang)
+		speed = minf(speed + a * 0.45, maxf(MAX_F, speed))
 
 
 func _move(delta: float) -> void:
@@ -475,15 +492,15 @@ func _move(delta: float) -> void:
 	fwd = Vector3(sin(yaw), 0, cos(yaw))
 	side = Vector3(cos(yaw), 0, -sin(yaw))
 	speed = vel.dot(fwd)
-	# передний привод: под газом передние колёса тянут по ходу и вытаскивают из заноса
-	var a_lat := lerpf(A_LAT_HB, A_LAT, grip_k) * (1.0 + 0.5 * maxf(thr_s, 0.0) * (1.0 - grip_k))
+	# задний привод: буксующие под газом задние колёса держат вбок хуже — газ продлевает занос
+	var a_lat := lerpf(A_LAT_HB, A_LAT, grip_k) * (1.0 - 0.35 * maxf(thr_s, 0.0) * (1.0 - grip_k))
 	# в заносе: случайный коэффициент срыва этого заноса и плавающее сцепление колёс
 	a_lat *= lerpf(1.0, (2.0 - drift_mul if drift_on else 1.0) * (1.0 + 0.12 * grip_noise), 1.0 - grip_k)
 	var sl := vel.dot(side)
 	slip = move_toward(sl, 0.0, a_lat * delta)
-	# в заносе под газом часть погашенной боковой скорости уходит вперёд (передние колёса тянут) — не тормозит в ноль
+	# в заносе под газом часть погашенной боковой скорости уходит вперёд (задние толкают) — не тормозит в ноль
 	if grip_k < 0.95 and thr_s > 0.01 and speed > -0.5:
-		speed += absf(sl - slip) * 0.4 * thr_s * (1.0 - grip_k)
+		speed += absf(sl - slip) * 0.25 * thr_s * (1.0 - grip_k)
 	vel = fwd * speed + side * slip
 	car_vel = vel
 	var np := position + vel * delta
