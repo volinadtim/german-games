@@ -223,6 +223,19 @@ func _reel_stopped(i: int) -> void:
 		game.play_at("clunk", reels[i].global_position, -10.5)   # −25% (промпт 16.11 03:21)
 	if not spinning.has(true):
 		_payout()
+		if credits <= 0 and tray_coins <= 0 and game and game.inv.coins < int(PACKS[0][1]):
+			pity(game)
+
+
+## Промпт 18.11 01:05: проигрался в автомате в ноль (не хватает даже на крутку), а противогаза
+## всё ещё нет — 100 монет и надпись по центру. Общая для KILLBOX и ФОРТУНЫ (bonus_slot.gd).
+const PITY_COINS := 100
+static func pity(g) -> void:
+	if g == null or g.inv.count("gasmask") > 0:
+		return
+	g.inv.add("coin", PITY_COINS)
+	g.hud.toast("Удача сегодня не на твоей стороне! +%d монет" % PITY_COINS, Color(1.0, 0.85, 0.4), true)
+	g.call_deferred("save_now")
 
 
 func _process(delta: float) -> void:

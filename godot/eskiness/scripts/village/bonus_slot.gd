@@ -528,6 +528,8 @@ func _process(delta: float) -> void:
 			busy = false
 			snd.stop()
 			_payout()
+			if free_spins <= 0 and game and game.inv.coins < COST:
+				preload("res://scripts/slot/slot_machine.gd").pity(game)
 	_lights(delta)
 	# счётчик выигрыша бежит, звенят монеты
 	if win_amount > 0 and count_shown < win_amount:
