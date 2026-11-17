@@ -7,6 +7,11 @@ extends Node
 ##  - есть глобальный бюджет новых звуков в кадр — звуковую атаку не устроить;
 ##  - на Master всегда последним стоит жёсткий лимитер (−3 дБ), оглохнуть нельзя.
 ## Узел живёт в группе "audio_mixer", чтобы статические помощники (slot_sounds.gd) его находили.
+## Промпт 18.11 02:15 (Герман: «звук странный»): когда голос отбирался под новый звук или
+## перезапускался тем же ключом, старый обрывался жёстким stop() на полной громкости —
+## цифровой щелчок/хлопок при каждой краже голоса. Теперь у каждого логического голоса два
+## физических плеера (A/B): новый звук всегда занимает тот, что сейчас молчит, а прежний перед
+## остановкой гасится коротким фэйдом — щелчков нет.
 
 const GROUP := "audio_mixer"
 const VOICES := 14            # сколько разовых 3D-звуков может звучать одновременно
@@ -17,8 +22,10 @@ const BUDGET_WIN := 0.1
 const MAX_DIST := 38.0        # дальше звук не слышно (раньше тянулся через всю карту)
 const UNIT := 4.0
 const CEIL_DB := -3.0
+const DECLICK := 0.015        # фэйд старого голоса перед обрывом, сек
 
-var _pool: Array[AudioStreamPlayer3D] = []
+var _pool: Array = []         # Array[Array[AudioStreamPlayer3D]], пары (A/B) на голос
+var _cur: Array[int] = []     # какой из пары (0/1) сейчас «активный» для этого голоса
 var _key: Array[String] = []
 var _at: Array[float] = []
 var _ui_last := {}
@@ -30,13 +37,34 @@ var _check := 0.0
 func _ready() -> void:
 	add_to_group(GROUP)
 	for i in VOICES:
-		var p := AudioStreamPlayer3D.new()
-		setup_3d(p)
-		add_child(p)
-		_pool.append(p)
+		var pair := [AudioStreamPlayer3D.new(), AudioStreamPlayer3D.new()]
+		for p in pair:
+			setup_3d(p)
+			add_child(p)
+		_pool.append(pair)
+		_cur.append(0)
 		_key.append("")
 		_at.append(-99.0)
 	_ensure_limiter()
+
+
+## Текущий активный плеер голоса i (тот, через который звучит последний назначенный звук).
+func _active(i: int) -> AudioStreamPlayer3D:
+	return _pool[i][_cur[i]]
+
+
+## Гасит старый активный плеер коротким фэйдом (без щелчка) и освобождает слот
+## для нового звука на втором плеере пары.
+func _retire(i: int) -> AudioStreamPlayer3D:
+	var old_idx: int = _cur[i]
+	var old_p: AudioStreamPlayer3D = _pool[i][old_idx]
+	if old_p.playing:
+		var from_db := old_p.volume_db
+		var tw := create_tween()
+		tw.tween_property(old_p, "volume_db", from_db - 30.0, DECLICK)
+		tw.tween_callback(old_p.stop)
+	_cur[i] = 1 - old_idx
+	return _pool[i][_cur[i]]
 
 
 ## Единые настройки затухания для любого 3D-звука в игре.
@@ -92,7 +120,7 @@ func play_3d(st: AudioStream, pos: Vector3, db: float, pitch := 1.0, key := "") 
 	k += "@%d,%d,%d" % [roundi(pos.x * 0.5), roundi(pos.y * 0.5), roundi(pos.z * 0.5)]
 	var slot := -1
 	for i in _pool.size():
-		if _key[i] == k and _pool[i].playing:
+		if _key[i] == k and _active(i).playing:
 			if now - _at[i] < SAME_MIN:
 				return
 			slot = i
@@ -102,17 +130,16 @@ func play_3d(st: AudioStream, pos: Vector3, db: float, pitch := 1.0, key := "") 
 			return
 		var oldest := 0.0
 		for i in _pool.size():
-			if not _pool[i].playing:
+			if not _active(i).playing:
 				slot = i
 				break
 			if now - _at[i] > oldest:
 				oldest = now - _at[i]
 				slot = i
 		_recent.append(now)
-	var p := _pool[slot]
+	var p := _retire(slot)
 	_key[slot] = k
 	_at[slot] = now
-	p.stop()
 	p.stream = st
 	p.volume_db = db
 	p.pitch_scale = pitch
