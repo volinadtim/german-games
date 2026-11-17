@@ -68,7 +68,8 @@ func start_game() -> void:
 	if not hosting or in_game:
 		return
 	in_game = true
-	peer.refuse_new_connections = true
+	# новых всё равно не пускаем (rq_hello → «Игра уже началась»), но вылетевшие должны суметь вернуться
+	peer.refuse_new_connections = false
 	lobby_changed.emit()
 	get_tree().current_scene._start_game()
 
@@ -158,6 +159,22 @@ func _apply_world(g, w: Dictionary) -> void:
 		pickups[fids[i]] = fl[i]
 
 
+## Копии игроков — по списку от хоста: вернувшийся после обрыва пришёл с новым id.
+func sync_puppets() -> void:
+	if game == null or not is_instance_valid(game):
+		return
+	var me := multiplayer.get_unique_id()
+	for id in players:
+		if id != me and not puppets.has(id):
+			_make_puppet(id)
+	for id in puppets.keys():
+		if not players.has(id):
+			if is_instance_valid(puppets[id]):
+				puppets[id].queue_free()
+			puppets.erase(id)
+			targets.erase(id)
+
+
 ## Имена над головами — по текущему списку игроков (имя могли сменить / прийти позже).
 func refresh_nicks() -> void:
 	for id in puppets:
@@ -211,14 +228,16 @@ func _game_tick(delta: float) -> void:
 		_net_reset()
 		return
 	var p = game.player
-	_ping_tick(delta)
+	var online := hosting or connected   # клиент переподключается — ничего не шлём
+	if online:
+		_ping_tick(delta)
 	send_t -= delta
-	if send_t <= 0.0 and p and peer:
+	if send_t <= 0.0 and p and peer and online:
 		send_t = SEND_DT
 		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0) \
 				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0) | (64 if p.dying else 0)   # позы с пистолетом; 64 — лежит (player_death.gd)
 		rpc("ps", p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1])
-	if p and p.punching and not was_punching and peer:
+	if p and p.punching and not was_punching and peer and online:
 		rpc("pev", p.last_arm)
 	was_punching = p != null and p.punching
 	if hosting:
@@ -240,6 +259,8 @@ func _game_tick(delta: float) -> void:
 		ui_t = 0.5
 		var pm := ping_ms()
 		var txt := ("пинг %d мс" % pm if pm >= 0 else "пинг —") + "  ·  игроков %d" % players.size()
+		if rejoining:
+			txt += "\nпереподключение к хосту…"
 		var now := Time.get_ticks_msec() / 1000.0
 		for id in last_seen:
 			var gap: float = now - float(last_seen[id])

@@ -20,6 +20,7 @@ func _close_peer() -> void:
 	hosting = false
 	connected = false
 	joining = false
+	rejoining = false
 	in_game = false
 	players = {}
 	udp_out = null

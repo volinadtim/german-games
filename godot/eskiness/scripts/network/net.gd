@@ -23,6 +23,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if rejoining:
+		_rejoin_tick(delta)
+	elif game == null and (connected or (hosting and players.size() > 1)):
+		_ping_tick(delta)   # в лобби тоже гоняем пакеты раз в 0.5 с: простой не рвёт связь (Wi-Fi/NAT)
 	if joining:
 		join_t -= delta
 		if join_t <= 0.0:

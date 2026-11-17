@@ -55,14 +55,23 @@ func _on_peer_disconnected(id: int) -> void:
 
 @rpc("any_peer", "reliable")
 func rq_hello(nm: String, ver: int) -> void:
-	if not hosting:
-		return
-	var id := multiplayer.get_remote_sender_id()
+	if hosting:
+		_hello(multiplayer.get_remote_sender_id(), nm, ver, false)
+
+
+## Клиент вернулся после обрыва связи; was_game — обрыв был уже в игре (мир у него есть).
+@rpc("any_peer", "reliable")
+func rq_rejoin(nm: String, ver: int, was_game: bool) -> void:
+	if hosting:
+		_hello(multiplayer.get_remote_sender_id(), nm, ver, was_game)
+
+
+func _hello(id: int, nm: String, ver: int, rejoin_game_ok: bool) -> void:
 	if ver != VERSION:
 		rpc_id(id, "kicked", "Разные версии игры — обновите обе")
 		_drop_later(id)
 		return
-	if in_game:
+	if in_game and not rejoin_game_ok:
 		rpc_id(id, "kicked", "Игра уже началась")
 		_drop_later(id)
 		return
@@ -71,6 +80,9 @@ func rq_hello(nm: String, ver: int) -> void:
 		nm = "Игрок %d" % players.size()
 	players[id] = nm
 	_send_players()
+	if in_game and game and is_instance_valid(game):
+		_make_puppet(id)
+		game.hud.toast("%s вернулся в игру" % nm, Color(0.75, 0.85, 0.65))
 	lobby_changed.emit()
 
 
@@ -110,16 +122,21 @@ func lobby_ff(on: bool) -> void:
 @rpc("authority", "reliable")
 func lobby_players(d: Dictionary) -> void:
 	players = d
+	sync_puppets()
 	refresh_nicks()
 	lobby_changed.emit()
 
 
 @rpc("authority", "reliable")
 func kicked(reason: String) -> void:
+	var was_game := in_game
+	var g = game
 	status.emit(reason, true)
 	last_msg = reason
 	_close_peer()
 	lobby_changed.emit()
+	if was_game:
+		_host_lost_in_game(g)
 
 
 # ---------- клиент ----------
@@ -148,12 +165,24 @@ func _on_connected() -> void:
 	host_bye = false
 	joining = false
 	connected = true
+	if rejoining:
+		rejoining = false
+		rpc_id(1, "rq_rejoin", my_name, VERSION, rejoin_game)
+		if game and is_instance_valid(game):
+			game.hud.toast("Связь с хостом восстановлена", Color(0.75, 0.85, 0.65))
+		else:
+			status.emit("Связь восстановлена. Ждём, пока хост начнёт игру…", false)
+		lobby_changed.emit()
+		return
 	status.emit("Подключено. Ждём, пока хост начнёт игру…", false)
 	rpc_id(1, "rq_hello", my_name, VERSION)
 	lobby_changed.emit()
 
 
 func _on_failed() -> void:
+	if rejoining:
+		rejoin_t = minf(rejoin_t, 0.5)   # следующая попытка — почти сразу
+		return
 	if not joining:
 		return
 	_close_peer()
@@ -162,10 +191,61 @@ func _on_failed() -> void:
 
 
 func _on_server_gone() -> void:
+	if rejoining:
+		rejoin_t = minf(rejoin_t, 0.5)
+		return
+	# связь оборвалась сама (хост не прощался) — не выкидываем, а переподключаемся
+	if not host_bye and connected and last_ip != "":
+		_start_rejoin()
+		return
+	_server_lost()
+
+
+func _start_rejoin() -> void:
+	rejoining = true
+	rejoin_game = in_game
+	rejoin_left = REJOIN_TRIES
+	connected = false
+	last_seen = {}
+	rtt = {}
+	if game and is_instance_valid(game):
+		game.hud.toast("Связь с хостом прервалась — переподключаемся…", Color(0.85, 0.7, 0.5))
+	else:
+		status.emit("Связь с хостом прервалась — переподключаемся…", true)
+	_rejoin_try()
+	lobby_changed.emit()
+
+
+func _rejoin_try() -> void:
+	rejoin_left -= 1
+	rejoin_t = 3.0
+	if peer:
+		peer.close()
+	peer = ENetMultiplayerPeer.new()
+	if peer.create_client(last_ip, last_port) != OK:
+		peer = null
+		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+		return
+	multiplayer.multiplayer_peer = peer
+
+
+## Из net.gd каждый кадр, пока идёт переподключение.
+func _rejoin_tick(delta: float) -> void:
+	rejoin_t -= delta
+	if rejoin_t > 0.0:
+		return
+	if rejoin_left > 0:
+		_rejoin_try()
+	else:
+		rejoining = false
+		_server_lost()
+
+
+func _server_lost() -> void:
 	var was_game := in_game
 	var g = game
 	_close_peer()
-	last_msg = "Хост закрыл комнату" if host_bye else "Связь с хостом пропала (нет ответа по сети больше 20 с)"
+	last_msg = "Хост закрыл комнату" if host_bye else "Связь с хостом пропала, переподключиться не удалось"
 	host_bye = false
 	status.emit(last_msg, true)
 	lobby_changed.emit()
