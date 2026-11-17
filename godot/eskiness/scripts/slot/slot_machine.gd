@@ -326,6 +326,17 @@ func _payout() -> void:
 	# множитель серии: применяется к выигрышу этой крутки; выигрыш продлевает серию, проигрыш — сброс
 	var mult := chain_mult(streak)
 	win = roundi(win * mult)
+	# лимит 1500 (промпт 18.11 01:03): после него выплата не больше вложенного банка
+	var cut_by_bank := false
+	if capped and win > bank:
+		win = bank
+		cut_by_bank = true
+	if capped:
+		bank -= win
+	profit += win
+	if not capped and profit >= PROFIT_CAP:
+		capped = true
+		bank = 0
 	# серию продлевают только настоящие комбинации (3+ или 777); пара — мелочь, серия сгорает
 	streak = streak + 1 if res["big"] else 0
 	last_spin_t = t
@@ -337,6 +348,9 @@ func _payout() -> void:
 		# выигрыш со звоном высыпается в лоток-«пасть», забирать на E (промпт 14.11 17:53)
 		_pour(win)
 		game.hud.toast("KILLBOX: +%d — монеты в лотке" % win, Color(1.0, 0.8, 0.4))
+	if cut_by_bank:
+		msg = (msg + " · ") if msg != "" else ""
+		msg += "КАССА ПУСТА"
 	if sevens or win >= 30:
 		party = 2.5
 		snd2.stream = game.snd["jingle"][0]

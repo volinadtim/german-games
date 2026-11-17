@@ -74,6 +74,9 @@ func save_state() -> Dictionary:
 		"moved": carry.to_save() if carry else {},
 		"slot_tray": slot.tray_coins if slot else 0,
 		"slot_shield": slot.shield if slot else 0,
+		"slot_profit": slot.profit if slot else 0,
+		"slot_capped": slot.capped if slot else false,
+		"slot_bank": slot.bank if slot else 0,
 		"slot_sevens": slot.sevens_hit if slot else false,
 		"slot_reveal": slot.reveal_pending if slot else false,
 		"play_time": play_time,
@@ -262,6 +265,9 @@ func load_state(d: Dictionary) -> void:
 		slot.set_level(slv)
 		slot.set_tray(int(d.get("slot_tray", 0)))
 		slot.set_shield(int(d.get("slot_shield", 0)))
+		slot.profit = int(d.get("slot_profit", 0))
+		slot.capped = bool(d.get("slot_capped", false))
+		slot.bank = int(d.get("slot_bank", 0))
 		slot.sevens_hit = bool(d.get("slot_sevens", d.get("safe_open", false)))
 		slot.set_reveal_pending(bool(d.get("slot_reveal", false)))
 		slot.screen.text = ""

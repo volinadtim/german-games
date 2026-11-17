@@ -345,6 +345,9 @@ func _buy_pack(n: int, price: int) -> void:
 	# монеты уже списаны — крутки зачисляем сразу в сейв, а на экране — после того, как 3 монетки
 	# залетят в монетоприёмник (промпт 14.11 17:40)
 	credits += n
+	profit -= price
+	if capped:
+		bank += price
 	game.save_now()
 	busy = true
 	screen.text = "ОПЛАТА..."
