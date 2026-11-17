@@ -18,6 +18,9 @@ const COST := 15
 const SYMS := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "bonus", "jack"]
 const WEIGHT := {"cherry": 1.0, "lemon": 20.0, "plum": 16.0, "grape": 12.0, "diamond": 9.0, "seven": 8.0, "bonus": 8.0, "jack": 16.0}
 const PAY := {"cherry": 15, "lemon": 25, "plum": 35, "grape": 50, "diamond": 80, "seven": 100}
+## ставка (промпт 18.11 01:03): крутка стоит COST×ставка, денежные выигрыши (линии, мини-джекпот, джекпот) ×ставка.
+## Переключается кнопкой «СТАВКА» слева на полке автомата; пока идут бесплатные крутки — не меняется.
+const BETS := [1, 2, 5, 10]
 const GIFTS := [["filter", 1], ["medkit", 1], ["fuel", 1], ["ammo", 18], ["coin", 30]]
 const JACK_BASE := 100
 ## промпт 16.11 03:16: бонус-игра ×1.5 (было ×2); после первых 777 они перебрасываются с шансом SEVENS_REROLL
@@ -33,6 +36,8 @@ const H := 220
 
 var game
 var jackpot := JACK_BASE
+var bet := 1                # ставка из BETS (сейв — village.gd)
+var bet_l: Label3D
 var free_spins := 0
 var bonus_game := false      # идёт бонус-игра (выигрыш ×BONUS_MULT)
 var sevens_hit := false      # 777 уже выпадали (сейв — village.gd)
@@ -208,6 +213,79 @@ func _ready() -> void:
 	add_child(cs)
 	for i in 3:
 		shown[i] = _roll()
+	_build_bet_button(gold)
+
+
+## Кнопка ставки — отдельное тело перед корпусом (луч взгляда попадает в неё раньше автомата).
+class BetButton extends StaticBody3D:
+	var slot
+	func get_prompt(_g) -> String:
+		return slot.bet_prompt()
+	func interact(_g) -> void:
+		slot.cycle_bet()
+
+
+func _build_bet_button(gold: Material) -> void:
+	var b := BetButton.new()
+	b.slot = self
+	b.position = Vector3(-0.3, 1.0, 0.36)
+	add_child(b)
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.24, 0.1, 0.08)
+	mi.mesh = bm
+	mi.material_override = _glow(Color(0.9, 0.2, 0.15), 1.2)
+	b.add_child(mi)
+	var rim := MeshInstance3D.new()
+	var rm := BoxMesh.new()
+	rm.size = Vector3(0.27, 0.13, 0.06)
+	rim.mesh = rm
+	rim.material_override = gold
+	rim.position = Vector3(0, 0, -0.015)
+	b.add_child(rim)
+	var cs := CollisionShape3D.new()
+	var bx := BoxShape3D.new()
+	bx.size = Vector3(0.28, 0.16, 0.12)
+	cs.shape = bx
+	b.add_child(cs)
+	bet_l = Label3D.new()
+	bet_l.font_size = 40
+	bet_l.pixel_size = 0.0022
+	bet_l.outline_size = 6
+	bet_l.modulate = Color(1.0, 0.95, 0.7)
+	bet_l.position = Vector3(0, 0, 0.045)
+	b.add_child(bet_l)
+	_update_bet_label()
+
+
+func _update_bet_label() -> void:
+	if bet_l:
+		bet_l.text = "СТАВКА ×%d" % bet
+
+
+func bet_prompt() -> String:
+	if busy:
+		return ""
+	if free_spins > 0:
+		return "Ставка ×%d — не меняется, пока идут бесплатные крутки" % bet
+	var nx: int = BETS[(BETS.find(bet) + 1) % BETS.size()]
+	return "[E] Ставка ×%d (крутка %d монет) → ×%d" % [bet, COST * bet, nx]
+
+
+func cycle_bet() -> void:
+	if busy or free_spins > 0:
+		return
+	bet = BETS[(BETS.find(bet) + 1) % BETS.size()]
+	_update_bet_label()
+	_sfx("win", -14.0, 0.8 + 0.1 * BETS.find(bet))
+	msg = "СТАВКА ×%d — КРУТКА %d МОНЕТ" % [bet, COST * bet]
+	msg_col = Color(0.95, 0.85, 0.5)
+
+
+## Ставка из сейва (неизвестная — ×1).
+func set_bet(b: int) -> void:
+	bet = b if BETS.has(b) else 1
+	_update_bet_label()
 
 
 func _mat(c: Color, metal := 0.0, rough := 0.8) -> StandardMaterial3D:
@@ -367,7 +445,8 @@ func get_prompt(g) -> String:
 		return ""
 	if free_spins > 0:
 		return "[E] ФОРТУНА — бесплатная крутка (%d)" % free_spins
-	return "[E] Крутить ФОРТУНУ — %d монет" % COST if g.inv.coins >= COST else "ФОРТУНА: нужно %d монет" % COST
+	var cost := COST * bet
+	return "[E] Крутить ФОРТУНУ ×%d — %d монет" % [bet, cost] if g.inv.coins >= cost else "ФОРТУНА ×%d: нужно %d монет" % [bet, cost]
 
 
 func interact(g) -> void:
@@ -375,8 +454,8 @@ func interact(g) -> void:
 		return
 	if free_spins > 0:
 		free_spins -= 1
-	elif g.inv.coins >= COST:
-		g.inv.remove("coin", COST)
+	elif g.inv.coins >= COST * bet:
+		g.inv.remove("coin", COST * bet)
 		jackpot = maxi(0, jackpot - 1)
 		bonus_game = false
 	else:
@@ -516,7 +595,7 @@ func _payout() -> void:
 		tier = 3
 		banner = "ДЖЕКПОТ!!!"
 		if game:
-			game.hud.toast("ДЖЕКПОТ НА ФОРТУНЕ: +%d" % roundi(win * mult), Color(1.0, 0.8, 0.3))
+			game.hud.toast("ДЖЕКПОТ НА ФОРТУНЕ: +%d" % roundi(win * mult * bet), Color(1.0, 0.8, 0.3))
 	elif jacks == 2:
 		win += 25
 		lines.append("МИНИ-ДЖЕКПОТ")
@@ -562,11 +641,11 @@ func _payout() -> void:
 	if bonus >= 1:
 		for i in 3:
 			win_mask[i] = win_mask[i] or r[i] == "bonus"
-	win = roundi(win * mult)
+	win = roundi(win * mult * bet)   # ставка умножает денежный выигрыш
 	if free_spins == 0:
 		bonus_game = false
 	if win > 0 and tier == 0:
-		tier = 2 if win >= 40 else 1
+		tier = 2 if win >= 40 * bet else 1
 		if tier == 2 and banner == "":
 			banner = "КРУПНЫЙ ВЫИГРЫШ"
 	win_amount = win

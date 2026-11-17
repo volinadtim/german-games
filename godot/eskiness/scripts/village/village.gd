@@ -553,6 +553,7 @@ func to_save() -> Dictionary:
 	if bonus_slot:
 		d["jackpot"] = bonus_slot.jackpot
 		d["sevens"] = bonus_slot.sevens_hit
+		d["bet"] = bonus_slot.bet
 	if storage:
 		d["storage"] = storage.contents.duplicate(true)
 	return d
@@ -565,6 +566,7 @@ func from_save(d: Dictionary) -> void:
 	if bonus_slot and d.has("jackpot"):
 		bonus_slot.jackpot = int(d["jackpot"])
 		bonus_slot.sevens_hit = bool(d.get("sevens", false))
+		bonus_slot.set_bet(int(d.get("bet", 1)))
 	if car and d.has("car"):
 		car.from_save(d["car"])
 	if storage:
