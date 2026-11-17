@@ -1,5 +1,5 @@
 ---
-name: gd-worker
+name: opus
 description: Серьёзная работа в Godot-игре — новая механика, сеть/мультиплеер, правки в нескольких зонах, баг с неясной причиной, архитектура. Сильная модель.
 tools: Bash, Read, Edit, Write, Grep, Glob
 model: opus

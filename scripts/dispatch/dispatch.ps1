@@ -70,12 +70,12 @@ function Show {
     $wait = if ($Task) { "" } elseif ($sm) { "СТОП ($sm) — новые задачи не стартуют" } elseif ($job) { "слушаю TG…" } else { "" }
     $o.Add(("ДИСПЕТЧЕР  {0}   работают: {1}   в очереди: {2}   {3}" -f (Get-Date -Format "HH:mm:ss"), $run, $que, $wait))
     $o.Add("")
-    $o.Add(("{0,-3} {1,-11} {2,-8} {3,-9} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f "#", "промпт", "зона", "агент", "реж", "статус", "время", "ктх", "`$", "задача / результат"))
+    $o.Add(("{0,-3} {1,-11} {2,-8} {3,-12} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f "#", "промпт", "зона", "модель", "реж", "статус", "время", "ктх", "`$", "задача / результат"))
     foreach ($q in @($Jobs | Select-Object -Last 15)) {
         $ctx = if ($q.ctx) { "{0}k" -f [int]($q.ctx / 1000) } else { "" }
         $cost = if ($q.cost) { "{0:N2}" -f $q.cost } else { "" }
         $info = if ($q.result) { $q.title + "  ->  " + $q.result } else { $q.title }
-        $line = "{0,-3} {1,-11} {2,-8} {3,-9} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f $q.id, $q.at, $q.zone, $q.agent, $(if ($q.mode -eq "continue") { "прод" } else { "нов" }), $q.status, (Dur $q), $ctx, $cost, $info
+        $line = "{0,-3} {1,-11} {2,-8} {3,-12} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f $q.id, $q.at, $q.zone, (Who $q), $(if ($q.mode -eq "continue") { "прод" } else { "нов" }), $q.status, (Dur $q), $ctx, $cost, $info
         $o.Add((Cut $line $w))
     }
     $o.Add("")
@@ -88,6 +88,10 @@ function Show {
     $script:Dirty = $false
     $script:LastShow = Get-Date
 }
+# «opus/high» — модель воркера и уровень размышлений.
+function Who($q) { if ($q.effort) { "$($q.agent)/$($q.effort)" } else { "$($q.agent)" } }
+$Efforts = "low", "medium", "high", "xhigh", "max"
+function Norm-Agent([string]$a) { switch ($a) { "gd-worker" { "opus" } "gd-quick" { "sonnet" } default { $a } } }
 function Run-Git { & git @args *> $null }
 
 function Load-Map([string]$file) {
@@ -141,24 +145,28 @@ function Find-Sid($q) {
 
 function Route([string]$text) {
     $lines = foreach ($z in $State.Keys) {
-        $w = $State[$z]; "- {0}: {1}, контекст ~{2}k, последняя задача {3}: {4}" -f $z, $w.agent, [int]($w.ctx / 1000), $w.at, $w.last
+        $w = $State[$z]; "- {0}: {1}/{5}, контекст ~{2}k, последняя задача {3}: {4}" -f $z, $w.agent, [int]($w.ctx / 1000), $w.at, $w.last, $w.effort
     }
     if (-not $lines) { $lines = "(агентов ещё нет)" }
     $p = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "router.md"), $Utf8).Replace("{{STATE}}", ($lines -join "`n")).Replace("{{TASK}}", $text)
     $out = $p | & $Claude -p --model haiku --output-format text --tools Read --strict-mcp-config --no-session-persistence --disable-slash-commands --settings $HooksFile 2>$null | Out-String
     $r = $null
     if ($out -match '\{[\s\S]*?\}') { try { $r = $matches[0] | ConvertFrom-Json } catch {} }
-    if (-not $r) { Log "роутер не ответил JSON ($(Cut $out 200)) — беру gd-worker/other/new"; $r = [pscustomobject]@{ zone = "other"; agent = "gd-worker"; mode = "new"; title = (Cut $text 60) } }
+    if (-not $r) { Log "роутер не ответил JSON ($(Cut $out 200)) — беру opus/high/other/new"; $r = [pscustomobject]@{ zone = "other"; agent = "opus"; effort = "high"; mode = "new"; title = (Cut $text 60) } }
     if ($Zones -notcontains $r.zone) { $r.zone = "other" }
-    if ("gd-quick", "gd-worker" -notcontains $r.agent) { $r.agent = "gd-worker" }
+    $r.agent = Norm-Agent $r.agent
+    if ("sonnet", "opus" -notcontains $r.agent) { $r.agent = "opus" }
+    if (-not ($r.PSObject.Properties.Name -contains "effort") -or $Efforts -notcontains $r.effort) {
+        $r | Add-Member -Force effort $(if ($r.agent -eq "sonnet") { "medium" } else { "high" })
+    }
     $w = $State[$r.zone]
-    if ($r.mode -ne "continue" -or -not $w -or -not $w.session -or $w.ctx -ge $MaxCtx -or $w.agent -ne $r.agent) { $r.mode = "new" }
+    if ($r.mode -ne "continue" -or -not $w -or -not $w.session -or $w.ctx -ge $MaxCtx -or (Norm-Agent $w.agent) -ne $r.agent) { $r.mode = "new" }
     $r
 }
 
-function Enqueue($zone, $agent, $mode, $text, $at, $title) {
+function Enqueue($zone, $agent, $effort, $mode, $text, $at, $title) {
     $script:Seq++
-    $q = @{ id = $script:Seq; zone = $zone; agent = $agent; mode = $mode; text = $text; at = $at; title = $title; status = "очередь" }
+    $q = @{ id = $script:Seq; zone = $zone; agent = $agent; effort = $effort; mode = $mode; text = $text; at = $at; title = $title; status = "очередь" }
     [void]$Jobs.Add($q); $script:Dirty = $true; Save-Jobs
 }
 
@@ -180,8 +188,10 @@ function Start-Worker($q) {
     }
     $in = Join-Path $Dir "$zone.in.txt"; $out = Join-Path $Dir "$zone.out.json"; $err = Join-Path $Dir "$zone.err.txt"
     [IO.File]::WriteAllText($in, $brief, $Utf8)
+    $q.agent = Norm-Agent $q.agent
     $a = @("-p", "--agent", $q.agent, "--output-format", "json", "--permission-mode", "bypassPermissions", "--strict-mcp-config", "--disable-slash-commands", "--settings", "`"$HooksFile`"")
     $sid = if ($q.resume -and $q.session) { $q.session } elseif ($q.mode -eq "continue" -and $State[$zone]) { $State[$zone].session } else { $null }
+    if ($q.effort) { $a += @("--effort", $q.effort) }
     if ($sid) { $a += @("--resume", $sid) }
     # Скрытое отдельное окно: воркер не привязан к консоли диспетчера и переживает его закрытие.
     $proc = Start-Process -FilePath $Claude -ArgumentList $a -WorkingDirectory $wt -WindowStyle Hidden -PassThru `
@@ -190,7 +200,7 @@ function Start-Worker($q) {
     $q.status = "работает"; $q.started = (Get-Date).ToString("o"); $q.finished = $null; $q.session = $sid
     $Procs[$q.id] = $proc
     Save-Jobs
-    Log ("[{0}] {1} {2}: {3}" -f $zone, $q.agent, $(if ($q.resume) { "возобновляет" } elseif ($q.mode -eq "continue") { "продолжает" } else { "новый" }), $q.title)
+    Log ("[{0}] {1} {2}: {3}" -f $zone, (Who $q), $(if ($q.resume) { "возобновляет" } elseif ($q.mode -eq "continue") { "продолжает" } else { "новый" }), $q.title)
 }
 
 function Alive($q) {
@@ -222,12 +232,12 @@ function Finish($q) {
     $hf = Join-Path $HandoffDir "$zone.md"
     $handoff = (Test-Path $hf) -and ((Get-Item $hf).LastWriteTime -ge [DateTime]$q.started)
     $q.status = if ($j.is_error) { "ошибка" } elseif ($res -match '^\s*СЛОЖНО') { "СЛОЖНО" } elseif ($handoff -and (Stop-Mode)) { "пауза" } else { "готово" }
-    $State[$zone] = @{ session = $j.session_id; agent = $q.agent; ctx = $ctx; last = $q.title; at = $q.at }
+    $State[$zone] = @{ session = $j.session_id; agent = $q.agent; effort = $q.effort; ctx = $ctx; last = $q.title; at = $q.at }
     Save-State; Save-Jobs
     Log ("[{0}] {1}, ~{2}k, `${3:N2}: {4}" -f $zone, $q.status, [int]($ctx / 1000), $j.total_cost_usd, (($res -split "`n")[0]))
-    if ($q.agent -eq "gd-quick" -and $res -match '^\s*СЛОЖНО') {
-        Log "[$zone] gd-quick не справился — отдаю gd-worker"
-        Enqueue $zone "gd-worker" "new" $q.text $q.at $q.title
+    if ($q.agent -eq "sonnet" -and $res -match '^\s*СЛОЖНО') {
+        Log "[$zone] sonnet не справился — отдаю opus/high"
+        Enqueue $zone "opus" "high" "new" $q.text $q.at $q.title
     }
 }
 
@@ -241,8 +251,8 @@ function Handle([string]$raw, [string]$defAt = "?") {
     if (-not $text -or $text -eq "новых промптов нет") { return }
     if (-not $at) { $at = $defAt }
     $r = Route $text
-    Log ("промпт {0} -> {1} / {2} / {3}" -f $at, $r.zone, $r.agent, $r.mode)
-    Enqueue $r.zone $r.agent $r.mode $text $at $r.title
+    Log ("промпт {0} -> {1} / {2}/{4} / {3}" -f $at, $r.zone, $r.agent, $r.mode, $r.effort)
+    Enqueue $r.zone $r.agent $r.effort $r.mode $text $at $r.title
 }
 
 # resume: снять стоп, поставить паузы/прерванные обратно в очередь как продолжение их сессии.
@@ -251,7 +261,7 @@ function Do-Resume {
         $why = if ($q.status -eq "пауза") { "мягкая остановка" } else { "жёсткая остановка" }
         $q.status = "возобновлён"
         $script:Seq++
-        [void]$Jobs.Add(@{ id = $script:Seq; zone = $q.zone; agent = $q.agent; mode = "continue"; text = $q.text; at = $q.at
+        [void]$Jobs.Add(@{ id = $script:Seq; zone = $q.zone; agent = (Norm-Agent $q.agent); effort = $q.effort; mode = "continue"; text = $q.text; at = $q.at
             title = $q.title; status = "очередь"; resume = $why; session = $q.session })
     }
     Save-Jobs

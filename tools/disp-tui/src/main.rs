@@ -131,6 +131,11 @@ impl App {
         if self.sel == 0 { None } else { self.sessions.get(self.sel - 1).map(|s| s.zone.clone()) }
     }
 
+    /// Уровень размышлений последней задачи зоны (low/medium/high/xhigh/max).
+    fn effort(&self, zone: &str) -> String {
+        self.jobs().iter().rev().find(|j| j["zone"].as_str() == Some(zone)).and_then(|j| j["effort"].as_str()).unwrap_or("").to_string()
+    }
+
     fn jobs(&self) -> Vec<&Value> {
         self.jobs["jobs"].as_array().map(|a| a.iter().collect()).unwrap_or_default()
     }
@@ -385,9 +390,10 @@ fn draw_list(f: &mut Frame, app: &App, area: Rect) {
         } else {
             Span::styled("○", Style::new().fg(DIM))
         };
-        let agent = s.agent.trim_start_matches("gd-");
+        let eff = app.effort(&s.zone);
+        let agent = if eff.is_empty() { s.agent.trim_start_matches("gd-").to_string() } else { format!("{}/{}", s.agent.trim_start_matches("gd-"), eff) };
         let zs = if sel { Style::new().fg(Color::White).bold() } else { Style::new().fg(Color::Gray) };
-        l.push(Line::from(vec![mark(sel), dot, Span::raw(" "), Span::styled(format!("{:<9}", s.zone), zs), Span::styled(agent.to_string(), Style::new().fg(DIM))]));
+        l.push(Line::from(vec![mark(sel), dot, Span::raw(" "), Span::styled(format!("{:<9}", s.zone), zs), Span::styled(agent, Style::new().fg(DIM))]));
         let mut g = vec![mark(sel), Span::raw("  ")];
         g.extend(gauge(s.ctx, 14));
         l.push(Line::from(g));
@@ -466,7 +472,7 @@ fn draw_session(f: &mut Frame, app: &App, s: &Sess, area: Rect) {
     let model = s.model.trim_start_matches("claude-");
     let mut title = vec![
         Span::styled(format!(" {} ", s.zone), Style::new().fg(PINK).bold()),
-        Span::styled(format!("· {} · {} · ", s.agent, model), Style::new().fg(DIM)),
+        Span::styled(format!("· {} · {} · размышления {} · ", s.agent, model, { let e = app.effort(&s.zone); if e.is_empty() { "?".to_string() } else { e } }), Style::new().fg(DIM)),
         Span::styled(format!("ctx {}k/{}k", s.ctx / 1000, WINDOW / 1000), Style::new().fg(ctx_color(s.ctx))),
     ];
     if !s.title.is_empty() {
@@ -524,7 +530,7 @@ fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
             Span::styled(format!("{}  ", g("at")), Style::new().fg(DIM)),
             Span::styled(g("zone"), Style::new().fg(PINK).bold()),
             Span::styled(
-                format!(" · {} · {}", g("agent"), if j["resume"].is_string() { "возобновление" } else if g("mode") == "continue" { "продолжение" } else { "новый" }),
+                format!(" · {}{} · {}", g("agent"), if g("effort").is_empty() { String::new() } else { format!("/{}", g("effort")) }, if j["resume"].is_string() { "возобновление" } else if g("mode") == "continue" { "продолжение" } else { "новый" }),
                 Style::new().fg(DIM),
             ),
         ];

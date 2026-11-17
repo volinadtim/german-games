@@ -1,5 +1,5 @@
 ---
-name: gd-quick
+name: sonnet
 description: Быстрая правка в Godot-игре по готовому описанию — числа, баланс, тексты, цвета, размеры, позиции, мелкий баг с понятной причиной в 1–2 файлах одной зоны. Дешёвая модель.
 tools: Bash, Read, Edit, Write, Grep, Glob
 model: sonnet
