@@ -8,10 +8,20 @@ extends Node
 ##   3. Монстрик умер — по коридору эхом звенит игровой автомат, камера плавно поворачивается
 ##      в сторону комнаты с KILLBOX, потом управление полностью возвращается.
 const Enemy := preload("res://scripts/enemy/enemy.gd")
+const PickupScript := preload("res://scripts/world/pickup.gd")
 const Items := preload("res://scripts/items.gd")
 const Sfx := preload("res://scripts/core/sfx.gd")
 const SlotM := preload("res://scripts/slot/slot_machine.gd")
 const WAKE_POS := Vector3(-11.25, 0.05, -4.3)   # у западной стены; game_base.gd CHEST_AVOID и glass_floor.gd AVOID обходят это место
+## Сеть (промпт 16.11 22:04): все просыпаются в этой же комнате, каждый у своей стены — [место, поворот, вещи рядом
+## (вперёд, вбок)]. Номер места — по порядку id игроков (хост — первое, у бутылки). Места обходят завалы и плиту.
+const KIT := ["tshirt", "pants", "sack", "bandage"]
+const SPOTS := [
+	[WAKE_POS, -PI / 2.0, [Vector2(1.0, -0.85), Vector2(1.45, -0.45), Vector2(0.85, 1.2), Vector2(1.4, 1.0)]],
+	[Vector3(-7.7, 0.05, -8.45), PI, [Vector2(1.0, 0.85), Vector2(1.45, 0.45), Vector2(0.85, -1.2), Vector2(1.4, -1.0)]],
+	[Vector3(-8.6, 0.05, -2.15), 0.0, [Vector2(1.0, -0.85), Vector2(1.45, -0.45), Vector2(0.85, 1.2), Vector2(1.4, 1.0)]],
+	[Vector3(-11.25, 0.05, -6.0), -PI / 2.0, [Vector2(0.95, -0.35), Vector2(1.4, -0.05), Vector2(0.85, 0.4), Vector2(1.4, 0.45)]],
+]
 
 const DOOR := Vector3(-6.0, 0.0, -1.6)          # проём из северо-западной комнаты в коридор
 const TRIGGER_R := 2.3                          # «почти подошёл к выходу»
@@ -51,14 +61,35 @@ var held := false
 var side := 1.0          # с какой стороны проёма стоит: -1 — запад, +1 — восток
 var peek_at := Vector3.ZERO
 var exhaled := false
+var spot := 0            # номер места пробуждения (сеть)
+var pending_cut := false # сеть: кат-сцену запустил другой игрок, пока этот ещё просыпался
+var cut_sent := false    # хост: кат-сцена уже разослана; клиент: уже попросил
+var cue_sent := false    # хост: смерть монстрика уже разослана
+var done := false
+var keep_t := 0.0
+
+
+func _net():
+	return game.net if game and game.net else null
+
+
+## Хост или одиночная игра — монстрик настоящий; у клиента — копия от хоста (net_world.gd es).
+func _owner() -> bool:
+	var n = _net()
+	return n == null or n.is_host()
 
 
 func start(new_game := true) -> void:
 	var p = game.player
+	var n = _net()
+	if n:
+		var ids: Array = n.players.keys()
+		ids.sort()
+		spot = clampi(maxi(ids.find(multiplayer.get_unique_id()), 0), 0, SPOTS.size() - 1)
 	if new_game:
 		_starter_kit()
-	p.global_position = WAKE_POS
-	p.rotation.y = -PI / 2.0          # лицом в комнату (+X)
+	p.global_position = SPOTS[spot][0]
+	p.rotation.y = float(SPOTS[spot][1])   # лицом в комнату
 	p.head.rotation.x = 0.0
 	_lock(true)
 	# тело не показываем, пока камера «лежит» у пола (иначе видно модель изнутри)
@@ -75,7 +106,10 @@ func start(new_game := true) -> void:
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(fade)
 	_decor()
-	_spawn_crawler()
+	if _owner():
+		_spawn_crawler()
+	if game.takedown:
+		game.takedown.killed.connect(_on_takedown)
 	echo_snd = _slot_echo()
 	game.intro_done = false
 	game.shop_on = false
@@ -88,17 +122,36 @@ func start(new_game := true) -> void:
 
 ## Новая игра (промпт 16.11 21:46): персонаж без одежды — футболка, штаны, вещмешок и бинты лежат рядом
 ## на полу (подбираются на E, не исчезают). Повтор вступления после загрузки — без них: вещи уже в сейве.
+## В сети каждый кладёт такой же набор у своего места сам — остальным его рассылает net (pickup_made).
 func _starter_kit() -> void:
-	var spots := [["tshirt", 1, Vector3(1.0, 0, -0.85)], ["pants", 1, Vector3(1.45, 0, -0.45)],
-		["sack", 1, Vector3(0.85, 0, 1.2)], ["bandage", 2, Vector3(1.4, 0, 1.0)]]
-	for s in spots:
-		var pk = game._make_pickup(String(s[0]), int(s[1]), WAKE_POS + (s[2] as Vector3) + Vector3(0, 0.1, 0), Vector3.ZERO)
+	var base: Vector3 = SPOTS[spot][0]
+	var yaw := float(SPOTS[spot][1])
+	var fwd := Vector3(-sin(yaw), 0, -cos(yaw))
+	var right := Vector3(cos(yaw), 0, -sin(yaw))
+	var offs: Array = SPOTS[spot][2]
+	for i in KIT.size():
+		var id: String = KIT[i]
+		var o: Vector2 = offs[i]
+		var pos: Vector3 = base + fwd * o.x + right * o.y
+		pos.y = 0.15
+		var pk = game._make_pickup(id, 2 if id == "bandage" else 1, pos, Vector3.ZERO)
 		pk.angular_velocity = Vector3.ZERO
 		pk.rotation.y = randf_range(0.0, TAU)
 		pk.need_leave = true   # не подлетает сама, только по E
 		pk.life = 1.0e9        # не исчезает
-		if Items.max_dur(String(s[0])) > 0.0:
-			pk.set_meta("dur", Items.max_dur(String(s[0])))
+		if Items.max_dur(id) > 0.0:
+			pk.set_meta("dur", Items.max_dur(id))
+
+
+## Сеть: копии чужих стартовых наборов приходят с обычным сроком (3.5 мин) — тоже делаем вечными.
+func _keep_kits() -> void:
+	if game == null or not is_instance_valid(game):
+		return
+	for c in game.get_children():
+		if c is PickupScript and c.need_leave and String(c.id) in KIT and c.life < 1.0e8:
+			var gp: Vector3 = c.global_position
+			if gp.x < -4.5 and gp.x > -12.0 and gp.z < -1.5 and gp.z > -9.0:
+				c.life = 1.0e9
 
 
 func _lock(on: bool) -> void:
@@ -118,7 +171,12 @@ func _process(delta: float) -> void:
 		return
 	t += delta
 	var p = game.player
-	if stage != "wake" and not game.alive:
+	if _net():
+		keep_t += delta
+		if keep_t > 0.5:
+			keep_t = 0.0
+			_keep_kits()
+	elif stage != "wake" and not game.alive:   # в сети — возрождение, вступление идёт дальше
 		_finish()
 		return
 	_hint_tick(delta)
@@ -136,20 +194,15 @@ func _process(delta: float) -> void:
 				stood = true
 				p._play_step(-22.0)
 			if t >= WAKE_T:
-				_wake_pose(WAKE_T)
-				for c in hidden:
-					if is_instance_valid(c):
-						(c as Node3D).visible = true
-				hidden.clear()
-				fade.visible = false
-				_lock(false)
-				stage = "free"
+				_end_wake()
 		"free":
 			var pp: Vector3 = p.global_position
 			# (04:50) подошёл к проёму или перешёл в восточную половину комнаты (x > -5) — сразу кат-сцена
 			if Vector2(pp.x - DOOR.x, pp.z - DOOR.z).length() < TRIGGER_R or pp.z > DOOR.z or pp.x > TRIGGER_X:
-				_begin_cut()
+				_request_cut()
 		"cut":
+			if not is_instance_valid(crawler) and not _owner():
+				crawler = _find_crawler()
 			if is_instance_valid(crawler):
 				# крадётся к стене у косяка, приседает и медленно выглядывает: наклон корпуса и головы
 				var to: Vector3 = peek_at - p.global_position
@@ -179,12 +232,21 @@ func _process(delta: float) -> void:
 				_end_side_cam()
 				_lock(false)
 				_show_hint()
-				if is_instance_valid(crawler):
+				if is_instance_valid(crawler) and _owner():
 					crawler.set("calm", false)
 				stage = "hunt"
 		"hunt":
-			if not is_instance_valid(crawler):
-				_finish()
+			if not _owner():
+				# клиент: ждём смерть монстрика от хоста (net_cue); подстраховка — копия монстрика умерла
+				if not is_instance_valid(crawler):
+					crawler = _find_crawler()
+				if is_instance_valid(crawler) and String(crawler.get("state")) == "dead":
+					_on_crawler_died(crawler)
+			elif not is_instance_valid(crawler):
+				if _net():
+					_on_crawler_died(null)
+				else:
+					_finish()
 			elif String(crawler.get("state")) == "dead":
 				_on_crawler_died(crawler)   # подстраховка, если сигнал died не дошёл
 		"cue_wait":
@@ -249,24 +311,112 @@ func _aim(point: Vector3, k: float) -> void:
 	p.head.rotation.x = lerpf(p.head.rotation.x, clampf(pitch, -1.2, 1.0), k)
 
 
+func _end_wake() -> void:
+	_wake_pose(WAKE_T)
+	for c in hidden:
+		if is_instance_valid(c):
+			(c as Node3D).visible = true
+	hidden.clear()
+	fade.visible = false
+	_lock(false)
+	stage = "free"
+	if pending_cut:
+		pending_cut = false
+		_begin_cut()
+
+
+# ---------- сеть: кат-сцена и финал одни на всех ----------
+
+## Кто-то подошёл к проёму: одиночная игра — сразу; хост рассылает всем; клиент просит хоста.
+func _request_cut() -> void:
+	var n = _net()
+	if n == null:
+		_begin_cut()
+	elif n.is_host():
+		_host_cut()
+	elif not cut_sent:
+		cut_sent = true
+		rpc_id(1, "rq_cut")
+
+
+func _host_cut() -> void:
+	if not cut_sent:
+		cut_sent = true
+		if is_instance_valid(crawler):
+			crawler.crawl_wait = false   # монстрик ползёт у хоста, остальные видят копию
+		rpc("net_cut")
+	net_cut()
+
+
+@rpc("any_peer", "reliable")
+func rq_cut() -> void:
+	var n = _net()
+	if n == null or not n.is_host():
+		return
+	var who := multiplayer.get_remote_sender_id()
+	if cue_sent:
+		rpc_id(who, "net_cue")   # опоздал: монстрик уже мёртв
+	elif cut_sent:
+		rpc_id(who, "net_cut")   # кат-сцена уже была — этот её пропустил (ещё грузился)
+	else:
+		_host_cut()
+
+
+@rpc("authority", "reliable")
+func net_cut() -> void:
+	if done:
+		return
+	if stage == "wake":
+		pending_cut = true
+	elif stage == "free":
+		_begin_cut()
+
+
+@rpc("authority", "reliable")
+func net_cue() -> void:
+	if done:
+		return
+	if stage == "wake":
+		pending_cut = false
+		_end_wake()
+	_on_crawler_died(null)
+
+
+## Клиент: копия монстрика (ближайший к коридору мелкий враг).
+func _find_crawler() -> Node3D:
+	var best: Node3D = null
+	var bd := 6.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e is Node3D and String(e.get("kind")) == "fast":
+			var d: float = (e as Node3D).global_position.distance_to(Vector3(-8.0, 0.0, 1.0))
+			if d < bd:
+				bd = d
+				best = e
+	return best
+
+
 func _begin_cut() -> void:
 	stage = "cut"
 	var px: float = game.player.global_position.x
 	side = -1.0 if px < DOOR.x else 1.0   # к ближнему косяку, проём не пересекает
-	peek_at = Vector3(DOOR.x + side * PEEK_DX, 0.0, PEEK_Z)
+	peek_at = Vector3(DOOR.x + side * (PEEK_DX + 0.6 * spot), 0.0, PEEK_Z)   # в сети — каждый на своём месте у стены
 	t = 0.0
 	_lock(true)
-	if not is_instance_valid(crawler):
-		_spawn_crawler()
+	if _owner():
+		if not is_instance_valid(crawler):
+			_spawn_crawler()
+		crawler.crawl_wait = false          # кат-сцена запускает его движение
+	else:
+		crawler = _find_crawler()
 	var e = crawler
-	e.crawl_wait = false          # кат-сцена запускает его движение
 	cut_cam = Camera3D.new()
 	cut_cam.fov = game.player.cam.fov
 	cut_cam.near = 0.05
 	game.add_child(cut_cam)
 	cut_cam.global_transform = game.player.cam.global_transform
 	cut_cam.current = true
-	_cut_sounds(e)
+	if is_instance_valid(e):
+		_cut_sounds(e)
 
 
 ## Монстрик стоит у угла коридора с самого начала новой игры (промпт 16.11 04:27): копошится на месте
@@ -288,8 +438,6 @@ func _spawn_crawler() -> void:
 	e.drop_only = ["rusk", "water"]
 	e._set_state("crawl")
 	e.died.connect(_on_crawler_died)
-	if game.takedown:
-		game.takedown.killed.connect(_on_takedown)
 	e.crawl_wait = true
 	crawler = e
 
@@ -352,6 +500,10 @@ func _end_side_cam() -> void:
 
 
 func _on_crawler_died(_e) -> void:
+	var n = _net()
+	if n and n.is_host() and not cue_sent:
+		cue_sent = true
+		rpc("net_cue")   # финал вступления — у всех
 	if stage in ["hunt", "cut", "free"]:
 		if stage == "cut":
 			_end_side_cam()
@@ -381,7 +533,13 @@ func _finish() -> void:
 		game.player.cam.rotation = Vector3.ZERO
 	if hint:
 		hint.visible = false
+	done = true
 	set_process(false)
+	if _net():
+		# в сети узел остаётся (поздние rpc других игроков); чужие стартовые наборы ещё могут прийти
+		for i in 6:
+			get_tree().create_timer(5.0 * (i + 1), false).timeout.connect(_keep_kits)
+		return
 	queue_free()
 
 
@@ -562,5 +720,6 @@ func _decor() -> void:
 		mi.rotation = Vector3(rng.randf_range(-0.15, 0.15), rng.randf() * TAU, rng.randf_range(-0.15, 0.15))
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mi)
-	# осколок, который можно подобрать (материал для ножика)
-	game._make_pickup("glass", 1, base + Vector3(0.2, 0.1, -0.35), Vector3.ZERO)
+	# осколок, который можно подобрать (материал для ножика); в сети — один, у хоста (остальным рассылается)
+	if _owner():
+		game._make_pickup("glass", 1, base + Vector3(0.2, 0.1, -0.35), Vector3.ZERO)
