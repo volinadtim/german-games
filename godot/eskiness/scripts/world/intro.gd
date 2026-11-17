@@ -478,22 +478,22 @@ func _note_mesh() -> Node3D:
 	paper.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for i in 2:
 		var q := QuadMesh.new()
-		q.size = Vector2(0.112, 0.077)
+		q.size = Vector2(0.136, 0.092)
 		q.material = paper
 		var mi := MeshInstance3D.new()
 		mi.mesh = q
-		mi.position = Vector3(0, 0.0385 if i == 0 else -0.0385, 0.0)
+		mi.position = Vector3(0, 0.046 if i == 0 else -0.046, 0.0)
 		mi.rotation = Vector3(0.1 if i == 0 else -0.08, 0.0, 0.0)   # излом по сгибу
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		root.add_child(mi)
 	var l := Label3D.new()
 	l.text = NOTE_TEXT
 	l.font = _note_font()
-	l.font_size = 48
+	l.font_size = 40
 	l.pixel_size = 0.00052
-	l.width = 180.0
+	l.width = 140.0
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD
-	l.modulate = Color(0.13, 0.15, 0.3)
+	l.modulate = Color(0.08, 0.09, 0.2)
 	l.outline_size = 0
 	l.shaded = false
 	l.position = Vector3(0, 0.0, 0.003)

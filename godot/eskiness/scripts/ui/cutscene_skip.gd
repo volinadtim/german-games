@@ -11,7 +11,7 @@ const HOLD := 0.8
 var game
 var box: PanelContainer
 var label: Label
-var bar: ColorRect
+var ring: CutSkipRing
 var hold_t := 0.0
 var armed := false            # клавишу отпустили после начала кат-сцены (иначе прыжок «до» сразу пропустил бы)
 var cur: Node = null
@@ -39,31 +39,27 @@ func _ready() -> void:
 	box.anchor_right = 1.0
 	box.anchor_top = 1.0
 	box.anchor_bottom = 1.0
-	box.offset_left = -330
+	box.offset_left = -310
 	box.offset_right = -20
 	box.offset_top = -64
 	box.offset_bottom = -20
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.visible = false
 	add_child(box)
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 4)
-	box.add_child(vb)
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 10)
+	hb.alignment = BoxContainer.ALIGNMENT_END
+	box.add_child(hb)
 	label = Label.new()
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", 16)
 	label.add_theme_color_override("font_color", Color(0.9, 0.88, 0.8, 0.9))
-	vb.add_child(label)
-	var track := ColorRect.new()
-	track.color = Color(1, 1, 1, 0.15)
-	track.custom_minimum_size = Vector2(0, 3)
-	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vb.add_child(track)
-	bar = ColorRect.new()
-	bar.color = Color(0.95, 0.65, 0.3, 0.95)
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.anchor_bottom = 1.0
-	track.add_child(bar)
+	hb.add_child(label)
+	ring = CutSkipRing.new()
+	ring.custom_minimum_size = Vector2(22, 22)
+	ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hb.add_child(ring)
 
 
 func _target() -> Node:
@@ -118,7 +114,7 @@ func _process(delta: float) -> void:
 			t.skip_cut()
 			return
 	label.text = txt
-	bar.anchor_right = clampf(hold_t / HOLD, 0.0, 1.0)
+	ring.progress = clampf(hold_t / HOLD, 0.0, 1.0)
 
 
 func _net():
@@ -137,3 +133,19 @@ func cs_vote() -> void:
 		id = multiplayer.get_unique_id()
 	votes[id] = true
 	idle_t = 0.0
+
+
+## Загрузочный кружочек: тонкое кольцо-подложка + дуга прогресса, растущая по часовой.
+class CutSkipRing extends Control:
+	var progress := 0.0
+
+	func _process(_delta: float) -> void:
+		queue_redraw()
+
+	func _draw() -> void:
+		var r := size.x * 0.5 - 2.0
+		var c := size * 0.5
+		draw_arc(c, r, 0.0, TAU, 28, Color(1, 1, 1, 0.15), 3.0, true)
+		if progress > 0.0:
+			var start := -PI * 0.5
+			draw_arc(c, r, start, start + TAU * progress, 28, Color(0.95, 0.65, 0.3, 0.95), 3.0, true)
