@@ -126,6 +126,7 @@ func _build() -> void:
 	torso = Node3D.new()
 	vis.add_child(torso)
 	head = Node3D.new()
+	head.set_meta("headshot", true)   # хэдшот пулей (gun.gd _bullet_hit)
 	match kind:
 		"spitter":
 			# сгорбленный, тонкие лапы, раздутый светящийся зоб под челюстью

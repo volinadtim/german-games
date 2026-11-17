@@ -63,6 +63,7 @@ func _build() -> void:
 		r.rotation = Vector3(0.5 + 0.2 * k, 0.0, -0.4 + 0.35 * k)
 
 	var head := Node3D.new()
+	head.set_meta("headshot", true)   # хэдшот пулей (gun.gd _bullet_hit)
 	head.position = Vector3(0, 0.92, -0.1)
 	torso.add_child(head)
 	var hs := SphereMesh.new()
@@ -170,6 +171,7 @@ func _build_fast() -> void:
 		_part(torso, vb, Vector3(0, 0.1 + 0.1 * k, 0.1), rib)
 
 	var head := Node3D.new()
+	head.set_meta("headshot", true)   # хэдшот пулей (gun.gd _bullet_hit)
 	head.position = Vector3(0, 0.66, -0.1)
 	head.rotation.x = 0.6   # голова задрана вперёд, морда к игроку
 	torso.add_child(head)

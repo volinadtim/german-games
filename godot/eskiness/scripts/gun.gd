@@ -19,6 +19,7 @@ const Weapons := preload("res://scripts/weapons.gd")
 const CAP := 8                   # патронов в магазине
 const DMG := 40.0                # по бетоннику (95 HP) — 3 попадания
 const RANGE := 80.0
+const HEAD_MULT := 2.5           # хэдшот (промпт 18.11 00:56)
 const FIRE_CD := 0.28
 const RELOAD_T := 1.7             # фазы анимации — player_anim.gd: _reload_pose, звуки — REL_EVENTS
 const HEAR_R := 28.0             # радиус, в котором враги слышат выстрел
@@ -37,6 +38,7 @@ var reloading := false
 var voice: AudioStreamPlayer
 var snd_shot: AudioStreamWAV
 var snd_click: AudioStreamWAV
+var snd_headshot: AudioStreamWAV
 var snd_mag: AudioStreamWAV
 var ui: CanvasLayer
 var count_l: Label
@@ -97,6 +99,7 @@ func _ready() -> void:
 	add_child(voice)
 	snd_shot = _shot_sound()
 	snd_click = _click_sound(0.035, 2600.0)
+	snd_headshot = _layered([[0.0, "tick", 0.03, 3200.0, 0.9], [0.004, "ring", 0.22, 1700.0, 0.45], [0.0, "thump", 0.09, 150.0, 0.9]])
 	snd_mag = _click_sound(0.06, 900.0)
 	snd_release = _layered([[0.0, "tick", 0.02, 3400.0, 0.7], [0.004, "ring", 0.12, 4100.0, 0.25],
 			[0.03, "scrape", 0.09, 2200.0, 0.55], [0.11, "thump", 0.08, 260.0, 0.35]])
@@ -492,21 +495,7 @@ func _shoot(h: int, spread: float) -> void:
 	var from := cam.global_position
 	var dir := (-cam.global_transform.basis.z).rotated(cam.global_transform.basis.x, randf_range(-spread, spread)) \
 			.rotated(cam.global_transform.basis.y, randf_range(-spread, spread))
-	var q := PhysicsRayQueryParameters3D.create(from, from + dir * RANGE)
-	q.exclude = [p.get_rid()]
-	if car_seat() >= 0:
-		q.exclude = [p.get_rid(), game.car.get_rid()]   # из салона — сквозь свою машину (стрельба из окна)
-	q.collision_mask = 1 | 512   # 512 — другие игроки в сети (огонь по своим)
-	var hit: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q)
-	if not hit.is_empty():
-		if hit.collider.has_method("take_hit"):
-			# урон пулей — не износ оружия в руке (game.gd: weapon_hit смотрит на last_arm)
-			var la: int = p.last_arm
-			p.last_arm = -1
-			hit.collider.take_hit(DMG, dir)
-			p.last_arm = la
-		else:
-			_impact(hit.position, hit.normal)
+	_bullet_hit(from, dir)
 	_flash()
 	_recoil()
 	_eject()
@@ -515,6 +504,138 @@ func _shoot(h: int, spread: float) -> void:
 		game.net.shot(_muzzle())   # сеть: выстрел видят и слышат другие, враги у хоста слышат
 	if game.inv.open:
 		game.inv._refresh()
+
+
+## Попадание пули (промпт 18.11 00:56 — хитбоксы и хэдшоты).
+## Враги и мутанты: капсула физики не совпадает с моделью (сгорбленные, руки торчат при замахе), поэтому
+## пулю проверяем по самим частям модели (коробки мешей, следуют за анимацией): мимо модели — пролетает
+## насквозь, даже если задела капсулу; попала в руку вне капсулы — засчитано. Голова (meta "headshot") — ×HEAD_MULT.
+## Остальные цели (игроки по сети, манекен, ящики) — по физике; у игрока по сети голова — верх капсулы.
+func _bullet_hit(from: Vector3, dir: Vector3) -> void:
+	var p = game.player
+	var ex: Array[RID] = [p.get_rid()]
+	if car_seat() >= 0:
+		ex.append(game.car.get_rid())   # из салона — сквозь свою машину (стрельба из окна)
+	var cands: Array = []
+	for g in ["enemies", "mutants"]:
+		for e in p.get_tree().get_nodes_in_group(g):
+			if e is CollisionObject3D and is_instance_valid(e):
+				ex.append((e as CollisionObject3D).get_rid())
+				if (e as CollisionObject3D).collision_layer & 1 and String(e.get("state")) != "dead":
+					cands.append(e)
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * RANGE)
+	q.exclude = ex
+	q.collision_mask = 1 | 512   # 512 — другие игроки в сети (огонь по своим)
+	var hit: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q)
+	var wall_d: float = from.distance_to(hit.position) if not hit.is_empty() else RANGE
+	# ближайшая часть модели врага до стены
+	var best_t := wall_d
+	var best_e: Node3D = null
+	var best_head := false
+	for e in cands:
+		var en := e as Node3D
+		var to_e := en.global_position - from
+		var along := to_e.dot(dir)
+		if along < -1.0 or along > best_t + 1.5:
+			continue
+		if (to_e - dir * along).length() > 3.0:   # луч далеко от врага — части не проверяем
+			continue
+		var r := _model_hit(en, from, dir, best_t)
+		if r.size() > 0 and float(r[0]) < best_t:
+			best_t = float(r[0])
+			best_e = en
+			best_head = bool(r[1])
+	var la: int = p.last_arm
+	p.last_arm = -1   # урон пулей — не износ оружия в руке (game.gd: weapon_hit смотрит на last_arm)
+	if best_e:
+		_deal(best_e, from + dir * best_t, dir, best_head)
+	elif not hit.is_empty():
+		if hit.collider.has_method("take_hit"):
+			var head := false
+			if hit.collider.get("puppet") == true and hit.collider.get("col_cap") is CapsuleShape3D:
+				var top: float = (hit.collider.col_cap as CapsuleShape3D).height
+				head = (hit.collider as Node3D).to_local(hit.position).y > top - 0.32
+			_deal(hit.collider, hit.position, dir, head)
+		else:
+			_impact(hit.position, hit.normal)
+	p.last_arm = la
+
+
+## Урон цели; хэдшот — ×HEAD_MULT, свой звук и вспышка «В ГОЛОВУ».
+func _deal(target: Object, pos: Vector3, dir: Vector3, head: bool) -> void:
+	target.take_hit(DMG * (HEAD_MULT if head else 1.0), dir)
+	if not head:
+		return
+	_play(snd_headshot, -2.0, randf_range(0.95, 1.08))
+	Fx.dust_burst(game, pos, Color(0.45, 0.06, 0.04), 18)
+	Fx.popup_text(game, pos + Vector3(0, 0.35, 0), "В ГОЛОВУ!", Color(1.0, 0.3, 0.2), 1.2)
+
+
+## Луч по частям модели врага: [t, голова?] ближайшего меша или [] — промах.
+## Каждая часть — коробка её меша в своих локальных координатах (поворот и анимация учтены), чуть ужатая
+## (сферы/капсулы меньше своей коробки). Полоска здоровья не считается.
+func _model_hit(en: Node3D, from: Vector3, dir: Vector3, max_t: float) -> Array:
+	var bar = en.get("bar")
+	var best := max_t
+	var head := false
+	var found := false
+	var stack: Array = [en]
+	while stack.size() > 0:
+		var n: Node = stack.pop_back()
+		if n == bar or (n is Node3D and not (n as Node3D).visible):
+			continue
+		for c in n.get_children():
+			stack.append(c)
+		if not (n is MeshInstance3D) or (n as MeshInstance3D).mesh == null:
+			continue
+		var mi := n as MeshInstance3D
+		var ab := mi.mesh.get_aabb()
+		ab = ab.grow(-0.08 * minf(ab.size.x, minf(ab.size.y, ab.size.z)))
+		var inv := mi.global_transform.affine_inverse()
+		var lf: Vector3 = inv * from
+		var ld: Vector3 = inv.basis * dir
+		var t := _ray_box(lf, ld, ab)
+		if t < 0.0:
+			continue
+		# t — в локальном масштабе меша; переводим в мировое расстояние
+		var wt := (mi.global_transform * (lf + ld * t)).distance_to(from)
+		if wt < best:
+			best = wt
+			found = true
+			head = _under_head(mi, en)
+	return [best, head] if found else []
+
+
+static func _under_head(n: Node, root: Node) -> bool:
+	while n and n != root:
+		if n.has_meta("headshot"):
+			return true
+		n = n.get_parent()
+	return false
+
+
+## Пересечение луча с коробкой (slab): t входа (>= 0) или -1.
+static func _ray_box(o: Vector3, d: Vector3, ab: AABB) -> float:
+	var tmin := 0.0
+	var tmax := 1e9
+	for i in 3:
+		var lo: float = ab.position[i]
+		var hi: float = ab.end[i]
+		if absf(d[i]) < 1e-8:
+			if o[i] < lo or o[i] > hi:
+				return -1.0
+			continue
+		var t1: float = (lo - o[i]) / d[i]
+		var t2: float = (hi - o[i]) / d[i]
+		if t1 > t2:
+			var tt := t1
+			t1 = t2
+			t2 = tt
+		tmin = maxf(tmin, t1)
+		tmax = minf(tmax, t2)
+		if tmin > tmax:
+			return -1.0
+	return tmin
 
 
 ## Отдача: камера дёргается вверх и чуть в сторону, наполовину возвращается.
