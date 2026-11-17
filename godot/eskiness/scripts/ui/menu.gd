@@ -22,6 +22,7 @@ const SETTINGS := {
 	"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],   # градусы; 75 — прежний FOV камеры игрока
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
 	"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],      # галочка: 0 — выкл, 1 — вкл
+	"resolution": ["Разрешение", 0.0, 6.0, 1.0, 0.0],   # индекс в RESOLUTIONS, 0 — авто (промпт 01:33 18.11)
 	"window_mode": ["Режим экрана", 0.0, 2.0, 1.0, 2.0],   # 0 оконный, 1 оконный без рамок, 2 полноэкранный (промпт 22:53)
 	# --- графика (отдельная страница, graphics.gd): пресет и каждый эффект отдельно (промпт 14.11 17:36)
 	"graphics": ["Пресет", 0.0, 2.0, 1.0, 1.0],       # 0 низкая, 1 средняя, 2 высокая — выставляет все g_*
@@ -61,6 +62,12 @@ var ctl_tabs: Array = []          # кнопки-вкладки разделов
 var ctl_groups: Array = []        # бинды каждого раздела (виден только активный)
 ## Категория «Основное»; всё остальное из SETTINGS — в «Экран и графика».
 const GENERAL_KEYS := ["volume", "voice_volume", "sensitivity", "fov", "ui_scale", "crosshair"]
+
+## Разрешение окна: индекс 0 — авто (под экран), остальные — фиксированный размер (промпт 01:33 18.11)
+const RESOLUTIONS := [
+	Vector2i(0, 0), Vector2i(1280, 720), Vector2i(1366, 768),
+	Vector2i(1600, 900), Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3840, 2160),
+]
 var net_box: Control              # страница «Сетевая игра» (net_lobby.gd, промпт 14.11 19:37)
 var ctl_rows := {}                # действие -> [кнопка основной клавиши, кнопка альтернативной]
 var binds := {}                   # действие -> [основная, альтернативная]: "k:<physical_keycode>" | "m:<кнопка мыши>" | "" (только изменённые)
@@ -225,7 +232,7 @@ func _ready() -> void:
 	for key in SETTINGS:
 		if key in GENERAL_KEYS:
 			continue
-		if key == "window_mode" and _mobile():
+		if (key == "window_mode" or key == "resolution") and _mobile():
 			continue   # на телефоне окна нет
 		if key == "graphics":
 			rows.add_child(_gap(6))
@@ -727,6 +734,9 @@ func _fmt(key: String, v: float) -> String:
 		return "%d°" % int(v)
 	if key == "window_mode":
 		return ["окно", "без рамок", "полный"][clampi(int(round(v)), 0, 2)]
+	if key == "resolution":
+		var r: Vector2i = RESOLUTIONS[clampi(int(round(v)), 0, RESOLUTIONS.size() - 1)]
+		return "авто" if r == Vector2i.ZERO else "%dx%d" % [r.x, r.y]
 	if key == "graphics" or key == "g_shadow_res" or key == "g_textures" or key == "g_geometry":
 		return Graphics.NAMES[clampi(int(round(v)), 0, 2)]
 	if key == "g_aa":
@@ -812,32 +822,44 @@ static func _mobile() -> bool:
 
 
 var _win_applied := -1
+var _res_applied := -1
 
-## Режим экрана: 0 — окно с рамкой (≈75% экрана, по центру), 1 — окно без рамок во весь экран, 2 — полноэкранный.
+## Режим экрана: 0 — окно с рамкой (≈75% экрана или выбранное разрешение, по центру),
+## 1 — окно без рамок во весь экран (или выбранное разрешение, по центру), 2 — полноэкранный (нативное разрешение).
 func _apply_window() -> void:
 	if _mobile() or DisplayServer.get_name() == "headless":
 		return
 	var m := clampi(int(round(float(values.get("window_mode", 2.0)))), 0, 2)
-	if m == _win_applied:
+	var r := clampi(int(round(float(values.get("resolution", 0.0)))), 0, RESOLUTIONS.size() - 1)
+	if m == _win_applied and r == _res_applied:
 		return
 	_win_applied = m
+	_res_applied = r
 	var scr := DisplayServer.window_get_current_screen()
 	var ss := DisplayServer.screen_get_size(scr)
 	var sp := DisplayServer.screen_get_position(scr)
 	match m:
 		2:
+			# полный экран: сначала снять рамку/запрет ресайза (иначе на некоторых системах
+			# EXCLUSIVE_FULLSCREEN остаётся визуально похож на оконный без рамок — промпт 01:33 18.11)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, false)
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 		1:
+			var ws1: Vector2i = RESOLUTIONS[r] if RESOLUTIONS[r] != Vector2i.ZERO else ss
+			ws1 = Vector2i(mini(ws1.x, ss.x), mini(ws1.y, ss.y))
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, true)
-			DisplayServer.window_set_size(ss)
-			DisplayServer.window_set_position(sp)
+			DisplayServer.window_set_size(ws1)
+			@warning_ignore("integer_division")
+			DisplayServer.window_set_position(sp + (ss - ws1) / 2)
 		_:
+			var ws: Vector2i = RESOLUTIONS[r] if RESOLUTIONS[r] != Vector2i.ZERO else Vector2i(1280, 720)
+			ws = Vector2i(mini(ws.x, ss.x), mini(ws.y, ss.y))
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, false)
-			var ws := Vector2i(1280, 720)
 			DisplayServer.window_set_size(ws)
 			@warning_ignore("integer_division")
 			DisplayServer.window_set_position(sp + (ss - ws) / 2)
