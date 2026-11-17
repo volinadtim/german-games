@@ -132,6 +132,7 @@ func heal(amount: float) -> void:
 
 func _die() -> void:
 	alive = false
+	hb_clear()   # предмет из хотбара — из руки
 	player.active = false
 	inv.close()
 	inv.enabled = false
@@ -191,7 +192,7 @@ func _quick_heal() -> void:
 
 # ---------- предметы ----------
 
-func use_item(idx: int) -> void:
+func use_item(idx: int, no_channel := false) -> void:
 	var s = inv.slots[idx]
 	if s == null:
 		return
@@ -218,7 +219,7 @@ func use_item(idx: int) -> void:
 		if hp >= MAX_HP and not stops:
 			hud.toast("Здоровье и так полное")
 			return
-		if revive:
+		if revive and not no_channel:
 			revive.heal_channel(id)   # не мгновенно: полоска, прерывается движением и уроном
 			return
 		inv.take_at(idx, 1)
@@ -454,7 +455,8 @@ func toggle_gasmask() -> void:
 	equip(i, "face")
 
 
-## Клавиша 1–5: использовать привязанный предмет; надетый — снять.
+## Клавиша 1–5: взять привязанный предмет в руку (применить — удерживать ЛКМ); надетый — снять.
+## Повторное нажатие той же клавиши — убрать предмет из руки (промпт 18.11 01:16).
 func hotbar_use(k: int) -> void:
 	var id: String = inv.hotbar[k]
 	if id == "":
@@ -463,11 +465,65 @@ func hotbar_use(k: int) -> void:
 		if inv.equip[sl] == id:
 			unequip(sl)
 			return
-	var i := inv.bag_index(id)
-	if i < 0:
+	if inv.bag_index(id) < 0:
 		hud.toast("Нет: %s" % Items.item_name(id))
 		return
-	use_item(i)
+	if hb_hand == id:
+		hb_clear("Убрано в сумку: %s" % Items.item_name(id))
+		return
+	hb_hand = id
+	hb_lmb = false
+	hud.hand = id
+	hud.toast("В руке: %s — удерживай ЛКМ" % Items.item_name(id), Color(0.85, 0.85, 0.7))
+	play_ui("click", -16.0)
+
+
+## Убрать предмет из руки (отмена удержания, предмет кончился, смерть).
+func hb_clear(msg := "") -> void:
+	hb_hand = ""
+	hb_lmb = false
+	hud.hand = ""
+	if revive and revive.ch_on:
+		revive.cancel_channel()
+	if msg != "":
+		hud.toast(msg, Color(0.85, 0.82, 0.75))
+
+
+## ЛКМ нажали: предмет в руке — начинаем применение с полоской. true — удар не нужен (player_combat.gd).
+func hb_press() -> bool:
+	if hb_hand == "" or not alive:
+		return false
+	var i := inv.bag_index(hb_hand)
+	if i < 0:
+		hb_clear("Предмет кончился")
+		return false
+	if revive and revive.ch_on:
+		return true
+	hb_lmb = true
+	if revive:
+		revive.use_channel(hb_hand)
+	else:
+		use_item(i, true)
+		hb_after_use(hb_hand)
+	return true
+
+
+## ЛКМ отпустили: с предметом в руке — отмена применения (полоска гаснет), удара нет.
+func hb_release() -> bool:
+	if hb_hand == "":
+		return false
+	hb_lmb = false
+	return true
+
+
+## После применения: предмет кончился или надет — руки свободны.
+func hb_after_use(id: String) -> void:
+	if hb_hand != id:
+		return
+	if inv.count(id) <= 0 or inv.equip.values().has(id):
+		hb_hand = ""
+		hud.hand = ""
+	hb_lmb = false
 
 ## Самая побитая вещь под этот комплект: надетое и сумка. null — чинить нечего.
 func _most_worn(kind: String):

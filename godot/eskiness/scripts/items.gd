@@ -74,8 +74,6 @@ const ITEMS := {
 	# гнилое яблоко (промпт 14.11 19:23): скормить KILLBOX — при следующих «666» он не заберёт монеты
 	"rot_apple": {"name": "Гнилое яблоко", "desc": "Защищает от шестёрок. Его надо скормить KILLBOX.", "stack": 5,
 		"icon": "rot_apple", "color": Color(0.55, 0.16, 0.1)},
-	"pills": {"name": "Обезболивающее", "desc": "Блистер таблеток. +15 здоровья.", "stack": 8,
-		"icon": "pills", "color": Color(0.85, 0.85, 0.82), "heal": 15.0},
 	"wallet": {"name": "Старый кошелёк", "desc": "Открыть: внутри 10–40 монет.", "stack": 5,
 		"icon": "wallet", "color": Color(0.32, 0.2, 0.12)},
 	"scrap": {"name": "Металлолом", "desc": "Гнутые железки. Хлам — магазин купит за 3 монеты.", "stack": 10, "price": 3, "junk": true,
@@ -237,6 +235,18 @@ static func repairable(id: String) -> String:
 ## Прочность предмета (0 — вечный): оружие ломается от ударов, сапоги — от ударов и стекла (не от ходьбы).
 static func max_dur(id: String) -> float:
 	return float(ITEMS[id].get("dur", 0)) if ITEMS.has(id) else 0.0
+
+
+## Сколько секунд держать ЛКМ, чтобы применить предмет из руки (хотбар, промпт 18.11 01:16).
+static func use_time(id: String) -> float:
+	var d: Dictionary = ITEMS.get(id, {})
+	if d.has("heal"):
+		return 1.0 + float(d["heal"]) / 25.0
+	if d.has("repair"):
+		return 2.5
+	if d.has("buff"):
+		return 1.4
+	return 0.7
 
 
 static func item_name(id: String) -> String:

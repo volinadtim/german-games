@@ -1307,7 +1307,7 @@ func _use_label(id: String) -> String:
 	if d.has("buff"):
 		return "Съесть" if d["buff"] == "resist" else "Выпить"
 	if d.has("heal"):
-		return "Выпить" if id == "pills" else "Лечиться"
+		return "Лечиться"
 	if id == "mag":
 		return "Снарядить"
 	return {"wallet": "Открыть", "flashlight": "Включить / выключить", "battery": "Зарядить фонарик", "filter": "Сменить фильтр",

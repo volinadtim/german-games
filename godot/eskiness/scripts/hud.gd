@@ -24,6 +24,7 @@ var restart_b: Button
 var death_menu_b: Button
 var knuckles := false
 var inv  # inventory.gd — для хотбара 1–5
+var hand := ""            # предмет из хотбара в руке (game_items.gd: hb_hand) — подсвечиваем ячейку
 var bleed := 0.0          # сколько ещё течёт кровь (game.gd: _glass)
 var buffs := {}           # активные баффы (game.gd: buffs)
 var hurt := 0.0
@@ -445,8 +446,17 @@ func _paint() -> void:
 			var id: String = inv.hotbar[k]
 			var cnt: int = inv.count(id) if id != "" else 0
 			var worn: bool = id != "" and inv.equip.values().has(id)
-			paint.draw_rect(r, Color(0, 0, 0, 0.5))
-			paint.draw_rect(r, Color(0.95, 0.75, 0.4, 0.9) if worn else Color(1, 1, 1, 0.18), false, 2.0 if worn else 1.0)
+			var in_hand: bool = id != "" and id == hand
+			paint.draw_rect(r, Color(0.1, 0.16, 0.1, 0.55) if in_hand else Color(0, 0, 0, 0.5))
+			var bc := Color(1, 1, 1, 0.18)
+			var bw := 1.0
+			if in_hand:
+				bc = Color(0.6, 0.95, 0.5, 0.95)
+				bw = 3.0
+			elif worn:
+				bc = Color(0.95, 0.75, 0.4, 0.9)
+				bw = 2.0
+			paint.draw_rect(r, bc, false, bw)
 			if id != "":
 				Items.draw_icon(paint, id, r.grow(-11))
 				if cnt == 0:

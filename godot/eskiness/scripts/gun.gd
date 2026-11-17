@@ -20,6 +20,10 @@ const CAP := 8                   # патронов в магазине
 const DMG := 40.0                # по бетоннику (95 HP) — 3 попадания
 const RANGE := 80.0
 const HEAD_MULT := 2.5           # хэдшот (промпт 18.11 00:56)
+# урон падает с дистанцией (промпт 18.11 01:16): до FULL_D — полный, дальше линейно до FAR_MULT на FAR_D и дальше
+const DMG_FULL_D := 10.0
+const DMG_FAR_D := 45.0
+const DMG_FAR_MULT := 0.35
 const FIRE_CD := 0.28
 const RELOAD_T := 1.7             # фазы анимации — player_anim.gd: _reload_pose, звуки — REL_EVENTS
 const HEAR_R := 28.0             # радиус, в котором враги слышат выстрел
@@ -548,22 +552,31 @@ func _bullet_hit(from: Vector3, dir: Vector3) -> void:
 	var la: int = p.last_arm
 	p.last_arm = -1   # урон пулей — не износ оружия в руке (game.gd: weapon_hit смотрит на last_arm)
 	if best_e:
-		_deal(best_e, from + dir * best_t, dir, best_head)
+		_deal(best_e, from + dir * best_t, dir, best_head, from)
 	elif not hit.is_empty():
 		if hit.collider.has_method("take_hit"):
 			var head := false
 			if hit.collider.get("puppet") == true and hit.collider.get("col_cap") is CapsuleShape3D:
 				var top: float = (hit.collider.col_cap as CapsuleShape3D).height
 				head = (hit.collider as Node3D).to_local(hit.position).y > top - 0.32
-			_deal(hit.collider, hit.position, dir, head)
+			_deal(hit.collider, hit.position, dir, head, from)
 		else:
 			_impact(hit.position, hit.normal)
 	p.last_arm = la
 
 
-## Урон цели; хэдшот — ×HEAD_MULT, свой звук и вспышка «В ГОЛОВУ».
-func _deal(target: Object, pos: Vector3, dir: Vector3, head: bool) -> void:
-	target.take_hit(DMG * (HEAD_MULT if head else 1.0), dir)
+## Множитель урона по дистанции выстрела (вблизи — полный, далеко — DMG_FAR_MULT).
+static func dist_mult(d: float) -> float:
+	if d <= DMG_FULL_D:
+		return 1.0
+	var k: float = clampf((d - DMG_FULL_D) / (DMG_FAR_D - DMG_FULL_D), 0.0, 1.0)
+	return lerpf(1.0, DMG_FAR_MULT, k)
+
+
+## Урон цели; хэдшот — ×HEAD_MULT, свой звук и вспышка «В ГОЛОВУ», дальний выстрел — слабее (dist_mult).
+func _deal(target: Object, pos: Vector3, dir: Vector3, head: bool, from: Vector3 = Vector3.INF) -> void:
+	var dm := 1.0 if from == Vector3.INF else dist_mult(from.distance_to(pos))
+	target.take_hit(DMG * dm * (HEAD_MULT if head else 1.0), dir)
 	if not head:
 		return
 	_play(snd_headshot, -2.0, randf_range(0.95, 1.08))

@@ -27,7 +27,7 @@ func _ready() -> void:
 	r.seed = seed_
 	var prof := _profile(r)
 	_lathe(prof, r)
-	hp = 2.0 if kind in ["jar", "amphora"] and size > 1.25 else 1.0
+	hp = 1.0   # любой кувшин — с одного удара (промпт 18.11 01:16)
 	var cs := CollisionShape3D.new()
 	var cyl := CylinderShape3D.new()
 	cyl.radius = max_r * size * 0.9

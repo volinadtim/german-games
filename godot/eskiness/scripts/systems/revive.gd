@@ -292,15 +292,42 @@ func _finish_heal(id: String) -> void:
 	game.play_ui("pickup", -12.0, 0.8)
 
 
+## Применение предмета из руки (хотбар): полоска идёт, пока держат ЛКМ (game_items.gd hb_press).
+## Отпустили — ch_valid возвращает false, полоска гаснет, предмет цел.
+func use_channel(id: String) -> void:
+	_channel(Items.use_time(id), "Применяет: %s" % Items.item_name(id),
+		func(): _finish_use(id), func(): return game.hb_lmb, false)
+	ch_walk = true
+	ch_silent = true
+
+
+func _finish_use(id: String) -> void:
+	if not game.alive:
+		return
+	var i: int = game.inv.bag_index(id)
+	if i < 0:
+		game.hb_clear("Предмет кончился")
+		return
+	game.use_item(i, true)
+	game.hb_after_use(id)
+
+
+## Снять полоску без сообщения (предмет убрали из руки).
+func cancel_channel() -> void:
+	_stop("")
+
+
 # ---------- полоска действия ----------
 
 var ch_walk := false   # полоска не прерывается шагом (бинт)
+var ch_silent := false # отпустили ЛКМ — гасим полоску молча (хотбар в руке)
 
 
 func _channel(dur: float, text: String, done: Callable, valid: Callable, kneel: bool) -> void:
 	if ch_on:
 		return
 	ch_walk = false
+	ch_silent = false
 	ch_on = true
 	ch_t = 0.0
 	ch_dur = dur
@@ -382,10 +409,10 @@ func _channel_tick(delta: float) -> void:
 	elif game.hp < ch_hp - 0.9:   # кровотечение капает понемногу — прерывает только настоящий урон
 		why = "Прервано: урон"
 	elif ch_valid.is_valid() and not ch_valid.call():
-		why = "Прервано"
+		why = "~" if ch_silent else "Прервано"   # «~» — тихая отмена (отпустили ЛКМ)
 	ch_hp = game.hp
 	if why != "":
-		_stop(why)
+		_stop("" if why == "~" else why)
 		return
 	ch_t += delta
 	bar_fill.size.x = 336.0 * clampf(ch_t / ch_dur, 0.0, 1.0)
