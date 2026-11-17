@@ -191,6 +191,17 @@ func _start_intro(new_game := true) -> void:
 	intro.start(new_game)
 
 
+## Первое закрытие магазина (shop_ui.gd _close, промпт 16.11 21:55): камера к выходу на улицу, оттуда звуки монстров.
+func shop_cue() -> void:
+	if shop_cue_done or not alive or player == null or not player.input_locks.is_empty() or window_open():
+		return
+	shop_cue_done = true
+	var cue = preload("res://scripts/world/shop_cue.gd").new()
+	cue.game = self
+	add_child(cue)
+	cue.start()
+
+
 # ---------- взаимодействие ----------
 
 ## Пока открыто любое окно (инвентарь, лут, магазин, продажа, автомат) — курсор всегда виден:

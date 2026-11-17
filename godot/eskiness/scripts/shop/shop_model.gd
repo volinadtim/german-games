@@ -12,6 +12,7 @@ var tip_l: RichTextLabel       # подсказка товара у курсор
 var tip_panel: PanelContainer
 var tip_hide_t := 0.0          # долгий тап: подсказка сама прячется через пару секунд
 var opened := false
+var from_bench := false        # открыт с верстака дома (open_tab) — без подсказки shop_cue
 var tab := 0                  # открытая вкладка (TABS)
 var tab_btns: Array[Button] = []
 var content: VBoxContainer    # содержимое вкладки — пересобирается при переключении и покупке

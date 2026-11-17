@@ -91,6 +91,7 @@ func open_tab(g, i: int) -> void:
 		return
 	_last_toggle = Time.get_ticks_msec()
 	tab = i
+	from_bench = true
 	_open()
 	_show_tab(i)
 
@@ -105,6 +106,7 @@ func interact(g) -> void:
 	if opened:
 		_close()
 	else:
+		from_bench = false
 		_open()
 
 

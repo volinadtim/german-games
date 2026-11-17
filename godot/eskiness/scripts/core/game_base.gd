@@ -56,6 +56,7 @@ const FAST_SHARE := 0.4   # доля быстрых врагов («Шныга»
 
 var player: Player
 var shop_on := true      # Trinkets Market включён (промпт 16.11 04:30): в новой игре — после первых круток; сейв "shop_on"
+var shop_cue_done := false   # подсказка «звуки с улицы» после первого магазина (world/shop_cue.gd); сейв "shop_cue_done"
 var intro_done := true   # вступление пройдено (world/intro.gd); автомат включён — в сейве "intro_done"
 var takedown   # world/takedown.gd — стелс-добивание мелких врагов сзади на E
 var hud: Hud

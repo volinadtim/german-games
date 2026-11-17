@@ -69,6 +69,7 @@ func save_state() -> Dictionary:
 		"play_time": play_time,
 		"intro_done": intro_done,
 		"shop_on": shop_on,
+		"shop_cue_done": shop_cue_done,
 		"village": village.to_save() if village else {},
 	}
 
@@ -224,6 +225,7 @@ func load_state(d: Dictionary) -> void:
 	shop_on = bool(d.get("shop_on", true))   # старые сейвы — магазин включён
 	if shop:
 		shop.set_powered(shop_on)
+	shop_cue_done = bool(d.get("shop_cue_done", false))
 	# сейвы до машины: сейф уже открыт, а ключа нигде нет — кладём его в сейф
 	if safe and safe.opened:
 		# машина уже уехала — ключ в её зажигании (car_drive.gd: from_save)
