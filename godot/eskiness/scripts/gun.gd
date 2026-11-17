@@ -579,12 +579,15 @@ static func dist_mult(d: float) -> float:
 ## Урон цели; хэдшот — ×HEAD_MULT, свой звук и вспышка «В ГОЛОВУ», дальний выстрел — слабее (dist_mult).
 func _deal(target: Object, pos: Vector3, dir: Vector3, head: bool, from: Vector3 = Vector3.INF) -> void:
 	var dm := 1.0 if from == Vector3.INF else dist_mult(from.distance_to(pos))
-	target.take_hit(DMG * dm * (HEAD_MULT if head else 1.0), dir)
+	var amount := DMG * dm * (HEAD_MULT if head else 1.0)
+	target.take_hit(amount, dir)
 	if not head:
+		# обычное попадание — число урона бледным, чтобы было видно, сколько сняли
+		Fx.popup_text(game, pos + Vector3(0, 0.22, 0), "-%d" % roundi(amount), Color(0.95, 0.9, 0.82), 0.7)
 		return
 	_play(snd_headshot, -2.0, randf_range(0.95, 1.08))
 	Fx.dust_burst(game, pos, Color(0.45, 0.06, 0.04), 18)
-	Fx.popup_text(game, pos + Vector3(0, 0.35, 0), "В ГОЛОВУ!", Color(1.0, 0.3, 0.2), 1.2)
+	Fx.popup_text(game, pos + Vector3(0, 0.35, 0), "В ГОЛОВУ! -%d" % roundi(amount), Color(1.0, 0.3, 0.2), 1.2)
 
 
 ## Луч по частям модели врага: [t, голова?] ближайшего меша или [] — промах.

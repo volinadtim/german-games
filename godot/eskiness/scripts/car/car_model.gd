@@ -68,6 +68,11 @@ const NEXT_SEATS := [[1, 2], [0, 3], [0, 3], [1, 2]]   # соседние мес
 var switch_from := 1            # откуда пересаживаемся (seat_dir == 2)
 var doors: Array[Node3D] = []
 var door_gaps: Array[Node3D] = []
+var trunk_lid: Node3D                 # крышка багажника на петлях (анимация открытия)
+var trunk_well: Node3D                # тёмная ниша внутри багажника (видна, когда крышка поднята)
+var trunk_k := 0.0                    # 0 — закрыт, 1 — открыт
+var trunk_want := 0.0
+const TRUNK_OPEN := 1.15              # на сколько поднимается крышка, рад
 var door_k := [0.0, 0.0, 0.0, 0.0]   # 0 — закрыта, 1 — открыта
 var door_want := [0.0, 0.0, 0.0, 0.0]
 var figures: Array[Node3D] = []      # силуэты людей для кат-сцены посадки
@@ -184,7 +189,14 @@ func _build() -> void:
 	_box(Vector3(1.56, 0.12, 0.42), Vector3(0, 0.36, -1.79), paint)
 	# капот и багажник — чуть выпуклые крышки с зазором
 	_box(Vector3(1.46, 0.035, 1.1), Vector3(0, 0.875, 1.42), paint, Vector3(0.012, 0, 0))
-	_box(Vector3(1.46, 0.035, 0.84), Vector3(0, 0.875, -1.55), paint, Vector3(-0.02, 0, 0.01))
+	# крышка багажника на петлях у спинки заднего сиденья (анимация — car_drive.gd _trunk_tick)
+	trunk_lid = Node3D.new()
+	trunk_lid.position = Vector3(0, 0.873, -1.13)
+	rig.add_child(trunk_lid)
+	_box(Vector3(1.46, 0.035, 0.84), Vector3(0, 0.002, -0.42), paint, Vector3(0, 0, 0.01), trunk_lid)
+	_box(Vector3(1.4, 0.012, 0.78), Vector3(0, -0.02, -0.42), dark, Vector3.ZERO, trunk_lid)   # изнутри крышка тёмная
+	trunk_well = _box(Vector3(1.38, 0.01, 0.76), Vector3(0, 0.868, -1.55), dark)                # тёмный проём под крышкой
+	trunk_well.visible = false
 	_box(Vector3(1.5, 0.006, 0.02), Vector3(0, 0.861, 0.86), dark)
 	_box(Vector3(1.5, 0.006, 0.02), Vector3(0, 0.861, -1.13), dark)
 	# колёсные арки — тёмные выемки над колёсами, по краю рыжая гниль

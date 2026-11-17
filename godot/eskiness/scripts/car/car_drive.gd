@@ -27,6 +27,20 @@ func _doors_tick(delta: float) -> void:
 		door_gaps[i].visible = door_k[i] > 0.02
 		if w == 0.0 and door_k[i] == 0.0 and old > 0.0 and game:
 			game.play_at("clunk", door_world(i), -6.0, 1.1)
+	_trunk_tick(delta)
+
+
+## Крышка багажника поднимается и опускается плавно; захлопнулась — щелчок замка.
+func _trunk_tick(delta: float) -> void:
+	if trunk_lid == null or absf(trunk_k - trunk_want) < 0.001:
+		return
+	var old := trunk_k
+	trunk_k = move_toward(trunk_k, trunk_want, delta / 0.6)
+	trunk_lid.rotation.x = TRUNK_OPEN * smoothstep(0.0, 1.0, trunk_k)
+	if trunk_well:
+		trunk_well.visible = trunk_k > 0.03
+	if trunk_want == 0.0 and trunk_k == 0.0 and old > 0.0 and game:
+		game.play_at("clunk", trunk_world(), -8.0, 0.95)
 
 
 func open_door(i: int, on: bool, sync := true) -> void:
@@ -772,6 +786,12 @@ func park_at(p: Vector3, a: float) -> void:
 		door_k[i] = 0.0
 		doors[i].rotation.y = 0.0
 		door_gaps[i].visible = false
+	trunk_want = 0.0
+	trunk_k = 0.0
+	if trunk_lid:
+		trunk_lid.rotation.x = 0.0
+	if trunk_well:
+		trunk_well.visible = false
 
 
 func refuel() -> void:
@@ -818,16 +838,23 @@ func at_trunk(g) -> bool:
 	return l.z < -1.5 and l.z > -3.6 and absf(l.x) < 1.3
 
 
+## Точка звука багажника — у задней крышки.
+func trunk_world() -> Vector3:
+	return global_transform * Vector3(0, 0.95, -1.6)
+
+
 func open_trunk(g) -> void:
 	trunk.car = self
-	g.play_at("creak", global_position + global_transform.basis * Vector3(0, 0.9, -2.0), -14.0, 0.8)
+	trunk_want = 1.0
+	g.play_at("creak", trunk_world(), -7.0, 1.0)
 	g.open_loot(trunk)
 
 
 ## Окно закрыто — содержимое остальным игрокам (VillageNet.v_trunk).
 func trunk_closed() -> void:
+	trunk_want = 0.0
 	if game:
-		game.play_at("thud", global_position + global_transform.basis * Vector3(0, 0.9, -2.0), -12.0, 1.1)
+		game.play_at("creak_close", trunk_world(), -7.0, 1.0)
 	if vnet():
 		vnet().rpc("v_trunk", trunk.contents.duplicate(true))
 
