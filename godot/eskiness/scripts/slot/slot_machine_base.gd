@@ -22,9 +22,9 @@ const REELS := 5
 const ROWS := 3
 ## прокачка окна: LEVELS[ур-1] = [рядов, барабанов, цена перехода на этот уровень]
 ## упрощено (промпт 15.11 23:03): переходы дешевле — первая локация проходится быстрее
-## промпт 16.11 03:19: после 1×3 сразу 3×3 (окна 2×3 больше нет; старые сейвы — slot_level_v2 в game_save.gd)
-const LEVELS := [[1, 3, 0], [3, 3, 45], [3, 4, 80], [3, 5, 120]]
-const MAX_LEVEL := 4
+## промпт 18.11 00:39: окно 2×3 вернули (1×3 → 2×3 → 3×3 → 3×4 → 3×5); сейвы — slot_level_v3 в game_save.gd
+const LEVELS := [[1, 3, 0], [2, 3, 25], [3, 3, 45], [3, 4, 80], [3, 5, 120]]
+const MAX_LEVEL := 5
 ## лента барабана (одна на все барабаны, у каждого свой сдвиг): семёрки далеко друг от друга,
 ## поэтому в окне одного барабана больше одной семёрки не бывает
 const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
@@ -37,9 +37,9 @@ const WEIGHTS := {"cherry": 22.0, "lemon": 19.0, "plum": 17.5, "grape": 14.5, "d
 ## LEVEL_SYMS[ур-1] — сколько первых символов в игре. Шансы — WEIGHTS среди доступных.
 const SYM_ORDER := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"]
 ## алмазы — с 4-го уровня (3×4), промпт 15.11 22:53
-const LEVEL_SYMS := [3, 4, 5, 7]
+const LEVEL_SYMS := [3, 4, 4, 5, 7]
 ## гарантов одного символа за крутку максимум по уровню окна (промпт 14.11 18:08)
-const GUAR_MAX := [1, 2, 2, 3]
+const GUAR_MAX := [1, 1, 2, 2, 3]
 ## шанс комбинации (промпт 14.11 18:08): символ -> [круток, цена]. Пока действует, этот символ
 ## «липнет» к соседу слева с шансом STICK_BOOST вместо STICK — 3 в ряд выпадают заметно чаще.
 const BOOST := {
@@ -250,7 +250,33 @@ static func _random_strip(lv: int) -> Array:
 	var out: Array = []
 	for i in STRIP.size():
 		out.append(_weighted_symbol(lv))
+	limit_sevens(out, lv)
 	return out
+
+
+## Не семёрка: символ по весам уровня lv, кроме семёрки.
+static func _non_seven(lv: int) -> String:
+	for k in 50:
+		var s := _weighted_symbol(lv)
+		if s != "seven":
+			return s
+	return "cherry"
+
+
+## На одном барабане не больше одной семёрки (промпт 18.11 00:39): лишние семёрки ленты strip
+## заменяются; клетки keep (выпавшее окно) не трогаем — в столбце окна семёрка уже одна.
+static func limit_sevens(strip: Array, lv: int, keep: Array = []) -> void:
+	var seen := false
+	for idx in keep:
+		if strip[idx] == "seven":
+			seen = true
+	for i in strip.size():
+		if keep.has(i) or strip[i] != "seven":
+			continue
+		if seen:
+			strip[i] = _non_seven(lv)
+		else:
+			seen = true
 
 
 ## Открыта ли клетка [ряд r, барабан c] на уровне прокачки lv.
@@ -285,7 +311,8 @@ static func count_open(g: Array, lv: int, sym: String) -> int:
 
 ## Линии на уровне lv: [[клетки [ряд, барабан]], вид]. Только целиком в открытой области.
 ##   row — открытая часть ряда, платят 3+ одинаковых подряд; v — галочка из 3 клеток (на 2×3);
-##   diag — диагональ из 3 клеток; bridge — мостик из 4, только все 4.
+##   diag — диагональ из 3 клеток; bridge — мостик во всю ширину открытого окна (промпт 18.11 00:39):
+##   на 3×3 маленький из 3, на 3×4 из 4, на 3×5 из 5; платит только целиком.
 static func lines_for(lv: int) -> Array:
 	var out: Array = []
 	for r in ROWS:
@@ -305,9 +332,20 @@ static func lines_for(lv: int) -> Array:
 			for r in ROWS - 1:
 				shapes.append([[[r, c], [r + 1, c + 1], [r, c + 2]], "v"])
 				shapes.append([[[r + 1, c], [r, c + 1], [r + 1, c + 2]], "v"])
-	for c in REELS - 3:
-		shapes.append([[[1, c], [0, c + 1], [0, c + 2], [1, c + 3]], "bridge"])
-		shapes.append([[[1, c], [2, c + 1], [2, c + 2], [1, c + 3]], "bridge"])
+	if three_rows:
+		var cols := 0
+		var c0 := -1
+		for c in REELS:
+			if col_open(lv, c):
+				cols += 1
+				if c0 < 0:
+					c0 = c
+		for top in [0, 2]:
+			var br: Array = [[1, c0]]
+			for k in range(1, cols - 1):
+				br.append([top, c0 + k])
+			br.append([1, c0 + cols - 1])
+			shapes.append([br, "bridge"])
 	for sh in shapes:
 		var ok := true
 		for cl in sh[0]:
@@ -332,6 +370,12 @@ static func _guarantee_one(g: Array, lv: int, sym: String) -> void:
 		return
 	if sym == "six" or (sym == "seven" and count_open(g, lv, "seven") >= 3):
 		return
+	var col7: Array = []   # барабаны, где семёрка уже есть (на барабане — не больше одной)
+	if sym == "seven":
+		for r in ROWS:
+			for c in REELS:
+				if g[r][c] == "seven":
+					col7.append(c)
 	var keep: Array = []
 	for cells in evaluate(g, lv, lines_for(lv))["lines"]:
 		keep.append_array(cells)
@@ -339,7 +383,7 @@ static func _guarantee_one(g: Array, lv: int, sym: String) -> void:
 	var spare: Array = []
 	for r in ROWS:
 		for c in REELS:
-			if is_open(lv, r, c) and g[r][c] != sym:
+			if is_open(lv, r, c) and g[r][c] != sym and not col7.has(c):
 				cand.append([r, c])
 				if not keep.has([r, c]):
 					spare.append([r, c])
@@ -389,6 +433,14 @@ static func _roll_window(lv: int, guar, boosted: Array = [], rare7 := false) -> 
 						s = left
 				row.append(s)
 			g.append(row)
+		# на одном барабане (столбце окна) — не больше одной семёрки (промпт 18.11 00:39)
+		for c in REELS:
+			var has7 := false
+			for r in ROWS:
+				if g[r][c] == "seven":
+					if has7:
+						g[r][c] = _non_seven(lv)
+					has7 = true
 		for sym in guar:
 			_guarantee(g, lv, String(sym), int(guar[sym]) if guar is Dictionary else 1)
 		if rare7 and attempt < 199 and randf() < SEVENS_REROLL and evaluate(g, lv, lines_for(lv))["sevens"]:

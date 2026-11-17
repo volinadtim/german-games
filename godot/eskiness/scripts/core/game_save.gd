@@ -58,7 +58,7 @@ func save_state() -> Dictionary:
 		"slot_luck": slot.luck.duplicate(true) if slot else {},
 		"slot_boost": slot.boost.duplicate(true) if slot else {},
 		"slot_level": slot.level if slot else 1,
-		"slot_level_v2": true,   # уровни без окна 2×3 (промпт 16.11 03:19)
+		"slot_level_v3": true,   # окно 2×3 снова есть (промпт 18.11 00:39)
 		"shop_bought": shop_bought.duplicate(),
 		"blueprints": home.to_save() if home else {},
 		"moved": carry.to_save() if carry else {},
@@ -247,8 +247,8 @@ func load_state(d: Dictionary) -> void:
 		slot.credits = int(d.get("slot_credits", 0))
 		slot.load_buffs(d.get("slot_luck", {}), d.get("slot_boost", {}))
 		var slv := int(d.get("slot_level", 1))
-		if not d.get("slot_level_v2", false) and slv >= 2:
-			slv = maxi(slv - 1, 2)   # старые 2×3 и 3×3 → 3×3, дальше сдвиг на 1
+		if not d.get("slot_level_v3", false) and d.get("slot_level_v2", false) and slv >= 2:
+			slv += 1   # сейвы без окна 2×3 (v2): 3×3 и выше сдвигаются на 1 вверх
 		slot.set_level(slv)
 		slot.set_tray(int(d.get("slot_tray", 0)))
 		slot.set_shield(int(d.get("slot_shield", 0)))
