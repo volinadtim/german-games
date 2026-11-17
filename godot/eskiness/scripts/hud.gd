@@ -393,13 +393,7 @@ func _paint() -> void:
 	# здоровье и хотбар — крупнее прежнего (~×1.25)
 	var y := sz.y - 50.0
 	var w := 330.0
-	if not minimal:
-		paint.draw_string_outline(f, Vector2(x, y - 9), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 5, Color(0, 0, 0, 0.7))
-		paint.draw_string(f, Vector2(x, y - 9), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color(0.8, 0.78, 0.72))
-	paint.draw_rect(Rect2(x - 2, y - 2, w + 4, 22), Color(0, 0, 0, 0.6))
-	paint.draw_rect(Rect2(x, y, w * hp_lag / hp_max, 18), Color(0.85, 0.7, 0.55, 0.6))
-	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 18), Color(0.62, 0.12, 0.08))
-	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 5), Color(0.8, 0.25, 0.18))
+	_draw_hp(x, y, w, 20.0, f)
 
 	# кровотечение: мигающая капля справа от полоски здоровья
 	if bleed > 0.0:
@@ -483,3 +477,78 @@ func _paint() -> void:
 		if not light_on:
 			bc = bc.darkened(0.4)
 		paint.draw_rect(Rect2(bx, by, 140 * battery, 10), bc)
+
+
+## Полоска здоровья (промпт 18.11 02:15: «слишком простая», во всех режимах одна и та же):
+## стальная плашка со скошенными углами и заклёпками, утопленный паз, заливка с градиентом и бликом,
+## деления по 25 единиц, яркая кромка у края заливки, «догоняющая» светлая полоска от только что
+## полученного урона и красный пульс на малом здоровье. В «Реализме» — без подписи и цифр.
+func _draw_hp(x: float, y: float, w: float, h: float, f: Font) -> void:
+	var frac := clampf(hp / maxf(hp_max, 1.0), 0.0, 1.0)
+	var lag := clampf(hp_lag / maxf(hp_max, 1.0), 0.0, 1.0)
+	var fw := w * frac
+	var pad := 4.0
+	# плашка со скошенными углами (слева сверху и справа снизу)
+	var cut := 7.0
+	var l := x - pad
+	var r := x + w + pad
+	var tp := y - pad
+	var bt := y + h + pad
+	var plate := PackedVector2Array([
+		Vector2(l + cut, tp), Vector2(r, tp), Vector2(r, bt - cut),
+		Vector2(r - cut, bt), Vector2(l, bt), Vector2(l, tp + cut)])
+	paint.draw_colored_polygon(plate, Color(0, 0, 0, 0.5))                     # тень/подложка
+	paint.draw_colored_polygon(_shift(plate, Vector2(0.0, -1.0)), Color(0.15, 0.145, 0.135, 0.92))
+	paint.draw_polyline(_loop(_shift(plate, Vector2(0.0, -1.0))), Color(0.44, 0.42, 0.38, 0.75), 1.0)
+	# заклёпки по углам
+	for rv in [Vector2(l + 5.0, bt - 4.0), Vector2(r - 4.0, tp + 4.0), Vector2(r - 4.0, bt - 8.0), Vector2(l + 9.0, tp + 3.0)]:
+		paint.draw_circle(rv, 2.0, Color(0.1, 0.1, 0.09, 0.9))
+		paint.draw_circle(rv + Vector2(-0.4, -0.6), 1.4, Color(0.56, 0.54, 0.49, 0.95))
+	# утопленный паз
+	paint.draw_rect(Rect2(x, y, w, h), Color(0.055, 0.05, 0.05, 0.92))
+	paint.draw_rect(Rect2(x, y, w, 1.0), Color(0, 0, 0, 0.6))
+	# «догоняющая» полоска: только что потерянное здоровье
+	if lag > frac:
+		paint.draw_rect(Rect2(x + fw, y + 1.0, w * (lag - frac), h - 2.0), Color(0.95, 0.86, 0.72, 0.5))
+	# цвет заливки: от бурого к алому по мере потери, пульс на малом здоровье
+	var col := Color(0.52, 0.1, 0.07).lerp(Color(0.78, 0.17, 0.1), 1.0 - frac)
+	if frac < 0.3:
+		col = col.lerp(Color(0.95, 0.3, 0.14), (0.55 + 0.45 * sin(t * 6.0)) * (1.0 - frac / 0.3))
+	if fw > 1.0:
+		paint.draw_rect(Rect2(x, y + 1.0, fw, h - 2.0), col)
+		paint.draw_rect(Rect2(x, y + 1.0, fw, (h - 2.0) * 0.4), col.lightened(0.16))        # глянец сверху
+		paint.draw_rect(Rect2(x, y + h * 0.74, fw, h * 0.26 - 1.0), col.darkened(0.34))     # тень снизу
+		paint.draw_rect(Rect2(x, y + 2.0, fw, 1.5), Color(1, 1, 1, 0.22))                   # блик
+		# яркая кромка у края заливки
+		paint.draw_rect(Rect2(x + fw - 2.5, y + 1.0, 2.5, h - 2.0), Color(1.0, 0.78, 0.6, 0.85))
+		paint.draw_rect(Rect2(x + fw - 6.0, y + 1.0, 3.5, h - 2.0), Color(1.0, 0.6, 0.4, 0.25))
+	# деления: крупные по 25 единиц, мелкие — по 10
+	for k in 9:
+		var kx := x + w * (k + 1) / 10.0
+		paint.draw_rect(Rect2(kx, y + 1.0, 1.0, 4.0), Color(0, 0, 0, 0.4))
+	for k in 3:
+		var kx := x + w * (k + 1) / 4.0
+		paint.draw_rect(Rect2(kx, y + 1.0, 1.0, h - 2.0), Color(0, 0, 0, 0.4))
+	paint.draw_rect(Rect2(x, y, w, h), Color(0.03, 0.03, 0.03, 0.85), false, 1.0)
+	if minimal:
+		return   # «Реализм»: без подписи и цифр
+	paint.draw_string_outline(f, Vector2(x + 1.0, y - 11.0), "ЗДОРОВЬЕ", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.75))
+	paint.draw_string(f, Vector2(x + 1.0, y - 11.0), "ЗДОРОВЬЕ", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.72, 0.7, 0.64))
+	var num := "%d" % int(ceil(hp))
+	paint.draw_string_outline(f, Vector2(x, y + h - 4.0), num, HORIZONTAL_ALIGNMENT_RIGHT, w - 6.0, 17, 5, Color(0, 0, 0, 0.85))
+	paint.draw_string(f, Vector2(x, y + h - 4.0), num, HORIZONTAL_ALIGNMENT_RIGHT, w - 6.0, 17, Color(0.95, 0.92, 0.86))
+
+
+## Сдвинуть точки полигона (плашка рисуется дважды: тень и металл).
+static func _shift(pts: PackedVector2Array, d: Vector2) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for p in pts:
+		out.append(p + d)
+	return out
+
+
+## Замкнуть контур для draw_polyline.
+static func _loop(pts: PackedVector2Array) -> PackedVector2Array:
+	var out := pts.duplicate()
+	out.append(pts[0])
+	return out

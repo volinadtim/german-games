@@ -43,8 +43,8 @@ const CRAWL_PATH := [Vector3(-7.2, 0, 0.85), Vector3(-6.0, 0, 1.6), Vector3(-6.0
 const CRAWL_SPEED := 1.1   # ~6 м за ~5.5 с — к концу кат-сцены уже в комнате
 # ---------- записка в руке (промпт 18.11 01:54) ----------
 const NOTE_TEXT := "Выиграй всё"
-const NOTE_T := 4.3        # поднял в кадр → прочитал → отвёл руку → выкинул
-const NOTE_TOSS := 3.05    # на этой секунде бумажка летит из руки на пол
+const NOTE_T := 2.75       # поднял в кадр → прочитал → отвёл руку → выкинул (короче, промпт 18.11 02:15)
+const NOTE_TOSS := 1.95    # на этой секунде бумажка летит из руки на пол
 const WAKE_T := 7.6
 const CUT_T := 6.2
 const CUE_T := 3.0
@@ -418,8 +418,8 @@ func _end_note() -> void:
 ## Поза руки с запиской в осях камеры: поднял → читает (лёгкая дрожь) → замах → бросок.
 func _note_pose(tt: float) -> void:
 	var p = game.player
-	var up := smoothstep(0.0, 0.85, tt)            # рука поднимает записку в кадр
-	var away := smoothstep(2.6, NOTE_TOSS, tt)     # отвёл в сторону перед броском
+	var up := smoothstep(0.0, 0.55, tt)            # рука быстро поднимает записку в кадр
+	var away := smoothstep(1.5, NOTE_TOSS, tt)     # отвёл в сторону перед броском
 	if note and is_instance_valid(note):
 		var low := Vector3(0.26, -0.44, -0.55)
 		var read := Vector3(0.015, -0.055, -0.3)
@@ -435,7 +435,7 @@ func _note_pose(tt: float) -> void:
 		note.position = pos
 		note.rotation = rot
 	# голова чуть опущена к записке, к концу — обратно
-	var look := up * (1.0 - smoothstep(NOTE_TOSS, NOTE_T - 0.4, tt))
+	var look := up * (1.0 - smoothstep(NOTE_TOSS, NOTE_T - 0.25, tt))
 	p.head.rotation.x = lerpf(0.0, -0.24, look)
 	if tt >= NOTE_TOSS and not note_tossed:
 		_toss_note()
