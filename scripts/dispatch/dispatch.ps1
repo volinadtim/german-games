@@ -36,7 +36,13 @@ $Zones = "slot","shop","items","player","enemy","ui","net","level","car","villag
 
 # Хук воркеров: после каждого инструмента проверяет stop.flag (мягкая остановка) — см. stop-hook.js.
 $hookCmd = 'node "{0}" "{1}"' -f (Join-Path $PSScriptRoot "stop-hook.js"), $Dir
-$hooks = @{ hooks = @{ PostToolUse = @(@{ matcher = "*"; hooks = @(@{ type = "command"; command = $hookCmd }) }) } }
+# Минимальный стартовый контекст воркеров (~6k вместо ~11k): без CLAUDE.md (всё нужное — в AGENTS.md),
+# без авто-памяти, без git-инструкций (отправка — ship.sh), без списка skills (--disable-slash-commands), без MCP.
+$env:CLAUDE_CODE_DISABLE_AUTO_MEMORY = "1"
+$hooks = @{
+    includeGitInstructions = $false; autoMemoryEnabled = $false; claudeMdExcludes = @("**/CLAUDE.md")
+    hooks = @{ PostToolUse = @(@{ matcher = "*"; hooks = @(@{ type = "command"; command = $hookCmd }) }) }
+}
 [IO.File]::WriteAllText($HooksFile, ($hooks | ConvertTo-Json -Depth 8), $Utf8)
 
 function Log([string]$s) {
@@ -139,7 +145,7 @@ function Route([string]$text) {
     }
     if (-not $lines) { $lines = "(агентов ещё нет)" }
     $p = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "router.md"), $Utf8).Replace("{{STATE}}", ($lines -join "`n")).Replace("{{TASK}}", $text)
-    $out = $p | & $Claude -p --model haiku --output-format text --tools Read --strict-mcp-config --no-session-persistence --disable-slash-commands 2>$null | Out-String
+    $out = $p | & $Claude -p --model haiku --output-format text --tools Read --strict-mcp-config --no-session-persistence --disable-slash-commands --settings $HooksFile 2>$null | Out-String
     $r = $null
     if ($out -match '\{[\s\S]*?\}') { try { $r = $matches[0] | ConvertFrom-Json } catch {} }
     if (-not $r) { Log "роутер не ответил JSON ($(Cut $out 200)) — беру gd-worker/other/new"; $r = [pscustomobject]@{ zone = "other"; agent = "gd-worker"; mode = "new"; title = (Cut $text 60) } }
@@ -174,7 +180,7 @@ function Start-Worker($q) {
     }
     $in = Join-Path $Dir "$zone.in.txt"; $out = Join-Path $Dir "$zone.out.json"; $err = Join-Path $Dir "$zone.err.txt"
     [IO.File]::WriteAllText($in, $brief, $Utf8)
-    $a = @("-p", "--agent", $q.agent, "--output-format", "json", "--permission-mode", "bypassPermissions", "--strict-mcp-config", "--settings", "`"$HooksFile`"")
+    $a = @("-p", "--agent", $q.agent, "--output-format", "json", "--permission-mode", "bypassPermissions", "--strict-mcp-config", "--disable-slash-commands", "--settings", "`"$HooksFile`"")
     $sid = if ($q.resume -and $q.session) { $q.session } elseif ($q.mode -eq "continue" -and $State[$zone]) { $State[$zone].session } else { $null }
     if ($sid) { $a += @("--resume", $sid) }
     # Скрытое отдельное окно: воркер не привязан к консоли диспетчера и переживает его закрытие.
