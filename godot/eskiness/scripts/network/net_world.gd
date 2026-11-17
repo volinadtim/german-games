@@ -237,6 +237,13 @@ func _game_tick(delta: float) -> void:
 		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0) \
 				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0) | (64 if p.dying else 0)   # позы с пистолетом; 64 — лежит (player_death.gd)
 		rpc("ps", p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1])
+	gear_t -= delta
+	if gear_t <= 0.0 and p and peer and online and game.get("inv") != null:
+		gear_t = 1.0
+		var eq := {}
+		for k in ["head", "body", "legs", "feet", "hands", "back"]:
+			eq[k] = String(game.inv.equip.get(k, ""))
+		rpc("pgear", eq)
 	if p and p.punching and not was_punching and peer and online:
 		rpc("pev", p.last_arm)
 	was_punching = p != null and p.punching
@@ -319,6 +326,14 @@ func _make_ui() -> void:
 
 
 # ---------- игроки ----------
+
+## Одежда другого игрока — видна на его модели (промпт 18.11 00:44).
+@rpc("any_peer", "unreliable", "call_remote")
+func pgear(eq: Dictionary) -> void:
+	var pp = puppets.get(multiplayer.get_remote_sender_id())
+	if pp != null and is_instance_valid(pp) and pp.has_method("set_outfit"):
+		pp.set_outfit(eq)
+
 
 @rpc("any_peer", "unreliable_ordered", "call_remote", 1)
 func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: String, w1: String) -> void:

@@ -192,6 +192,7 @@ var suppress := false     # предмет создаётся по сети — 
 var pending_world := {}   # клиент: мир от хоста до старта
 var early: Array = []     # клиент: события, пришедшие до постройки мира
 var send_t := 0.0
+var gear_t := 0.0                 # раз в секунду — надетая одежда (net_world.gd: pgear, промпт 18.11 00:44)
 var es_t := 0.0
 var ui_t := 0.0
 var was_punching := false

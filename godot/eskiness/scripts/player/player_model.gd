@@ -284,6 +284,7 @@ func _build_model() -> void:
 			# так изнанка шеи не попадает в камеру ни в какой позе
 			var inner := skel.get_bone_global_rest(skel.find_bone("spine03")).origin
 			skin.set_bind_pose(k, Transform3D(bind.basis.scaled(Vector3.ONE * 0.001), bind * inner))
+	_outfit_setup(body_mi, rest)
 	body_mi.skin = skin
 	body_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if puppet:
@@ -305,6 +306,10 @@ func set_head_visible(on: bool) -> void:
 		head_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if is_instance_valid(head_shadow):
 			head_shadow.visible = not on
+		for sl in outfit_nodes:
+			var o = outfit_nodes[sl]
+			if o is MeshInstance3D and is_instance_valid(o):
+				(o as MeshInstance3D).skin = head_mi.skin   # шапка — вместе с головой
 	for p in head_parts:
 		if is_instance_valid(p):
 			(p as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if on else GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
@@ -678,3 +683,189 @@ func _grip(arm: int, id: String) -> Transform3D:
 	var xw := (knuck - d2 * knuck.dot(d2)).normalized()   # лезвие ребром к костяшкам — по направлению удара
 	var zw := xw.cross(d2).normalized()
 	return Transform3D(Basis(xw * unit, d2 * unit, zw * unit), c * unit)
+
+
+# ---------- одежда на модели (промпт 18.11 00:44) ----------
+# Из меша тела вырезаются куски по костям (торс, руки, ноги, стопы, кисти, верх головы), раздуваются по нормали
+# и красятся в цвет вещи. Скин тот же, что у тела, — одежда двигается вместе с ним. Рюкзак — коробка на спине.
+
+const OUTFIT_SLOTS := ["head", "body", "legs", "feet", "hands", "back"]
+
+
+func _outfit_setup(body_mi: MeshInstance3D, rest: Callable) -> void:
+	outfit_body = body_mi
+	var sk: Skin = body_mi.skin
+	outfit_names.resize(sk.get_bind_count())
+	var hi := -1
+	var he := -1
+	for k in sk.get_bind_count():
+		var nm := String(sk.get_bind_name(k))
+		if sk.get_bind_bone(k) >= 0:
+			nm = skel.get_bone_name(sk.get_bind_bone(k))
+		outfit_names[k] = nm
+		if nm == "head":
+			hi = k
+		elif nm == "head_end":
+			he = k
+	var has_end := false
+	if hi >= 0:
+		outfit_head_a = sk.get_bind_pose(hi).affine_inverse().origin
+		if he >= 0:
+			outfit_head_d = sk.get_bind_pose(he).affine_inverse().origin - outfit_head_a
+			has_end = true
+	var tall: float = (rest.call("head_end") as Transform3D).origin.y - (rest.call("foot_L") as Transform3D).origin.y + 0.1
+	if body_mi.mesh and tall > 0.3:
+		outfit_upm = clampf(body_mi.mesh.get_aabb().size.y / tall, 0.001, 1000.0)
+	if not has_end:
+		outfit_head_d = Vector3.UP * 0.2 * outfit_upm   # нет head_end — голова ~20 см вверх
+
+
+## Показать надетое (слот -> id), как inv.equip. Вызывают game._apply_equip и сеть (чужой игрок).
+func set_outfit(eq: Dictionary) -> void:
+	if skel == null or outfit_body == null:
+		return
+	for sl in OUTFIT_SLOTS:
+		var id := String(eq.get(sl, ""))
+		if outfit_ids.has(sl) and String(outfit_ids[sl]) == id:
+			continue
+		outfit_ids[sl] = id
+		var old = outfit_nodes.get(sl)
+		if old != null and is_instance_valid(old):
+			old.queue_free()
+		outfit_nodes.erase(sl)
+		if id == "" or not Items.ITEMS.has(id):
+			continue
+		var n := _make_outfit(sl, id)
+		if n:
+			outfit_nodes[sl] = n
+
+
+## [кости-префиксы, толщина в метрах, порог «верх головы» (0 — без порога)]
+func _outfit_parts(sl: String, id: String) -> Array:
+	match sl:
+		"head":
+			return [["head"], 0.035 if id == "ushanka" else 0.025, 0.42 if id == "ushanka" else 0.56]
+		"body":
+			var b := ["spine", "clavicle"]
+			if id != "vest":
+				b.append("upperarm")
+			if id in ["jacket", "kurtka"]:
+				b.append("lowerarm")
+			return [b, 0.022 if id == "vest" else 0.012, 0.0]
+		"legs":
+			return [["pelvis", "thigh", "calf"], 0.01, 0.0]
+		"feet":
+			return [["foot", "toe"], 0.014, 0.0]
+		"hands":
+			if id == "knuckles":
+				return []
+			return [["hand", "thumb", "index", "middle", "ring", "pinky"], 0.006, 0.0]
+	return []
+
+
+func _make_outfit(sl: String, id: String) -> Node3D:
+	var col: Color = Items.ITEMS[id].get("color", Color(0.5, 0.5, 0.5))
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = col
+	mat.roughness = 0.45 if sl == "head" and id != "ushanka" else 0.9
+	if sl == "back":
+		var b := skel.find_bone("spine03")
+		if b < 0:
+			return null
+		var att := BoneAttachment3D.new()
+		att.bone_name = "spine03"
+		skel.add_child(att)
+		var rel := global_transform.affine_inverse() * skel.global_transform
+		var bt := rel * skel.get_bone_global_rest(b)
+		var big := id == "backpack"
+		var want := Transform3D(Basis(), bt.origin + Vector3(0, -0.06, 0.17 if big else 0.16))
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.32, 0.42, 0.16) if big else Vector3(0.28, 0.34, 0.15)
+		mi.mesh = bm
+		mi.material_override = mat
+		att.add_child(mi)
+		mi.transform = bt.affine_inverse() * want
+		return att
+	var parts := _outfit_parts(sl, id)
+	if parts.is_empty():
+		return null
+	var key := "%s|%s|%s" % [str(parts[0]), str(parts[1]), str(parts[2])]
+	var mesh: ArrayMesh = outfit_cache.get(key)
+	if mesh == null:
+		mesh = _outfit_mesh(parts[0], float(parts[1]), float(parts[2]))
+		if mesh == null:
+			return null
+		outfit_cache[key] = mesh
+	var o := MeshInstance3D.new()
+	o.mesh = mesh
+	o.material_override = mat
+	skel.add_child(o)
+	o.transform = outfit_body.transform
+	o.skin = head_mi.skin if head_mi and is_instance_valid(head_mi) else outfit_body.skin
+	o.skeleton = NodePath("..")
+	return o
+
+
+func _outfit_mesh(bones: Array, thick: float, hat_t: float) -> ArrayMesh:
+	var src: Mesh = outfit_body.mesh
+	if src == null or src.get_surface_count() == 0:
+		return null
+	var arr := src.surface_get_arrays(0)
+	var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+	if arr[Mesh.ARRAY_BONES] == null or arr[Mesh.ARRAY_WEIGHTS] == null or verts.is_empty():
+		return null
+	var bi: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+	var bw: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+	var idx := PackedInt32Array()
+	if arr[Mesh.ARRAY_INDEX] != null:
+		idx = arr[Mesh.ARRAY_INDEX]
+	if idx.is_empty():
+		for i in verts.size():
+			idx.append(i)
+	@warning_ignore("integer_division")
+	var nb: int = bi.size() / verts.size()
+	var dd := outfit_head_d.length_squared()
+	var inside := PackedByteArray()
+	inside.resize(verts.size())
+	for v in verts.size():
+		var best := -1
+		var bwv := -1.0
+		for k in nb:
+			if bw[v * nb + k] > bwv:
+				bwv = bw[v * nb + k]
+				best = bi[v * nb + k]
+		var nm: String = outfit_names[best] if best >= 0 and best < outfit_names.size() else ""
+		var ok := false
+		for p in bones:
+			if nm.begins_with(String(p)):
+				ok = true
+				break
+		if ok and hat_t > 0.0 and dd > 0.0:
+			ok = (verts[v] - outfit_head_a).dot(outfit_head_d) / dd > hat_t
+		inside[v] = 1 if ok else 0
+	var out := PackedInt32Array()
+	for t in range(0, idx.size() - 2, 3):
+		if inside[idx[t]] + inside[idx[t + 1]] + inside[idx[t + 2]] >= 2:
+			out.append(idx[t])
+			out.append(idx[t + 1])
+			out.append(idx[t + 2])
+	if out.is_empty():
+		return null
+	var nv := verts.duplicate()
+	var d := thick * outfit_upm
+	if norms.size() == nv.size():
+		for v in nv.size():
+			nv[v] += norms[v] * d
+	var a := []
+	a.resize(Mesh.ARRAY_MAX)
+	a[Mesh.ARRAY_VERTEX] = nv
+	if norms.size() == nv.size():
+		a[Mesh.ARRAY_NORMAL] = norms
+	a[Mesh.ARRAY_BONES] = bi
+	a[Mesh.ARRAY_WEIGHTS] = bw
+	a[Mesh.ARRAY_INDEX] = out
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, a, [], {}, src.surface_get_format(0) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+	return m

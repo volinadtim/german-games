@@ -231,6 +231,15 @@ var head_mi: MeshInstance3D      # видимый меш тела (голова 
 var head_shadow: MeshInstance3D  # копия с головой — только тень
 var head_skin_full: Skin
 var head_skin_cut: Skin
+# одежда на модели (промпт 18.11 00:44, player_model.gd: set_outfit)
+var outfit_body: MeshInstance3D   # исходный меш тела — из него вырезаются куски одежды
+var outfit_names := PackedStringArray()   # индекс связки скина -> имя кости
+var outfit_head_a := Vector3.ZERO  # кость head и направление к head_end в пространстве меша (шапка — верх головы)
+var outfit_head_d := Vector3.UP
+var outfit_upm := 1.0             # единиц меша на метр
+var outfit_ids := {}              # слот -> что показано
+var outfit_nodes := {}            # слот -> узел одежды
+var outfit_cache := {}            # ключ кусков -> ArrayMesh
 var peek := 0.0                   # выглядывание из-за угла (intro.gd): + — корпус и голова вбок вправо
 var force_crouch := false         # присесть без управления (кат-сцены, intro.gd)
 var head_parts: Array = []        # голова/шея простой модели (только тень)

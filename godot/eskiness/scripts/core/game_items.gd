@@ -402,6 +402,8 @@ func drop_equipped(slot_: String) -> void:
 
 func _apply_equip(slot_: String) -> void:
 	var id: String = inv.equip[slot_]
+	if player and player.has_method("set_outfit"):
+		player.set_outfit(inv.equip)   # одежда видна на модели (промпт 18.11 00:44)
 	match slot_:
 		"left", "right":
 			var arm := 0 if slot_ == "left" else 1
