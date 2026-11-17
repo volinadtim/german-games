@@ -18,6 +18,7 @@ var peer: ENetMultiplayerPeer
 var port := PORT
 var my_name := "Игрок"
 var players := {}          # peer_id -> имя (у хоста и у клиентов)
+var game_mode := 1        # режим игры (хост выбирает в лобби, ui/mode_select.gd; game_base.gd: MODE_*)
 var friendly_fire := false # огонь по своим (галочка хоста в лобби, промпт 16.11 21:47); выкл — удары и пули по игрокам без урона
 var hosting := false
 var connected := false     # клиент: подключён к хосту

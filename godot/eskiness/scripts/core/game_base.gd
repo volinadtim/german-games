@@ -54,6 +54,19 @@ const ENEMY_SPOTS := [Vector3(28.0, 4.1, 7.0), Vector3(36.0, 4.1, -6.0), Vector3
 const RESPAWN := 40.0
 const FAST_SHARE := 0.4   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
 
+## Режим игры (промпт 18.11 00:52), выбирается при новой игре / хостом в лобби, в сейве "mode":
+## 0 — реализм (минимальный интерфейс, фильтр меняется вручную), 1 — по умолчанию (фильтр вручную),
+## 2 — казуальный (батарейки, патроны, фильтры — сами из сумки).
+const MODE_REAL := 0
+const MODE_NORMAL := 1
+const MODE_CASUAL := 2
+var mode := MODE_NORMAL
+
+
+func casual() -> bool:
+	return mode == MODE_CASUAL
+
+
 var player: Player
 var shop_on := true      # Trinkets Market включён (промпт 16.11 04:30): в новой игре — после первых круток; сейв "shop_on"
 var shop_cue_done := false   # подсказка «звуки с улицы» после первого магазина (world/shop_cue.gd); сейв "shop_cue_done"

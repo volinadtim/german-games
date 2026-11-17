@@ -7,6 +7,7 @@ extends "res://scripts/core/game_save.gd"
 
 func setup(p: Player) -> void:
 	player = p
+	mode = _pick_mode()
 	_setup_input()
 	_make_sounds()
 	ui_player = AudioStreamPlayer.new()
@@ -31,6 +32,7 @@ func setup(p: Player) -> void:
 	inv.message.connect(func(t: String): hud.toast(t))
 	inv.spilled.connect(drop_spilled)
 	hud.inv = inv
+	hud.minimal = mode == MODE_REAL
 	hud.set_hp(hp, MAX_HP)
 	hud.restart_pressed.connect(restart)
 	hud.menu_pressed.connect(to_main_menu)
@@ -421,6 +423,7 @@ func to_main_menu() -> void:
 func restart() -> void:
 	Engine.set_meta("eskiness_autostart", true)
 	Engine.set_meta("eskiness_load", false)    # новая игра в том же слоте
+	Engine.set_meta("eskiness_mode", mode)     # тот же режим
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 

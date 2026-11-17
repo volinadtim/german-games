@@ -103,6 +103,21 @@ func _drop_later(id: int) -> void:
 func _send_players() -> void:
 	rpc("lobby_players", players)
 	rpc("lobby_ff", friendly_fire)
+	rpc("lobby_mode", game_mode)
+
+
+## Хост выбирает режим игры в лобби — всем рассылается.
+func set_game_mode(m: int) -> void:
+	game_mode = m
+	if hosting:
+		rpc("lobby_mode", m)
+	lobby_changed.emit()
+
+
+@rpc("authority", "reliable")
+func lobby_mode(m: int) -> void:
+	game_mode = m
+	lobby_changed.emit()
 
 
 ## Хост меняет галочку «Огонь по своим» в лобби — всем рассылается.

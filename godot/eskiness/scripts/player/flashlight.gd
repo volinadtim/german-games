@@ -29,7 +29,7 @@ func toggle() -> void:
 	if not on and game.inv.count("flashlight") == 0:
 		game.hud.toast("Фонарика нет — он в магазине снаряжения")
 		return
-	if not on and charge <= 0.0:
+	if not on and charge <= 0.0 and not _auto_battery():
 		game.hud.toast("Батарейка села")
 		game.play_ui("click", -16.0)
 		return
@@ -42,6 +42,16 @@ func recharge() -> void:
 	charge = 1.0
 
 
+## Казуальный режим (промпт 18.11 00:52): села батарейка — сама ставится новая из сумки.
+func _auto_battery() -> bool:
+	if not game.casual() or game.inv.count("battery") == 0:
+		return false
+	game.inv.remove("battery", 1)
+	charge = 1.0
+	game.hud.toast("Новая батарейка (осталось %d)" % game.inv.count("battery"), Color(0.9, 0.85, 0.55))
+	return true
+
+
 func _process(delta: float) -> void:
 	if light == null:
 		return
@@ -52,7 +62,7 @@ func _process(delta: float) -> void:
 		light.visible = false
 	if on:
 		charge = maxf(charge - DRAIN * delta, 0.0)
-		if charge <= 0.0:
+		if charge <= 0.0 and not _auto_battery():
 			on = false
 			light.visible = false
 			game.hud.toast("Фонарик погас — батарейка села")

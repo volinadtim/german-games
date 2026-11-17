@@ -206,6 +206,25 @@ func on_bought() -> void:
 	game.hud.toast("Нюхич с фильтром. G — надеть", Color(0.7, 0.85, 0.6))
 
 
+## Сменить фильтр вручную (режимы «Реализм» и «По умолчанию», промпт 18.11 00:52): «Сменить фильтр» у фильтра
+## в инвентаре или хотбар. Остаток старого фильтра пропадает.
+func change_filter() -> void:
+	if game.inv.count("gasmask") == 0:
+		game.hud.toast("Нет Нюхича — фильтр некуда ставить")
+		return
+	if game.inv.count("filter") == 0:
+		game.hud.toast("Нет фильтров")
+		return
+	if filter_left >= FILTER_TIME - 0.5:
+		game.hud.toast("Фильтр и так новый")
+		return
+	game.inv.remove("filter", 1)
+	_drop_old_filter()
+	filter_left = FILTER_TIME
+	game.hud.toast("Фильтр заменён (осталось %d)" % game.inv.count("filter"), Color(0.75, 0.85, 0.7))
+	game.play_ui("click", -8.0, 0.5)
+
+
 func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("gasmask") and game and game.alive:
 		game.toggle_gasmask()
@@ -260,7 +279,8 @@ func _process(delta: float) -> void:
 	if worn and out:
 		filter_left -= delta
 		if filter_left <= 0.0:
-			if game.inv.count("filter") > 0:
+			# казуальный режим — следующий фильтр ставится сам; реализм и по умолчанию — вручную (change_filter)
+			if game.casual() and game.inv.count("filter") > 0:
 				game.inv.remove("filter", 1)
 				filter_left = FILTER_TIME
 				_drop_old_filter()
@@ -396,7 +416,11 @@ func _status(out: bool, protected: bool) -> void:
 	if out and not protected:
 		kind = "bad" if not worn else "empty"
 		text = "ВОЗДУХ ОТРАВЛЕН — вернись в бункер или надень Нюхич (G)" if not worn else "ФИЛЬТР КОНЧИЛСЯ — купи фильтры"
+		if worn and game.inv.count("filter") > 0:
+			text = "ФИЛЬТР КОНЧИЛСЯ — смени фильтр (инвентарь: «Сменить фильтр»)"
 		col = Color(1.0, 0.45, 0.35)
+	elif worn and game.mode == game.MODE_REAL:
+		pass   # реализм: без счётчика фильтра — о конце предупреждает запотевание стекла
 	elif worn:
 		kind = "low" if filter_left < FILTER_LOW and out else "filter"
 		text = "Фильтр: %d с%s" % [int(ceil(filter_left)), "" if game.inv.count("filter") == 0 else "  (+%d)" % game.inv.count("filter")]

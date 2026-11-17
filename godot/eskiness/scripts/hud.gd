@@ -16,6 +16,7 @@ var hp_lag := 100.0          # «догоняющая» светлая поло�
 var coins := 0
 var battery := 1.0
 var light_on := false
+var minimal := false      # режим «Реализм» (game.gd: mode): только полоска здоровья и подсказки
 var has_light := false     # фонарик есть в инвентаре — показываем заряд
 signal restart_pressed
 signal menu_pressed      # экран победы → «В главное меню»
@@ -379,7 +380,7 @@ func _paint() -> void:
 	var sz := paint.size
 	var f := ThemeDB.fallback_font
 	# прицел — едва заметная точка
-	if show_crosshair and not gun_cross:
+	if show_crosshair and not gun_cross and not minimal:
 		paint.draw_circle(sz / 2.0, 2.0, Color(1, 1, 1, 0.35))
 
 	# здоровье
@@ -387,8 +388,9 @@ func _paint() -> void:
 	# здоровье и хотбар — крупнее прежнего (~×1.25)
 	var y := sz.y - 50.0
 	var w := 330.0
-	paint.draw_string_outline(f, Vector2(x, y - 9), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 5, Color(0, 0, 0, 0.7))
-	paint.draw_string(f, Vector2(x, y - 9), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color(0.8, 0.78, 0.72))
+	if not minimal:
+		paint.draw_string_outline(f, Vector2(x, y - 9), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 5, Color(0, 0, 0, 0.7))
+		paint.draw_string(f, Vector2(x, y - 9), "ЗДОРОВЬЕ  %d" % int(ceil(hp)), HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color(0.8, 0.78, 0.72))
 	paint.draw_rect(Rect2(x - 2, y - 2, w + 4, 22), Color(0, 0, 0, 0.6))
 	paint.draw_rect(Rect2(x, y, w * hp_lag / hp_max, 18), Color(0.85, 0.7, 0.55, 0.6))
 	paint.draw_rect(Rect2(x, y, w * hp / hp_max, 18), Color(0.62, 0.12, 0.08))
@@ -400,10 +402,14 @@ func _paint() -> void:
 		var dc := Vector2(x + w + 22, y + 9)
 		paint.draw_circle(dc, 8.0, Color(0.85, 0.08, 0.05, a))
 		paint.draw_colored_polygon(PackedVector2Array([dc + Vector2(-7, -3), dc + Vector2(7, -3), dc + Vector2(0, -18)]), Color(0.85, 0.08, 0.05, a))
+	if bleed > 0.0 and not minimal:
+		var a := 0.55 + 0.45 * sin(t * 8.0)
 		var bt := "КРОВОТЕЧЕНИЕ %d с" % int(ceil(bleed))
 		paint.draw_string_outline(f, Vector2(x + w + 36, y + 14), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.8))
 		paint.draw_string(f, Vector2(x + w + 36, y + 14), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.3, 0.22, 0.6 + 0.4 * a))
 
+	if minimal:
+		return   # реализм: без баффов, монет, хотбара и заряда фонарика
 	# баффы еды и напитков: значок предмета, сила и таймер
 	var bx0 := x
 	for k in buffs:

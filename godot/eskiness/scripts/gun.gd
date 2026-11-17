@@ -218,7 +218,7 @@ func _process(delta: float) -> void:
 		eject_t = 0.0
 		if not ej:
 			_eject_lock = false
-	count_l.visible = armed() and game.alive
+	count_l.visible = armed() and game.alive and game.mode != game.MODE_REAL   # реализм — без счётчика патронов
 	if count_l.visible:
 		var r := rounds()
 		if not loaded():
@@ -589,6 +589,10 @@ func reload() -> void:
 	var slot: String = SLOTS[rh]
 	var cur := rounds_in(rh)
 	var had := loaded_in(rh)
+	# казуальный режим (промпт 18.11 00:52): магазины не нужны — патроны из сумки сразу в пистолет
+	if game.casual() and game.inv.count("ammo") > 0 and cur < CAP:
+		_casual_reload(rh, slot, cur)
+		return
 	var best := -1
 	var best_n := cur if had else -1
 	for i in game.inv.slots.size():
@@ -622,6 +626,29 @@ func reload() -> void:
 	if best >= game.inv.slots.size():
 		return
 	insert_mag(best, slot, false)
+
+
+func _casual_reload(rh: int, slot: String, _cur: int) -> void:
+	reloading = true
+	_reload_h = rh
+	_rel_t = 0.0
+	_rel_ev = 0
+	_rel_had = false   # старый магазин не выпадает
+	game.player.gun_rel_h = rh
+	game.player.gun_rel_k = 0.0
+	await get_tree().create_timer(RELOAD_T).timeout
+	reloading = false
+	_reload_end()
+	if game.inv.equip[slot] != "pistol":
+		return
+	var now := rounds_in(rh) if loaded_in(rh) else 0
+	var take := mini(CAP - now, game.inv.count("ammo"))
+	if take <= 0:
+		return
+	game.inv.remove("ammo", take)
+	game.inv.equip_dur[slot] = pistol_dur(true, now + take)
+	game.hud.toast("Заряжено: %d / %d" % [now + take, CAP], Color(0.9, 0.85, 0.7))
+	game.inv.notify()
 
 
 ## Вставить магазин из ячейки mag_idx в пистолет (слот "right"/"left" или номер ячейки с пистолетом).

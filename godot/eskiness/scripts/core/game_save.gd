@@ -10,6 +10,15 @@ func save_now() -> void:
 	Save.write(save_slot, save_state())
 
 
+## Режим новой/загруженной игры: сеть — от хоста, сейв — из файла, новая — выбор в меню (ui/mode_select.gd).
+func _pick_mode() -> int:
+	if net:
+		return int(net.game_mode)
+	if Engine.get_meta("eskiness_load", false) and Save.exists(Save.slot()):
+		return int(Save.read(Save.slot()).get("mode", MODE_NORMAL))
+	return int(Engine.get_meta("eskiness_mode", MODE_NORMAL))
+
+
 func save_state() -> Dictionary:
 	var bag: Array = []
 	for s in inv.slots:
@@ -27,6 +36,7 @@ func save_state() -> Dictionary:
 				"manual": n.need_leave, "ttl": n.life})
 	return {
 		"version": 1,
+		"mode": mode,
 		"coins": inv.coins,
 		"bag": bag,
 		"bag_layout": inv.BAG_LAYOUT,

@@ -511,8 +511,20 @@ func _pick_slot(i: int) -> void:
 		pending_slot = i
 		_show("setup")
 		return
+	if not Save.exists(i):
+		# новая игра — сначала режим (ui/mode_select.gd, промпт 18.11 00:52)
+		preload("res://scripts/ui/mode_select.gd").fill(self, slots_box, _new_game.bind(i), _open_slots)
+		_show("slots")
+		return
 	Engine.set_meta("eskiness_slot", i)
 	Engine.set_meta("eskiness_load", Save.exists(i))
+	play_pressed.emit()
+
+
+func _new_game(m: int, i: int) -> void:
+	Engine.set_meta("eskiness_mode", m)
+	Engine.set_meta("eskiness_slot", i)
+	Engine.set_meta("eskiness_load", false)
 	play_pressed.emit()
 
 

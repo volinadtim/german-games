@@ -259,7 +259,10 @@ func use_item(idx: int) -> void:
 	elif Items.equip_slot(id) != "":
 		equip(idx, Items.equip_slot(id))
 	elif id == "filter":
-		hud.toast("Фильтр ставится сам")
+		if casual():
+			hud.toast("Фильтр ставится сам")
+		elif gasmask:
+			gasmask.change_filter()
 	elif id == "coin":
 		pass
 	elif id == "car_key":

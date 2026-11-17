@@ -5,6 +5,7 @@ extends VBoxContainer
 ## Оформление — функциями menu.gd (_button, _title…), тема с обводкой наследуется от корня меню.
 
 const NetScript := preload("res://scripts/network/net.gd")
+const ModeSelect := preload("res://scripts/ui/mode_select.gd")
 
 var menu          # menu.gd
 var net           # net.gd (/root/Net)
@@ -158,6 +159,22 @@ func _host() -> void:
 		ff.add_theme_font_size_override("font_size", 20)
 		ff.toggled.connect(func(on: bool): net.set_friendly_fire(on))
 		add_child(_centered(ff))
+		# режим игры (промпт 18.11 00:52) — у всех игроков один, выбирает хост
+		var mrow := _row()
+		mrow.add_child(_label("Режим:", 20, Color(0.82, 0.81, 0.77), 110))
+		var mo := OptionButton.new()
+		for n in ModeSelect.NAMES:
+			mo.add_item(n)
+		mo.selected = clampi(net.game_mode, 0, 2)
+		mo.focus_mode = Control.FOCUS_NONE
+		mo.add_theme_font_size_override("font_size", 20)
+		var mh := _hint(ModeSelect.HINTS[clampi(net.game_mode, 0, 2)])
+		mo.item_selected.connect(func(k: int):
+			net.set_game_mode(k)
+			mh.text = ModeSelect.HINTS[k])
+		mrow.add_child(mo)
+		add_child(_centered(mrow))
+		add_child(mh)
 		add_child(_label("Игроки:", 22, Color(0.75, 0.7, 0.62), 0))
 		players_box = VBoxContainer.new()
 		add_child(players_box)
@@ -203,7 +220,7 @@ func _join() -> void:
 	status_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(status_l)
 	if net.connected:
-		status_l.text = "Подключено. Ждём, пока хост начнёт игру…   Огонь по своим: %s" % ("вкл" if net.friendly_fire else "выкл")
+		status_l.text = "Подключено. Ждём, пока хост начнёт игру…   Огонь по своим: %s   ·   Режим: %s" % ["вкл" if net.friendly_fire else "выкл", ModeSelect.NAMES[clampi(net.game_mode, 0, 2)]]
 	var bb: Button = menu._button("Отключиться" if (net.connected or net.joining) else "Назад", back)
 	add_child(_centered(bb))
 
@@ -239,7 +256,7 @@ func _on_lobby() -> void:
 			status_l.text = keep
 		return
 	if page == "join" and net.connected and status_l and status_l.text.begins_with("Подключено"):
-		status_l.text = "Подключено. Ждём, пока хост начнёт игру…   Огонь по своим: %s" % ("вкл" if net.friendly_fire else "выкл")
+		status_l.text = "Подключено. Ждём, пока хост начнёт игру…   Огонь по своим: %s   ·   Режим: %s" % ["вкл" if net.friendly_fire else "выкл", ModeSelect.NAMES[clampi(net.game_mode, 0, 2)]]
 	_fill_players()
 
 
