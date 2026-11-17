@@ -5,8 +5,12 @@
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dispatch\dispatch.ps1            # слушать TG
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dispatch\dispatch.ps1 -Task "…"  # одна задача без TG (по-настоящему правит и пушит!)
 #
-# Нужно: `claude` залогинен в терминале (claude, затем /login). Одновременно не держать сессию-слушателя в приложении —
-# оба помечают промпты прочитанными. Лог и состояние: .claude\dispatch\ (не в git). Ctrl+C — стоп (воркеры доработают сами).
+# Воркеры — отдельные скрытые процессы: закрытие/перезапуск диспетчера их НЕ трогает, он только перестаёт
+# слушать TG. При следующем запуске он подхватывает работающих воркеров и очередь из .claude\dispatch\jobs.json.
+# Остановка разработки — отдельной командой: scripts\dispatch\ctl.ps1 stop|kill|resume|status
+#   stop   — мягкая: новые задачи не стартуют, работающим воркерам хук говорит «доделай или оставь handoff»;
+#   kill   — жёсткая: убить воркеров сразу; resume — снять стоп и продолжить паузы/прерванные.
+# Задачи можно класть и без TG: файл .claude\dispatch\inbox\*.txt (так делает TUI — tools\disp-tui).
 param(
     [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
     [int]$MaxCtx = 150000,
@@ -20,10 +24,20 @@ $OutputEncoding = $Utf8
 $Claude = (Get-Command claude -ErrorAction Stop).Source
 $Dir = Join-Path $Repo ".claude\dispatch"
 $Wts = Join-Path $Repo ".claude\worktrees"
-New-Item -ItemType Directory -Force $Dir, $Wts | Out-Null
+$Inbox = Join-Path $Dir "inbox"
+$HandoffDir = Join-Path $Dir "handoff"
+New-Item -ItemType Directory -Force $Dir, $Wts, $Inbox, $HandoffDir | Out-Null
 $StateFile = Join-Path $Dir "state.json"
+$JobsFile = Join-Path $Dir "jobs.json"
 $LogFile = Join-Path $Dir "dispatch.log"
+$FlagFile = Join-Path $Dir "stop.flag"
+$HooksFile = Join-Path $Dir "hooks.json"
 $Zones = "slot","shop","items","player","enemy","ui","net","level","car","village","world","core","other"
+
+# Хук воркеров: после каждого инструмента проверяет stop.flag (мягкая остановка) — см. stop-hook.js.
+$hookCmd = 'node "{0}" "{1}"' -f (Join-Path $PSScriptRoot "stop-hook.js"), $Dir
+$hooks = @{ hooks = @{ PostToolUse = @(@{ matcher = "*"; hooks = @(@{ type = "command"; command = $hookCmd }) }) } }
+[IO.File]::WriteAllText($HooksFile, ($hooks | ConvertTo-Json -Depth 8), $Utf8)
 
 function Log([string]$s) {
     $l = "{0}  {1}" -f (Get-Date -Format "dd.MM HH:mm:ss"), $s
@@ -33,32 +47,36 @@ function Log([string]$s) {
 }
 
 function Cut([string]$s, [int]$n) { $s = ($s -replace '\s+', ' ').Trim(); if ($s.Length -gt $n) { $s.Substring(0, $n - 1) + "…" } else { $s } }
+function Stop-Mode { if (Test-Path $FlagFile) { ([IO.File]::ReadAllText($FlagFile)).Trim() } else { "" } }
+function Dur($q) {
+    if (-not $q.started) { return "" }
+    $end = if ($q.finished) { [DateTime]$q.finished } else { Get-Date }
+    "{0:mm\:ss}" -f ($end - [DateTime]$q.started)
+}
 
-# Живая таблица в консоли: промпты -> зона/агент/статус, агенты по зонам, хвост лога.
+# Живая таблица в консоли (подробный вид — в TUI).
 function Show {
     $w = [Math]::Max(80, [Console]::WindowWidth - 1)
     $o = New-Object System.Collections.Generic.List[string]
-    $wait = if ($Task) { "" } elseif ($job) { "слушаю TG…" } else { "" }
-    $o.Add(("ДИСПЕТЧЕР  {0}   работают: {1}   в очереди: {2}   {3}" -f (Get-Date -Format "HH:mm:ss"), $Running.Count, ($Queue.Count), $wait))
+    $run = @($Jobs | Where-Object { $_.status -eq "работает" }).Count
+    $que = @($Jobs | Where-Object { $_.status -eq "очередь" }).Count
+    $sm = Stop-Mode
+    $wait = if ($Task) { "" } elseif ($sm) { "СТОП ($sm) — новые задачи не стартуют" } elseif ($job) { "слушаю TG…" } else { "" }
+    $o.Add(("ДИСПЕТЧЕР  {0}   работают: {1}   в очереди: {2}   {3}" -f (Get-Date -Format "HH:mm:ss"), $run, $que, $wait))
     $o.Add("")
-    $o.Add(("{0,-3} {1,-11} {2,-8} {3,-9} {4,-4} {5,-13} {6,6} {7,5} {8,6}  {9}" -f "#", "промпт", "зона", "агент", "реж", "статус", "время", "ктх", "`$", "задача / результат"))
-    foreach ($q in @($Hist | Select-Object -Last 15)) {
-        $end = if ($q.finished) { $q.finished } else { Get-Date }
-        $dur = if ($q.started) { "{0:mm\:ss}" -f ($end - $q.started) } else { "" }
+    $o.Add(("{0,-3} {1,-11} {2,-8} {3,-9} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f "#", "промпт", "зона", "агент", "реж", "статус", "время", "ктх", "`$", "задача / результат"))
+    foreach ($q in @($Jobs | Select-Object -Last 15)) {
         $ctx = if ($q.ctx) { "{0}k" -f [int]($q.ctx / 1000) } else { "" }
         $cost = if ($q.cost) { "{0:N2}" -f $q.cost } else { "" }
         $info = if ($q.result) { $q.title + "  ->  " + $q.result } else { $q.title }
-        $line = "{0,-3} {1,-11} {2,-8} {3,-9} {4,-4} {5,-13} {6,6} {7,5} {8,6}  {9}" -f $q.id, $q.at, $q.zone, $q.agent, $(if ($q.mode -eq "continue") { "прод" } else { "нов" }), $q.status, $dur, $ctx, $cost, $info
+        $line = "{0,-3} {1,-11} {2,-8} {3,-9} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f $q.id, $q.at, $q.zone, $q.agent, $(if ($q.mode -eq "continue") { "прод" } else { "нов" }), $q.status, (Dur $q), $ctx, $cost, $info
         $o.Add((Cut $line $w))
-    }
-    $o.Add("")
-    $o.Add("АГЕНТЫ ПО ЗОНАМ (кого продолжать):")
-    foreach ($z in ($State.Keys | Sort-Object)) {
-        $s = $State[$z]; $o.Add((Cut ("  {0,-8} {1,-9} ~{2,4}k  {3}  {4}" -f $z, $s.agent, [int]($s.ctx / 1000), $s.at, $s.last) $w))
     }
     $o.Add("")
     $o.Add("ЛОГ:")
     foreach ($l in $LogTail) { $o.Add((Cut ("  " + $l) $w)) }
+    $o.Add("")
+    $o.Add("Ctrl+C — перестать слушать (воркеры продолжат).  Стоп: scripts\dispatch\ctl.ps1 stop | kill | resume")
     Clear-Host
     foreach ($l in $o) { Write-Host $l }
     $script:Dirty = $false
@@ -66,23 +84,53 @@ function Show {
 }
 function Run-Git { & git @args *> $null }
 
-function Load-State {
+function Load-Map([string]$file) {
     $s = @{}
-    if (Test-Path $StateFile) {
-        $o = [IO.File]::ReadAllText($StateFile, $Utf8) | ConvertFrom-Json
+    if (Test-Path $file) {
+        $o = [IO.File]::ReadAllText($file, $Utf8) | ConvertFrom-Json
         foreach ($p in $o.PSObject.Properties) { $h = @{}; foreach ($q in $p.Value.PSObject.Properties) { $h[$q.Name] = $q.Value }; $s[$p.Name] = $h }
     }
     $s
 }
 function Save-State { [IO.File]::WriteAllText($StateFile, ($State | ConvertTo-Json -Depth 5), $Utf8) }
 
+# jobs.json — вся очередь/история/работающие воркеры + пульс диспетчера; читает TUI.
+function Save-Jobs {
+    $keep = @($Jobs | Select-Object -Last 40)
+    $script:Jobs = New-Object System.Collections.ArrayList; foreach ($q in $keep) { [void]$Jobs.Add($q) }
+    $rows = foreach ($q in $Jobs) { $c = $q.Clone(); $c.dur = Dur $q; $c }
+    $o = [ordered]@{
+        heartbeat = [DateTimeOffset]::Now.ToUnixTimeSeconds(); pid = $PID; listening = [bool]$job; stop = (Stop-Mode)
+        seq = $Seq; jobs = @($rows)
+    }
+    $tmp = "$JobsFile.tmp"
+    [IO.File]::WriteAllText($tmp, (ConvertTo-Json -InputObject $o -Depth 6), $Utf8)
+    try { Move-Item -Force $tmp $JobsFile -ErrorAction Stop } catch { Copy-Item -Force $tmp $JobsFile }
+}
+function Load-Jobs {
+    $l = New-Object System.Collections.ArrayList
+    if (-not (Test-Path $JobsFile)) { return ,$l }
+    try { $o = [IO.File]::ReadAllText($JobsFile, $Utf8) | ConvertFrom-Json } catch { return ,$l }
+    $script:Seq = [int]$o.seq
+    foreach ($j in @($o.jobs)) { $h = @{}; foreach ($p in $j.PSObject.Properties) { $h[$p.Name] = $p.Value }; [void]$l.Add($h) }
+    ,$l
+}
+
+function Proj-Dir([string]$wt) { Join-Path $env:USERPROFILE (".claude\projects\" + ($wt -replace '[^A-Za-z0-9]', '-')) }
 # Размер контекста сессии воркера — по последнему ответу в её транскрипте.
 function Get-Ctx([string]$wt, [string]$sid) {
-    $f = Join-Path $env:USERPROFILE (".claude\projects\" + ($wt -replace '[^A-Za-z0-9]', '-') + "\$sid.jsonl")
+    $f = Join-Path (Proj-Dir $wt) "$sid.jsonl"
     if (-not (Test-Path $f)) { return 0 }
     $line = Get-Content $f -Tail 80 -Encoding UTF8 | Where-Object { $_ -match '"cache_read_input_tokens"' } | Select-Object -Last 1
     if (-not $line) { return 0 }
     try { $u = ($line | ConvertFrom-Json).message.usage; return [int]($u.input_tokens + $u.cache_read_input_tokens + $u.cache_creation_input_tokens) } catch { return 0 }
+}
+# Сессия работающего воркера — самый свежий транскрипт в его worktree, начатый после старта.
+function Find-Sid($q) {
+    $d = Proj-Dir $q.wt
+    if (-not (Test-Path $d)) { return $null }
+    $f = Get-ChildItem $d -Filter *.jsonl | Where-Object { $_.LastWriteTime -ge ([DateTime]$q.started).AddSeconds(-5) } | Sort-Object LastWriteTime | Select-Object -Last 1
+    if ($f) { $f.BaseName } else { $null }
 }
 
 function Route([string]$text) {
@@ -93,8 +141,8 @@ function Route([string]$text) {
     $p = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "router.md"), $Utf8).Replace("{{STATE}}", ($lines -join "`n")).Replace("{{TASK}}", $text)
     $out = $p | & $Claude -p --model haiku --output-format text --tools Read --strict-mcp-config --no-session-persistence --disable-slash-commands 2>$null | Out-String
     $r = $null
-    if ($out -match '\{[\s\S]*\}') { try { $r = $matches[0] | ConvertFrom-Json } catch {} }
-    if (-not $r) { Log "роутер не ответил JSON ($($out.Trim()) ) — беру gd-worker/other/new"; $r = [pscustomobject]@{ zone = "other"; agent = "gd-worker"; mode = "new"; title = $text.Substring(0, [Math]::Min(60, $text.Length)) } }
+    if ($out -match '\{[\s\S]*?\}') { try { $r = $matches[0] | ConvertFrom-Json } catch {} }
+    if (-not $r) { Log "роутер не ответил JSON ($(Cut $out 200)) — беру gd-worker/other/new"; $r = [pscustomobject]@{ zone = "other"; agent = "gd-worker"; mode = "new"; title = (Cut $text 60) } }
     if ($Zones -notcontains $r.zone) { $r.zone = "other" }
     if ("gd-quick", "gd-worker" -notcontains $r.agent) { $r.agent = "gd-worker" }
     $w = $State[$r.zone]
@@ -105,7 +153,7 @@ function Route([string]$text) {
 function Enqueue($zone, $agent, $mode, $text, $at, $title) {
     $script:Seq++
     $q = @{ id = $script:Seq; zone = $zone; agent = $agent; mode = $mode; text = $text; at = $at; title = $title; status = "очередь" }
-    [void]$Queue.Add($q); [void]$Hist.Add($q); $script:Dirty = $true
+    [void]$Jobs.Add($q); $script:Dirty = $true; Save-Jobs
 }
 
 function Start-Worker($q) {
@@ -115,46 +163,69 @@ function Start-Worker($q) {
         Run-Git -C $wt rebase --abort
         Run-Git -C $wt fetch -q origin main
         Run-Git -C $wt rebase -q --autostash origin/main
-    } else { $q.status = "нет worktree"; $q.finished = Get-Date; Log "[$zone] не удалось создать worktree $wt"; return }
-    $brief = if ($q.mode -eq "continue") {
+    } else { $q.status = "упал"; $q.result = "нет worktree"; $q.finished = (Get-Date).ToString("o"); Log "[$zone] не удалось создать worktree $wt"; return }
+    $brief = if ($q.resume) {
+        "Работу остановили ($($q.resume)). Продолжай свою задачу с того места, где остановился." +
+        $(if (Test-Path (Join-Path $HandoffDir "$zone.md")) { " Твой handoff: $(Join-Path $HandoffDir "$zone.md")" } else { "" })
+    } elseif ($q.mode -eq "continue") {
         "Новый промпт Германа ($($q.at)), продолжение твоей работы:`n$($q.text)"
     } else {
         "Правила — godot/eskiness/AGENTS.md. Время промпта: $($q.at). Задача Германа:`n$($q.text)"
     }
     $in = Join-Path $Dir "$zone.in.txt"; $out = Join-Path $Dir "$zone.out.json"; $err = Join-Path $Dir "$zone.err.txt"
     [IO.File]::WriteAllText($in, $brief, $Utf8)
-    $a = @("-p", "--agent", $q.agent, "--output-format", "json", "--permission-mode", "bypassPermissions", "--strict-mcp-config")
-    if ($q.mode -eq "continue") { $a += @("--resume", $State[$zone].session) }
-    $proc = Start-Process -FilePath $Claude -ArgumentList $a -WorkingDirectory $wt -NoNewWindow -PassThru `
+    $a = @("-p", "--agent", $q.agent, "--output-format", "json", "--permission-mode", "bypassPermissions", "--strict-mcp-config", "--settings", "`"$HooksFile`"")
+    $sid = if ($q.resume -and $q.session) { $q.session } elseif ($q.mode -eq "continue" -and $State[$zone]) { $State[$zone].session } else { $null }
+    if ($sid) { $a += @("--resume", $sid) }
+    # Скрытое отдельное окно: воркер не привязан к консоли диспетчера и переживает его закрытие.
+    $proc = Start-Process -FilePath $Claude -ArgumentList $a -WorkingDirectory $wt -WindowStyle Hidden -PassThru `
         -RedirectStandardInput $in -RedirectStandardOutput $out -RedirectStandardError $err
-    $Running[$zone] = @{ proc = $proc; out = $out; err = $err; wt = $wt; q = $q }
-    $q.status = "работает"; $q.started = Get-Date
-    Log ("[{0}] {1} {2}: {3}" -f $zone, $q.agent, $(if ($q.mode -eq "continue") { "продолжает" } else { "новый" }), $q.title)
+    $q.pid = $proc.Id; $q.pstart = $proc.StartTime.ToString("o"); $q.wt = $wt; $q.out = $out; $q.err = $err
+    $q.status = "работает"; $q.started = (Get-Date).ToString("o"); $q.finished = $null; $q.session = $sid
+    $Procs[$q.id] = $proc
+    Save-Jobs
+    Log ("[{0}] {1} {2}: {3}" -f $zone, $q.agent, $(if ($q.resume) { "возобновляет" } elseif ($q.mode -eq "continue") { "продолжает" } else { "новый" }), $q.title)
 }
 
-function Finish($zone) {
-    $r = $Running[$zone]; $Running.Remove($zone); $q = $r.q
+function Alive($q) {
+    $p = $Procs[$q.id]
+    if (-not $p) {
+        try { $p = Get-Process -Id $q.pid -ErrorAction Stop } catch { return $false }
+        if ($q.pstart -and [Math]::Abs(($p.StartTime - [DateTime]$q.pstart).TotalSeconds) -gt 2) { return $false }
+        $Procs[$q.id] = $p
+    }
+    try { $p.Refresh() } catch {}
+    -not $p.HasExited
+}
+
+function Finish($q) {
+    $Procs.Remove($q.id); $zone = $q.zone
+    $q.finished = (Get-Date).ToString("o")
     $j = $null
-    try { $j = [IO.File]::ReadAllText($r.out, $Utf8) | ConvertFrom-Json } catch {}
+    try { $j = [IO.File]::ReadAllText($q.out, $Utf8) | ConvertFrom-Json } catch {}
     if (-not $j) {
-        $e = ([IO.File]::ReadAllText($r.err, $Utf8) -replace '\s+', ' ').Trim()
-        $q.status = "упал"; $q.finished = Get-Date; $q.result = $e
-        Log "[$zone] воркер упал: $($e.Substring(0, [Math]::Min(300, $e.Length)))"; return
+        $e = ""; try { $e = ([IO.File]::ReadAllText($q.err, $Utf8) -replace '\s+', ' ').Trim() } catch {}
+        if (-not $q.session) { $q.session = Find-Sid $q }
+        if ((Stop-Mode) -eq "kill") { $q.status = "прерван"; $q.result = "жёсткая остановка" ; Log "[$zone] воркер прерван (kill)" }
+        else { $q.status = "упал"; $q.result = $e; Log "[$zone] воркер упал: $(Cut $e 300)" }
+        Save-Jobs; return
     }
     $res = "$($j.result)".Trim()
-    $ctx = Get-Ctx $r.wt $j.session_id
-    $q.finished = Get-Date; $q.ctx = $ctx; $q.cost = $j.total_cost_usd; $q.result = (($res -split "`n")[0])
-    $q.status = if ($j.is_error) { "ошибка" } elseif ($res -match '^\s*СЛОЖНО') { "СЛОЖНО" } else { "готово" }
+    $ctx = Get-Ctx $q.wt $j.session_id
+    $q.session = $j.session_id; $q.ctx = $ctx; $q.cost = $j.total_cost_usd; $q.result = (($res -split "`n")[0])
+    $hf = Join-Path $HandoffDir "$zone.md"
+    $handoff = (Test-Path $hf) -and ((Get-Item $hf).LastWriteTime -ge [DateTime]$q.started)
+    $q.status = if ($j.is_error) { "ошибка" } elseif ($res -match '^\s*СЛОЖНО') { "СЛОЖНО" } elseif ($handoff -and (Stop-Mode)) { "пауза" } else { "готово" }
     $State[$zone] = @{ session = $j.session_id; agent = $q.agent; ctx = $ctx; last = $q.title; at = $q.at }
-    Save-State
-    Log ("[{0}] готово, ~{1}k, `${2:N2}: {3}" -f $zone, [int]($ctx / 1000), $j.total_cost_usd, (($res -split "`n")[0]))
+    Save-State; Save-Jobs
+    Log ("[{0}] {1}, ~{2}k, `${3:N2}: {4}" -f $zone, $q.status, [int]($ctx / 1000), $j.total_cost_usd, (($res -split "`n")[0]))
     if ($q.agent -eq "gd-quick" -and $res -match '^\s*СЛОЖНО') {
         Log "[$zone] gd-quick не справился — отдаю gd-worker"
         Enqueue $zone "gd-worker" "new" $q.text $q.at $q.title
     }
 }
 
-function Handle([string]$raw) {
+function Handle([string]$raw, [string]$defAt = "?") {
     $at = ""; $body = @()
     foreach ($l in ($raw -split "`r?`n")) {
         if ($l -match '^=== (\d\d\.\d\d \d\d:\d\d) МСК') { $at = $matches[1]; continue }
@@ -162,23 +233,36 @@ function Handle([string]$raw) {
     }
     $text = ($body -join "`n").Trim()
     if (-not $text -or $text -eq "новых промптов нет") { return }
-    if (-not $at) { $at = "?" }
+    if (-not $at) { $at = $defAt }
     $r = Route $text
     Log ("промпт {0} -> {1} / {2} / {3}" -f $at, $r.zone, $r.agent, $r.mode)
     Enqueue $r.zone $r.agent $r.mode $text $at $r.title
 }
 
-$State = Load-State
-$Running = @{}
-$Queue = New-Object System.Collections.ArrayList
-$Hist = New-Object System.Collections.ArrayList
-$LogTail = New-Object System.Collections.ArrayList
-$Seq = 0; $Dirty = $true; $LastShow = Get-Date
-Log "диспетчер запущен: $Repo"
-if ($Task) { Handle ("=== --.-- --:-- МСК`n" + $Task) }
+# resume: снять стоп, поставить паузы/прерванные обратно в очередь как продолжение их сессии.
+function Do-Resume {
+    foreach ($q in @($Jobs | Where-Object { $_.status -in "пауза", "прерван" })) {
+        $why = if ($q.status -eq "пауза") { "мягкая остановка" } else { "жёсткая остановка" }
+        $q.status = "возобновлён"
+        $script:Seq++
+        [void]$Jobs.Add(@{ id = $script:Seq; zone = $q.zone; agent = $q.agent; mode = "continue"; text = $q.text; at = $q.at
+            title = $q.title; status = "очередь"; resume = $why; session = $q.session })
+    }
+    Save-Jobs
+}
 
+$State = Load-Map $StateFile
+$Procs = @{}
+$LogTail = New-Object System.Collections.ArrayList
+$Seq = 0; $Dirty = $true; $LastShow = Get-Date; $LastSave = Get-Date
 $job = $null
+$Jobs = Load-Jobs
+$adopt = @($Jobs | Where-Object { $_.status -eq "работает" })
+Log ("диспетчер запущен: {0}; подхватил работающих воркеров: {1}" -f $Repo, $adopt.Count)
+if ($Task) { Handle $Task "--.-- --:--" }
+
 while ($true) {
+    $sm = Stop-Mode
     if (-not $Task -and -not $job) {
         $job = Start-Job -ScriptBlock { param($p) & $p "wait" "10" } -ArgumentList $Prompts
     }
@@ -186,11 +270,25 @@ while ($true) {
         $raw = (Receive-Job $job 2>&1 | Out-String); Remove-Job $job -Force; $job = $null
         Handle $raw
     }
-    foreach ($z in @($Running.Keys)) { if ($Running[$z].proc.HasExited) { Finish $z } }
-    foreach ($q in @($Queue)) {
-        if (-not $Running.ContainsKey($q.zone)) { $Queue.Remove($q); Start-Worker $q }
+    foreach ($f in @(Get-ChildItem $Inbox -Filter *.txt -ErrorAction SilentlyContinue | Sort-Object Name)) {
+        $t = [IO.File]::ReadAllText($f.FullName, $Utf8); Remove-Item $f.FullName -Force
+        if ($t.Trim() -eq "/resume") { Log "resume из TUI"; Do-Resume; continue }
+        Handle $t "TUI"
     }
-    if ($Task -and $Running.Count -eq 0 -and $Queue.Count -eq 0) { break }
+    if (Test-Path (Join-Path $Dir "resume.req")) { Remove-Item (Join-Path $Dir "resume.req") -Force; Log "resume"; Do-Resume }
+    foreach ($q in @($Jobs | Where-Object { $_.status -eq "работает" })) {
+        if (-not (Alive $q)) { Finish $q }
+        elseif (-not $q.session -and ((Get-Date) - [DateTime]$q.started).TotalSeconds -gt 10) { $q.session = Find-Sid $q; if ($q.session) { Save-Jobs } }
+    }
+    if (-not $sm) {
+        foreach ($q in @($Jobs | Where-Object { $_.status -eq "очередь" })) {
+            $busy = @($Jobs | Where-Object { $_.status -eq "работает" -and $_.zone -eq $q.zone }).Count
+            $chat = Test-Path (Join-Path $Dir "chat-$($q.zone).lock")  # Герман сам в чате с агентом (TUI Ctrl+O)
+            if (-not $busy -and -not $chat) { Start-Worker $q }
+        }
+    }
+    if ($Task -and -not @($Jobs | Where-Object { $_.status -in "работает", "очередь" }).Count) { break }
+    if (((Get-Date) - $LastSave).TotalSeconds -ge 3) { Save-Jobs; $LastSave = Get-Date }
     if ($Dirty -or ((Get-Date) - $LastShow).TotalSeconds -ge 5) { Show }
     Start-Sleep -Seconds 2
 }
