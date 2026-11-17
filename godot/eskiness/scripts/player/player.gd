@@ -184,6 +184,9 @@ func _physics_process(delta: float) -> void:
 	if stamina == null:
 		stamina = preload("res://scripts/player/stamina.gd").new()
 		add_child(stamina)
+	if dash == null:
+		dash = preload("res://scripts/player/dash.gd").new()   # рывок на двойной WASD (18.11 00:27)
+		add_child(dash)
 	var on_floor := is_on_floor()
 	# прыжок из приседа сначала поднимает игрока
 	var jump_now: bool = active and not carrying and Input.is_action_just_pressed("jump") \
@@ -214,6 +217,7 @@ func _physics_process(delta: float) -> void:
 	if sprinting and not stamina.can_sprint():
 		sprinting = false   # выдохся — только шаг до UNLOCK (stamina.gd)
 	stamina.tick(delta, sprinting, moving)
+	dash.poll(delta, active and not carrying and not crouched)
 	_noise_tick(delta, moving and Vector3(velocity.x, 0, velocity.z).length() > 0.4, sprinting)
 
 	if sprinting:
@@ -241,6 +245,7 @@ func _physics_process(delta: float) -> void:
 		# и давала «хвост» скольжения ~1 м после бега. Теперь стоп с бега ~0.18 с, с шага ~0.09 с
 		var decel := (DECEL_TURN if moving else lerpf(DECEL_WALK, DECEL_SPRINT, sprint_carry)) * air
 		hv = hv.move_toward(target, decel * delta)
+	hv = dash.apply(hv, delta)
 	velocity.x = hv.x
 	velocity.z = hv.z
 	if net_push.is_valid():

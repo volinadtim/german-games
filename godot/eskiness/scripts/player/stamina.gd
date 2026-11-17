@@ -7,6 +7,7 @@ extends Node
 
 const DRAIN := 1.0 / 7.0        # полная полоска — ~7 с бега
 const JUMP_COST := 0.07
+const DASH_COST := 0.2     # рывок (dash.gd)
 const REGEN_WALK := 1.0 / 10.0  # на ходу — ~10 с до полной
 const REGEN_IDLE := 1.0 / 5.0   # стоя — ~5 с
 const REGEN_DELAY := 0.9        # пауза перед восстановлением
@@ -49,6 +50,17 @@ func can_jump() -> bool:
 
 func jump() -> void:
 	value = maxf(value - JUMP_COST, 0.0)
+	delay = REGEN_DELAY
+	if value <= 0.0:
+		exhausted = true
+
+
+func can_dash() -> bool:
+	return value >= DASH_COST
+
+
+func dash() -> void:
+	value = maxf(value - DASH_COST, 0.0)
 	delay = REGEN_DELAY
 	if value <= 0.0:
 		exhausted = true

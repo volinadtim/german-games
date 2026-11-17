@@ -158,6 +158,7 @@ func _noise_tick(delta: float, moving: bool, sprinting: bool) -> void:
 var net_crouch := false
 var net_sprint := false
 var stamina: Node   # player/stamina.gd — только у локального игрока (промпт 03:03)
+var dash: Node      # player/dash.gd — рывок на двойной WASD (промпт 18.11 00:27)
 var dmg_mult := 1.0           # множитель урона (кастет из сейфа — 1.5)
 var speed_mult := 1.0         # замедление (отравление наверху, gasmask.gd)
 var weapon_id := ""           # оружие в правой руке (для совместимости; см. weapon_ids)
