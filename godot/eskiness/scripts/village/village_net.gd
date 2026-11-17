@@ -65,6 +65,14 @@ func v_car(pos: Vector3, yaw: float, spd: float, fuel: float, eng: bool) -> void
 	c._engine(eng)
 
 
+## Удар машины (водитель решает): урон всем сидящим (промпт 18.11 00:42).
+@rpc("any_peer", "call_remote", "reliable")
+func v_car_hurt(dmg: float) -> void:
+	var c = _car()
+	if c:
+		c.car_hurt(dmg)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func v_fuel(f: float) -> void:
 	var c = _car()

@@ -439,6 +439,7 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	if not drift_on and grip_k < 0.85:
 		drift_on = true
 		drift_mul = randf_range(0.8, 1.2)
+		drift_dir = 1.0 if speed >= -0.5 else -1.0
 		var dn := signf(steer) if absf(steer) > 0.1 else signf(yaw_rate)
 		yaw_rate += dn * randf_range(0.15, 0.35) * clampf(vt / 8.0, 0.0, 1.0)
 	elif drift_on and grip_k > 0.95:
@@ -467,7 +468,9 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	var ang := steer * lerpf(0.6, 0.27, clampf(absf(speed) / MAX_F, 0.0, 1.0))
 	# в заносе руль крутит по полной скорости (иначе боком машина «замирает» на 90°)
 	var drift := 1.0 - grip_k
-	var vs := lerpf(speed, vt * (1.0 if speed >= -0.5 else -1.0), drift)
+	# (00:44) знак — по направлению на старте заноса, а не по текущей продольной скорости: раньше после ~90°
+	# speed уходил в минус, «хочу» меняло знак и вращение гасло — дальше 90–110° не разворачивало
+	var vs := lerpf(speed, vt * (drift_dir if drift_on else (1.0 if speed >= -0.5 else -1.0)), drift)
 	if drift > 0.05:
 		ang = steer * lerpf(0.6, 0.4, clampf(vt / MAX_F, 0.0, 1.0))
 	var want := vs * tan(ang) / WHEELBASE
@@ -540,10 +543,14 @@ func _move(delta: float) -> void:
 
 
 func _bump() -> void:
-	if absf(speed) > 3.0 and bump_cd <= 0.0:
+	var v := Vector2(speed, slip).length()
+	if v > 3.0 and bump_cd <= 0.0:
 		bump_cd = 0.6
 		game.play_at("thud", global_position, -4.0, 0.7)
 		game.hud.hurt_flash(0.2)
+		# (00:42) удар на скорости ранит всех в машине
+		if v > CRASH_MIN:
+			_hurt_all((v - CRASH_MIN) * CRASH_DMG)
 	speed = -speed * 0.25
 	slip = -slip * 0.25
 	yaw_rate = 0.0
@@ -556,7 +563,10 @@ func _blocked(xf: Transform3D) -> bool:
 	bs.size = Vector3(1.5, 0.6, 3.7)
 	q.shape = bs
 	# коробка сдвинута по ходу: то, во что машина уже упёрлась сзади, не держит её на месте
-	q.transform = xf * Transform3D(Basis(), Vector3(0, 0.95, 0.3 * signf(speed)))
+	# в заносе — по направлению скольжения (раньше по знаку speed: после 90° коробка прыгала назад)
+	var lv := Vector3(slip, 0.0, speed)
+	var off := lv.normalized() * 0.3 if lv.length() > 0.1 else Vector3.ZERO
+	q.transform = xf * Transform3D(Basis(), Vector3(off.x, 0.95, off.z))
 	q.collision_mask = 1
 	var ex: Array[RID] = [get_rid(), game.player.get_rid()]
 	q.exclude = ex
@@ -565,12 +575,31 @@ func _blocked(xf: Transform3D) -> bool:
 	for h in hits:
 		var c = h.collider
 		if c == null or c.has_meta("ground"):
+			ex.append(h.rid)
 			continue
 		if c is CharacterBody3D and c.has_method("take_hit"):
 			_ram(c)
+			ex.append(h.rid)
 			continue
 		block = true
-	return block
+	if not block:
+		return false
+	# (00:42) «врезаюсь в ничего» в заносе: кузов вращается на месте, и угол коробки цеплял стену/забор сбоку,
+	# хотя машина от неё отъезжает. Держим только если точка касания движется В препятствие
+	# (скорость машины + вращение), а не от него.
+	q.exclude = ex
+	var pts := get_world_3d().direct_space_state.collide_shape(q, 16)
+	if pts.is_empty():
+		return true
+	for k in range(0, pts.size(), 2):
+		var r: Vector3 = pts[k] - xf.origin
+		r.y = 0.0
+		if r.length() < 0.05:
+			return true
+		var pv := car_vel + Vector3(r.z, 0.0, -r.x) * yaw_rate
+		if pv.dot(r.normalized()) > 0.05:
+			return true
+	return false
 
 
 ## Сбить моба (промпт 16.11 05:21): урон — по относительной скорости удара (машина минус моб вдоль
@@ -593,6 +622,25 @@ func _ram(c) -> void:
 		c.knock += dir * rel * 0.7
 	game.play_at("thud", c.global_position, -2.0, 0.8)
 	speed *= 0.88
+	_hurt_all(rel * RAM_SELF)   # (00:42) наезд на врага — немного HP у сидящих
+
+
+## Урон всем в машине (водитель решает, сидящие получают по сети: VillageNet.v_car_hurt).
+func _hurt_all(dmg: float) -> void:
+	dmg = roundf(dmg)
+	if dmg < 1.0:
+		return
+	car_hurt(dmg)
+	if vnet():
+		vnet().rpc("v_car_hurt", dmg)
+
+
+func car_hurt(dmg: float) -> void:
+	if my_seat < 0 or not game.alive:
+		return
+	game.drain_hp(dmg)
+	game.hud.hurt_flash(clampf(dmg / 25.0, 0.2, 0.8))
+	game.play_ui("hurt", -9.0, 0.75)
 
 
 func _unmark(c) -> void:
