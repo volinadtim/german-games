@@ -3,6 +3,7 @@ extends StaticBody3D
 const Surface := preload("res://scripts/level/surface.gd")
 const WornMetal := preload("res://shaders/worn_metal.gdshader")
 const Sfx2 := preload("res://scripts/core/sfx_extra.gd")
+const Items := preload("res://scripts/items.gd")
 
 const WHEEL_R := 0.29
 const WHEELS := [Vector3(0.69, WHEEL_R, 1.22), Vector3(-0.69, WHEEL_R, 1.22), Vector3(0.69, WHEEL_R, -1.22), Vector3(-0.69, WHEEL_R, -1.22)]
@@ -81,6 +82,14 @@ var my_seat := -1                    # где сидит свой игрок (-1
 var seat_anim := 0.0                 # 0..1: посадка/выход (камера едет между местом и улицей)
 var seat_dir := 0                    # 1 — садится, -1 — выходит, 0 — сидит/снаружи
 var seat_from := Vector3.ZERO        # откуда едет камера при посадке (мир)
+## Прочность кузова (промпт 18.11 01:25): мобы агрятся на машину и бьют по ней. На нуле машина сломана —
+## мотор не заводится, пока не починишь молотком (каменным или слесарным из магазина «Инструменты»).
+const CAR_MAX_HP := 160.0
+const CAR_SEAT_R := 1.5          # удар ближе этого к голове сидящего задевает и его
+const CAR_SEAT_DMG := 0.4        # какая доля урона достаётся сидящему рядом с местом удара
+const CAR_REPAIR := 0.34         # сколько прочности возвращает один удар молотком (доля от максимума)
+var car_hp := CAR_MAX_HP
+var broken := false
 var fuel := 0.0                      # бак 0..1 (кат-сцена: последний бензин)
 var escaped := false                 # уже уезжала с поляны (в сейве)
 var ign_key: Node3D                  # ключ в замке зажигания: виден, когда ключ использован (= escaped)

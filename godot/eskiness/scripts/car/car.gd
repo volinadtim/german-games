@@ -66,12 +66,19 @@ func get_prompt(g) -> String:
 		return "[E] Пересесть за руль" if can_take_wheel() else ""
 	if at_trunk(g):
 		return "[E] Багажник (%d)" % trunk.contents.size() if not trunk.contents.is_empty() else "[E] Багажник"
+	if can_repair(g) and hammer_id() != "":
+		return "[E] Починить кузов молотком (%d%%)" % roundi(car_hp / CAR_MAX_HP * 100.0)
 	if g.inv.count("fuel") > 0 and fuel < 0.9:
 		return "[E] Залить бензин (канистра)"
 	var s := _free_seat_near(g.player.global_position)
 	if s < 0:
 		return "Мест нет"
-	return ("[E] Сесть за руль" if s == 0 else "[E] Сесть в машину") + ("" if fuel > 0.0 else "  (бак пуст)")
+	var note := ""
+	if broken:
+		note = "  (сломана — нужен молоток)"
+	elif fuel <= 0.0:
+		note = "  (бак пуст)"
+	return ("[E] Сесть за руль" if s == 0 else "[E] Сесть в машину") + note
 
 
 func interact(g) -> void:
@@ -106,6 +113,9 @@ func interact(g) -> void:
 		return
 	if at_trunk(g):
 		open_trunk(g)
+		return
+	if can_repair(g) and hammer_id() != "":
+		repair_hit()
 		return
 	if g.inv.count("fuel") > 0 and fuel < 0.9:
 		refuel()

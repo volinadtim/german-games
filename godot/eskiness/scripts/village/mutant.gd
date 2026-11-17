@@ -64,7 +64,10 @@ func _physics_process(delta: float) -> void:
 		_growl()
 	match state:
 		"idle":
-			if can and d < SIGHT and _clear(ppos):
+			if can and d < SIGHT * 2.2 and _car_noisy():
+				_set_state("chase")   # машина гудит рядом — идут на шум
+				_growl()
+			elif can and d < SIGHT and _clear(ppos):
 				_set_state("chase")
 				_growl()
 			else:
@@ -100,7 +103,7 @@ func _physics_process(delta: float) -> void:
 func _fight(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 	match kind:
 		"spitter":
-			if d < 1.6 and cool <= 0.0:
+			if d < 1.6 + _car_reach() and cool <= 0.0:
 				_set_state("swipe")
 				return Vector3.ZERO
 			if d < 5.0:
@@ -116,7 +119,7 @@ func _fight(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 				strafe = -strafe
 			return _steer(global_position + side * 2.0, delta) * speed * 0.6
 		"charger":
-			if d < 2.0 and cool <= 0.0:
+			if d < 2.0 + _car_reach() and cool <= 0.0:
 				_set_state("slam_prep")
 				return Vector3.ZERO
 			if d > 4.0 and d < 17.0 and cool <= 0.0 and _clear(ppos):
@@ -163,8 +166,8 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 			_face(to, delta)
 			if st > 0.35 and hits_done == 0:
 				hits_done = 1
-				if d < 1.8 and _clear(ppos):   # сквозь стены не бьёт (промпт 18.11 01:03)
-					tg.damage_player(SWIPE_DMG, global_position)
+				if d < 1.8 + _car_reach() and _clear(ppos):   # сквозь стены не бьёт (промпт 18.11 01:03)
+					_hit_tgt(SWIPE_DMG)
 			if st > 0.7:
 				hits_done = 0
 				cool = 1.0
@@ -177,9 +180,9 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 				_set_state("charge")
 		"charge":
 			var v := charge_dir * CHARGE_SPEED
-			if d < 1.5 and hits_done == 0 and tg.alive and _clear(ppos):
+			if d < 1.5 + _car_reach() and hits_done == 0 and tg.alive and _clear(ppos):
 				hits_done = 1
-				tg.damage_player(CHARGE_DMG, global_position)
+				_hit_tgt(CHARGE_DMG)
 				if tg == game:
 					game.player.velocity += charge_dir * 9.0 + Vector3(0, 3.5, 0)
 				_set_state("recover")
@@ -211,8 +214,8 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 			if st > 0.7:
 				for a in arms:
 					a.rotation.x = 0.3
-				if d < 2.4 and _clear(ppos):
-					tg.damage_player(SLAM_DMG, global_position)
+				if d < 2.4 + _car_reach() and _clear(ppos):
+					_hit_tgt(SLAM_DMG)
 				Fx.dust_burst(game, global_position - global_transform.basis.z * 1.0, Color(0.4, 0.37, 0.33), 18)
 				cool = 2.2
 				_set_state("recover")
@@ -222,8 +225,8 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 			_face(to, delta)
 			if (hits_done == 0 and st > 0.25) or (hits_done == 1 and st > 0.6):
 				hits_done += 1
-				if d < 1.8 and _clear(ppos):
-					tg.damage_player(STALK_DMG, global_position)
+				if d < 1.8 + _car_reach() and _clear(ppos):
+					_hit_tgt(STALK_DMG)
 			if st > 0.9:
 				hits_done = 0
 				cool = 2.5
@@ -289,11 +292,48 @@ func _wander(delta: float) -> Vector3:
 	return _steer(wander_to, delta) * speed * 0.35
 
 
+## Цель сидит в машине (промпт 18.11 01:25): мутанты агрятся на машину — бьют по кузову,
+## он сам решает, задело ли сидящего. null — цель не в машине.
+func _car_tgt():
+	if game == null or tg == null or tg.player == null:
+		return null
+	var c = game.get("car")
+	if c == null or not is_instance_valid(c) or String(c.state) != "parked":
+		return null
+	var l: Vector3 = c.global_transform.affine_inverse() * tg.player.global_position
+	if absf(l.x) > 1.2 or absf(l.z) > 2.3 or l.y < -0.3 or l.y > 2.0:
+		return null
+	return c
+
+
+## Машина с игроком шумит (мотор / катится) — слышно далеко.
+func _car_noisy() -> bool:
+	var c = _car_tgt()
+	return c != null and (bool(c.engine_on) or absf(float(c.speed)) > 0.4)
+
+
+## Насколько дальше достаёт удар, когда цель в машине (бьём по кузову, а не по игроку).
+func _car_reach() -> float:
+	return 1.0 if _car_tgt() != null else 0.0
+
+
+## Урон цели: игрок в машине — по кузову, иначе по игроку.
+func _hit_tgt(dmg: float) -> void:
+	var c = _car_tgt()
+	if c != null:
+		c.enemy_hit(dmg, global_position - global_transform.basis.z * 0.9 + Vector3(0, 1.05, 0))
+	else:
+		tg.damage_player(dmg, global_position)
+
+
 func _clear(to: Vector3) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, height * 0.8, 0), to + Vector3(0, 1.4, 0))
 	q.collision_mask = 1
 	# другие мутанты и сам игрок-цель обзор не загораживают; стены и заборы — да
 	var ex: Array[RID] = [get_rid(), game.player.get_rid()]
+	var car = _car_tgt()
+	if car != null:
+		ex.append(car.get_rid())   # игрока в машине видно и достать можно
 	if tg != null and tg.player != null:
 		ex.append(tg.player.get_rid())
 	for m in get_tree().get_nodes_in_group("mutants"):

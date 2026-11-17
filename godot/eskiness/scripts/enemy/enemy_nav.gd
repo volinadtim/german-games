@@ -416,11 +416,33 @@ func _hears(ppos: Vector3, d: float) -> bool:
 	return d < r * 0.5 or _clear(global_position, ppos)
 
 
+## Цель сидит в машине (промпт 18.11 01:25): враги агрятся на машину — кузов не мешает видеть и бить,
+## удары идут по кузову (car_drive.gd enemy_hit). null — цель не в машине.
+func _car_tgt():
+	if game == null or tg == null or tg.player == null:
+		return null
+	var c = game.get("car")
+	if c == null or not is_instance_valid(c) or String(c.state) != "parked":
+		return null
+	var l: Vector3 = c.global_transform.affine_inverse() * tg.player.global_position
+	if absf(l.x) > 1.2 or absf(l.z) > 2.3 or l.y < -0.3 or l.y > 2.0:
+		return null
+	return c
+
+
+## Машина шумит (мотор / катится) — слышно далеко.
+func _car_noisy(c) -> bool:
+	return c != null and (bool(c.engine_on) or absf(float(c.speed)) > 0.4)
+
+
 func _clear(a: Vector3, b: Vector3) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(a + Vector3(0, 1.2, 0), b + Vector3(0, 1.2, 0))
 	q.collision_mask = 1
 	# другие враги обзор не загораживают (иначе второй «не видит» игрока за спиной первого)
 	var ex: Array[RID] = [get_rid(), tg.player.get_rid()]
+	var car = _car_tgt()
+	if car != null:
+		ex.append(car.get_rid())   # игрока в машине видно (стёкла выбиты) и достать можно
 	if is_inside_tree():
 		for e in get_tree().get_nodes_in_group("enemies"):
 			ex.append(e.get_rid())

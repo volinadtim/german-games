@@ -68,6 +68,9 @@ func _physics_process(delta: float) -> void:
 	var to := ppos - global_position
 	to.y = 0.0
 	var d := to.length()
+	# цель сидит в машине: достаём через кузов (дальше обычного) и агримся на шум мотора
+	var car_t = _car_tgt()
+	var ar: float = attack_range + (1.2 if car_t != null else 0.0)
 	match state:
 		"dead":
 			pass
@@ -76,6 +79,9 @@ func _physics_process(delta: float) -> void:
 		"idle":
 			if hunter and tg.alive:
 				_set_state("chase")
+			elif car_t != null and tg.alive and d < (22.0 if _car_noisy(car_t) else 11.0) 					and (not surface or Surface.on_meadow(ppos)):
+				_set_state("chase")   # машина рядом (и тем более гудит) — идёт к ней
+				_growl()
 			elif (not surface or Surface.on_meadow(ppos)) and _notice(ppos, d, delta):
 				_set_state("chase")
 				_growl()
@@ -129,9 +135,9 @@ func _physics_process(delta: float) -> void:
 				var flanking := goal.distance_to(ppos) > 0.1
 				# заходит сбоку — не бьёт, пока не встанет на свою точку
 				var in_place := not flanking or Vector2(goal.x - global_position.x, goal.z - global_position.z).length() < 0.45
-				if d < attack_range and cool <= 0.0 and in_place:
+				if d < ar and cool <= 0.0 and in_place:
 					_set_state("windup")
-				elif d > attack_range * 0.8 or not in_place:
+				elif d > ar * 0.8 or not in_place:
 					want = _steer(goal, delta) * speed * _dash(delta)
 				else:
 					_face(to, delta)

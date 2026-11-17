@@ -247,6 +247,8 @@ func _spit(from: Vector3, vel: Vector3, real: bool) -> void:
 		if is_instance_valid(me):
 			q.exclude = [me.get_rid()]
 		var hit := g.get_world_3d().direct_space_state.intersect_ray(q)
+		if real and hit and is_instance_valid(me) and hit.collider != null and hit.collider.has_method("enemy_hit"):
+			hit.collider.enemy_hit(SPIT_DMG, hit.position)   # плевок попал в машину — разъедает кузов
 		if real and is_instance_valid(me) and me.tg and me.tg.alive:
 			var pp: Vector3 = me.tg.player.global_position + Vector3(0, 1.0, 0)
 			var on_me: bool = hit and hit.collider == me.tg.player

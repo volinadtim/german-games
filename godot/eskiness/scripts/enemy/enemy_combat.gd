@@ -194,6 +194,9 @@ class Rock extends Node3D:
 		q.exclude = [owner_rid, tg.player.get_rid()]
 		var hit := get_world_3d().direct_space_state.intersect_ray(q)
 		if hit:
+			var col = hit.get("collider")
+			if col != null and is_instance_valid(col) and col.has_method("enemy_hit"):
+				col.enemy_hit(dmg, hit["position"])   # камень попал в машину — вмятина
 			_burst(hit.position)
 			return
 		global_position = to
@@ -208,6 +211,12 @@ func _strike(d: float, to: Vector3) -> void:
 	_play(body_snd, game.snd["whoosh"], -6.0 if kind == "heavy" else -9.0, 0.7 if kind == "heavy" else 1.15)
 	cool = cool_t
 	var fwd := -global_transform.basis.z
+	var car = _car_tgt()
+	if car != null:
+		# цель в машине — бьём по кузову, он сам решит, задело ли сидящего
+		if tg.alive and d < hit_range + 1.2 and fwd.dot(to.normalized()) > 0.2:
+			car.enemy_hit(damage, global_position + fwd * 0.9 + Vector3(0, 1.05, 0))
+		return
 	if tg.alive and d < hit_range and fwd.dot(to.normalized()) > 0.3 and _clear(global_position, tg.player.global_position):
 		tg.damage_player(damage, global_position)
 

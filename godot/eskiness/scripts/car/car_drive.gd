@@ -109,7 +109,10 @@ func seat_local(i: int, instant := false) -> void:
 
 
 func _driver_in() -> void:
-	if fuel > 0.0:
+	if broken:
+		if game:
+			game.hud.toast("Машина сломана — почини молотком", Color(1.0, 0.6, 0.4))
+	elif fuel > 0.0:
 		_engine(true)
 	elif game:
 		game.hud.toast("Бак пуст — нужен бензин", Color(0.95, 0.7, 0.45))
@@ -267,6 +270,8 @@ func _fuel_ui_tick() -> void:
 	fuel_bar.size.x = 218.0 * clampf(fuel, 0.0, 1.0)
 	fuel_bar.color = Color(0.85, 0.3, 0.2) if fuel < 0.2 else Color(0.85, 0.7, 0.3)
 	fuel_l.text = "Бензин %d%%" % roundi(fuel * 100.0) if fuel > 0.0 else "Бак пуст — нужна канистра"
+	if car_hp < CAR_MAX_HP:
+		fuel_l.text += "   Кузов %d%%" % roundi(car_hp / CAR_MAX_HP * 100.0)
 
 
 ## Высунуться из окна (держать V): голова за бортом, видно дорогу и можно стрелять назад.
@@ -445,11 +450,11 @@ func _drive_tick(delta: float) -> void:
 		var thr := Input.get_axis("move_back", "move_forward")
 		var st_in := Input.get_axis("move_right", "move_left")
 		hand = Input.is_action_pressed("handbrake" if InputMap.has_action("handbrake") else "jump")
-		if fuel <= 0.0:
+		if fuel <= 0.0 or broken:
 			thr = 0.0
 			if engine_on:
 				_engine(false)
-				game.hud.toast("Бензин кончился", Color(0.95, 0.7, 0.45))
+				game.hud.toast("Машина сломана" if broken else "Бензин кончился", Color(0.95, 0.7, 0.45))
 		var v0 := speed
 		_physics(delta, thr, st_in)
 		_lean_slip(delta)
@@ -803,6 +808,76 @@ func _carry() -> void:
 	carried = keep
 
 
+# ---------- прочность кузова и ремонт (промпт 18.11 01:25) ----------
+
+## Моб ударил по машине (enemy.gd / mutant.gd): кузов теряет прочность, машину встряхивает.
+## Удар рядом с местом сидящего задевает и его (CAR_SEAT_R / CAR_SEAT_DMG).
+func enemy_hit(dmg: float, at: Vector3) -> void:
+	if game == null or state != "parked" or dmg <= 0.0:
+		return
+	car_hp = maxf(car_hp - dmg, 0.0)
+	game.play_at("thud", at, -2.0, 0.55)
+	if rig:
+		rig.position += Vector3(randf_range(-1.0, 1.0), randf_range(-0.6, 0.6), randf_range(-1.0, 1.0)) * 0.035
+	if my_seat >= 0 and seat_dir == 0 and at.distance_to(seat_eye_world(my_seat)) < CAR_SEAT_R:
+		car_hurt(roundf(dmg * CAR_SEAT_DMG))
+	elif my_seat >= 0 and game.hud:
+		game.hud.hurt_flash(0.12)   # по машине бьют — тряска и вспышка, но урона нет
+	if car_hp <= 0.0 and not broken:
+		_break_car()
+
+
+func _break_car() -> void:
+	broken = true
+	car_hp = 0.0
+	_engine(false)
+	speed = 0.0
+	if smoke:
+		smoke.emitting = true   # из-под капота валит пар
+	if game == null:
+		return
+	game.play_at("clunk", global_position + Vector3(0, 0.8, 0), -2.0, 0.55)
+	game.hud.toast("Машина сломана! Нужен молоток", Color(1.0, 0.5, 0.35))
+
+
+## Какой молоток есть в рюкзаке/руках ("" — никакого). Слесарный (магазин «Инструменты») считается молотком.
+func hammer_id() -> String:
+	if game == null:
+		return ""
+	for t in Items.tool_ids("hammer"):
+		if game.inv.count(t) > 0:
+			return String(t)
+	return ""
+
+
+## Можно починить: кузов побит, игрок снаружи и стоит у капота (спереди машины, +Z) — чтобы не мешать посадке.
+func can_repair(g) -> bool:
+	if state != "parked" or my_seat >= 0 or g == null or g.player == null:
+		return false
+	if car_hp >= CAR_MAX_HP:
+		return false
+	var l: Vector3 = global_transform.affine_inverse() * g.player.global_position
+	return l.z > 1.2 and l.z < 3.6 and absf(l.x) < 1.6
+
+
+## Один удар молотком: возвращает часть прочности, тратит прочность молотка.
+func repair_hit() -> void:
+	var h := hammer_id()
+	if h == "":
+		game.hud.toast("Нужен молоток", Color(1.0, 0.6, 0.4))
+		return
+	car_hp = minf(car_hp + CAR_MAX_HP * CAR_REPAIR, CAR_MAX_HP)
+	game._wear_tool(h, 1.0)
+	game.play_at("thud", global_position + Vector3(0, 0.9, 0), -4.0, 1.5)
+	if broken and car_hp > 0.0:
+		broken = false
+		if smoke:
+			smoke.emitting = false
+		game.hud.toast("Кузов поправлен: %d%%" % roundi(car_hp / CAR_MAX_HP * 100.0), Color(0.8, 0.9, 0.6))
+	else:
+		game.hud.toast("Кузов %d%%" % roundi(car_hp / CAR_MAX_HP * 100.0), Color(0.8, 0.9, 0.6))
+
+
 # ---------- после кат-сцены ----------
 
 ## Поставить машину (заглохшую) в точку: для деревни после кат-сцены и для загрузки.
@@ -863,7 +938,7 @@ func refuel() -> void:
 
 
 func to_save() -> Dictionary:
-	return {"escaped": escaped, "pos": [position.x, position.y, position.z], "yaw": yaw, "fuel": fuel,
+	return {"escaped": escaped, "pos": [position.x, position.y, position.z], "yaw": yaw, "fuel": fuel, "hp": car_hp,
 		"seat": my_seat if seat_dir == 0 else -1, "trunk": trunk.contents.duplicate(true)}
 
 
@@ -879,6 +954,10 @@ func from_save(d: Dictionary) -> void:
 	if game and game.inv.count("car_key") > 0:
 		game.inv.remove("car_key", game.inv.count("car_key"))
 	fuel = float(d.get("fuel", 0.0))
+	car_hp = clampf(float(d.get("hp", CAR_MAX_HP)), 0.0, CAR_MAX_HP)
+	broken = car_hp <= 0.0
+	if broken and smoke:
+		smoke.emitting = true
 	set_trunk(d.get("trunk", []))
 	var s := int(d.get("seat", -1))
 	if s >= 0 and s < 4:
