@@ -11,7 +11,7 @@ const GRAVITY := 22.0
 const FALL_MULT := 1.35      # вниз падаем быстрее, чем взлетаем — прыжок не «плывёт»
 const JUMP := 5.0            # ~0.55 м
 const SENS := 0.0022
-const CAM_Y := 1.7
+const CAM_Y := 1.6   # 18.11: камера ниже
 const FOV := 75.0
 ## Поле зрения из настроек (menu.gd, ползунок «Поле зрения»); бег прибавляет к нему.
 static var fov_base := FOV
@@ -257,8 +257,8 @@ var weight_to := 0.0
 var weight_timer := 3.0
 var hip_off := Vector3.ZERO       # смещение таза (оси ног), стопы стоят на месте
 # --- присед: Ctrl — удерживать, C — переключить ---
-const CROUCH_HIP := 0.34          # насколько опускается таз
-const CROUCH_CAM := 0.5           # насколько опускается камера
+const CROUCH_HIP := 0.28          # насколько опускается таз
+const CROUCH_CAM := 0.45          # насколько опускается камера
 const CROUCH_H := 1.15            # высота капсулы в приседе (стоя 1.8)
 const CROUCH_SPEED := 0.45        # скорость ходьбы вприсядку относительно обычной
 var crouched := false             # сейчас в приседе (цель)

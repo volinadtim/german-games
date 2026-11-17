@@ -85,9 +85,9 @@ func _make_env() -> Environment:
 	e.ambient_light_energy = 0.18
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.ssao_enabled = full
-	e.ssao_radius = 1.4
-	e.ssao_intensity = 3.0
-	e.ssao_power = 2.0
+	e.ssao_radius = 1.0   # 18.11: AO слабее — углы не такие чёрные
+	e.ssao_intensity = 1.6
+	e.ssao_power = 1.4
 	e.ssao_light_affect = 0.3
 	e.ssr_enabled = full
 	e.ssr_max_steps = 64

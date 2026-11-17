@@ -215,7 +215,7 @@ func _build_model() -> void:
 	GROUND_Y = bp.call("foot_L").y - HIP_Y
 	# в позе покоя модели ноги чуть согнуты/расставлены — по вертикали бедро→стопа короче ноги, и IK сгибал колени
 	# всегда. Поднимаем модель так, чтобы стоя нога была почти прямой (98.5% длины), стопа — на том же полу.
-	LEG_LIFT = clampf((LEG_L1 + LEG_L2) * 0.985 + GROUND_Y, 0.0, 0.1)
+	LEG_LIFT = clampf((LEG_L1 + LEG_L2) * 0.997 + GROUND_Y, 0.0, 0.16)   # 18.11: ноги прямее
 	GROUND_Y -= LEG_LIFT
 	for i in 2:
 		foot[i] = Vector3(0, GROUND_Y, 0)
@@ -572,7 +572,7 @@ func _crouch_k() -> float:
 ## Таз: перенос веса/покачивание стоя + опускание в приседе (чуть назад).
 func _hip() -> Vector3:
 	var ck := _crouch_k()
-	return hip_off + Vector3(0, -CROUCH_HIP * ck + run_bob, 0.05 * ck)
+	return hip_off + Vector3(0, -CROUCH_HIP * ck + run_bob, 0.13 * ck)   # 18.11: в приседе таз назад, колени не уходят вперёд
 
 
 ## Взять оружие в руку arm (0 — левая, 1 — правая; "" — убрать). Модель крепится к кости кисти.
