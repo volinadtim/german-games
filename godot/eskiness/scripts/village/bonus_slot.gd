@@ -3,8 +3,8 @@ extends StaticBody3D
 ## Обычные награды — три одинаковых символа (вишня 15 … семёрка 100), две вишни — 5 монет.
 ## «Бонуски» (звезда B): одна — мелкий подарок (патроны, фильтр, бинт, тушёнка), две — 3 бесплатные крутки,
 ## три — бонус-игра: 8 бесплатных круток с удвоенным выигрышем.
-## Джекпоты (корона J): две — мини-джекпот 25 монет, три — ДЖЕКПОТ: весь банк (растёт на 1 с каждой платной
-## крутки, начинается со 150; в сейве — village.gd).
+## Джекпоты (корона J): две — мини-джекпот 25 монет, три — ДЖЕКПОТ: весь банк (уменьшается на 1 с каждой платной
+## крутки, начинается со 1060; в сейве — village.gd).
 ## Автомат у каждого игрока свой (монеты свои), в сети не синхронизируется.
 ## Живее (промпт 16.11 00:17): бегущие лампы по рамке и вывеске, рычаг дёргается, барабаны размыты в крутке
 ## и пружинят при остановке; две короны/звезды/семёрки на первых барабанах — третий крутится дольше («интрига»)
@@ -14,12 +14,12 @@ extends StaticBody3D
 const Sym := preload("res://scripts/slot/slot_symbols.gd")
 const Items := preload("res://scripts/items.gd")
 const Sfx := preload("res://scripts/core/sfx.gd")
-const COST := 5
+const COST := 15
 const SYMS := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "bonus", "jack"]
-const WEIGHT := {"cherry": 24.0, "lemon": 20.0, "plum": 16.0, "grape": 12.0, "diamond": 9.0, "seven": 6.0, "bonus": 9.0, "jack": 4.0}
-const PAY := {"cherry": 15, "lemon": 20, "plum": 25, "grape": 35, "diamond": 60, "seven": 100}
-const GIFTS := [["ammo", 4], ["filter", 1], ["bandage", 1], ["canned", 1], ["ammo", 6], ["coin", 8]]
-const JACK_BASE := 150
+const WEIGHT := {"cherry": 1.0, "lemon": 20.0, "plum": 16.0, "grape": 12.0, "diamond": 9.0, "seven": 8.0, "bonus": 8.0, "jack": 16.0}
+const PAY := {"cherry": 15, "lemon": 25, "plum": 35, "grape": 50, "diamond": 80, "seven": 100}
+const GIFTS := [["filter", 1], ["medkit", 1], ["fuel", 1], ["ammo", 18], ["coin", 30]]
+const JACK_BASE := 100
 ## промпт 16.11 03:16: бонус-игра ×1.5 (было ×2); после первых 777 они перебрасываются с шансом SEVENS_REROLL
 const BONUS_MULT := 1.5
 const SEVENS_REROLL := 0.85
@@ -45,7 +45,7 @@ var reel_done := [true, true, true]
 var bounce := [9.0, 9.0, 9.0]          # время с остановки барабана (пружинка)
 var tease := false
 var win_mask := [false, false, false]
-var msg := "КРУТКА 5 МОНЕТ"
+var msg := "КРУТКА 15 МОНЕТ"
 var msg_col := Color(0.95, 0.85, 0.5)
 var blink := 0.0
 # показ выигрыша
@@ -147,7 +147,7 @@ func _ready() -> void:
 		top_bulbs.append(_bulb(bs, Vector3(-0.45 + k * 0.09, 2.15, 0.23)))
 	# вывеска и банк
 	sign_l = Label3D.new()
-	sign_l.text = "ФОРТУНА"
+	sign_l.text = "БИШBARMAK"
 	sign_l.font_size = 64
 	sign_l.pixel_size = 0.0032
 	sign_l.modulate = Color(1.0, 0.8, 0.3)
@@ -377,7 +377,7 @@ func interact(g) -> void:
 		free_spins -= 1
 	elif g.inv.coins >= COST:
 		g.inv.remove("coin", COST)
-		jackpot += 1
+		jackpot = maxi(0, jackpot - 1)
 		bonus_game = false
 	else:
 		g.hud.toast("Не хватает монет")
@@ -389,6 +389,8 @@ func interact(g) -> void:
 	banner = ""
 	for i in 3:
 		result[i] = _roll()
+	if jackpot <= 0:
+		result = ["jack", "jack", "jack"]
 	if sevens_hit and result.count("seven") == 3 and randf() < SEVENS_REROLL:
 		result[2] = _roll()
 		while result[2] == "seven":
