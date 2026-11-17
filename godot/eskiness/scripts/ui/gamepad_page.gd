@@ -68,7 +68,7 @@ func _init(m, p) -> void:
 		pad.apply_map()
 		pad.save_cfg()
 		refresh())
-	var fixed := menu._subtitle("Левый стик — ходьба, правый — обзор. Start — пауза. В меню и окнах: левый стик — курсор, "
+	var fixed: Label = menu._subtitle("Левый стик — ходьба, правый — обзор. Start — пауза. В меню и окнах: левый стик — курсор, "
 		+ "A — клик, X — правый клик, B — назад, LB — повернуть предмет, правый стик — прокрутка.")
 	fixed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	fixed.add_theme_font_size_override("font_size", 16)
