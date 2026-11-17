@@ -1,9 +1,9 @@
 extends Node
-## Фонарик (фишка): F — вкл/выкл. Батарейка садится (~2.5 мин на полный заряд),
+## Фонарик (фишка): F — вкл/выкл. Батарейка садится (~3.75 мин на полный заряд, промпт 18.11 00:50),
 ## на последних 15% свет слабеет и мигает. Батарейка из лута заряжает полностью.
 
-const DRAIN := 1.0 / 150.0
-const ENERGY := 2.4
+const DRAIN := 1.0 / 225.0
+const ENERGY := 3.0
 
 var game  # game.gd
 var light: SpotLight3D
@@ -15,7 +15,7 @@ var blink := 0.0
 func attach(cam: Camera3D) -> void:
 	light = SpotLight3D.new()
 	light.position = Vector3(0.0, -0.04, -0.05)
-	light.spot_range = 15.0
+	light.spot_range = 18.0
 	light.spot_angle = 27.0
 	light.spot_angle_attenuation = 0.9
 	light.light_color = Color(1.0, 0.86, 0.66)
