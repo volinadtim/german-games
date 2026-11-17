@@ -72,12 +72,12 @@ function Show {
     $o.Add(("ДИСПЕТЧЕР  {0}   работают: {1}   в очереди: {2}   {3}" -f (Get-Date -Format "HH:mm:ss"), $run, $que, $wait))
     $o.Add((Cut ("КАЧЕСТВО  " + (Stats-Line)) $w))
     $o.Add("")
-    $o.Add(("{0,-3} {1,-11} {2,-8} {3,-12} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f "#", "промпт", "зона", "модель", "реж", "статус", "время", "ктх", "`$", "задача / результат"))
+    $o.Add(("{0,-3} {1,-11} {2,-8} {3,-13} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f "#", "промпт", "зона", "модель", "реж", "статус", "время", "ктх", "`$", "задача / результат"))
     foreach ($q in @($Jobs | Select-Object -Last 15)) {
         $ctx = if ($q.ctx) { "{0}k" -f [int]($q.ctx / 1000) } else { "" }
         $cost = if ($q.cost) { "{0:N2}" -f $q.cost } else { "" }
         $info = if ($q.result) { $q.title + "  ->  " + $q.result } else { $q.title }
-        $line = "{0,-3} {1,-11} {2,-8} {3,-12} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f $q.id, $q.at, $q.zone, (Who $q), $(if ($q.mode -eq "continue") { "прод" } else { "нов" }), $q.status, (Dur $q), $ctx, $cost, $info
+        $line = "{0,-3} {1,-11} {2,-8} {3,-13} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f $q.id, $q.at, $q.zone, (Who $q), $(if ($q.mode -eq "continue") { "прод" } else { "нов" }), $q.status, (Dur $q), $ctx, $cost, $info
         $o.Add((Cut $line $w))
     }
     $o.Add("")
