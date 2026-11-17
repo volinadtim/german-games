@@ -476,10 +476,18 @@ static func chain_mult(streak_: int) -> float:
 
 
 ## Выплата за n символов sym на линии при уровне окна lv (0 — не платит).
-static func pay_for(sym: String, n: int, _lv := 0) -> int:
+## промпт 18.11 01:02: на окнах 3×3, 3×4, 3×5 (ур. 3–5) все выплаты ×0.75
+const HIGH_PAY_MULT := 0.75
+const HIGH_PAY_FROM := 3
+
+
+static func pay_for(sym: String, n: int, lv := 0) -> int:
 	if not PAY.has(sym) or not PAY[sym].has(n):
 		return 0
-	return int(PAY[sym][n])
+	var p := int(PAY[sym][n])
+	if lv >= HIGH_PAY_FROM:
+		p = maxi(1, roundi(p * HIGH_PAY_MULT))
+	return p
 
 
 ## Итог крутки: {"six": забирает ли автомат, "win": монет, "sevens": 3 семёрки на линии,

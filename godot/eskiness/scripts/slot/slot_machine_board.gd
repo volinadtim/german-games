@@ -97,7 +97,7 @@ func _draw_board(ci: Control) -> void:
 		for k in 3:
 			Sym.draw(ci, "seven", Rect2(pad + k * 62, y, 62, 62))
 		_fit(ci, Vector2(pad + 200, y + 28), "×3 на линии — открывают сейф", inner - 200, 24, Color(1.0, 0.85, 0.4))
-		_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — %d монет" % int(PAY["seven"][3]), inner - 200, 22, text_col)
+		_fit(ci, Vector2(pad + 200, y + 58), "сейф уже открыт — %d монет" % pay_for("seven", 3, level), inner - 200, 22, text_col)
 		if p7 < 1.0:
 			# изящно: проявление сверху вниз, по кромке — золотое сияние и блёстки
 			var edge := y - 6.0 + 84.0 * p7

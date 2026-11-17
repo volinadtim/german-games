@@ -322,7 +322,7 @@ func _payout() -> void:
 			msg = "СЕЙФ ОТКРЫТ"
 			game.hud.toast("777 — сейф открыт", Color(1.0, 0.85, 0.4))
 		else:
-			win += int(PAY["seven"][3])
+			win += pay_for("seven", 3, level)
 	# множитель серии: применяется к выигрышу этой крутки; выигрыш продлевает серию, проигрыш — сброс
 	var mult := chain_mult(streak)
 	win = roundi(win * mult)
