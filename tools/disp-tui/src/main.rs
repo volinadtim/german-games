@@ -566,7 +566,7 @@ fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
     }
     let (st, col) = app.disp_state();
     let title = Line::from(vec![
-        Span::styled("диспетчер ", Style::new().fg(PINK).bold()),
+        Span::styled(" диспетчер ", Style::new().fg(PINK).bold()),
         Span::styled(format!("· {st}"), Style::new().fg(col)),
     ]);
     render_scrolled(f, app, "", Text::from(lines), feed_block(title), area);
