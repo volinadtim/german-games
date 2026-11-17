@@ -200,8 +200,11 @@ func use_item(idx: int) -> void:
 	if def.has("repair"):
 		repair(idx, _most_worn(String(def["repair"])))
 	elif def.has("buff"):
-		if inv.equip["face"] == "gasmask":   # еда и питьё — не через противогаз (промпт 16.11 21:46)
-			hud.toast("В противогазе не поесть и не попить — сними его (G)", Color(0.95, 0.7, 0.45))
+		# еда и питьё — не через противогаз (промпт 16.11 21:46); в машине — тоже можно, и водителю (18.11 00:49):
+		# ввод из салона идёт сюда же (game._unhandled_input, инвентарь), игрок при этом выключен — это не мешает
+		if inv.equip["face"] == "gasmask":
+			var in_car: bool = car != null and is_instance_valid(car) and int(car.my_seat) >= 0
+			hud.toast("В противогазе не поесть и не попить%s — сними его (G)" % (" даже в машине" if in_car else ""), Color(0.95, 0.7, 0.45))
 			return
 		inv.take_at(idx, 1)
 		add_buff(id)
