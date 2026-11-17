@@ -40,8 +40,9 @@ const ITEMS := {
 	# одежда на выбор (промпт 14.11 21:14): дешёвая/слабая и дорогая/крепкая в каждом слоте
 	"ushanka": {"name": "Шапка-ушанка", "desc": "Голова: −4% урона. Дёшево и тепло. Изнашивается от ударов.", "stack": 1,
 		"icon": "ushanka", "color": Color(0.4, 0.3, 0.2), "equip": "head", "armor": 0.04, "dur": 40},
-	"moto_helmet": {"name": "Мотошлем", "desc": "Голова: −16% урона. Закрытый, с визором. Изнашивается от ударов.", "stack": 1,
-		"icon": "moto_helmet", "color": Color(0.62, 0.12, 0.1), "equip": "head", "armor": 0.16, "dur": 90},
+	# id прежний (сейвы), вместо мотошлема — открытый армейский шлем: лицо не закрыто, нюхать не мешает (промпт 18.11 00:45)
+	"moto_helmet": {"name": "Армейский шлем", "desc": "Голова: −16% урона. Стальной, с подбородочным ремнём; лицо открыто — нюхать не мешает. Изнашивается от ударов.", "stack": 1,
+		"icon": "moto_helmet", "color": Color(0.32, 0.36, 0.24), "equip": "head", "armor": 0.16, "dur": 90},
 	"kurtka": {"name": "Куртка", "desc": "Тело: −8% урона. Лёгкая, на молнии. Изнашивается от ударов.", "stack": 1,
 		"icon": "kurtka", "color": Color(0.22, 0.2, 0.18), "equip": "body", "armor": 0.08, "dur": 60},
 	"vest": {"name": "Бронежилет-самоделка", "desc": "Тело: −24% урона, но −5% к скорости. Стальные пластины на ремнях. Изнашивается от ударов.", "stack": 1,
@@ -507,13 +508,17 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				ci.draw_line(c + Vector2(-s * 0.32 + k * s * 0.13, -s * 0.05), c + Vector2(-s * 0.3 + k * s * 0.13, s * 0.09), fur.darkened(0.2), maxf(1.0, s * 0.02))
 			ci.draw_circle(c + Vector2(0, s * 0.02), s * 0.04, Color(0.8, 0.15, 0.1))
 		"moto_helmet":
-			# закрытый шлем сбоку: круглый корпус, тёмный визор, вырез снизу
-			ci.draw_circle(c + Vector2(0, -s * 0.02), s * 0.34, col)
-			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.04, -s * 0.12), c + Vector2(s * 0.34, -s * 0.12),
-				c + Vector2(s * 0.32, s * 0.1), c + Vector2(s * 0.02, s * 0.08)]), Color(0.1, 0.12, 0.16))
-			ci.draw_line(c + Vector2(s * 0.04, -s * 0.08), c + Vector2(s * 0.26, -s * 0.08), Color(0.5, 0.6, 0.7, 0.8), maxf(1.0, s * 0.03))
-			ci.draw_rect(Rect2(c + Vector2(-s * 0.3, s * 0.22), Vector2(s * 0.56, s * 0.08)), col.darkened(0.45))
-			ci.draw_arc(c + Vector2(0, -s * 0.02), s * 0.25, PI * 1.1, PI * 1.45, 8, col.lightened(0.3), maxf(1.0, s * 0.03))
+			# армейский шлем: стальной купол с узкими полями, подбородочный ремень, лицо открыто
+			var dome := PackedVector2Array()
+			for k in 17:
+				var a := PI + PI * k / 16.0
+				dome.append(c + Vector2(cos(a) * s * 0.34, s * 0.06 + sin(a) * s * 0.34))
+			ci.draw_colored_polygon(dome, col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.42, s * 0.04), Vector2(s * 0.84, s * 0.07)), col.darkened(0.3))   # поля
+			ci.draw_arc(c + Vector2(0, s * 0.06), s * 0.26, PI * 1.15, PI * 1.45, 8, col.lightened(0.3), maxf(1.0, s * 0.03))   # блик
+			ci.draw_line(c + Vector2(-s * 0.22, s * 0.11), c + Vector2(-s * 0.1, s * 0.36), Color(0.25, 0.2, 0.14), maxf(1.0, s * 0.03))   # ремень
+			ci.draw_line(c + Vector2(s * 0.22, s * 0.11), c + Vector2(s * 0.1, s * 0.36), Color(0.25, 0.2, 0.14), maxf(1.0, s * 0.03))
+			ci.draw_line(c + Vector2(-s * 0.1, s * 0.36), c + Vector2(s * 0.1, s * 0.36), Color(0.25, 0.2, 0.14), maxf(1.0, s * 0.03))
 		"kurtka", "vest":
 			var body := PackedVector2Array([c + Vector2(-s * 0.2, -s * 0.32), c + Vector2(s * 0.2, -s * 0.32), c + Vector2(s * 0.4, -s * 0.1),
 				c + Vector2(s * 0.3, s * 0.0), c + Vector2(s * 0.22, -s * 0.06), c + Vector2(s * 0.22, s * 0.34), c + Vector2(-s * 0.22, s * 0.34),
@@ -716,11 +721,14 @@ static func make_mesh(id: String) -> Node3D:
 			if id == "ushanka":
 				m.roughness = 1.0
 		"moto_helmet":
+			# армейский шлем: невысокий стальной купол (промпт 18.11 00:45)
 			var sm := SphereMesh.new()
-			sm.radius = 0.14
-			sm.height = 0.26
+			sm.radius = 0.15
+			sm.height = 0.13
+			sm.is_hemisphere = true
 			mi.mesh = sm
-			m.roughness = 0.3
+			m.roughness = 0.55
+			m.metallic = 0.35
 		"jacket", "pants", "kurtka", "vest", "jeans", "wpants", "tshirt":
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.4, 0.06, 0.32) if id in ["jacket", "kurtka", "vest", "tshirt"] else Vector3(0.3, 0.05, 0.42)
