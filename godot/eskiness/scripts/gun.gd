@@ -32,7 +32,8 @@ const AIM_FOV := 0.7             # множитель поля зрения в �
 const SPREAD_HIP := 0.03         # разброс от бедра, рад
 const SPREAD_AIM := 0.004
 const SPREAD_STANCE := 0.02      # в боевой стойке — примерно в центр экрана (промпт 05:34)
-const OPTIC_H := 0.1435           # высота центра линзы коллиматора над началом модели пистолета (weapons.gd)
+const OPTIC_H := 0.1435          # высота центра линзы коллиматора над началом модели пистолета (weapons.gd)
+const DOT_X := 0.08              # точка коллиматора: вперёд по стволу от начала модели
 const HIP_H := 0.17              # от бедра: пистолет настолько ниже линии взгляда — виден в нижней части кадра
 const TAP_T := 0.22              # ПКМ короче — клик (переключить прицел), дольше — держать (от бедра)
 const RATE := 22050
@@ -55,6 +56,7 @@ var eject_t := 0.0
 var _eject_lock := false         # Enter держат после извлечения — ждём отпускания
 var rmb := false                 # ПКМ нажата (player_combat.gd: charge_begin/charge_release, и мышь, и тач)
 var rmb_t := 0.0
+var aim_fix: Array[Vector3] = [Vector3.ZERO, Vector3.ZERO]   # сдвиг пистолета в прицеле (точка в центр экрана), player_anim.gd
 var ads := false                 # прицел по мушке (клик ПКМ)
 var hip := false                 # от бедра (ПКМ держат)
 var sway := Vector2.ZERO         # качание ствола от шагов и дыхания: (рысканье, тангаж), рад
@@ -338,6 +340,8 @@ func _draw_cross() -> void:
 ## Положение — от руки, поворот — от камеры, с лёгким наклоном; во время перезарядки — её анимация.
 ## Пистолет опущен (без ПКМ) — обычный хват (им же бьют рукоятью); поднят — плавно доворачивается к камере (вес позы рук).
 func _aim() -> void:
+	aim_fix[0] = Vector3.ZERO
+	aim_fix[1] = Vector3.ZERO
 	if not armed():
 		return
 	var p = game.player
@@ -364,7 +368,21 @@ func _aim() -> void:
 			wh = maxf(w, rw)
 		b = gt.basis.orthonormalized().slerp(b, wh)
 		gt.basis = Basis(b.x * sc.x, b.y * sc.y, b.z * sc.z)
-		# положение не трогаем: пистолет висит на кисти (рукоять в кулаке), к точке прицела его ведёт IK руки (player_anim.gd)
+		# положение: пистолет висит на кисти, к точке прицела его ведёт IK руки (player_anim.gd).
+		# 18.11 01:35: в прицеле остаток ошибки добираем сдвигом самого пистолета — красная точка коллиматора
+		# встаёт ровно в центр экрана (с двумя — каждый со своим разносом в стороны). Сдвиг запомнили в aim_fix,
+		# чтобы IK руки считал цель по чистому положению и не раскачивался.
+		var fix := Vector3.ZERO
+		if aim_k > 0.0 and (h != _reload_h or p.gun_rel_w <= 0.0):
+			var cgt: Transform3D = p.cam.global_transform
+			var ccb := cgt.basis.orthonormalized()
+			var dot: Vector3 = gt * Vector3(DOT_X, OPTIC_H, 0)
+			var fwd := -ccb.z
+			var dist := maxf((dot - cgt.origin).dot(fwd), 0.1)
+			var want: Vector3 = cgt.origin + fwd * dist + ccb.x * (side * 0.1 if dual() else 0.0)
+			fix = (want - dot) * aim_k
+		aim_fix[h] = fix
+		gt.origin += fix
 		(n as Node3D).global_transform = gt
 
 

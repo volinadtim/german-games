@@ -401,7 +401,10 @@ func _gun_off(i: int) -> Vector3:
 	var b := skel.find_bone(["hand_L", "hand_R"][i])
 	if n == null or not is_instance_valid(n) or not (n as Node3D).is_inside_tree() or b == -1:
 		return Vector3.ZERO
-	return to_local((n as Node3D).global_position) - to_local(skel.global_transform * skel.get_bone_global_pose(b).origin)
+	var gp: Vector3 = (n as Node3D).global_position
+	if gun != null and not puppet:
+		gp -= gun.aim_fix[i] as Vector3   # сдвиг «точка в центр экрана» (gun.gd) в расчёт цели не берём
+	return to_local(gp) - to_local(skel.global_transform * skel.get_bone_global_pose(b).origin)
 
 
 ## Плечо руки i в осях игрока (по кости модели, с наклоном корпуса и приседом).
