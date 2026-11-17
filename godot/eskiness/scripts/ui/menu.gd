@@ -65,6 +65,10 @@ var net_box: Control              # страница «Сетевая игра»
 var ctl_rows := {}                # действие -> [кнопка основной клавиши, кнопка альтернативной]
 var binds := {}                   # действие -> [основная, альтернативная]: "k:<physical_keycode>" | "m:<кнопка мыши>" | "" (только изменённые)
 var waiting_action := ""          # ждём клавишу для этого действия
+var pad                           # ui/gamepad.gd — ввод с геймпада, пресеты
+var pad_page: Control             # «Управление» → «Геймпад» (ui/gamepad_page.gd)
+var kb_nodes: Array = []          # «Управление» → «Клавиатура и мышь»
+var dev_btns := {}
 var waiting_idx := 0              # 0 — основная, 1 — альтернативная (промпт 16.11 02:15)
 
 ## Переназначаемые действия: [действие InputMap, подпись, клавиши по умолчанию].
@@ -121,6 +125,8 @@ func _ready() -> void:
 	# игра называется THE LEAK (промпт 16.11 21:58); config/name в project.godot прежний — от него зависит папка сейвов
 	get_tree().root.title = "THE LEAK"
 	get_tree().root.size_changed.connect(_apply_ui_scale)
+	pad = preload("res://scripts/ui/gamepad.gd").new()   # геймпад (промпт 18.11 00:41)
+	add_child(pad)
 	_load()
 	_apply_binds()
 
@@ -220,12 +226,28 @@ func _ready() -> void:
 	# «Управление»: строка = действие и его клавиша; клик — назначить новую; подразделы CTL_GROUPS
 	ctl_box = VBoxContainer.new()
 	pages.add_child(ctl_box)
-	ctl_box.add_child(_subtitle("Нажмите на клавишу, чтобы переназначить. Esc — отмена."))
+	# переключатель «Клавиатура и мышь» / «Геймпад» (промпт 18.11 00:41)
+	var devs := HBoxContainer.new()
+	devs.add_theme_constant_override("separation", 6)
+	ctl_box.add_child(devs)
+	for d in [["kb", "Клавиатура и мышь"], ["pad", "Геймпад"]]:
+		var did: String = d[0]
+		var db := _button(d[1], func(): _set_dev(did))
+		db.custom_minimum_size = Vector2(0, 46)
+		db.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		db.add_theme_font_size_override("font_size", 21)
+		devs.add_child(db)
+		dev_btns[did] = db
+	var kb_hint := _subtitle("Нажмите на клавишу, чтобы переназначить. Esc — отмена.")
+	ctl_box.add_child(kb_hint)
+	kb_nodes.append(kb_hint)
 	# вкладки разделов в строку (промпт 23:28): видны бинды только активной вкладки
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 6)
 	ctl_box.add_child(tabs)
+	kb_nodes.append(tabs)
 	var crows := _page_rows(ctl_box, 290)
+	kb_nodes.append(crows.get_parent())
 	crows.add_theme_constant_override("separation", 4)
 	var shown := {}
 	for gi in CTL_GROUPS.size():
@@ -249,6 +271,9 @@ func _ready() -> void:
 		if not shown.has(c[0]):
 			ctl_groups[-1].add_child(_bind_row(c[0], c[1]))   # действие без раздела — в последнюю вкладку, чтобы не потерялось
 	_set_ctl_tab(0)
+	pad_page = preload("res://scripts/ui/gamepad_page.gd").new(self, pad)
+	ctl_box.add_child(pad_page)
+	_set_dev("pad" if not Input.get_connected_joypads().is_empty() else "kb")
 
 	# кнопки категорий (на телефоне клавиш нет — «Управление» не показываем, экранные кнопки: touch_controls.gd)
 	for c in [["general", "Основное"], ["gfx", "Экран и графика"], ["controls", "Управление"]]:
@@ -896,6 +921,8 @@ func _apply_binds() -> void:
 			var ev := _spec_event(spec)
 			if ev:
 				InputMap.action_add_event(a, ev)
+	if pad:
+		pad.apply_map()   # оси стика (action_erase_events выше их стёр)
 
 
 func _spec_event(spec: String) -> InputEvent:
@@ -1032,6 +1059,18 @@ func _set_cat(id: String) -> void:
 		_mark_btn(cat_btns[k], k == id)
 
 
+## «Клавиатура и мышь» / «Геймпад» на странице «Управление».
+func _set_dev(id: String) -> void:
+	_stop_wait()
+	for n in kb_nodes:
+		n.visible = id == "kb"
+	pad_page.visible = id == "pad"
+	if id == "pad":
+		pad_page.refresh()
+	for k in dev_btns:
+		_mark_btn(dev_btns[k], k == id)
+
+
 ## Вкладка раздела «Управления»: показать её бинды, подсветить кнопку.
 func _set_ctl_tab(i: int) -> void:
 	_stop_wait()
@@ -1052,6 +1091,10 @@ func _mark_btn(b: Button, on: bool) -> void:
 
 ## «По умолчанию» — только для открытой категории.
 func _reset_cat() -> void:
+	if cat == "controls" and pad_page and pad_page.visible:
+		pad.reset_custom()   # «По умолчанию» на странице геймпада — «Свой» = стандартная раскладка
+		pad_page.refresh()
+		return
 	if cat == "controls":
 		_reset_binds()
 		return
