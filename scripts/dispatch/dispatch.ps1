@@ -52,7 +52,7 @@ function Log([string]$s) {
     $script:Dirty = $true
 }
 
-function Cut([string]$s, [int]$n) { $s = ($s -replace '\s+', ' ').Trim(); if ($s.Length -gt $n) { $s.Substring(0, $n - 1) + "…" } else { $s } }
+function Cut([string]$s, [int]$n) { $s = ($s -replace '[\r\n\t]+', ' ').TrimEnd(); if ($s.Length -gt $n) { $s.Substring(0, $n - 1) + "…" } else { $s } }
 function Stop-Mode { if (Test-Path $FlagFile) { ([IO.File]::ReadAllText($FlagFile)).Trim() } else { "" } }
 function Dur($q) {
     if (-not $q.started) { return "" }
