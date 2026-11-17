@@ -1,5 +1,5 @@
 ﻿# Диспетчер TG-промптов без LLM-сессии.
-# Ждёт промпт Германа -> Haiku выбирает зону/агента/продолжать или нет -> воркер `claude -p --agent ...`
+# Ждёт промпт Германа -> Sonnet (low) выбирает зону/агента/продолжать или нет -> воркер `claude -p --agent ...`
 # в своём worktree на зону (.claude\worktrees\disp-<зона>). Зоны работают параллельно, в одной зоне — очередь.
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dispatch\dispatch.ps1            # слушать TG
@@ -149,16 +149,37 @@ function Route([string]$text) {
     }
     if (-not $lines) { $lines = "(агентов ещё нет)" }
     $p = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "router.md"), $Utf8).Replace("{{STATE}}", ($lines -join "`n")).Replace("{{TASK}}", $text)
-    $out = $p | & $Claude -p --model haiku --output-format text --tools Read --strict-mcp-config --no-session-persistence --disable-slash-commands --settings $HooksFile 2>$null | Out-String
-    $r = $null
-    if ($out -match '\{[\s\S]*?\}') { try { $r = $matches[0] | ConvertFrom-Json } catch {} }
-    if (-not $r) { Log "роутер не ответил JSON ($(Cut $out 200)) — беру opus/high/other/new"; $r = [pscustomobject]@{ zone = "other"; agent = "opus"; effort = "high"; mode = "new"; title = (Cut $text 60) } }
+    $out = $p | & $Claude -p --model sonnet --effort low --output-format text --tools Read --strict-mcp-config --no-session-persistence --disable-slash-commands --settings $HooksFile 2>$null | Out-String
+    $items = @()
+    if ($out -match '\[[\s\S]*\]') { try { $j = $matches[0] | ConvertFrom-Json; $items = @($j) } catch {} }
+    if (-not $items.Count -and $out -match '\{[\s\S]*?\}') { try { $j = $matches[0] | ConvertFrom-Json; $items = @($j) } catch {} }
+    if (-not $items.Count) {
+        Log "роутер не ответил JSON ($(Cut $out 200)) — беру opus/high/other/new"
+        $items = @([pscustomobject]@{ zone = "other"; agent = "opus"; effort = "high"; mode = "new"; title = (Cut $text 60); part = "" })
+    }
+    $items = @(foreach ($r in $items) { Fix-Route $r $text })
+    # Несколько задач в одной зоне — одному воркеру (иначе он дважды читает те же файлы).
+    $res = foreach ($g in ($items | Group-Object zone)) {
+        $rs = @($g.Group)
+        if ($rs.Count -eq 1) { $rs[0]; continue }
+        $m = [pscustomobject]@{
+            zone = $g.Name; agent = $(if (@($rs.agent) -contains "opus") { "opus" } else { "sonnet" })
+            effort = ($Efforts | Where-Object { @($rs.effort) -contains $_ } | Select-Object -Last 1)
+            mode = $(if (@($rs | Where-Object { $_.mode -ne "continue" }).Count) { "new" } else { "continue" })
+            title = (Cut ((@($rs.title)) -join "; ") 60); part = ((@($rs.part) | Where-Object { $_ }) -join "`n")
+        }
+        Fix-Route $m $text
+    }
+    $res
+}
+
+function Fix-Route($r, [string]$text) {
+    foreach ($k in "zone", "agent", "effort", "mode", "title", "part") { if (-not ($r.PSObject.Properties.Name -contains $k)) { $r | Add-Member -Force $k "" } }
     if ($Zones -notcontains $r.zone) { $r.zone = "other" }
     $r.agent = Norm-Agent $r.agent
     if ("sonnet", "opus" -notcontains $r.agent) { $r.agent = "opus" }
-    if (-not ($r.PSObject.Properties.Name -contains "effort") -or $Efforts -notcontains $r.effort) {
-        $r | Add-Member -Force effort $(if ($r.agent -eq "sonnet") { "medium" } else { "high" })
-    }
+    if ($Efforts -notcontains $r.effort) { $r.effort = $(if ($r.agent -eq "sonnet") { "medium" } else { "high" }) }
+    if (-not $r.title) { $r.title = Cut $(if ($r.part) { $r.part } else { $text }) 60 }
     $w = $State[$r.zone]
     if ($r.mode -ne "continue" -or -not $w -or -not $w.session -or $w.ctx -ge $MaxCtx -or (Norm-Agent $w.agent) -ne $r.agent) { $r.mode = "new" }
     $r
@@ -250,9 +271,16 @@ function Handle([string]$raw, [string]$defAt = "?") {
     $text = ($body -join "`n").Trim()
     if (-not $text -or $text -eq "новых промптов нет") { return }
     if (-not $at) { $at = $defAt }
-    $r = Route $text
-    Log ("промпт {0} -> {1} / {2}/{4} / {3}" -f $at, $r.zone, $r.agent, $r.mode, $r.effort)
-    Enqueue $r.zone $r.agent $r.effort $r.mode $text $at $r.title
+    $rs = @(Route $text)
+    $many = $rs.Count -gt 1
+    if ($many) { Log ("промпт {0} разбит на {1} задач(и)" -f $at, $rs.Count) }
+    foreach ($r in $rs) {
+        $t = if ($many -and $r.part) {
+            "Полный промпт Германа (для контекста):`n$text`n`nТВОЯ ЧАСТЬ — сделай только её, остальные части параллельно делают другие агенты, их не трогай:`n$($r.part)"
+        } else { $text }
+        Log ("промпт {0} -> {1} / {2}/{4} / {3}: {5}" -f $at, $r.zone, $r.agent, $r.mode, $r.effort, $r.title)
+        Enqueue $r.zone $r.agent $r.effort $r.mode $t $at $r.title
+    }
 }
 
 # resume: снять стоп, поставить паузы/прерванные обратно в очередь как продолжение их сессии.
