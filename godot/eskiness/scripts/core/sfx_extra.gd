@@ -278,3 +278,41 @@ static func engine_loop() -> AudioStreamWAV:
 	st.loop_begin = 0
 	st.loop_end = n
 	return st
+
+
+## Визг буксующих шин: бесшовная петля 1 с (car_drive.gd крутит её при бернауте и заносе,
+## поднимая громкость и pitch_scale по раскрутке колёс). Промпт 18.11 01:30.
+static func screech_loop() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9137
+	var total := RATE * 2
+	var hi := Sfx.Svf.new(1250.0, 3.2)      # собственно визг резины
+	var mid := Sfx.Svf.new(430.0, 1.4)      # шорох асфальта под колесом
+	var lp := 0.0
+	var raw := PackedFloat32Array()
+	raw.resize(total)
+	for i in total:
+		var t := float(i) / RATE
+		var w := rng.randf() * 2.0 - 1.0
+		lp += (w - lp) * 0.12
+		# частота визга слегка плавает: период 1 с, поэтому петля в 1 с сходится
+		hi.set_fc(1250.0 + sin(TAU * t) * 180.0 + sin(TAU * 3.0 * t) * 70.0)
+		raw[i] = hi.bp(w) * 1.6 + mid.bp(w) * 0.5 + lp * 0.35
+	# берём вторую секунду — фильтры уже «разогреты», края петли совпадают по фазе плавания
+	var n := RATE
+	var peak := 0.0001
+	for i in n:
+		peak = maxf(peak, absf(raw[total - n + i]))
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	for i in n:
+		data.encode_s16(i * 2, int(clampf(raw[total - n + i] / peak * 0.8, -1.0, 1.0) * 32000.0))
+	var st := AudioStreamWAV.new()
+	st.format = AudioStreamWAV.FORMAT_16_BITS
+	st.mix_rate = RATE
+	st.stereo = false
+	st.data = data
+	st.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	st.loop_begin = 0
+	st.loop_end = n
+	return st

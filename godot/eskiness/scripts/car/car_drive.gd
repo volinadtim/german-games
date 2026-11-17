@@ -138,6 +138,12 @@ func _engine(on: bool) -> void:
 	else:
 		engine.stop()
 		smoke.emitting = false
+		burn_k = 0.0
+		launch_t = 0.0
+		if tyre:
+			tyre.stop()
+		for ts in tyre_smoke:
+			ts.emitting = false
 		tail_mat.emission_energy_multiplier = 0.1
 		if head_l:
 			head_l.light_energy = 0.0
@@ -483,8 +489,10 @@ func _drive_tick(delta: float) -> void:
 		acc_s = 0.0
 		hand = false
 		wheel_spin = 0.0
+		burn_k = 0.0
+		launch_t = 0.0
 	for i in wheels.size():
-		if not (hand and i >= 2):   # ручник — задние колёса стоят
+		if not (hand and i >= 2 and burn_k <= 0.01):   # ручник — задние колёса стоят (кроме бернаута)
 			# задний привод: под газом задние крутятся быстрее хода (пробуксовка)
 			wheels[i].rotation.x += (speed + (wheel_spin if i >= 2 else 0.0)) / WHEEL_R * delta
 	for i in 2:
@@ -499,9 +507,40 @@ func _drive_tick(delta: float) -> void:
 	if engine_on and engine:
 		engine.volume_db = lerpf(engine.volume_db, minf(-20.0 + absf(speed) * 0.5 + absf(thr_s) * 2.0, -10.0), 1.0 - exp(-4.0 * delta))
 		engine.pitch_scale = 0.8 + absf(speed) * 0.07 + absf(thr_s) * 0.08
-		var vib := 0.001 + absf(speed) * 0.00015   # лёгкая дрожь мотора (была сильная тряска, 05:44)
+		# бернаут: мотор ревёт на месте, кузов трясёт сильнее
+		var vib := 0.001 + absf(speed) * 0.00015 + burn_k * 0.004   # лёгкая дрожь мотора (05:44)
+		if burn_k > 0.01:
+			engine.volume_db = lerpf(engine.volume_db, -10.0, 1.0 - exp(-6.0 * delta))
+			engine.pitch_scale += burn_k * 0.75
 		rig.position = Vector3(0, randf_range(-1, 1) * vib, 0)
+	_tyre_fx(delta)
 	_carry()
+
+
+## Дым и визг буксующих задних колёс: бернаут на месте, рывок со старта, занос (18.11 01:30).
+func _tyre_fx(delta: float) -> void:
+	var k := clampf(maxf(burn_k, launch_t / LAUNCH_T), 0.0, 1.0)
+	if engine_on and wheel_spin > 2.5:
+		k = maxf(k, clampf((wheel_spin - 2.5) / 7.0, 0.0, 1.0) * 0.8)
+	if not engine_on or my_seat < 0:
+		k = 0.0
+	for ts in tyre_smoke:
+		if ts.emitting != (k > 0.08):
+			ts.emitting = k > 0.08
+	if k > 0.08:
+		if tyre == null:
+			tyre = AudioStreamPlayer.new()
+			tyre.stream = Sfx2.screech_loop()
+			tyre.volume_db = -60.0
+			add_child(tyre)
+		if not tyre.playing:
+			tyre.play()
+		tyre.volume_db = lerpf(tyre.volume_db, -26.0 + 14.0 * k, 1.0 - exp(-8.0 * delta))
+		tyre.pitch_scale = 0.85 + 0.35 * k
+	elif tyre and tyre.playing:
+		tyre.volume_db -= delta * 40.0
+		if tyre.volume_db < -45.0:
+			tyre.stop()
 
 
 ## Педали, руль, ручник → speed (вдоль), yaw_rate. Разгон слабеет к максимальной скорости,
@@ -509,12 +548,26 @@ func _drive_tick(delta: float) -> void:
 func _physics(delta: float, thr: float, st_in: float) -> void:
 	thr_s = move_toward(thr_s, thr, delta * (3.0 if absf(thr) > absf(thr_s) else 6.0))
 	var v := speed
+	# бернаут и быстрый старт (промпт 18.11 01:30): стоим на ручнике и газуем — задние (ведущие) колёса
+	# буксуют на месте, раскрутка копится в burn_k; отпустил ручник, не бросая газ — рывок со старта
+	var standing := Vector2(speed, slip).length() < BURN_V
+	if hand and standing and thr_s > 0.5 and engine_on:
+		burn_k = minf(burn_k + delta / BURN_T, 1.0)
+	else:
+		if hand_prev and not hand and burn_k > 0.15 and thr_s > 0.25:
+			launch_t = LAUNCH_T * burn_k
+		burn_k = maxf(burn_k - delta * (0.5 if hand else 2.5), 0.0)
+	hand_prev = hand
+	if hand or thr_s < 0.1 or speed > MAX_F * 0.75:
+		launch_t = 0.0   # сбросил газ, снова дёрнул ручник или уже разогнался — рывок кончился
+	launch_t = maxf(launch_t - delta, 0.0)
+	var launch_k := launch_t / LAUNCH_T
 	if thr_s > 0.01:
 		if v < -0.3:
 			speed = move_toward(v, 0.0, BRAKE * thr_s * delta)
 		else:
 			var k := clampf(v / MAX_F, 0.0, 1.0)
-			speed = minf(v + ACC * thr_s * (1.0 - 0.7 * k * k) * delta, maxf(MAX_F, v))
+			speed = minf(v + ACC * thr_s * (1.0 + LAUNCH_ACC * launch_k) * (1.0 - 0.7 * k * k) * delta, maxf(MAX_F, v))
 	elif thr_s < -0.01:
 		if v > 0.3:
 			speed = move_toward(v, 0.0, BRAKE * -thr_s * delta)
@@ -544,11 +597,15 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 		if speed > 0.8 and speed < 5.0:
 			var launch := (1.0 - speed / 5.0) * clampf(absf(steer) * 2.0 - 1.0, 0.0, 1.0) * pk
 			g_want = minf(g_want, 1.0 - 0.3 * launch)
+	# на рывке со старта задние колёса ещё буксуют: с вывернутым рулём корму ведёт
+	if launch_k > 0.0:
+		g_want = minf(g_want, 1.0 - 0.5 * launch_k)
 	# ручник срывает сразу, газ — плавно (00:48: «заносит слишком резко»)
 	grip_k = move_toward(grip_k, g_want, delta * ((5.0 if hand else 1.6) if g_want < grip_k else 1.1))
 	var spin_want := maxf(thr_s, 0.0) * (1.0 - grip_k) * 9.0
 	if thr_s > 0.9 and absf(speed) < 3.0 and not hand:
 		spin_want += (1.0 - absf(speed) / 3.0) * 5.0   # старт с пробуксовкой
+	spin_want += burn_k * BURN_SPIN + launch_k * 7.0     # бернаут на месте и рывок со старта
 	wheel_spin = move_toward(wheel_spin, spin_want, delta * 20.0)
 	# случайность заноса: на старте — свой коэффициент срыва и небольшой угловой толчок
 	if not drift_on and grip_k < 0.85:
@@ -903,6 +960,12 @@ func park_at(p: Vector3, a: float) -> void:
 		cam = null
 	if engine:
 		engine.stop()
+	if tyre:
+		tyre.stop()
+	for ts in tyre_smoke:
+		ts.emitting = false
+	burn_k = 0.0
+	launch_t = 0.0
 	engine_on = false
 	smoke.emitting = false
 	tail_mat.emission_energy_multiplier = 0.1

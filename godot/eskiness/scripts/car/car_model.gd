@@ -143,6 +143,18 @@ var lean_kick := 0.0                  # накопленный толчок за
 const LEAN_T := 0.35                  # время высовывания, с
 const LEAN_OUT := 0.44                # на сколько глаза уходят в окно, м
 var village                          # village.gd
+## Бернаут и быстрый старт (промпт 18.11 01:30): стоя на ручнике дать газ — задние (ведущие)
+## колёса буксуют на месте, копится раскрутка burn_k; отпустил ручник с газом — рывок со старта.
+const BURN_T := 1.1                   # за сколько секунд колёса раскручиваются до предела, с
+const BURN_SPIN := 13.0               # добавка к видимой скорости задних колёс при бернауте, м/с
+const BURN_V := 1.3                   # до какой скорости бернаут считается «с места», м/с
+const LAUNCH_T := 1.3                 # сколько длится рывок быстрого старта, с
+const LAUNCH_ACC := 2.2               # во сколько раз сильнее разгон на рывке (сверх обычного)
+var burn_k := 0.0                     # раскрутка колёс на ручнике 0..1
+var launch_t := 0.0                   # остаток рывка быстрого старта, с
+var hand_prev := false                # ручник в прошлом кадре (отпустил — рывок)
+var tyre: AudioStreamPlayer           # визг буксующих шин
+var tyre_smoke: Array[CPUParticles3D] = []   # дым из-под задних колёс
 
 
 ## Положение машины на неровной земле: высота — средняя по колёсам, наклон — по разнице спереди/сзади
@@ -392,6 +404,27 @@ func _build() -> void:
 	_smoke_fade(smoke)
 	smoke.emitting = false
 	rig.add_child(smoke)
+	# дым из-под задних (ведущих) колёс: бернаут, рывок со старта, занос (18.11 01:30)
+	for i in 2:
+		var ts := CPUParticles3D.new()
+		ts.position = Vector3(WHEELS[2 + i].x, 0.08, WHEELS[2 + i].z - 0.1)
+		ts.amount = 22
+		ts.lifetime = 1.5
+		ts.direction = Vector3(0, 0.5, -1)
+		ts.spread = 50.0
+		ts.initial_velocity_min = 0.8
+		ts.initial_velocity_max = 2.2
+		ts.gravity = Vector3(0, 0.5, 0)
+		ts.damping_min = 1.2
+		ts.damping_max = 2.4
+		ts.scale_amount_min = 0.7
+		ts.scale_amount_max = 2.0
+		ts.local_coords = false
+		ts.mesh = _smoke_mesh(Color(0.72, 0.7, 0.66, 0.26))
+		_smoke_fade(ts)
+		ts.emitting = false
+		rig.add_child(ts)
+		tyre_smoke.append(ts)
 	head_l = SpotLight3D.new()
 	head_l.position = Vector3(-0.64, 0.71, 2.1)
 	head_l.rotation = Vector3(-0.08, PI, 0)
