@@ -60,6 +60,8 @@ const ITEMS := {
 		"icon": "repair_weapon", "color": Color(0.6, 0.2, 0.15), "repair": "weapon", "dur": 3},
 	"repair_gear": {"name": "Ремкомплект одежды", "desc": "3 заряда, каждый чинит одежду (голова, тело, ноги, обувь) на 50%. Нажать — самую потрёпанную; или перетащить на нужную.", "stack": 1,
 		"icon": "repair_gear", "color": Color(0.3, 0.42, 0.5), "repair": "gear", "dur": 3},
+	"repair_gun": {"name": "Ремкомплект огнестрела", "desc": "3 заряда, каждый чинит пистолет на 50% прочности. Нажать — самый побитый; или перетащить на пистолет.", "stack": 1,
+		"icon": "repair_gun", "color": Color(0.35, 0.33, 0.3), "repair": "gun", "dur": 3},
 	"backpack": {"name": "Рюкзак", "desc": "Спина: отсек 3×5 для вещей. Снимешь — вещи из него переложатся в карманы.", "stack": 1,
 		"icon": "backpack", "color": Color(0.38, 0.34, 0.2), "equip": "back", "bag": [3, 5]},
 	# стартовая одежда (промпт 16.11 06:03): общей сумки нет — вещи только в одежде и на спине
@@ -100,7 +102,7 @@ const ITEMS := {
 	"knife": {"name": "Ножик", "desc": "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.2.", "stack": 1,
 		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true, "dur": 15},
 	# пистолет из сейфа (промпт 14.11 19:49, gun.gd): dur — патроны в нём / в магазине (rounds)
-	"pistol": {"name": "Пистолет", "desc": "Старый обшарпанный пистолет. ПКМ держать — от бедра, ПКМ клик — прицел, с ПКМ ЛКМ — выстрел, без — удар рукоятью. Два пистолета стреляют по очереди. R — сменить магазин, Enter (держать) — вынуть магазин. Магазин можно перетащить на пистолет.", "stack": 1,
+	"pistol": {"name": "Пистолет", "desc": "Старый обшарпанный пистолет. ПКМ держать — от бедра, ПКМ клик — прицел, с ПКМ ЛКМ — выстрел, без — удар рукоятью. Два пистолета стреляют по очереди. R — сменить магазин, Enter (держать) — вынуть магазин. Магазин можно перетащить на пистолет. Прочность — 60 выстрелов, чинится ремкомплектом огнестрела.", "stack": 1,
 		"icon": "pistol", "color": Color(0.24, 0.24, 0.23), "weapon": true, "gun": true, "rounds": true, "dur": 9},   # dur: 0 — без магазина, 1+n — n патронов (gun.gd)
 	"mag": {"name": "Магазин", "desc": "Пистолетный магазин на 8 патронов. Перетащи на пистолет или R с пистолетом в руке — вставить. Перетащи на него патроны — зарядить.", "stack": 1,
 		"icon": "mag", "color": Color(0.2, 0.2, 0.2), "rounds": true, "dur": 8},
@@ -164,7 +166,7 @@ const SIZES := {
 	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
 	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
 	"flashlight": [1, 2], "water": [1, 2], "soda": [1, 2], "wood": [1, 2], "gasmask": [2, 2], "gasmask2": [2, 2],
-	"repair_weapon": [2, 1], "repair_gear": [2, 1], "canned": [1, 1],
+	"repair_weapon": [2, 1], "repair_gear": [2, 1], "repair_gun": [2, 1], "canned": [1, 1],
 	"helmet": [2, 2], "moto_helmet": [2, 2], "ushanka": [2, 1],
 	"jacket": [2, 2], "kurtka": [2, 2], "vest": [2, 2],
 	"pants": [2, 2], "jeans": [2, 2], "wpants": [2, 2],
@@ -228,9 +230,13 @@ static func holdable(id: String) -> bool:
 	return ITEMS.has(id) and id != "coin"
 
 
-## Каким ремкомплектом чинится: "weapon", "gear" (одежда с прочностью) или "".
+## Каким ремкомплектом чинится: "weapon", "gun" (пистолет), "gear" (одежда с прочностью) или "".
 static func repairable(id: String) -> String:
-	if not ITEMS.has(id) or max_dur(id) <= 0.0 or ITEMS[id].has("repair") or ITEMS[id].has("rounds"):
+	if not ITEMS.has(id) or max_dur(id) <= 0.0 or ITEMS[id].has("repair"):
+		return ""
+	if ITEMS[id].has("gun"):
+		return "gun"    # у пистолета своя прочность в дробной части dur (gun.gd)
+	if ITEMS[id].has("rounds"):
 		return ""
 	if ITEMS[id].has("weapon"):
 		return "weapon"
@@ -438,7 +444,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_line(c + Vector2(0, -s * 0.3), c + Vector2(0, s * 0.33), col.darkened(0.45), maxf(1.5, s * 0.03))
 			for k in 4:
 				ci.draw_line(c + Vector2(-s * 0.2, -s * 0.18 + k * s * 0.12), c + Vector2(s * 0.2, -s * 0.18 + k * s * 0.12), col.darkened(0.25), maxf(1.0, s * 0.02))
-		"repair_weapon", "repair_gear":
+		"repair_weapon", "repair_gear", "repair_gun":
 			# чемоданчик с ручкой; на крышке — гаечный ключ (оружие) или катушка с иглой (одежда)
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.1, -s * 0.3), Vector2(s * 0.2, s * 0.08)), dark)
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.36, -s * 0.22), Vector2(s * 0.72, s * 0.5)), col)
@@ -448,6 +454,12 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				ci.draw_line(c + Vector2(-s * 0.18, s * 0.18), c + Vector2(s * 0.12, -s * 0.06), mark, maxf(2.0, s * 0.07))
 				ci.draw_circle(c + Vector2(s * 0.15, -s * 0.09), s * 0.08, mark)
 				ci.draw_circle(c + Vector2(s * 0.19, -s * 0.13), s * 0.04, col)
+			elif id == "repair_gun":
+				# на крышке — патрон и шомпол (ремкомплект огнестрела)
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.22, -s * 0.04), Vector2(s * 0.14, s * 0.22)), mark)
+				ci.draw_circle(c + Vector2(-s * 0.15, -s * 0.06), s * 0.07, Color(0.85, 0.66, 0.3))
+				ci.draw_line(c + Vector2(s * 0.02, s * 0.18), c + Vector2(s * 0.22, -s * 0.06), mark, maxf(1.5, s * 0.04))
+				ci.draw_circle(c + Vector2(s * 0.22, -s * 0.08), s * 0.05, mark)
 			else:
 				ci.draw_rect(Rect2(c + Vector2(-s * 0.12, -s * 0.08), Vector2(s * 0.16, s * 0.26)), mark)
 				ci.draw_rect(Rect2(c + Vector2(-s * 0.15, -s * 0.1), Vector2(s * 0.22, s * 0.04)), dark)
@@ -770,7 +782,7 @@ static func make_mesh(id: String) -> Node3D:
 			mi.mesh = sm
 			mi.scale = Vector3(1.0, 1.0, 0.7)
 			m.roughness = 1.0
-		"repair_weapon", "repair_gear":
+		"repair_weapon", "repair_gear", "repair_gun":
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.2, 0.08, 0.14)
 			mi.mesh = bm

@@ -8,8 +8,11 @@ extends Node
 ## Магазин — отдельная вещь: вставленный пропадает из инвентаря. R — вставить самый полный магазин из сумки
 ## (старый — в сумку); перетащить магазин на пистолет — то же; патроны на магазин — дозарядить его;
 ## зажать Enter (действие «mag_eject») — извлечь магазин в сумку.
-## dur пистолета: 0 — магазина нет, 1 + n — вставлен магазин с n патронами (так dur всегда >= 0 и не теряется
-## при выбрасывании/сундуках/сейве). dur магазина — просто патроны в нём (0..CAP).
+## dur пистолета: целая часть — 0 (магазина нет) или 1 + n (вставлен магазин с n патронами), дробная часть —
+## прочность пистолета в сотых (0.60 — целый, DUR_MAX выстрелов; 0.0 — тоже целый, старые сейвы). Так dur всегда
+## >= 0 и не теряется при выбрасывании/сундуках/сейве. dur магазина — просто патроны в нём (0..CAP).
+## Прочность (промпт 18.11 01:52): каждый выстрел −1, на нуле пистолет ломается и пропадает;
+## чинит «Ремкомплект огнестрела» (items.gd: repair_gun, game_items.gd: repair).
 ## Выстрел слышат враги вокруг и бегут на звук. Счётчик «в магазине / в сумке» — справа от хотбара.
 
 const Items := preload("res://scripts/items.gd")
@@ -17,6 +20,7 @@ const Fx := preload("res://scripts/core/fx.gd")
 const Hud := preload("res://scripts/hud.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 const CAP := 8                   # патронов в магазине
+const DUR_MAX := 60.0            # прочность пистолета: столько выстрелов до поломки
 const DMG := 40.0                # по бетоннику (95 HP) — 3 попадания
 const RANGE := 80.0
 const HEAD_MULT := 2.5           # хэдшот (промпт 18.11 00:56)
@@ -89,17 +93,30 @@ var snd_rack_back: AudioStreamWAV
 var snd_rack_fwd: AudioStreamWAV
 
 
-## dur пистолета → патроны / есть ли магазин (см. шапку).
+## dur пистолета → патроны / есть ли магазин / прочность (см. шапку).
 static func has_mag(d: float) -> bool:
-	return d >= 0.5
+	return d >= 0.999
 
 
 static func mag_rounds(d: float) -> int:
-	return maxi(int(round(d)) - 1, 0)
+	return maxi(int(floorf(d + 0.001)) - 1, 0)
 
 
-static func pistol_dur(has: bool, n: int) -> float:
-	return float(n + 1) if has else 0.0
+## Остаток прочности пистолета (дробная часть dur ×100); 0 в дробной части — целый (новый / старый сейв).
+static func gun_dur(d: float) -> float:
+	var f: float = d - floorf(d + 0.001)
+	return DUR_MAX if f < 0.005 else snappedf(f * 100.0, 0.01)
+
+
+## Собрать dur: магазин + патроны, прочность — из old (−1 — целый пистолет).
+static func pistol_dur(has: bool, n: int, old := -1.0) -> float:
+	var base := float(n + 1) if has else 0.0
+	return base + (0.0 if old < 0.0 else clampf(gun_dur(old), 0.0, 95.0) / 100.0)
+
+
+## То же, но с заданной прочностью nd (ремонт/износ).
+static func with_gun_dur(d: float, nd: float) -> float:
+	return floorf(d + 0.001) + clampf(nd, 0.0, 95.0) / 100.0
 
 
 func _ready() -> void:
@@ -512,7 +529,10 @@ func _shoot(h: int, spread: float) -> void:
 	p.make_noise(p.NOISE_SHOT)   # выстрел слышно далеко и сквозь стены (enemy.gd _hears)
 	var r := rounds_in(h)
 	_hand = h
-	game.inv.equip_dur[SLOTS[h]] = pistol_dur(true, r - 1)
+	var sl: String = SLOTS[h]
+	var pd: float = game.inv.get_dur(sl)
+	game.inv.equip_dur[sl] = pistol_dur(true, r - 1, pd)
+	_wear_shot(sl)
 	_play(snd_shot, -1.0, randf_range(0.95, 1.05))
 	var cam: Camera3D = p.cam
 	var from := cam.global_position
@@ -527,6 +547,24 @@ func _shoot(h: int, spread: float) -> void:
 		game.net.shot(_muzzle())   # сеть: выстрел видят и слышат другие, враги у хоста слышат
 	if game.inv.open:
 		game.inv._refresh()
+
+
+## Износ от выстрела: −1 прочности пистолета в руке sl; на нуле ломается и пропадает (промпт 18.11 01:52).
+func _wear_shot(sl: String) -> void:
+	var inv = game.inv
+	if inv.equip[sl] != "pistol":
+		return
+	var d: float = inv.get_dur(sl)
+	var left := gun_dur(d) - 1.0
+	if left <= 0.0:
+		inv.equip[sl] = ""
+		inv.equip_dur.erase(sl)
+		game._apply_equip(sl)
+		game.hud.toast("Пистолет развалился", Color(1.0, 0.5, 0.35))
+		game.play_ui("thud", -10.0, 1.6)
+		inv.notify()
+		return
+	inv.equip_dur[sl] = with_gun_dur(d, left)
 
 
 ## Попадание пули (промпт 18.11 00:56 — хитбоксы и хэдшоты).
@@ -598,12 +636,10 @@ func _deal(target: Object, pos: Vector3, dir: Vector3, head: bool, from: Vector3
 	var amount := DMG * dm * (HEAD_MULT if head else 1.0)
 	target.take_hit(amount, dir)
 	if not head:
-		# обычное попадание — число урона бледным, чтобы было видно, сколько сняли
-		Fx.popup_text(game, pos + Vector3(0, 0.22, 0), "-%d" % roundi(amount), Color(0.95, 0.9, 0.82), 0.7)
-		return
+		return   # число урона рисует сама цель (Fx.damage_number), второй раз не показываем (промпт 18.11 01:52)
 	_play(snd_headshot, -2.0, randf_range(0.95, 1.08))
 	Fx.dust_burst(game, pos, Color(0.45, 0.06, 0.04), 18)
-	Fx.popup_text(game, pos + Vector3(0, 0.35, 0), "В ГОЛОВУ! -%d" % roundi(amount), Color(1.0, 0.3, 0.2), 1.2)
+	Fx.popup_text(game, pos + Vector3(0, 0.35, 0), "В ГОЛОВУ!", Color(1.0, 0.3, 0.2), 1.2)
 
 
 ## Луч по частям модели врага: [t, голова?] ближайшего меша или [] — промах.
@@ -882,7 +918,7 @@ func _casual_reload(rh: int, slot: String, _cur: int) -> void:
 	if take <= 0:
 		return
 	game.inv.remove("ammo", take)
-	game.inv.equip_dur[slot] = pistol_dur(true, now + take)
+	game.inv.equip_dur[slot] = pistol_dur(true, now + take, game.inv.get_dur(slot))
 	game.hud.toast("Заряжено: %d / %d" % [now + take, CAP], Color(0.9, 0.85, 0.7))
 	game.inv.notify()
 
@@ -908,9 +944,9 @@ func insert_mag(mag_idx: int, target, sound := true) -> bool:
 	else:
 		inv.slots[mag_idx] = null
 	if target is String:
-		inv.equip_dur[target] = pistol_dur(true, n)
+		inv.equip_dur[target] = pistol_dur(true, n, pd)
 	else:
-		inv.slots[target]["dur"] = pistol_dur(true, n)
+		inv.slots[target]["dur"] = pistol_dur(true, n, pd)
 	if sound:
 		_play(snd_mag, -6.0, 1.2)
 	game.hud.toast("Магазин вставлен: %d / %d" % [n, CAP], Color(0.9, 0.85, 0.7))
@@ -925,11 +961,11 @@ func eject(target) -> void:
 	if target is String:
 		if inv.equip[target] != "pistol" or not has_mag(pd):
 			return
-		inv.equip_dur[target] = 0.0
+		inv.equip_dur[target] = pistol_dur(false, 0, pd)
 	else:
 		if inv.slots[target] == null or inv.slots[target]["id"] != "pistol" or not has_mag(pd):
 			return
-		inv.slots[target]["dur"] = 0.0
+		inv.slots[target]["dur"] = pistol_dur(false, 0, pd)
 	var n := mag_rounds(pd)
 	_play(snd_mag, -6.0, 0.9)
 	if inv.add("mag", 1, float(n)) > 0:

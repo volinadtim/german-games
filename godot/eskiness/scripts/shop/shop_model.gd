@@ -22,20 +22,28 @@ const TABS := ["Оружие", "Одежда", "Расходники", "Инст
 const CONS_SUBS := [
 	["Пропитание", ["rusk", "water", "soda", "choco", "canned"]],
 	["Медицина", ["bandage", "medkit"]],
-	["Починка", ["repair_weapon", "repair_gear", "battery"]],
+	["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]],
 ]
 var sub_c := 0                # открытая подвкладка «Расходников»
-## только магазин в подвале деревни (village_shop.gd): вкладки «Патроны» и «Магазины» после «Инструментов»
-const VILLAGE_TABS := ["Патроны", "Магазины"]
+## только магазин в подвале деревни (village_shop.gd): вкладка «Огнестрел» после «Инструментов»
+const VILLAGE_TABS := ["Огнестрел"]
+## подвкладки «Огнестрела» (промпт 18.11 01:52): само оружие, патроны, магазины
+const GUN_SUBS := [
+	["Оружие", ["pistol"]],
+	["Патроны", ["ammo"]],
+	["Магазины", ["mag"]],
+]
+var sub_g := 0                # открытая подвкладка «Огнестрела»
 const AMMO_SHOP := [["ammo", 20]]   # набор из AMMO_PACK патронов за 20 (было 12; дороже — промпт 18.11 00:56)
 const AMMO_PACK := 5
 const MAG_SHOP := [["mag", 55]]   # магазин с 8 патронами (было 30; дороже — промпт 18.11 00:56)
+const GUN_SHOP := [["pistol", 320]]   # пистолет без магазина (промпт 18.11 01:52)
 ## «Инструменты» (промпт 16.11 02:42): фонарик, метла, нормальный молоток, топорик (рубит деревья на поляне — surface.gd)
 const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55]]
 ## расходники (промпт 14.11 17:21): [id, цена]. Батарейки и сухари — дёшево, хилки дороже.
 ## Экономика: старт 50 монет, кувшин даёт 1–4, хлам продаётся за 2–5.
 const CONSUMABLES := [["battery", 3], ["rusk", 2], ["water", 3], ["soda", 5], ["choco", 5], ["canned", 6],
-	["bandage", 6], ["medkit", 20], ["repair_weapon", 30], ["repair_gear", 25]]
+	["bandage", 6], ["medkit", 20], ["repair_weapon", 30], ["repair_gear", 25], ["repair_gun", 40]]
 ## подвкладки «Одежды» (промпт 14.11 21:14): [название, товары]. Цены — Weapons.SHOP / CONSUMABLES (_price).
 ## Обувь — отдельная подвкладка «Ботинки»; ремкомплект одежды — в «Расходниках»; фонарик и метла — в «Инструментах»
 ## (промпт 16.11 02:42). «Снаряжение» — последняя (CLOTHES[-1]).
@@ -349,13 +357,13 @@ static func _price(id: String) -> int:
 	for e in CONSUMABLES:
 		if e[0] == id:
 			return int(e[1])
-	for e in TOOLS + AMMO_SHOP + MAG_SHOP:
+	for e in TOOLS + AMMO_SHOP + MAG_SHOP + GUN_SHOP:
 		if e[0] == id:
 			return int(e[1])
 	return 0
 
 
-## Вкладки этого магазина: в деревне — ещё «Патроны» и «Магазины» после «Инструментов».
+## Вкладки этого магазина: в деревне — ещё «Огнестрел» после «Инструментов».
 func tab_names() -> Array:
 	var t: Array = TABS.duplicate()
 	if "main_shop" in self:

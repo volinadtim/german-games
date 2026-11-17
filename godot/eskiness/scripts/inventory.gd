@@ -153,6 +153,11 @@ class Slot extends Control:
 				fr = float(Gun.mag_rounds(inv.get_dur(key))) / Gun.CAP
 			draw_rect(Rect2(6, size.y - 9, size.x - 12, 4), Color(0, 0, 0, 0.6))
 			draw_rect(Rect2(6, size.y - 9, (size.x - 12) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
+			if id == "pistol":
+				# у пистолета верхняя полоска — патроны, нижняя (синяя) — прочность (промпт 18.11 01:52)
+				var gf := clampf(Gun.gun_dur(inv.get_dur(key)) / Gun.DUR_MAX, 0.0, 1.0)
+				draw_rect(Rect2(6, size.y - 14, size.x - 12, 3), Color(0, 0, 0, 0.6))
+				draw_rect(Rect2(6, size.y - 14, (size.x - 12) * gf, 3), Color(0.8, 0.3, 0.25).lerp(Color(0.45, 0.7, 0.95), gf))
 		if Items.ITEMS[id].has("rounds"):
 			# пистолет / магазин: патронов внутри
 			var rt := "%d/%d" % [int(round(inv.get_dur(key))), int(mx)]
@@ -383,6 +388,10 @@ class BagGrid extends Control:
 					fr = float(Gun.mag_rounds(inv.get_dur(i))) / Gun.CAP
 				draw_rect(Rect2(r.position.x + 5, r.end.y - 8, r.size.x - 10, 4), Color(0, 0, 0, 0.6))
 				draw_rect(Rect2(r.position.x + 5, r.end.y - 8, (r.size.x - 10) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
+				if id == "pistol":
+					var gf := clampf(Gun.gun_dur(inv.get_dur(i)) / Gun.DUR_MAX, 0.0, 1.0)
+					draw_rect(Rect2(r.position.x + 5, r.end.y - 13, r.size.x - 10, 3), Color(0, 0, 0, 0.6))
+					draw_rect(Rect2(r.position.x + 5, r.end.y - 13, (r.size.x - 10) * gf, 3), Color(0.8, 0.3, 0.25).lerp(Color(0.45, 0.7, 0.95), gf))
 			var txt := ""
 			if Items.ITEMS[id].has("rounds"):
 				txt = "%d/%d" % [int(round(inv.get_dur(i))), int(mx)]

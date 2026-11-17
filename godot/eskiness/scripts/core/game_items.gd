@@ -552,7 +552,7 @@ func _most_worn(kind: String):
 		var id: String = inv.equip[k] if k is String else (String(inv.slots[k]["id"]) if inv.slots[k] != null else "")
 		if Items.repairable(id) != kind:
 			continue
-		var fr: float = inv.get_dur(k) / Items.max_dur(id)
+		var fr: float = Gun.gun_dur(inv.get_dur(k)) / Gun.DUR_MAX if kind == "gun" else inv.get_dur(k) / Items.max_dur(id)
 		if fr < best_fr - 0.001:
 			best_fr = fr
 			best = k
@@ -572,16 +572,20 @@ func repair(kit_idx: int, target) -> void:
 	if Items.repairable(id) != kind:
 		hud.toast("%s этим не починить" % Items.item_name(id))
 		return
-	var mx := Items.max_dur(id)
-	var cur: float = inv.get_dur(target)
+	# у пистолета прочность — дробная часть dur (gun.gd), целая часть (магазин с патронами) не трогается
+	var gun_kit := kind == "gun"
+	var mx: float = Gun.DUR_MAX if gun_kit else Items.max_dur(id)
+	var raw: float = inv.get_dur(target)
+	var cur: float = Gun.gun_dur(raw) if gun_kit else raw
 	if cur >= mx - 0.01:
 		hud.toast("%s и так целое" % Items.item_name(id))
 		return
 	var nd := minf(cur + mx * REPAIR_PART, mx)
+	var store: float = Gun.with_gun_dur(raw, nd) if gun_kit else nd
 	if target is String:
-		inv.equip_dur[target] = nd
+		inv.equip_dur[target] = store
 	else:
-		inv.slots[target]["dur"] = nd
+		inv.slots[target]["dur"] = store
 	var left: float = inv.get_dur(kit_idx) - 1.0
 	if left <= 0.0:
 		inv.slots[kit_idx] = null

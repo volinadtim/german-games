@@ -271,14 +271,12 @@ func _rebuild_tab() -> void:
 			var grid := _grid()
 			for e in TOOLS:
 				_item_cell(grid, String(e[0]), _price(String(e[0])))
-		"Патроны":
+		"Огнестрел":
+			# подвкладки «Оружие», «Патроны», «Магазины» (промпт 18.11 01:52)
+			_sub_tabs(GUN_SUBS, sub_g, func(i: int): sub_g = i)
 			var grid := _grid()
-			for e in AMMO_SHOP:
-				_item_cell(grid, String(e[0]), int(e[1]))
-		"Магазины":
-			var grid := _grid()
-			for e in MAG_SHOP:
-				_item_cell(grid, String(e[0]), int(e[1]))
+			for id in GUN_SUBS[sub_g][1]:
+				_item_cell(grid, String(id), _price(String(id)))
 		"Слот-Машина":
 			_build_slot_tab()
 		"Чертежи":
@@ -696,12 +694,13 @@ func _buy(id: String, price: int) -> void:
 		_refresh()
 		return
 	var qty: int = AMMO_PACK if id == "ammo" else 1   # патроны — набором (05:11)
-	var left: int = game.inv.add(id, qty, 0.0 if id == "mag" else -1.0)   # магазин продаётся пустым (05:11)
+	# магазин продаётся пустым (05:11), пистолет — без магазина и целый (dur 0; прочность — gun.gd)
+	var left: int = game.inv.add(id, qty, 0.0 if id in ["mag", "pistol"] else -1.0)
 	info_l.text = "Куплено: %s" % Items.item_name(id)
 	if left > 0:
 		# нет места (общей сумки нет, промпт 16.11 06:03) — покупка на полу рядом
 		var e := {"id": id, "n": left}
-		if id == "mag":
+		if id == "mag" or id == "pistol":
 			e["dur"] = 0.0
 		game.drop_spilled([e])
 		info_l.text += " — на полу"
