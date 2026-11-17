@@ -151,9 +151,7 @@ func _process(delta: float) -> void:
 
 
 func get_prompt(_g) -> String:
-	if left <= 0:
-		return ""
-	return "%s — бей топориком (ЛКМ): деревяшки (%d)" % ["Сухое дерево" if kind == "tree" else "Старые доски", left]
+	return ""   # подсказку «бей топориком (ЛКМ)» убрали (промпт 18.11 01:01)
 
 
 func interact(g) -> void:
