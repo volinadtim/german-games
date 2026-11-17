@@ -15,6 +15,7 @@ extends Node
 const Items := preload("res://scripts/items.gd")
 const Fx := preload("res://scripts/core/fx.gd")
 const Hud := preload("res://scripts/hud.gd")
+const Weapons := preload("res://scripts/weapons.gd")
 const CAP := 8                   # патронов в магазине
 const DMG := 40.0                # по бетоннику (95 HP) — 3 попадания
 const RANGE := 80.0
@@ -191,7 +192,7 @@ func _process(delta: float) -> void:
 	if game == null:
 		return
 	var p = game.player
-	var can: bool = armed() and game.alive and p != null and p.active and not game.inv.open \
+	var can: bool = armed() and game.alive and p != null and (p.active or car_can()) and not game.inv.open \
 			and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not p.fists   # в стойке не целимся: клик — stance_fire (05:34)
 	if not can:
 		ads = false
@@ -233,6 +234,7 @@ func _process(delta: float) -> void:
 		count_l.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35) if r == 0 else Color(0.95, 0.88, 0.7))
 	_reload_tick(delta)
 	_aim()
+	_car_view(delta)
 	Hud.gun_cross = armed() and game.alive
 	cross.queue_redraw()
 
@@ -357,8 +359,81 @@ func _aim() -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e.is_action_pressed("reload") and not e.is_echo() and armed() and game.player.active and game.alive:
+	if game == null or game.player == null:
+		return
+	if e.is_action_pressed("reload") and not e.is_echo() and armed() and (game.player.active or car_can()) and game.alive:
 		reload()
+	# в машине игрок выключен (car_drive.gd) — ЛКМ/ПКМ ловим сами: стрельба из окна
+	if car_seat() < 0 or not armed() or not game.alive or game.window_open() or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	if e.is_action_released("attack_right"):
+		rmb_input(false)
+	elif not car_can():
+		return
+	elif e.is_action_pressed("attack_right") and not e.is_echo():
+		rmb_input(true)
+	elif e.is_action_pressed("attack_left") and not e.is_echo():
+		fire()
+	else:
+		return
+	get_viewport().set_input_as_handled()
+
+
+# ---------- стрельба из машины (промпт 18.11 00:49) ----------
+
+var car_vm: Array = [null, null]   # пистолеты у камеры, пока сидишь в машине (тело в салоне спрятано)
+
+
+## Место своего игрока в машине (сидит, не садится/выходит), -1 — не в машине.
+func car_seat() -> int:
+	var c = game.get("car") if game != null else null
+	if c == null or not is_instance_valid(c) or int(c.my_seat) < 0 or int(c.seat_dir) != 0:
+		return -1
+	return int(c.my_seat)
+
+
+## Водитель рулит: газ/тормоз/руль/ручник нажаты.
+static func steering() -> bool:
+	return Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2 \
+			or Input.is_action_pressed("handbrake" if InputMap.has_action("handbrake") else "jump")
+
+
+## Можно стрелять из машины: пассажир — всегда, водитель — пока не рулит (стоит или катится сам).
+func car_can() -> bool:
+	var s := car_seat()
+	return s > 0 or (s == 0 and not steering())
+
+
+## Пистолет у камеры в салоне: от бедра — внизу сбоку, в прицеле — мушкой к глазу, водитель рулит — опущен.
+func _car_view(delta: float) -> void:
+	var p = game.player
+	var on: bool = p != null and armed() and game.alive and car_seat() >= 0 and not game.inv.open
+	var hs := hands()
+	for h in 2:
+		var n = car_vm[h]
+		if not on or not h in hs:
+			if n != null and is_instance_valid(n):
+				n.visible = false
+			continue
+		var side := -1.0 if h == 0 else 1.0
+		if n == null or not is_instance_valid(n):
+			n = Weapons.make("pistol")
+			for mi in n.find_children("*", "MeshInstance3D", true, false):
+				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			p.cam.add_child(n)
+			car_vm[h] = n
+			n.position = Vector3(0.24 * side, -0.48, -0.3)
+		n.visible = true
+		var two := hs.size() == 2
+		var want := Vector3(0.2 * side, -0.27, -0.4).lerp(Vector3(0.07 * side if two else 0.0, -0.145, -0.32), aim_k)
+		if not car_can():
+			want = Vector3(0.24 * side, -0.48, -0.3)
+		if reloading and h == _reload_h:
+			want += Vector3(-0.06 * side, -0.12, 0.06) * sin(clampf(_rel_t / RELOAD_T, 0.0, 1.0) * PI)
+		n.position = n.position.lerp(want, 1.0 - exp(-12.0 * delta))
+		# +X модели — вперёд (к -Z камеры), +Y — вверх; качание — как у пули (aim_dir)
+		n.basis = Basis(Vector3(0, 0, -1), Vector3.UP, Vector3(1, 0, 0)) \
+				.rotated(Vector3.UP, -sway.x).rotated(Vector3.RIGHT, sway.y + 0.05 * (1.0 - aim_k))
 
 
 # ---------- выстрел ----------
@@ -419,6 +494,8 @@ func _shoot(h: int, spread: float) -> void:
 			.rotated(cam.global_transform.basis.y, randf_range(-spread, spread))
 	var q := PhysicsRayQueryParameters3D.create(from, from + dir * RANGE)
 	q.exclude = [p.get_rid()]
+	if car_seat() >= 0:
+		q.exclude = [p.get_rid(), game.car.get_rid()]   # из салона — сквозь свою машину (стрельба из окна)
 	q.collision_mask = 1 | 512   # 512 — другие игроки в сети (огонь по своим)
 	var hit: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q)
 	if not hit.is_empty():
@@ -447,15 +524,18 @@ func _recoil() -> void:
 	p.head.rotation.x = clampf(p.head.rotation.x + kick, -1.5, 1.4)
 	p.rotate_y(randf_range(-0.012, 0.012))
 	var back: float = p.head.rotation.x - kick * 0.6
-	var tw: Tween = p.create_tween()
+	var tw: Tween = create_tween()   # не p.create_tween(): в машине игрок выключен — твин бы встал
 	tw.tween_property(p.head, "rotation:x", back, 0.16).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	var tw2: Tween = p.create_tween()
+	var tw2: Tween = create_tween()
 	tw2.tween_property(p.cam, "rotation:z", randf_range(-0.02, 0.02), 0.03)
 	tw2.tween_property(p.cam, "rotation:z", 0.0, 0.14)
 
 
 func _muzzle() -> Vector3:
 	var p = game.player
+	var vm = car_vm[_hand]
+	if car_seat() >= 0 and vm != null and is_instance_valid(vm) and (vm as Node3D).visible:
+		return (vm as Node3D).global_transform * Vector3(0.14, 0.11, 0.0)
 	var n = p.weapon_nodes[_hand]
 	if n and is_instance_valid(n):
 		return (n as Node3D).global_transform * Vector3(0.15, 0.11, 0.0)
@@ -788,6 +868,8 @@ static func _mag_mesh() -> MeshInstance3D:
 ## Старый магазин выскальзывает из рукояти и падает (только картинка — сам он ложится в сумку).
 func _drop_old_mag() -> void:
 	var p = game.player
+	if car_seat() >= 0:
+		return   # в салоне старый магазин падает под ноги — не видно
 	var gn = p.weapon_nodes[_reload_h]
 	if gn == null or not is_instance_valid(gn) or not (gn as Node3D).is_inside_tree():
 		return
