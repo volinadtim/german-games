@@ -121,6 +121,9 @@ func setup(p: Player) -> void:
 	tape.position = Vector3(-7.05, 0.95, 8.813)   # на самой доске выплат (main.gd прижимает её к стене)
 	add_child(tape)
 	add_child(preload("res://scripts/world/exit_sign.gd").new())   # табличка «только в противогазе» над выходом к лестнице
+	var door = preload("res://scripts/world/bunker_door.gd").new()   # дверь к лестнице: без Нюхича в первый раз не открыть
+	door.game = self
+	add_child(door)
 	# осколки стекла на полу (там, где битое стекло) — материал для ножика
 	loot_window = LootWindow.new()
 	loot_window.game = self
