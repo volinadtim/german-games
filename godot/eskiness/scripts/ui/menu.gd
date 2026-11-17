@@ -5,6 +5,7 @@ extends CanvasLayer
 
 signal play_pressed
 
+const SplitScr := preload("res://scripts/network/split.gd")   # сплитскрин (промпт 18.11 00:58)
 const IconButton := preload("res://scripts/ui/icon_button.gd")
 const CFG := "user://settings.cfg"
 const Graphics := preload("res://scripts/core/graphics.gd")
@@ -166,10 +167,14 @@ func _ready() -> void:
 	main_box.add_child(_title("THE LEAK", 104))   # название игры (промпт 16.11 21:58)
 	main_box.add_child(_subtitle("no luck. no fun."))
 	main_box.add_child(_gap(34))
-	main_box.add_child(_button("Играть", _open_slots))
+	main_box.add_child(_button("Играть", func():
+		SplitScr.pending = false
+		_open_slots()))
 	main_box.add_child(_button("Сетевая игра", _open_net))
 	if not _mobile():   # два игрока на одном ПК (network/split.gd, промпт 18.11 00:41)
-		main_box.add_child(_button("Сплитскрин", func(): preload("res://scripts/network/split.gd").start_host(self)))
+		main_box.add_child(_button("Сплитскрин", func():
+			SplitScr.pending = true   # обычная игра из слота, экран пополам
+			_open_slots()))
 	main_box.add_child(_button("Настройки", func(): _open_settings("main")))
 	main_box.add_child(_button("Выход", func(): get_tree().quit()))
 
@@ -322,7 +327,6 @@ func _ready() -> void:
 	var nt := get_tree().root.get_node_or_null("Net")
 	if nt and nt.last_msg != "":
 		_open_net.call_deferred()
-	preload("res://scripts/network/split.gd").boot_client.call_deferred(self)   # вторая копия сплитскрина
 
 
 func _process(_delta: float) -> void:
@@ -813,10 +817,6 @@ var _win_applied := -1
 ## Режим экрана: 0 — окно с рамкой (≈75% экрана, по центру), 1 — окно без рамок во весь экран, 2 — полноэкранный.
 func _apply_window() -> void:
 	if _mobile() or DisplayServer.get_name() == "headless":
-		return
-	var split := get_tree().root.get_node_or_null("Split")
-	if split:
-		split.layout()   # сплитскрин: окно — половина экрана
 		return
 	var m := clampi(int(round(float(values.get("window_mode", 2.0)))), 0, 2)
 	if m == _win_applied:

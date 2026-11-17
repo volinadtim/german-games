@@ -32,6 +32,7 @@ const DZ := 0.18             # мёртвая зона стиков
 const LOOK_PX := 1500.0      # обзор: «пикселей мыши» в секунду при полном отклонении
 const CURSOR_PX := 1100.0    # курсор в меню, пикс/с
 const MOVE_DZ := 0.3         # мёртвая зона действий ходьбы (InputMap)
+const Split := preload("res://scripts/network/split.gd")
 const SYNTH := 77            # device у мыши/клавиш, которые шлёт этот узел (сплитскрин отличает их от настоящих)
 
 var preset := "default"      # "default" | "custom"
@@ -52,7 +53,7 @@ var pending := []            # [действие, время отпускани�
 var wheel_t := 0.0
 var last_dev := 0
 var only_device := -1        # сплитскрин (network/split.gd): -1 любой геймпад, -2 никакой, N — только этот
-var virtual_cursor := false  # вторая копия сплитскрина: курсор свой, настоящую мышь не двигаем
+var virtual_cursor := false  # курсор свой, настоящую мышь не двигаем (сейчас не используется)
 var vpos := Vector2(200, 200)
 var cursor_layer: CanvasLayer
 var cursor_dot: Control
@@ -61,7 +62,6 @@ var cursor_dot: Control
 func _init() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	load_cfg()
-	virtual_cursor = preload("res://scripts/network/split.gd").client_port() != 0
 
 
 func _ready() -> void:
@@ -161,8 +161,8 @@ static func _btn_name(b: int) -> String:
 
 ## Оси ходьбы — в InputMap (вызывает и menu.gd после своих клавиш: он стирает события действий).
 func apply_map() -> void:
-	var sp = get_tree().root.get_node_or_null("Split") if is_inside_tree() else null
-	only_device = sp.pad_device() if sp else -1
+	# сплитскрин (network/split.gd): у игрока 1 — первый геймпад, если их два; иначе только клавиатура и мышь
+	only_device = Split.pad_device(false) if Split.inst != null and is_instance_valid(Split.inst) else -1
 	var pads := not Input.get_connected_joypads().is_empty() and only_device != -2
 	var sx := JOY_AXIS_RIGHT_X if swapped() else JOY_AXIS_LEFT_X
 	var sy := JOY_AXIS_RIGHT_Y if swapped() else JOY_AXIS_LEFT_Y

@@ -52,6 +52,8 @@ func _physics_process(delta: float) -> void:
 		return
 	if game.net:
 		tg = game.net.pick_target(self)
+	elif game.has_meta("split"):
+		tg = game.get_meta("split").pick_target(self)   # сплитскрин: ближайший из двух игроков
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
 	st += delta

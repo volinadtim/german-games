@@ -149,6 +149,7 @@ func _enter_game() -> void:
 		tc.setup(player, game)
 		add_child(tc)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	preload("res://scripts/network/split.gd").attach(self)   # сплитскрин: второй игрок, экран пополам
 
 
 func _unhandled_input(event: InputEvent) -> void:
