@@ -390,6 +390,7 @@ func add_luck(sym: String, k := 1) -> void:
 	if not LUCK.has(sym):
 		return
 	var n := int(LUCK[sym][0])
+	k = clampi(k, 1, LUCK[sym].size() - 1)
 	if not luck.has(sym):
 		luck[sym] = {"left": n, "k": k, "q": []}
 	else:

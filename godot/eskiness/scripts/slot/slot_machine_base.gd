@@ -16,8 +16,10 @@ const PACKS := [[3, 8], [6, 15]]
 const LUCK := {
 	"cherry": [6, 6, 14, 16], "lemon": [6, 8, 15, 17], "plum": [6, 11, 18, 19],
 	"grape": [5, 13, 19, 20],
+	# промпт 18.11 00:45: алмаз и семёрка — только ×1 (не больше +1 гарантом за крутку);
+	# семёрка всё равно не ставится на барабан, где она уже есть (одна семёрка на барабан)
+	"diamond": [5, 24], "seven": [4, 34],
 }
-## промпт 16.11 03:16: гаранты/шансы на семёрки и алмазы не продаются
 const REELS := 5
 const ROWS := 3
 ## прокачка окна: LEVELS[ур-1] = [рядов, барабанов, цена перехода на этот уровень]
@@ -361,6 +363,8 @@ static func lines_for(lv: int) -> Array:
 ## Семёрку не ставим, если в окне их уже 3 (4 семёрки не бывает).
 static func _guarantee(g: Array, lv: int, sym: String, k := 1) -> void:
 	k = mini(k, int(GUAR_MAX[clampi(lv, 1, MAX_LEVEL) - 1]))
+	if LUCK.has(sym):
+		k = mini(k, LUCK[sym].size() - 1)   # алмаз/семёрка — максимум +1
 	for i in k:
 		_guarantee_one(g, lv, sym)
 
@@ -433,6 +437,17 @@ static func _roll_window(lv: int, guar, boosted: Array = [], rare7 := false) -> 
 						s = left
 				row.append(s)
 			g.append(row)
+		# промпт 18.11 00:46: шанс комбинации — и по диагоналям/галочкам/мостикам: клетка линии
+		# с той же липкостью повторяет предыдущую клетку этой линии, если там купленный символ
+		if not boosted.is_empty():
+			for ln in lines_for(lv):
+				if ln[1] == "row":
+					continue
+				var cl: Array = ln[0]
+				for i in range(1, cl.size()):
+					var prev: String = g[int(cl[i - 1][0])][int(cl[i - 1][1])]
+					if boosted.has(prev) and randf() < STICK_BOOST:
+						g[int(cl[i][0])][int(cl[i][1])] = prev
 		# на одном барабане (столбце окна) — не больше одной семёрки (промпт 18.11 00:39)
 		for c in REELS:
 			var has7 := false
@@ -452,7 +467,7 @@ static func _roll_window(lv: int, guar, boosted: Array = [], rare7 := false) -> 
 
 ## Цена гаранта sym ×k (k штук за крутку на LUCK[sym][0] круток).
 static func guar_price(sym: String, k: int) -> int:
-	return int(LUCK[sym][clampi(k, 1, 3)])
+	return int(LUCK[sym][clampi(k, 1, LUCK[sym].size() - 1)])
 
 
 ## Множитель серии после streak побед подряд.

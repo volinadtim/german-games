@@ -468,7 +468,7 @@ func _build_slot_tab() -> void:
 		var d: Array = SM.LUCK[sym]
 		var need: int = SM.sym_level(sym)
 		var left := _luck_left(slot, sym)
-		for k in range(1, 4):
+		for k in range(1, d.size()):   # алмаз/семёрка — только ×1
 			var price := int(d[k])
 			var reason := ""
 			if lv < need:
@@ -496,7 +496,7 @@ func _build_slot_tab() -> void:
 		var left := 0
 		if slot.boost.has(sym):
 			left = int(slot.boost[sym])
-		var desc := "На %d круток %s чаще «липнет» к такому же слева — 3 в ряд выпадают заметно чаще." % [int(d[0]), SymS.NAMES[sym].to_lower()]
+		var desc := "На %d круток %s чаще «липнет» к такому же — 3 в ряд и по диагонали выпадают заметно чаще." % [int(d[0]), SymS.NAMES[sym].to_lower()]
 		if left > 0:
 			desc += " Сейчас действует ещё %d круток." % left
 		_cell(g3, func(ci: Control, r: Rect2): _draw_sym(ci, r, sym, "↑"), price,
