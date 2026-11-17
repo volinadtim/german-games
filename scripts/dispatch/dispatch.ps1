@@ -29,6 +29,7 @@ $HandoffDir = Join-Path $Dir "handoff"
 New-Item -ItemType Directory -Force $Dir, $Wts, $Inbox, $HandoffDir | Out-Null
 $StateFile = Join-Path $Dir "state.json"
 $JobsFile = Join-Path $Dir "jobs.json"
+$HistFile = Join-Path $Dir "history.jsonl"   # все завершённые задачи и переделки — для статистики качества по моделям
 $LogFile = Join-Path $Dir "dispatch.log"
 $FlagFile = Join-Path $Dir "stop.flag"
 $HooksFile = Join-Path $Dir "hooks.json"
@@ -69,6 +70,7 @@ function Show {
     $sm = Stop-Mode
     $wait = if ($Task) { "" } elseif ($sm) { "СТОП ($sm) — новые задачи не стартуют" } elseif ($job) { "слушаю TG…" } else { "" }
     $o.Add(("ДИСПЕТЧЕР  {0}   работают: {1}   в очереди: {2}   {3}" -f (Get-Date -Format "HH:mm:ss"), $run, $que, $wait))
+    $o.Add((Cut ("КАЧЕСТВО  " + (Stats-Line)) $w))
     $o.Add("")
     $o.Add(("{0,-3} {1,-11} {2,-8} {3,-12} {4,-4} {5,-9} {6,6} {7,5} {8,6}  {9}" -f "#", "промпт", "зона", "модель", "реж", "статус", "время", "ктх", "`$", "задача / результат"))
     foreach ($q in @($Jobs | Select-Object -Last 15)) {
@@ -105,13 +107,47 @@ function Load-Map([string]$file) {
 function Save-State { [IO.File]::WriteAllText($StateFile, ($State | ConvertTo-Json -Depth 5), $Utf8) }
 
 # jobs.json — вся очередь/история/работающие воркеры + пульс диспетчера; читает TUI.
+function Load-Hist {
+    $l = New-Object System.Collections.ArrayList
+    if (Test-Path $HistFile) { foreach ($x in [IO.File]::ReadAllLines($HistFile, $Utf8)) { if ($x.Trim()) { try { [void]$l.Add(($x | ConvertFrom-Json)) } catch {} } } }
+    ,$l
+}
+function Hist-Add($h) {
+    $o = [pscustomobject]$h
+    [IO.File]::AppendAllText($HistFile, (ConvertTo-Json -InputObject $o -Compress -Depth 4) + "`n", $Utf8)
+    [void]$Hist.Add($o); Calc-Stats
+}
+# Статистика по моделям: задач, переделок (Герман пожаловался на результат), СЛОЖНО, $ на задачи и $ на переделки.
+function Calc-Stats {
+    $done = @($Hist | Where-Object { $_.t -eq "done" })
+    $byId = @{}; foreach ($d in $done) { $byId["$($d.id)"] = $d }
+    $redone = @{}; foreach ($r in @($Hist | Where-Object { $_.t -eq "redo" })) { $redone["$($r.id)"] = $true }
+    $st = [ordered]@{}
+    foreach ($m in "sonnet", "opus") {
+        $mine = @($done | Where-Object { $_.agent -eq $m })
+        $redo = @($mine | Where-Object { $redone["$($_.id)"] }).Count
+        $fix = 0.0; foreach ($d in $done) { if ($d.fix_of -and $byId["$($d.fix_of)"] -and $byId["$($d.fix_of)"].agent -eq $m) { $fix += [double]$d.cost } }
+        $cost = 0.0; foreach ($d in $mine) { $cost += [double]$d.cost }
+        $st[$m] = [ordered]@{
+            tasks = $mine.Count; redo = $redo; pct = $(if ($mine.Count) { [int](100 * $redo / $mine.Count) } else { 0 })
+            hard = @($mine | Where-Object { $_.status -eq "СЛОЖНО" }).Count; cost = [Math]::Round($cost, 2); fixcost = [Math]::Round($fix, 2)
+        }
+    }
+    $script:Stats = $st
+}
+function Stats-Line {
+    (@(foreach ($m in $Stats.Keys) { $x = $Stats[$m]
+        "{0}: {1} задач, {2} переделок ({3}%){4}, `${5:N2} + `${6:N2} на переделки" -f $m, $x.tasks, $x.redo, $x.pct, $(if ($m -eq "sonnet") { ", СЛОЖНО $($x.hard)" } else { "" }), $x.cost, $x.fixcost
+    }) -join "   ·   ")
+}
+
 function Save-Jobs {
     $keep = @($Jobs | Select-Object -Last 40)
     $script:Jobs = New-Object System.Collections.ArrayList; foreach ($q in $keep) { [void]$Jobs.Add($q) }
     $rows = foreach ($q in $Jobs) { $c = $q.Clone(); $c.dur = Dur $q; $c }
     $o = [ordered]@{
         heartbeat = [DateTimeOffset]::Now.ToUnixTimeSeconds(); pid = $PID; listening = [bool]$job; stop = (Stop-Mode)
-        seq = $Seq; jobs = @($rows)
+        seq = $Seq; stats = $Stats; jobs = @($rows)
     }
     $tmp = "$JobsFile.tmp"
     [IO.File]::WriteAllText($tmp, (ConvertTo-Json -InputObject $o -Depth 6), $Utf8)
@@ -143,12 +179,19 @@ function Find-Sid($q) {
     if ($f) { $f.BaseName } else { $null }
 }
 
+# Последние задачи для роутера — чтобы он узнал жалобу на одну из них («не работает», «верни как было»).
+function Recent-Tasks {
+    $l = @($Hist | Where-Object { $_.t -eq "done" } | Select-Object -Last 12 | ForEach-Object { "- #{0} {1} [{2}] {3}: {4}" -f $_.id, $_.at, $_.zone, $_.agent, $_.title })
+    $l += @($Jobs | Where-Object { $_.status -in "работает", "очередь" } | ForEach-Object { "- #{0} {1} [{2}] {3}: {4} (ещё делается)" -f $_.id, $_.at, $_.zone, $_.agent, $_.title })
+    if ($l.Count) { $l -join "`n" } else { "(задач ещё не было)" }
+}
+
 function Route([string]$text) {
     $lines = foreach ($z in $State.Keys) {
         $w = $State[$z]; "- {0}: {1}/{5}, контекст ~{2}k, последняя задача {3}: {4}" -f $z, $w.agent, [int]($w.ctx / 1000), $w.at, $w.last, $w.effort
     }
     if (-not $lines) { $lines = "(агентов ещё нет)" }
-    $p = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "router.md"), $Utf8).Replace("{{STATE}}", ($lines -join "`n")).Replace("{{TASK}}", $text)
+    $p = [IO.File]::ReadAllText((Join-Path $PSScriptRoot "router.md"), $Utf8).Replace("{{STATE}}", ($lines -join "`n")).Replace("{{RECENT}}", (Recent-Tasks)).Replace("{{TASK}}", $text)
     $out = $p | & $Claude -p --model sonnet --effort low --output-format text --tools Read --strict-mcp-config --no-session-persistence --disable-slash-commands --settings $HooksFile 2>$null | Out-String
     $items = @()
     if ($out -match '\[[\s\S]*\]') { try { $j = $matches[0] | ConvertFrom-Json; $items = @($j) } catch {} }
@@ -167,6 +210,7 @@ function Route([string]$text) {
             effort = ($Efforts | Where-Object { @($rs.effort) -contains $_ } | Select-Object -Last 1)
             mode = $(if (@($rs | Where-Object { $_.mode -ne "continue" }).Count) { "new" } else { "continue" })
             title = (Cut ((@($rs.title)) -join "; ") 60); part = ((@($rs.part) | Where-Object { $_ }) -join "`n")
+            redo = (@($rs.redo) | Where-Object { $_ } | Select-Object -First 1)
         }
         Fix-Route $m $text
     }
@@ -174,7 +218,7 @@ function Route([string]$text) {
 }
 
 function Fix-Route($r, [string]$text) {
-    foreach ($k in "zone", "agent", "effort", "mode", "title", "part") { if (-not ($r.PSObject.Properties.Name -contains $k)) { $r | Add-Member -Force $k "" } }
+    foreach ($k in "zone", "agent", "effort", "mode", "title", "part", "redo") { if (-not ($r.PSObject.Properties.Name -contains $k)) { $r | Add-Member -Force $k "" } }
     if ($Zones -notcontains $r.zone) { $r.zone = "other" }
     $r.agent = Norm-Agent $r.agent
     if ("sonnet", "opus" -notcontains $r.agent) { $r.agent = "opus" }
@@ -254,6 +298,9 @@ function Finish($q) {
     $handoff = (Test-Path $hf) -and ((Get-Item $hf).LastWriteTime -ge [DateTime]$q.started)
     $q.status = if ($j.is_error) { "ошибка" } elseif ($res -match '^\s*СЛОЖНО') { "СЛОЖНО" } elseif ($handoff -and (Stop-Mode)) { "пауза" } else { "готово" }
     $State[$zone] = @{ session = $j.session_id; agent = $q.agent; effort = $q.effort; ctx = $ctx; last = $q.title; at = $q.at }
+    if ($q.status -ne "пауза") {
+        Hist-Add @{ t = "done"; id = $q.id; at = $q.at; zone = $zone; agent = $q.agent; effort = $q.effort; cost = [double]$j.total_cost_usd; status = $q.status; fix_of = $q.fix_of; title = $q.title }
+    }
     Save-State; Save-Jobs
     Log ("[{0}] {1}, ~{2}k, `${3:N2}: {4}" -f $zone, $q.status, [int]($ctx / 1000), $j.total_cost_usd, (($res -split "`n")[0]))
     if ($q.agent -eq "sonnet" -and $res -match '^\s*СЛОЖНО') {
@@ -280,6 +327,13 @@ function Handle([string]$raw, [string]$defAt = "?") {
         } else { $text }
         Log ("промпт {0} -> {1} / {2}/{4} / {3}: {5}" -f $at, $r.zone, $r.agent, $r.mode, $r.effort, $r.title)
         Enqueue $r.zone $r.agent $r.effort $r.mode $t $at $r.title
+        $rid = 0; if ("$($r.redo)" -match '^\s*#?(\d+)\s*$') { $rid = [int]$matches[1] }
+        if ($rid -and $rid -ne $Seq -and @($Hist | Where-Object { $_.t -eq "done" -and $_.id -eq $rid }).Count) {
+            $Jobs[$Jobs.Count - 1].fix_of = $rid
+            Hist-Add @{ t = "redo"; id = $rid; by = $Seq; at = $at }
+            Log ("переделка: #{0} — жалоба на #{1}" -f $Seq, $rid)
+            Save-Jobs
+        }
     }
 }
 
@@ -296,11 +350,19 @@ function Do-Resume {
 }
 
 $State = Load-Map $StateFile
+$Hist = Load-Hist
+$Stats = $null; Calc-Stats
 $Procs = @{}
 $LogTail = New-Object System.Collections.ArrayList
 $Seq = 0; $Dirty = $true; $LastShow = Get-Date; $LastSave = Get-Date
 $job = $null
 $Jobs = Load-Jobs
+# Первый запуск со статистикой — заводим историю из уже завершённых задач.
+if (-not (Test-Path $HistFile)) {
+    foreach ($q in @($Jobs | Where-Object { $_.status -in "готово", "СЛОЖНО", "ошибка" })) {
+        Hist-Add @{ t = "done"; id = $q.id; at = $q.at; zone = $q.zone; agent = (Norm-Agent $q.agent); effort = $q.effort; cost = [double]$q.cost; status = $q.status; fix_of = $null; title = $q.title }
+    }
+}
 $adopt = @($Jobs | Where-Object { $_.status -eq "работает" })
 Log ("диспетчер запущен: {0}; подхватил работающих воркеров: {1}" -f $Repo, $adopt.Count)
 if ($Task) { Handle $Task "--.-- --:--" }

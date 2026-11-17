@@ -513,6 +513,30 @@ fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
     sum.extend(chip(count(&["упал", "ошибка", "прерван", "СЛОЖНО"]), "сбой", RED));
     sum.push(Span::styled(format!("${cost:.2} за {} задач", jobs.len()), Style::new().fg(DIM)));
     lines.push(Line::from(sum));
+    // качество по моделям: сколько задач Герман вернул на переделку
+    let st = &app.jobs["stats"];
+    if st.is_object() {
+        let mut q = vec![Span::styled("качество  ", Style::new().fg(DIM))];
+        for m in ["sonnet", "opus"] {
+            let x = &st[m];
+            if !x.is_object() {
+                continue;
+            }
+            let pct = x["pct"].as_u64().unwrap_or(0);
+            let c = if pct >= 20 { RED } else if pct >= 10 { YELLOW } else { GREEN };
+            q.push(Span::styled(format!("{m} "), Style::new().fg(Color::White).bold()));
+            q.push(Span::styled(format!("{} задач · ", x["tasks"].as_u64().unwrap_or(0)), Style::new().fg(DIM)));
+            q.push(Span::styled(format!("переделок {} ({pct}%)", x["redo"].as_u64().unwrap_or(0)), Style::new().fg(c)));
+            if m == "sonnet" {
+                q.push(Span::styled(format!(" · СЛОЖНО {}", x["hard"].as_u64().unwrap_or(0)), Style::new().fg(DIM)));
+            }
+            q.push(Span::styled(
+                format!(" · ${:.2} + ${:.2} на переделки     ", x["cost"].as_f64().unwrap_or(0.0), x["fixcost"].as_f64().unwrap_or(0.0)),
+                Style::new().fg(DIM),
+            ));
+        }
+        lines.push(Line::from(q));
+    }
     lines.push(Line::raw(""));
 
     if jobs.is_empty() {
@@ -540,6 +564,9 @@ fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
         }
         if let Some(x) = j["ctx"].as_u64() {
             meta.push(format!("ctx {}k", x / 1000));
+        }
+        if let Some(x) = j["fix_of"].as_u64() {
+            meta.push(format!("↻ переделка #{x}"));
         }
         if let Some(x) = j["cost"].as_f64() {
             meta.push(format!("${x:.2}"));
