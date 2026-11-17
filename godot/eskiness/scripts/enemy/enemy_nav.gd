@@ -300,6 +300,35 @@ func _from_center(p: Vector3) -> float:
 	return Vector2(p.x - Surface.CENTER.x, p.z - Surface.CENTER.z).length()
 
 
+## Видит игрока: в пределах дальности (вприсядку — меньше), в конусе взгляда (вплотную — в любую сторону), без стен.
+func _sees(ppos: Vector3, d: float, rng := SIGHT) -> bool:
+	if not tg.alive:
+		return false
+	var pl = tg.player
+	if bool(pl.get("crouched")):
+		rng *= SIGHT_CROUCH
+	if d > rng:
+		return false
+	if d > NEAR_FEEL:
+		var fwd := -global_transform.basis.z
+		fwd.y = 0.0
+		var to := ppos - global_position
+		to.y = 0.0
+		if fwd.length() > 0.01 and to.length() > 0.01 and fwd.normalized().dot(to.normalized()) < cos(deg_to_rad(FOV_DEG)):
+			return false
+	return _clear(global_position, ppos)
+
+
+## Слышит игрока: дистанция меньше его шума (через стену — вдвое меньше).
+func _hears(ppos: Vector3, d: float) -> bool:
+	if not tg.alive:
+		return false
+	var r := float(tg.player.get("noise_r")) if tg.player.get("noise_r") != null else 0.0
+	if r <= 0.0 or d > r:
+		return false
+	return d < r * 0.5 or _clear(global_position, ppos)
+
+
 func _clear(a: Vector3, b: Vector3) -> bool:
 	var q := PhysicsRayQueryParameters3D.create(a + Vector3(0, 1.2, 0), b + Vector3(0, 1.2, 0))
 	q.collision_mask = 1

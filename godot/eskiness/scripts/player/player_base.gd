@@ -133,6 +133,28 @@ var net_pos := Vector3.ZERO
 var net_yaw := 0.0
 var net_pitch := 0.0
 var net_vel := Vector3.ZERO
+## Шум игрока (промпт 16.11 21:54): радиус, в котором враги слышат его сейчас (м). Шаг 5, бег 10, присед 1.2,
+## стоит — 0; прыжок, удар, выстрел — короткие всплески (make_noise). Враги: enemy.gd _hears.
+const NOISE_WALK := 5.0
+const NOISE_SPRINT := 10.0
+const NOISE_CROUCH := 1.2
+const NOISE_JUMP := 6.0
+const NOISE_PUNCH := 5.0
+const NOISE_SHOT := 25.0
+var noise_r := 0.0
+var noise_spike := 0.0
+
+
+func make_noise(r: float) -> void:
+	noise_spike = maxf(noise_spike, r)
+
+
+func _noise_tick(delta: float, moving: bool, sprinting: bool) -> void:
+	noise_spike = move_toward(noise_spike, 0.0, delta * 30.0)
+	var base := 0.0
+	if moving:
+		base = NOISE_CROUCH if crouched else (NOISE_SPRINT if sprinting else NOISE_WALK)
+	noise_r = maxf(base, noise_spike)
 var net_crouch := false
 var net_sprint := false
 var stamina: Node   # player/stamina.gd — только у локального игрока (промпт 03:03)

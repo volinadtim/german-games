@@ -137,7 +137,7 @@ func hear_stone(at: Vector3) -> void:
 	if net_puppet or calm or not state in ["idle", "return", "investigate"]:
 		return
 	var ppos: Vector3 = tg.player.global_position
-	if tg.alive and global_position.distance_to(ppos) < SIGHT and _clear(global_position, ppos):
+	if _sees(ppos, global_position.distance_to(ppos)):
 		return   # игрока видит — отвлечь не выйдет
 	probe = at
 	probe_wait = 0.0

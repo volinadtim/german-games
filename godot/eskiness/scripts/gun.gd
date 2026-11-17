@@ -408,6 +408,7 @@ func stance_fire(h: int) -> bool:
 ## Сам выстрел из руки h с разбросом spread (патрон уже есть).
 func _shoot(h: int, spread: float) -> void:
 	var p = game.player
+	p.make_noise(p.NOISE_SHOT)   # выстрел слышно далеко и сквозь стены (enemy.gd _hears)
 	var r := rounds_in(h)
 	_hand = h
 	game.inv.equip_dur[SLOTS[h]] = pistol_dur(true, r - 1)
