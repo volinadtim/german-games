@@ -327,7 +327,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_close_settings()
 	elif slots_box.visible:
 		_show("main")
-	elif net_box.visible:
+	elif net_box.visible and not in_game:
+		# в игре меню скрыто, но net_box.visible остаётся true: раньше Esc здесь звал back() → net.leave()
+		# и выкидывал из сетевой игры (промпт 18.11 00:26)
 		net_box.back()
 	elif in_game and not visible:
 		pause()

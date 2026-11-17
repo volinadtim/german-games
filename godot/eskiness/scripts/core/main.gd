@@ -124,6 +124,7 @@ func _start_game() -> void:
 
 func _enter_game() -> void:
 	menu.visible = false
+	menu.net_box.visible = false   # страница сети не ловит Esc в игре (иначе net.leave() — вылет из комнаты)
 	if slot_board:
 		slot_board.visible = true
 	menu.in_game = true
