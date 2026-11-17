@@ -27,8 +27,42 @@ $Zones = "slot","shop","items","player","enemy","ui","net","level","car","villag
 
 function Log([string]$s) {
     $l = "{0}  {1}" -f (Get-Date -Format "dd.MM HH:mm:ss"), $s
-    Write-Host $l
     [IO.File]::AppendAllText($LogFile, $l + "`n", $Utf8)
+    [void]$LogTail.Add($l); while ($LogTail.Count -gt 8) { $LogTail.RemoveAt(0) }
+    $script:Dirty = $true
+}
+
+function Cut([string]$s, [int]$n) { $s = ($s -replace '\s+', ' ').Trim(); if ($s.Length -gt $n) { $s.Substring(0, $n - 1) + "…" } else { $s } }
+
+# Живая таблица в консоли: промпты -> зона/агент/статус, агенты по зонам, хвост лога.
+function Show {
+    $w = [Math]::Max(80, [Console]::WindowWidth - 1)
+    $o = New-Object System.Collections.Generic.List[string]
+    $wait = if ($Task) { "" } elseif ($job) { "слушаю TG…" } else { "" }
+    $o.Add(("ДИСПЕТЧЕР  {0}   работают: {1}   в очереди: {2}   {3}" -f (Get-Date -Format "HH:mm:ss"), $Running.Count, ($Queue.Count), $wait))
+    $o.Add("")
+    $o.Add(("{0,-3} {1,-11} {2,-8} {3,-9} {4,-4} {5,-13} {6,6} {7,5} {8,6}  {9}" -f "#", "промпт", "зона", "агент", "реж", "статус", "время", "ктх", "`$", "задача / результат"))
+    foreach ($q in @($Hist | Select-Object -Last 15)) {
+        $end = if ($q.finished) { $q.finished } else { Get-Date }
+        $dur = if ($q.started) { "{0:mm\:ss}" -f ($end - $q.started) } else { "" }
+        $ctx = if ($q.ctx) { "{0}k" -f [int]($q.ctx / 1000) } else { "" }
+        $cost = if ($q.cost) { "{0:N2}" -f $q.cost } else { "" }
+        $info = if ($q.result) { $q.title + "  ->  " + $q.result } else { $q.title }
+        $line = "{0,-3} {1,-11} {2,-8} {3,-9} {4,-4} {5,-13} {6,6} {7,5} {8,6}  {9}" -f $q.id, $q.at, $q.zone, $q.agent, $(if ($q.mode -eq "continue") { "прод" } else { "нов" }), $q.status, $dur, $ctx, $cost, $info
+        $o.Add((Cut $line $w))
+    }
+    $o.Add("")
+    $o.Add("АГЕНТЫ ПО ЗОНАМ (кого продолжать):")
+    foreach ($z in ($State.Keys | Sort-Object)) {
+        $s = $State[$z]; $o.Add((Cut ("  {0,-8} {1,-9} ~{2,4}k  {3}  {4}" -f $z, $s.agent, [int]($s.ctx / 1000), $s.at, $s.last) $w))
+    }
+    $o.Add("")
+    $o.Add("ЛОГ:")
+    foreach ($l in $LogTail) { $o.Add((Cut ("  " + $l) $w)) }
+    Clear-Host
+    foreach ($l in $o) { Write-Host $l }
+    $script:Dirty = $false
+    $script:LastShow = Get-Date
 }
 function Run-Git { & git @args *> $null }
 
@@ -69,7 +103,9 @@ function Route([string]$text) {
 }
 
 function Enqueue($zone, $agent, $mode, $text, $at, $title) {
-    [void]$Queue.Add(@{ zone = $zone; agent = $agent; mode = $mode; text = $text; at = $at; title = $title })
+    $script:Seq++
+    $q = @{ id = $script:Seq; zone = $zone; agent = $agent; mode = $mode; text = $text; at = $at; title = $title; status = "очередь" }
+    [void]$Queue.Add($q); [void]$Hist.Add($q); $script:Dirty = $true
 }
 
 function Start-Worker($q) {
@@ -79,7 +115,7 @@ function Start-Worker($q) {
         Run-Git -C $wt rebase --abort
         Run-Git -C $wt fetch -q origin main
         Run-Git -C $wt rebase -q --autostash origin/main
-    } else { Log "[$zone] не удалось создать worktree $wt"; return }
+    } else { $q.status = "нет worktree"; $q.finished = Get-Date; Log "[$zone] не удалось создать worktree $wt"; return }
     $brief = if ($q.mode -eq "continue") {
         "Новый промпт Германа ($($q.at)), продолжение твоей работы:`n$($q.text)"
     } else {
@@ -92,6 +128,7 @@ function Start-Worker($q) {
     $proc = Start-Process -FilePath $Claude -ArgumentList $a -WorkingDirectory $wt -NoNewWindow -PassThru `
         -RedirectStandardInput $in -RedirectStandardOutput $out -RedirectStandardError $err
     $Running[$zone] = @{ proc = $proc; out = $out; err = $err; wt = $wt; q = $q }
+    $q.status = "работает"; $q.started = Get-Date
     Log ("[{0}] {1} {2}: {3}" -f $zone, $q.agent, $(if ($q.mode -eq "continue") { "продолжает" } else { "новый" }), $q.title)
 }
 
@@ -101,10 +138,13 @@ function Finish($zone) {
     try { $j = [IO.File]::ReadAllText($r.out, $Utf8) | ConvertFrom-Json } catch {}
     if (-not $j) {
         $e = ([IO.File]::ReadAllText($r.err, $Utf8) -replace '\s+', ' ').Trim()
+        $q.status = "упал"; $q.finished = Get-Date; $q.result = $e
         Log "[$zone] воркер упал: $($e.Substring(0, [Math]::Min(300, $e.Length)))"; return
     }
     $res = "$($j.result)".Trim()
     $ctx = Get-Ctx $r.wt $j.session_id
+    $q.finished = Get-Date; $q.ctx = $ctx; $q.cost = $j.total_cost_usd; $q.result = (($res -split "`n")[0])
+    $q.status = if ($j.is_error) { "ошибка" } elseif ($res -match '^\s*СЛОЖНО') { "СЛОЖНО" } else { "готово" }
     $State[$zone] = @{ session = $j.session_id; agent = $q.agent; ctx = $ctx; last = $q.title; at = $q.at }
     Save-State
     Log ("[{0}] готово, ~{1}k, `${2:N2}: {3}" -f $zone, [int]($ctx / 1000), $j.total_cost_usd, (($res -split "`n")[0]))
@@ -131,6 +171,9 @@ function Handle([string]$raw) {
 $State = Load-State
 $Running = @{}
 $Queue = New-Object System.Collections.ArrayList
+$Hist = New-Object System.Collections.ArrayList
+$LogTail = New-Object System.Collections.ArrayList
+$Seq = 0; $Dirty = $true; $LastShow = Get-Date
 Log "диспетчер запущен: $Repo"
 if ($Task) { Handle ("=== --.-- --:-- МСК`n" + $Task) }
 
@@ -148,5 +191,6 @@ while ($true) {
         if (-not $Running.ContainsKey($q.zone)) { $Queue.Remove($q); Start-Worker $q }
     }
     if ($Task -and $Running.Count -eq 0 -and $Queue.Count -eq 0) { break }
-    Start-Sleep -Seconds 3
+    if ($Dirty -or ((Get-Date) - $LastShow).TotalSeconds -ge 5) { Show }
+    Start-Sleep -Seconds 2
 }
