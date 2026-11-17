@@ -1336,7 +1336,7 @@ func open_menu(key, at: Vector2) -> void:
 		var n := int(s["n"])
 		title = Items.item_name(id) + ("  ×%d" % n if n > 1 else "")
 		var ul := _use_label(id)
-		if Items.equip_slot(id) == "hand":
+		if Items.equip_slot(id) == "hand" or (ul == "" and Items.equip_slot(id) == "" and Items.holdable(id)):
 			acts.append(["Л|П", "hands"])   # «Взять в руку» — две кнопки в строку: левая / правая (промпт 05:54)
 		elif ul != "":
 			acts.append([ul, "use"])
@@ -1733,7 +1733,7 @@ func _swap_equip(a: String, b: String) -> void:
 	var ib: String = equip[b]
 	if ia == "":
 		return
-	if not Items.fits(ia, b) or (ib != "" and not Items.fits(ib, a)):
+	if not Items.fits(ia, b) or (ib != "" and not Items.fits(ib, a)) or ((a in ["left", "right"]) != (b in ["left", "right"]) and (ib != "" or not (a in ["left", "right"]))):
 		message.emit("%s сюда не надеть" % Items.item_name(ia))
 		return
 	var da = equip_dur.get(a)

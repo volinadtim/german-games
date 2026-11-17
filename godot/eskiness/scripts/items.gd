@@ -215,9 +215,14 @@ static func equip_slot(id: String) -> String:
 ## Подходит ли предмет в слот экипировки (left/right/head/hands).
 static func fits(id: String, slot: String) -> bool:
 	var k := equip_slot(id)
-	if k == "hand":
-		return slot == "left" or slot == "right"
+	if slot == "left" or slot == "right":
+		return k == "hand" or holdable(id)
 	return k != "" and k == slot
+
+
+## Любой предмет можно взять в руку, как оружие (промпт 18.11 00:27): бьёт им как дубинкой-слабачкой.
+static func holdable(id: String) -> bool:
+	return ITEMS.has(id) and id != "coin"
 
 
 ## Каким ремкомплектом чинится: "weapon", "gear" (одежда с прочностью) или "".

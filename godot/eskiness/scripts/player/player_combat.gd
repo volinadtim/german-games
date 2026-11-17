@@ -390,7 +390,7 @@ func _check_hit(arm: int, _kind := "straight") -> void:
 	var from := cam.global_position
 	var wid: String = weapon_ids[arm]
 	var armed := wid != ""
-	var reach_len: float = Weapons.WEAPONS[wid]["reach"] if armed else 1.0
+	var reach_len: float = Weapons.stats(wid)["reach"] if armed else 1.0
 	# взгляд вниз: удар идёт ниже и тело наклоняется — достаём до низких целей (ящики) и стоя
 	reach_len *= 1.0 + 0.75 * clampf(-head.rotation.x, 0.0, 1.0)
 	var hit := _hit_scan(from, reach_len)
@@ -398,7 +398,7 @@ func _check_hit(arm: int, _kind := "straight") -> void:
 		_play(hit_player, impacts, -11.0)
 		# урон врагам/манекену (тестовые механики, см. game.gd): у цели должен быть take_hit(урон, направление)
 		if hit.collider.has_method("take_hit"):
-			var mult: float = Weapons.WEAPONS[wid]["mult"] if armed else dmg_mult
+			var mult: float = Weapons.stats(wid)["mult"] if armed else dmg_mult
 			# без случайности (промпт 19:06): вид удара и криты на урон не влияют, растёт только от заряда
 			var dmg: float = PUNCH_BASE * mult * HAND_DMG[arm] * charge_mult(strike_charge)
 			# ящик кулаками ломается медленно (~10 ударов)

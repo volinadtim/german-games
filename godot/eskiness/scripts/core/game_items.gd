@@ -8,7 +8,9 @@ extends "res://scripts/core/game_world.gd"
 func weapon_hit() -> void:
 	if player == null or player.last_arm < 0:
 		return
-	_wear("left" if player.last_arm == 0 else "right", 1.0)
+	var sl := "left" if player.last_arm == 0 else "right"
+	if Items.ITEMS.has(String(inv.equip[sl])) and Items.ITEMS[String(inv.equip[sl])].has("weapon"):
+		_wear(sl, 1.0)   # не оружие в руке (куртка, еда — промпт 18.11 00:27) от ударов не изнашивается
 
 
 ## Снять прочность с надетой вещи; на нуле вещь ломается и пропадает.
@@ -643,20 +645,35 @@ func gear_score(id: String) -> float:
 	return sc
 
 
+## Надеть сразу, даже без места (промпт 18.11 00:28): прежняя вещь из слота — в ячейки, не влезла — на пол;
+## вещи из пропавшего блока (рюкзак/карманы) тоже раскладываются, лишнее — на пол.
+func wear_now(id: String, dur := -1.0) -> void:
+	var k := Items.equip_slot(id)
+	var prev: String = inv.equip[k]
+	var extra: Array = []
+	if prev != "":
+		extra.append({"id": prev, "n": 1, "dur": float(inv.equip_dur.get(k, Items.max_dur(prev)))})
+	inv.equip[k] = id
+	inv.equip_dur[k] = dur if dur >= 0.0 else Items.max_dur(id)
+	inv.update_blocks()
+	var left := inv.reflow(extra)
+	if not left.is_empty():
+		drop_spilled(left)
+	_apply_equip(k)
+	inv.notify()
+	play_ui("click", -10.0, 0.8)
+
+
 ## Выдать вещь (покупка): надеть в свободный слот → в сумку → на пол рядом. "equip" / "bag" / "floor".
-## upgrade — покупка в магазине: вещь лучше надетой сразу надевается, прежняя — в ячейки / на пол (промпт 16.11 21:53).
+## upgrade — покупка в магазине: одежда надевается сразу вместо прежней, та — в ячейки / на пол (промпт 18.11 00:28).
 func give_gear(id: String, dur := -1.0, upgrade := false) -> String:
 	if auto_equip(id, dur):
 		return "equip"
 	var k := Items.equip_slot(id)
-	var better := upgrade and k != "" and k != "hand" and inv.equip.has(k) and gear_score(id) > gear_score(String(inv.equip[k]))
+	if upgrade and k != "" and k != "hand" and inv.equip.has(k):
+		wear_now(id, dur)
+		return "equip"
 	if inv.add(id, 1, dur) == 0:
-		if better:
-			var idx := inv.bag_index(id)
-			if idx >= 0:
-				equip(idx, k)
-				if String(inv.equip[k]) == id:
-					return "equip"
 		return "bag"
 	var e := {"id": id, "n": 1}
 	if dur >= 0.0:
@@ -671,6 +688,15 @@ func collect(id: String, n: int, from: Node = null) -> int:
 	if n == 1 and auto_equip(id, d):
 		return 0
 	var left: int = inv.add(id, n, d)
+	if left > 0 and Items.holdable(id):
+		# сумка полна — берём в свободную руку, как оружие (промпт 18.11 00:27)
+		for sl in ["right", "left"]:
+			if left > 0 and inv.equip[sl] == "":
+				inv.equip[sl] = id
+				inv.equip_dur[sl] = d if d >= 0.0 else Items.max_dur(id)
+				_apply_equip(sl)
+				left -= 1
+				inv.notify()
 	var got := n - left
 	if got > 0:
 		var nm := Items.item_name(id)

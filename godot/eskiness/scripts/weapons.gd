@@ -19,6 +19,11 @@ const WEAPONS := {
 	"stone": {"mult": 1.4, "reach": 1.05, "price": 0},      # камень в руке: бросок — stone_throw.gd, это — удар
 }
 
+## Удар предметом в руке; не оружие (любой предмет с пола, промпт 18.11 00:27) — чуть сильнее кулака.
+static func stats(id: String) -> Dictionary:
+	return WEAPONS.get(id, {"mult": 1.15, "reach": 1.1, "price": 0})
+
+
 # что продаёт магазин, по порядку
 const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["shield", 70], ["gasmask", 50], ["filter", 25], ["flashlight", 35], ["broom", 30],
 	["helmet", 45], ["jacket", 60], ["gloves", 30], ["pants", 35], ["boots", 40], ["backpack", 70],

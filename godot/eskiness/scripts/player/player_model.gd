@@ -588,6 +588,13 @@ func set_weapon(id: String, arm := 1) -> void:
 	if id == "":
 		return
 	var n := Weapons.make(id)
+	if n.get_child_count() == 0 and Items.ITEMS.has(id):
+		n.free()   # не оружие (промпт 18.11 00:27) — в кулаке маленькая модель предмета с пола
+		n = Node3D.new()
+		var mm := Items.make_mesh(id)
+		mm.scale = Vector3.ONE * 0.7
+		mm.position = Vector3(0, 0.05, 0)
+		n.add_child(mm)
 	fist_fx[arm].add_child(n)
 	n.transform = _grip(arm, id)
 	weapon_nodes[arm] = n
