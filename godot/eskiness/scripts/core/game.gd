@@ -226,6 +226,9 @@ func shop_cue() -> void:
 func _process(_delta: float) -> void:
 	if alive and window_open() and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# экран смерти: курсор пропадал, если захват возвращал кто-то ещё (промпт 18.11 01:42)
+	elif not alive and hud != null and hud.death_on and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _physics_process(delta: float) -> void:

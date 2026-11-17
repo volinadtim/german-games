@@ -124,14 +124,19 @@ static func make(id: String) -> Node3D:
 			# на высоте gun.gd: OPTIC_H над рукоятью, по ней целится персонаж в режиме прицела
 			var frame := _m(Color(0.17, 0.17, 0.18), 0.6, 0.45)
 			# 18.11 01:33: приземистый, над затвором всего ~2 см
-			_box(root, Vector3(0.042, 0.007, 0.026), Vector3(0.072, 0.132, 0), frame)   # основание
+			_box(root, Vector3(0.042, 0.007, 0.026), Vector3(0.072, 0.129, 0), frame)   # основание
 			for sz in [-1.0, 1.0]:
-				_box(root, Vector3(0.038, 0.016, 0.004), Vector3(0.072, 0.1435, 0.011 * sz), frame)
-			_box(root, Vector3(0.038, 0.004, 0.026), Vector3(0.072, 0.1535, 0), frame)   # перекладина сверху
-			var lens := _m(Color(0.35, 0.55, 0.6, 0.35), 0.4, 0.1)
+				_box(root, Vector3(0.038, 0.024, 0.004), Vector3(0.072, 0.1435, 0.012 * sz), frame)
+			_box(root, Vector3(0.038, 0.004, 0.026), Vector3(0.072, 0.1575, 0), frame)   # перекладина сверху
+			# 18.11 01:42: стекло почти чистое (было alpha 0.35 — через прицел ничего не видно):
+			# еле заметный блик, без тени и без самозатенения, окно линзы чуть шире
+			var lens := _m(Color(0.72, 0.85, 0.9, 0.07), 0.5, 0.05)
 			lens.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			lens.cull_mode = BaseMaterial3D.CULL_DISABLED
-			_box(root, Vector3(0.003, 0.016, 0.019), Vector3(0.087, 0.1435, 0), lens)
+			lens.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			lens.disable_receive_shadows = true
+			var gl := _box(root, Vector3(0.002, 0.022, 0.024), Vector3(0.087, 0.1435, 0), lens)
+			gl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			var dot := _m(Color(1.0, 0.15, 0.1))
 			dot.emission_enabled = true
 			dot.emission = Color(1.0, 0.2, 0.12)

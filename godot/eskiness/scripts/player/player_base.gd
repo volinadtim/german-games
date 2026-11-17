@@ -241,6 +241,7 @@ var outfit_ids := {}              # слот -> что показано
 var outfit_nodes := {}            # слот -> узел одежды
 var outfit_cache := {}            # ключ кусков -> ArrayMesh
 var peek := 0.0                   # выглядывание из-за угла (intro.gd): + — корпус и голова вбок вправо
+var dying := false              # идёт анимация смерти (player_death.gd); нижние части её читают
 var noclip := false               # консоль /noclip (промпт 18.11 00:49): полёт сквозь стены, без гравитации
 var force_crouch := false        # присесть без управления (кат-сцены, intro.gd)
 var head_parts: Array = []        # голова/шея простой модели (только тень)

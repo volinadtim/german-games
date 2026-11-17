@@ -271,6 +271,32 @@ func _parse_get(a: PackedStringArray) -> Array:
 	return [_find_item(" ".join(words)), n]
 
 
+## Экипировку из /get надеваем сразу (промпт 18.11 01:42): оружие — в свободную руку, одежду/рюкзак/противогаз —
+## в свой слот. Занятые слоты не трогаем: остаток идёт в сумку, а что не влезло — на пол (_cmd_get).
+## Возвращает, сколько штук разошлось по слотам.
+func _equip_cheat(id: String, n: int) -> int:
+	if game == null or game.inv == null:
+		return 0
+	var eq := Items.equip_slot(id)
+	if eq == "":
+		return 0
+	var inv = game.inv
+	var where: Array = ["right", "left"] if eq == "hand" else [eq]
+	var done := 0
+	for sl in where:
+		if done >= n or not inv.equip.has(sl) or String(inv.equip[sl]) != "":
+			continue
+		inv.equip[sl] = id
+		inv.equip_dur[sl] = Items.max_dur(id)
+		inv.update_blocks()
+		if game.has_method("_apply_equip"):
+			game._apply_equip(sl)
+		done += 1
+	if done > 0:
+		inv.notify()
+	return done
+
+
 func _cmd_get(a: PackedStringArray) -> void:
 	if a.is_empty():
 		print_line("[color=#e77]/get [предмет] [кол-во] — например: /get аптечка 3[/color]")
@@ -283,7 +309,8 @@ func _cmd_get(a: PackedStringArray) -> void:
 		return
 	if game == null or game.inv == null or game.player == null:
 		return
-	var left: int = game.inv.add(id, n)
+	var worn := _equip_cheat(id, n)        # экипировку — сразу надеть/в руку (промпт 18.11 01:42)
+	var left: int = game.inv.add(id, n - worn) if n - worn > 0 else 0
 	if left > 0 and game.has_method("_make_pickup"):   # не влезло — бросить под ноги
 		var fwd: Vector3 = -game.player.global_transform.basis.z
 		var pos: Vector3 = game.player.global_position + Vector3(0, 1.0, 0) + fwd * 0.4
@@ -293,10 +320,11 @@ func _cmd_get(a: PackedStringArray) -> void:
 	if game.has_method("save_now"):
 		game.save_now()
 	var nm := Items.item_name(id)
+	var extra := " [color=#9cd](надето: %d)[/color]" % worn if worn > 0 else ""
 	if left > 0:
-		print_line("[color=#9e9]+%d %s[/color] [color=#db8](%d не влезло — под ногами)[/color]" % [n - left, nm, left])
+		print_line("[color=#9e9]+%d %s[/color]%s [color=#db8](%d не влезло — под ногами)[/color]" % [n - left, nm, extra, left])
 	else:
-		print_line("[color=#9e9]+%d %s[/color]" % [n, nm])
+		print_line("[color=#9e9]+%d %s[/color]%s" % [n, nm, extra])
 
 
 ## Текст поля для подсказки i.

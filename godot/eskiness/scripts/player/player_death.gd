@@ -7,7 +7,6 @@ extends "res://scripts/player/player_combat.gd"
 const DEATH_KNEEL := 0.4    # с, оседание на колени
 const DEATH_FALL := 0.7     # с, падение набок
 const DEATH_ANGLE := 1.42   # рад, на сколько заваливается (почти лёжа)
-var dying := false
 var death_t := 0.0
 var death_side := 1.0       # +1 — падает вправо, -1 — влево
 var death_drops: Array = [] # выпавшие из рук копии оружия (RigidBody3D)
@@ -128,11 +127,15 @@ func _death_tick(delta: float) -> void:
 	var r := Basis(Vector3(0, 0, 1), -death_side * a) * Basis(Vector3.RIGHT, -0.22 * k)
 	var piv := Vector3(death_side * 0.12, 0.08, -0.12)
 	var t := Transform3D(r, piv - r * piv)
+	# 18.11 01:42: поза считается от базовой каждый кадр. Раньше было model_root.transform = t * model_root.transform —
+	# поворот накапливался кадр за кадром, тело уезжало под пол, а камера (она ловит высоту по кости головы) тряслась.
 	if model_root != null:
-		model_root.transform = t * model_root.transform
+		var base := Basis(Vector3.UP, PI + angle_difference(rotation.y, feet_yaw)).scaled(model_root.basis.get_scale())
+		model_root.transform = t * Transform3D(base, model_root.position)
 	# камера: голова идёт вместе с телом, взгляд заваливается набок и чуть вниз
 	var sink := smoothstep(0.0, DEATH_KNEEL, death_t) * 0.08
 	head.position = t * (head.position - Vector3(0, sink, 0))
+	head.position.y = maxf(head.position.y, 0.24)   # глаз не ниже лежащей головы — иначе пол-кадра под полом
 	head.rotation.z = -death_side * a * 0.9
 	if not puppet:
 		head.rotation.x = lerpf(head.rotation.x, -0.12, 1.0 - exp(-2.5 * delta))

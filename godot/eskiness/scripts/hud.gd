@@ -20,6 +20,7 @@ var minimal := false      # режим «Реализм» (game.gd: mode): то�
 var has_light := false     # фонарик есть в инвентаре — показываем заряд
 signal restart_pressed
 signal menu_pressed      # экран победы → «В главное меню»
+var death_on := false            # показан экран смерти — курсор держим видимым (game.gd _process)
 var restart_b: Button
 var death_menu_b: Button
 var knuckles := false
@@ -291,8 +292,11 @@ func block_flash() -> void:
 
 
 func show_death(on: bool) -> void:
+	death_on = on
 	restart_b.visible = on
 	death_menu_b.visible = on
+	if on:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE   # курсор нужен сразу — по кнопкам (18.11 01:42)
 	var tw := create_tween().set_parallel()
 	tw.tween_property(death_bg, "color:a", 0.75 if on else 0.0, 1.2 if on else 0.6)
 	tw.tween_property(death_l, "modulate:a", 1.0 if on else 0.0, 1.5 if on else 0.4)

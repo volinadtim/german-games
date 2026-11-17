@@ -197,7 +197,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
 	head.position.z = lerpf(-0.22, 0.0, fist_blend) - 0.06 * _crouch_k()
 	# камера всегда на уровне глаз тела и перед шеей (присед, наклон, удары): по кости головы
-	if skel != null and head_bone != -1:
+	if skel != null and head_bone != -1 and not dying:   # при смерти камеру ведёт _death_tick (18.11 01:42)
 		var hb := to_local(skel.global_transform * skel.get_bone_global_pose(head_bone).origin)
 		var hd := Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw))
 		var eye := hb + hd * Vector3(0, 0.08, -0.1)
