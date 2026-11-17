@@ -13,6 +13,8 @@ static var gun_cross := false   # пистолет в руке — прицел 
 var hp := 100.0
 var hp_max := 100.0
 var hp_lag := 100.0          # «догоняющая» светлая полоска
+var hp_full_t := 0.0         # сколько времени здоровье уже полное — для задержки перед угасанием (промпт 18.11 02:16)
+var hp_alpha := 1.0          # прозрачность полоски здоровья: угасает, если давно полная, во всех режимах
 var coins := 0
 var battery := 1.0
 var light_on := false
@@ -182,6 +184,13 @@ func _process(delta: float) -> void:
 			toast("−%d здоровья" % int(round(dmg_acc)), Color(1.0, 0.32, 0.25), true)
 			dmg_acc = 0.0
 	hp_lag = move_toward(hp_lag, hp, delta * 25.0) if hp_lag > hp else hp
+	if hp >= hp_max - 0.01:
+		hp_full_t += delta
+	else:
+		hp_full_t = 0.0
+		hp_alpha = 1.0
+	var hp_target := 0.0 if hp_full_t > 2.5 else 1.0
+	hp_alpha = move_toward(hp_alpha, hp_target, delta * (0.5 if hp_target < hp_alpha else 4.0))
 	hurt = move_toward(hurt, 0.0, delta * 1.6)
 	var low := 0.0
 	if hp < hp_max * 0.3 and hp > 0.0:
@@ -484,6 +493,9 @@ func _paint() -> void:
 ## деления по 25 единиц, яркая кромка у края заливки, «догоняющая» светлая полоска от только что
 ## полученного урона и красный пульс на малом здоровье. В «Реализме» — без подписи и цифр.
 func _draw_hp(x: float, y: float, w: float, h: float, f: Font) -> void:
+	if hp_alpha <= 0.002:
+		return   # здоровье полное и давно не менялось — плашка угасла (промпт 18.11 02:16)
+	var fa := Color(1, 1, 1, hp_alpha)
 	var frac := clampf(hp / maxf(hp_max, 1.0), 0.0, 1.0)
 	var lag := clampf(hp_lag / maxf(hp_max, 1.0), 0.0, 1.0)
 	var fw := w * frac
@@ -497,46 +509,46 @@ func _draw_hp(x: float, y: float, w: float, h: float, f: Font) -> void:
 	var plate := PackedVector2Array([
 		Vector2(l + cut, tp), Vector2(r, tp), Vector2(r, bt - cut),
 		Vector2(r - cut, bt), Vector2(l, bt), Vector2(l, tp + cut)])
-	paint.draw_colored_polygon(plate, Color(0, 0, 0, 0.5))                     # тень/подложка
-	paint.draw_colored_polygon(_shift(plate, Vector2(0.0, -1.0)), Color(0.15, 0.145, 0.135, 0.92))
-	paint.draw_polyline(_loop(_shift(plate, Vector2(0.0, -1.0))), Color(0.44, 0.42, 0.38, 0.75), 1.0)
+	paint.draw_colored_polygon(plate, Color(0, 0, 0, 0.5) * fa)                     # тень/подложка
+	paint.draw_colored_polygon(_shift(plate, Vector2(0.0, -1.0)), Color(0.15, 0.145, 0.135, 0.92) * fa)
+	paint.draw_polyline(_loop(_shift(plate, Vector2(0.0, -1.0))), Color(0.44, 0.42, 0.38, 0.75) * fa, 1.0)
 	# заклёпки по углам
 	for rv in [Vector2(l + 5.0, bt - 4.0), Vector2(r - 4.0, tp + 4.0), Vector2(r - 4.0, bt - 8.0), Vector2(l + 9.0, tp + 3.0)]:
-		paint.draw_circle(rv, 2.0, Color(0.1, 0.1, 0.09, 0.9))
-		paint.draw_circle(rv + Vector2(-0.4, -0.6), 1.4, Color(0.56, 0.54, 0.49, 0.95))
+		paint.draw_circle(rv, 2.0, Color(0.1, 0.1, 0.09, 0.9) * fa)
+		paint.draw_circle(rv + Vector2(-0.4, -0.6), 1.4, Color(0.56, 0.54, 0.49, 0.95) * fa)
 	# утопленный паз
-	paint.draw_rect(Rect2(x, y, w, h), Color(0.055, 0.05, 0.05, 0.92))
-	paint.draw_rect(Rect2(x, y, w, 1.0), Color(0, 0, 0, 0.6))
+	paint.draw_rect(Rect2(x, y, w, h), Color(0.055, 0.05, 0.05, 0.92) * fa)
+	paint.draw_rect(Rect2(x, y, w, 1.0), Color(0, 0, 0, 0.6) * fa)
 	# «догоняющая» полоска: только что потерянное здоровье
 	if lag > frac:
-		paint.draw_rect(Rect2(x + fw, y + 1.0, w * (lag - frac), h - 2.0), Color(0.95, 0.86, 0.72, 0.5))
+		paint.draw_rect(Rect2(x + fw, y + 1.0, w * (lag - frac), h - 2.0), Color(0.95, 0.86, 0.72, 0.5) * fa)
 	# цвет заливки: от бурого к алому по мере потери, пульс на малом здоровье
 	var col := Color(0.52, 0.1, 0.07).lerp(Color(0.78, 0.17, 0.1), 1.0 - frac)
 	if frac < 0.3:
 		col = col.lerp(Color(0.95, 0.3, 0.14), (0.55 + 0.45 * sin(t * 6.0)) * (1.0 - frac / 0.3))
 	if fw > 1.0:
-		paint.draw_rect(Rect2(x, y + 1.0, fw, h - 2.0), col)
-		paint.draw_rect(Rect2(x, y + 1.0, fw, (h - 2.0) * 0.4), col.lightened(0.16))        # глянец сверху
-		paint.draw_rect(Rect2(x, y + h * 0.74, fw, h * 0.26 - 1.0), col.darkened(0.34))     # тень снизу
-		paint.draw_rect(Rect2(x, y + 2.0, fw, 1.5), Color(1, 1, 1, 0.22))                   # блик
+		paint.draw_rect(Rect2(x, y + 1.0, fw, h - 2.0), col * fa)
+		paint.draw_rect(Rect2(x, y + 1.0, fw, (h - 2.0) * 0.4), col.lightened(0.16) * fa)        # глянец сверху
+		paint.draw_rect(Rect2(x, y + h * 0.74, fw, h * 0.26 - 1.0), col.darkened(0.34) * fa)     # тень снизу
+		paint.draw_rect(Rect2(x, y + 2.0, fw, 1.5), Color(1, 1, 1, 0.22) * fa)                   # блик
 		# яркая кромка у края заливки
-		paint.draw_rect(Rect2(x + fw - 2.5, y + 1.0, 2.5, h - 2.0), Color(1.0, 0.78, 0.6, 0.85))
-		paint.draw_rect(Rect2(x + fw - 6.0, y + 1.0, 3.5, h - 2.0), Color(1.0, 0.6, 0.4, 0.25))
+		paint.draw_rect(Rect2(x + fw - 2.5, y + 1.0, 2.5, h - 2.0), Color(1.0, 0.78, 0.6, 0.85) * fa)
+		paint.draw_rect(Rect2(x + fw - 6.0, y + 1.0, 3.5, h - 2.0), Color(1.0, 0.6, 0.4, 0.25) * fa)
 	# деления: крупные по 25 единиц, мелкие — по 10
 	for k in 9:
 		var kx := x + w * (k + 1) / 10.0
-		paint.draw_rect(Rect2(kx, y + 1.0, 1.0, 4.0), Color(0, 0, 0, 0.4))
+		paint.draw_rect(Rect2(kx, y + 1.0, 1.0, 4.0), Color(0, 0, 0, 0.4) * fa)
 	for k in 3:
 		var kx := x + w * (k + 1) / 4.0
-		paint.draw_rect(Rect2(kx, y + 1.0, 1.0, h - 2.0), Color(0, 0, 0, 0.4))
-	paint.draw_rect(Rect2(x, y, w, h), Color(0.03, 0.03, 0.03, 0.85), false, 1.0)
+		paint.draw_rect(Rect2(kx, y + 1.0, 1.0, h - 2.0), Color(0, 0, 0, 0.4) * fa)
+	paint.draw_rect(Rect2(x, y, w, h), Color(0.03, 0.03, 0.03, 0.85) * fa, false, 1.0)
 	if minimal:
 		return   # «Реализм»: без подписи и цифр
-	paint.draw_string_outline(f, Vector2(x + 1.0, y - 11.0), "ЗДОРОВЬЕ", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.75))
-	paint.draw_string(f, Vector2(x + 1.0, y - 11.0), "ЗДОРОВЬЕ", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.72, 0.7, 0.64))
+	paint.draw_string_outline(f, Vector2(x + 1.0, y - 11.0), "ЗДОРОВЬЕ", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, 0.75) * fa)
+	paint.draw_string(f, Vector2(x + 1.0, y - 11.0), "ЗДОРОВЬЕ", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.72, 0.7, 0.64) * fa)
 	var num := "%d" % int(ceil(hp))
-	paint.draw_string_outline(f, Vector2(x, y + h - 4.0), num, HORIZONTAL_ALIGNMENT_RIGHT, w - 6.0, 17, 5, Color(0, 0, 0, 0.85))
-	paint.draw_string(f, Vector2(x, y + h - 4.0), num, HORIZONTAL_ALIGNMENT_RIGHT, w - 6.0, 17, Color(0.95, 0.92, 0.86))
+	paint.draw_string_outline(f, Vector2(x, y + h - 4.0), num, HORIZONTAL_ALIGNMENT_RIGHT, w - 6.0, 17, 5, Color(0, 0, 0, 0.85) * fa)
+	paint.draw_string(f, Vector2(x, y + h - 4.0), num, HORIZONTAL_ALIGNMENT_RIGHT, w - 6.0, 17, Color(0.95, 0.92, 0.86) * fa)
 
 
 ## Сдвинуть точки полигона (плашка рисуется дважды: тень и металл).
