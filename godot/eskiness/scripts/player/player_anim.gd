@@ -653,7 +653,7 @@ func _update_idle(delta: float, spd: float, grounded: bool) -> void:
 	var sx := (sin(it * 0.53) * 0.006 + sin(it * 1.21 + 0.7) * 0.0025 + sin(it * 0.17 + 2.1) * 0.004) * rk
 	var sz := (sin(it * 0.37 + 2.0) * 0.006 + sin(it * 0.97) * 0.0025) * rk
 	# таз уходит на опорную ногу и чуть опускается (вес = -1 — левая, она на -X); колени мягкие
-	var tgt := Vector3(w * 0.045 + sx, -(absf(w) * 0.012 + 0.006 * (0.5 + 0.5 * sin(breath_ph))) - 0.003 * rk
+	var tgt := Vector3(w * 0.045 + sx, -(absf(w) * 0.006 + 0.003 * (0.5 + 0.5 * sin(breath_ph)))
 			- box * idle_amt * (0.014 + 0.01 * bounce), sz)   # 05:02: в стойке колени лишь чуть согнуты
 	hip_off = hip_off.lerp(tgt, 1.0 - exp(-10.0 * delta))
 	for i in 2:
