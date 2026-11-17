@@ -117,6 +117,8 @@ const CTL_GROUPS := [
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# игра называется THE LEAK (промпт 16.11 21:58); config/name в project.godot прежний — от него зависит папка сейвов
+	get_tree().root.title = "THE LEAK"
 	get_tree().root.size_changed.connect(_apply_ui_scale)
 	_load()
 	_apply_binds()
@@ -153,7 +155,7 @@ func _ready() -> void:
 	right.add_child(right_col)
 	# --- главное меню
 	main_box = _vbox(right_col)
-	main_box.add_child(_title("eskiNess", 104))
+	main_box.add_child(_title("THE LEAK", 104))   # название игры (промпт 16.11 21:58)
 	main_box.add_child(_subtitle("no luck. no fun."))
 	main_box.add_child(_gap(34))
 	main_box.add_child(_button("Играть", _open_slots))
