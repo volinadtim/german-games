@@ -418,19 +418,21 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	if hand and vt > 2.0:
 		g_want = 0.0
 	elif brake_k > 0.0:
-		g_want = 1.0 - 0.22 * brake_k * clampf(vt / MAX_F, 0.0, 1.0)
+		g_want = 1.0 - 0.1 * brake_k * clampf(vt / MAX_F, 0.0, 1.0)
 	# задний привод (промпт 18.11 00:25): тяга только на задние колёса — газ в повороте срывает зад
 	# (избыточная поворачиваемость), а с места полный газ + руль — пробуксовка и разворот кормой
+	# (00:48) на клавиатуре газ всегда полный — срыв только в крутом повороте на скорости и мягче, иначе виляло
 	if thr_s > 0.55 and not hand:
 		var pk := (thr_s - 0.55) / 0.45
 		var lat := absf(speed * yaw_rate)   # боковое ускорение в повороте, м/с²
-		var pw := clampf((lat - 5.0) / 9.0, 0.0, 1.0) * pk
-		if speed > 3.0 and pw > 0.0:
-			g_want = minf(g_want, 1.0 - 0.6 * pw)
-		if speed > 0.8 and speed < 6.0:
-			var launch := (1.0 - speed / 6.0) * absf(steer) * pk
-			g_want = minf(g_want, 1.0 - 0.45 * launch)
-	grip_k = move_toward(grip_k, g_want, delta * (5.0 if g_want < grip_k else 1.1))
+		var pw := clampf((lat - 11.0) / 8.0, 0.0, 1.0) * pk * clampf(absf(steer) * 1.5 - 0.5, 0.0, 1.0)
+		if speed > 5.0 and pw > 0.0:
+			g_want = minf(g_want, 1.0 - 0.4 * pw)
+		if speed > 0.8 and speed < 5.0:
+			var launch := (1.0 - speed / 5.0) * clampf(absf(steer) * 2.0 - 1.0, 0.0, 1.0) * pk
+			g_want = minf(g_want, 1.0 - 0.3 * launch)
+	# ручник срывает сразу, газ — плавно (00:48: «заносит слишком резко»)
+	grip_k = move_toward(grip_k, g_want, delta * ((5.0 if hand else 1.6) if g_want < grip_k else 1.1))
 	var spin_want := maxf(thr_s, 0.0) * (1.0 - grip_k) * 9.0
 	if thr_s > 0.9 and absf(speed) < 3.0 and not hand:
 		spin_want += (1.0 - absf(speed) / 3.0) * 5.0   # старт с пробуксовкой
@@ -440,8 +442,9 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 		drift_on = true
 		drift_mul = randf_range(0.8, 1.2)
 		drift_dir = 1.0 if speed >= -0.5 else -1.0
-		var dn := signf(steer) if absf(steer) > 0.1 else signf(yaw_rate)
-		yaw_rate += dn * randf_range(0.15, 0.35) * clampf(vt / 8.0, 0.0, 1.0)
+		if hand:   # толчок кормы — только от ручника
+			var dn := signf(steer) if absf(steer) > 0.1 else signf(yaw_rate)
+			yaw_rate += dn * randf_range(0.15, 0.35) * clampf(vt / 8.0, 0.0, 1.0)
 	elif drift_on and grip_k > 0.95:
 		drift_on = false
 	# сцепление левого и правого заднего колеса плавает по шуму: разница слегка доворачивает корму
@@ -449,7 +452,7 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	var nl := sin(drive_t * 2.3) * 0.6 + sin(drive_t * 5.7 + 1.3) * 0.4
 	var nr := sin(drive_t * 2.9 + 2.0) * 0.6 + sin(drive_t * 6.3) * 0.4
 	grip_noise = (nl + nr) * 0.5
-	var loose := (1.0 - grip_k) + brake_k * 0.4
+	var loose := 1.0 - grip_k   # (00:48) в обычной езде и при торможении не виляет
 	yaw_rate += (nl - nr) * 0.5 * loose * clampf(vt / MAX_F, 0.0, 1.0) * delta
 	if hand:
 		# торможение по общей скорости (а не отдельно вдоль и вбок — так гасло вдвое быстрее): машина катится в заносе
@@ -464,7 +467,7 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 			slip = 0.0
 	# руль: к центру возвращается быстрее, чем крутится
 	var back := st_in == 0.0 or signf(st_in) != signf(steer)
-	steer = move_toward(steer, st_in, delta * (6.0 if back else 3.6))
+	steer = move_toward(steer, st_in, delta * (4.0 if back else 2.4))   # (00:48) руль плавнее — без виляния
 	var ang := steer * lerpf(0.6, 0.27, clampf(absf(speed) / MAX_F, 0.0, 1.0))
 	# в заносе руль крутит по полной скорости (иначе боком машина «замирает» на 90°)
 	var drift := 1.0 - grip_k
@@ -478,7 +481,7 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	want *= 1.0 + drift * (0.6 + 1.1 * maxf(thr_s, 0.0)) * (drift_mul if drift_on else 1.0) + 0.2 * brake_k
 	want = clampf(want, -lerpf(9.0, DRIFT_YAW, drift), lerpf(9.0, DRIFT_YAW, drift))
 	# в заносе вращение по инерции живёт дольше (плавно крутится, а не дёргается)
-	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(2.3, 13.0, grip_k) * delta))
+	yaw_rate = lerpf(yaw_rate, want, 1.0 - exp(-lerpf(2.3, 8.0, grip_k) * delta))
 	# задний привод в заносе: тяга вдоль кузова (задние колёса прямые), часть уходит в пробуксовку —
 	# скорость держится, но нос по рулю газ не вытягивает: из заноса выходят сбросом газа и контррулём
 	if drift > 0.05 and thr_s > 0.01:
@@ -503,7 +506,10 @@ func _move(delta: float) -> void:
 	# в заносе: случайный коэффициент срыва этого заноса и плавающее сцепление колёс
 	a_lat *= lerpf(1.0, (2.0 - drift_mul if drift_on else 1.0) * (1.0 + 0.12 * grip_noise), 1.0 - grip_k)
 	var sl := vel.dot(side)
-	slip = move_toward(sl, 0.0, a_lat * delta)
+	# (00:48) велосипедная модель: с полным сцеплением боковой скорости нет у ЗАДНЕЙ оси, а не у центра —
+	# центр кузова при повороте смещается внутрь (yaw_rate * WB/2): поворачивает передом, зад идёт следом
+	var sl_want := yaw_rate * WHEELBASE * 0.5 * grip_k
+	slip = move_toward(sl, sl_want, a_lat * delta)
 	# в заносе под газом часть погашенной боковой скорости уходит вперёд (задние толкают) — не тормозит в ноль
 	if grip_k < 0.95 and thr_s > 0.01 and speed > -0.5:
 		speed += absf(sl - slip) * 0.25 * thr_s * (1.0 - grip_k)
