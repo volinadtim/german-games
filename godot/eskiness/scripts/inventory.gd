@@ -667,7 +667,8 @@ func _build_ui() -> void:
 	title.add_theme_constant_override("separation", 8)
 	vb.add_child(title)
 	title.add_child(_label("СНАРЯЖЕНИЕ", 26, Color(0.86, 0.85, 0.8)))
-	craft_tab = _tab_button("Крафт")
+	craft_tab = _tab_button("КРАФТ")
+	_bright_button(craft_tab, 20)   # заметная кнопка (промпт 18.11 00:46)
 	craft_tab.pressed.connect(toggle_craft)
 	title.add_child(craft_tab)
 	var cells := HBoxContainer.new()   # спина слева, верх и штаны — столбиком справа
@@ -972,10 +973,11 @@ func _rebuild_craft() -> void:
 			trow.add_child(_label("%s (−%d прочности)" % [Items.item_name(tid), int(rec.get("wear", 1))], 15, Color(0.7, 0.85, 0.6) if have_t else Color(0.85, 0.5, 0.4)))
 			det.add_child(trow)
 		var b := Button.new()
-		b.text = "Скрафтить"
+		b.text = "СКРАФТИТЬ"
 		b.focus_mode = Control.FOCUS_NONE
 		b.disabled = not ok
-		b.add_theme_font_size_override("font_size", 18)
+		_bright_button(b, 20)
+		b.custom_minimum_size.y = 44
 		b.pressed.connect(func(): craft_requested.emit(r))
 		det.add_child(b)
 
@@ -1542,6 +1544,36 @@ func _unpin_hint() -> void:
 	if hint_l and not craft_shown:
 		hint_l.custom_minimum_size.x = 1
 		hint_l.size_flags_horizontal = Control.SIZE_FILL
+
+
+## Яркая кнопка крафта: оранжевая плашка с рамкой, тёмный жирный текст, подсветка при наведении/нажатии.
+func _bright_button(b: Button, fs: int) -> void:
+	b.add_theme_font_size_override("font_size", fs)
+	b.custom_minimum_size = Vector2(maxf(b.custom_minimum_size.x, 120), maxf(b.custom_minimum_size.y, 38))
+	var mk := func(bg: Color, border: Color) -> StyleBoxFlat:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = bg
+		sb.border_color = border
+		sb.set_border_width_all(3)
+		sb.set_corner_radius_all(6)
+		sb.content_margin_left = 14
+		sb.content_margin_right = 14
+		sb.content_margin_top = 4
+		sb.content_margin_bottom = 4
+		sb.shadow_color = Color(1.0, 0.6, 0.1, 0.45)
+		sb.shadow_size = 6
+		return sb
+	b.add_theme_stylebox_override("normal", mk.call(Color(0.95, 0.6, 0.12), Color(1.0, 0.88, 0.45)))
+	b.add_theme_stylebox_override("hover", mk.call(Color(1.0, 0.72, 0.25), Color(1.0, 0.97, 0.7)))
+	b.add_theme_stylebox_override("pressed", mk.call(Color(1.0, 0.8, 0.3), Color(1.0, 1.0, 0.85)))
+	b.add_theme_stylebox_override("hover_pressed", mk.call(Color(1.0, 0.85, 0.4), Color(1.0, 1.0, 0.9)))
+	var dis: StyleBoxFlat = mk.call(Color(0.32, 0.27, 0.22), Color(0.45, 0.4, 0.33))
+	dis.shadow_size = 0
+	b.add_theme_stylebox_override("disabled", dis)
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(k, Color(0.12, 0.07, 0.02))
+	b.add_theme_color_override("font_disabled_color", Color(0.6, 0.56, 0.5))
+	b.add_theme_constant_override("outline_size", 0)
 
 
 ## Кнопка-вкладка в заголовке окна (нажата — панель выкачена).
