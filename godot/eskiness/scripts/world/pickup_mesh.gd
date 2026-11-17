@@ -29,6 +29,7 @@ const SCALES := {
 	"twine": 1.3,     # моток ⌀10 см
 	"mag": 1.3,       # магазин 11 см
 	"ammo": 1.6,      # горстка патронов ~6 см
+	"sack": 1.0,      # вещмешок лёжа ~34×20 см (промпт 18.11 00:55: был большой квадратный спрайт)
 }
 const WEAPON_SCALE := 1.15  # оружие и снаряжение — почти реальный размер (бита ~0.8 м)
 ## Коробка столкновений больше модели на PAD с каждой стороны: физика Godot разрешает телам
@@ -41,7 +42,7 @@ const FLAT := ["coin", "photo", "choco", "glass", "wallet", "nut", "gear", "tape
 
 ## Есть ли у предмета своя модель здесь.
 const MODELS := ["coin", "bandage", "pills", "canned", "water", "soda", "rusk", "choco", "battery",
-	"nut", "gear", "wallet", "tape", "wood", "glass", "medkit", "photo", "scrap", "stone", "twine", "mag", "ammo"]
+	"nut", "gear", "wallet", "tape", "wood", "glass", "medkit", "photo", "scrap", "stone", "twine", "mag", "ammo", "sack"]
 ## Предметы с моделью weapons.gd (через Items.make_mesh).
 const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]
 
@@ -128,6 +129,26 @@ static func _build(root: Node3D, id: String) -> Vector3:
 	var col: Color = Items.ITEMS[id]["color"] if Items.ITEMS.has(id) else Color.WHITE
 	var size := Vector3(0.1, 0.05, 0.1)
 	match id:
+		"sack":
+			# вещмешок лёжа (промпт 18.11 00:55): мягкое округлое тело, сужение к горлышку,
+			# перетяжка бечёвкой, мятый верх и лямка по боку. Длинная ось — Z.
+			var cloth := _mat(col, 0.0, 1.0, 0.15)
+			var dark := _mat(col.darkened(0.2), 0.0, 1.0, 0.12)
+			var body := SphereMesh.new()
+			body.radius = 0.1
+			body.height = 0.2
+			body.radial_segments = 20
+			body.rings = 10
+			_add(root, body, cloth, Vector3(0, 0.055, 0.03)).scale = Vector3(1.0, 0.55, 1.1)
+			var neck := _cyl(0.032, 0.07, 14, 0.075)   # сужение к горлышку
+			_add(root, neck, cloth, Vector3(0, 0.05, -0.1), Vector3(-PI / 2, 0, 0)).scale = Vector3(1.0, 1.0, 0.7)
+			_add(root, _cyl(0.034, 0.016, 14), _mat(Color(0.62, 0.52, 0.34), 0.0, 1.0, 0.15), Vector3(0, 0.05, -0.135), Vector3(-PI / 2, 0, 0))   # завязка
+			var puff := SphereMesh.new()   # мятый верх над завязкой
+			puff.radius = 0.04
+			puff.height = 0.06
+			_add(root, puff, dark, Vector3(0, 0.05, -0.16)).scale = Vector3(1.1, 0.7, 0.8)
+			_add(root, _box(Vector3(0.012, 0.004, 0.2)), dark, Vector3(0.07, 0.098, 0.02), Vector3(0, 0.15, 0))   # лямка
+			size = Vector3(0.2, 0.11, 0.34)
 		"coin":
 			# монета: диск с ободком и выпуклым центром
 			var gold := _mat(col, 0.85, 0.32, 0.3)

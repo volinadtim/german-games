@@ -778,11 +778,17 @@ func _make_outfit(sl: String, id: String) -> Node3D:
 		var rel := global_transform.affine_inverse() * skel.global_transform
 		var bt := rel * skel.get_bone_global_rest(b)
 		var big := id == "backpack"
-		var want := Transform3D(Basis(), bt.origin + Vector3(0, -0.06, 0.17 if big else 0.16))
+		var want := Transform3D(Basis() if big else Basis.from_scale(Vector3(1.0, 1.0, 0.6)), bt.origin + Vector3(0, -0.06, 0.17 if big else 0.16))
 		var mi := MeshInstance3D.new()
-		var bm := BoxMesh.new()
-		bm.size = Vector3(0.32, 0.42, 0.16) if big else Vector3(0.28, 0.34, 0.15)
-		mi.mesh = bm
+		if big:
+			var bm := BoxMesh.new()
+			bm.size = Vector3(0.32, 0.42, 0.16)
+			mi.mesh = bm
+		else:
+			var sm := SphereMesh.new()   # вещмешок — мягкий и округлый (промпт 18.11 00:55)
+			sm.radius = 0.12
+			sm.height = 0.3
+			mi.mesh = sm
 		mi.material_override = mat
 		att.add_child(mi)
 		mi.transform = bt.affine_inverse() * want

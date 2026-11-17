@@ -740,10 +740,17 @@ static func make_mesh(id: String) -> Node3D:
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.12, 0.22, 0.26) if id == "boots" else Vector3(0.11, 0.09, 0.26)
 			mi.mesh = bm
-		"backpack", "sack":
+		"backpack":
 			var bm := BoxMesh.new()
-			bm.size = Vector3(0.28, 0.36, 0.14) if id == "backpack" else Vector3(0.26, 0.3, 0.16)
+			bm.size = Vector3(0.28, 0.36, 0.14)
 			mi.mesh = bm
+		"sack":
+			var sm := SphereMesh.new()   # мягкий округлый мешок, не коробка (промпт 18.11 00:55)
+			sm.radius = 0.1
+			sm.height = 0.24
+			mi.mesh = sm
+			mi.scale = Vector3(1.0, 1.0, 0.7)
+			m.roughness = 1.0
 		"repair_weapon", "repair_gear":
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.2, 0.08, 0.14)
