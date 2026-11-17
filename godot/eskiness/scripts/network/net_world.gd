@@ -68,34 +68,58 @@ func start_game() -> void:
 	if not hosting or in_game:
 		return
 	in_game = true
-	# новых всё равно не пускаем (rq_hello → «Игра уже началась»), но вылетевшие должны суметь вернуться
-	peer.refuse_new_connections = false
+	peer.refuse_new_connections = false   # в идущую игру можно дозагрузиться и вернуться после вылета
+	# сейв сетевой игры лежит у хоста (промпт 18.11 02:00): продолжаем выбранный или начинаем новый
+	if save_load and Save.exists(save_id):
+		Engine.set_meta("eskiness_slot", save_id)
+		Engine.set_meta("eskiness_load", true)
+		Engine.set_meta("eskiness_crash", save_crash_sel)
+	else:
+		Engine.set_meta("eskiness_slot", Save.new_id())
+		Engine.set_meta("eskiness_load", false)
+		Engine.set_meta("eskiness_crash", false)
+		net_saves = {}   # новая игра: даже у того же хоста все начинают с начала
+	Engine.set_meta("eskiness_mode", game_mode)
+	Save.set_last(String(Engine.get_meta("eskiness_slot", "")))
 	lobby_changed.emit()
 	get_tree().current_scene._start_game()
 
 
+## Старт у клиента: мир от хоста, mine — его вещи из сейва хоста (по IP), late — игра уже идёт.
 @rpc("authority", "reliable")
-func net_start(world: Dictionary, pl: Dictionary) -> void:
+func net_start(world: Dictionary, pl: Dictionary, mine: Dictionary, late: bool) -> void:
 	players = pl
 	pending_world = world
+	pending_mine = mine
+	skip_intro = late or not mine.is_empty()   # вступление только тому, кто начинает с начала вместе со всеми
 	in_game = true
 	lobby_changed.emit()
 	get_tree().current_scene._start_game()
 
 
-## Из game.setup (вместо загрузки сейва).
+## Из game.setup (вместо загрузки сейва у клиента; у хоста — после загрузки его сейва).
 func on_game_setup(g) -> void:
 	game = g
 	_make_ui()
+	var keep_pos := false
 	if hosting:
-		rpc("net_start", _world_state(g), players)
+		keep_pos = g.from_save   # хост продолжил сейв — стоит там, где сохранился
+		var w := _world_state(g)
+		for id in players:
+			if id != 1:
+				rpc_id(id, "net_start", w, players, _saved_for(id), false)
 	else:
-		_apply_world(g, pending_world)
+		keep_pos = not pending_mine.is_empty()
+		_apply_world(g, pending_world, pending_mine)
+		if keep_pos:
+			g.from_save = true
 		pending_world = {}
+		pending_mine = {}
 	var ids: Array = players.keys()
 	ids.sort()
 	var k := maxi(ids.find(multiplayer.get_unique_id()), 0)
-	g.player.global_position = g.START + Vector3(0.9 * k, 0, 0)
+	if not keep_pos:
+		g.player.global_position = g.START + Vector3(0.9 * k, 0, 0)
 	for id in ids:
 		if id != multiplayer.get_unique_id():
 			_make_puppet(id)
@@ -111,19 +135,22 @@ func _world_state(g) -> Dictionary:
 	var w := {}
 	for key in ["chest_pos", "chests", "jars", "glass", "stone_piles", "stone_pos", "floor"]:
 		w[key] = d[key]
+	# номера уже выданные (кто-то дозагружается в идущую игру) не меняем — иначе у старых клиентов всё разъедется
 	var jids: Array = []
 	for j in g.jars:
 		if is_instance_valid(j):
-			j.set_meta("nid", "j%d" % jar_seq)
-			jar_seq += 1
+			if not j.has_meta("nid"):
+				j.set_meta("nid", "j%d" % jar_seq)
+				jar_seq += 1
 			jids.append(j.get_meta("nid"))
 	w["jar_ids"] = jids
 	var fids: Array = []
 	var k := 0
 	for n in _floor_pickups(g):
-		var nid := "w%d" % k
-		k += 1
-		n.set_meta("nid", nid)
+		if not n.has_meta("nid"):
+			n.set_meta("nid", "w%d" % k)
+			k += 1
+		var nid: String = String(n.get_meta("nid"))
 		pickups[nid] = n
 		fids.append(nid)
 	w["floor_ids"] = fids
@@ -138,10 +165,14 @@ func _floor_pickups(g) -> Array:
 	return out
 
 
-func _apply_world(g, w: Dictionary) -> void:
-	if w.is_empty():
+## Клиент строит мир хоста; mine — его вещи с прошлой сессии у этого хоста (или {} — новая игра).
+func _apply_world(g, w: Dictionary, mine := {}) -> void:
+	if w.is_empty() and mine.is_empty():
 		return
 	var d: Dictionary = g.save_state()   # свой игрок (инвентарь, здоровье) — свой
+	for key in mine:
+		if not key in WORLD_KEYS:
+			d[key] = mine[key]
 	for key in w:
 		d[key] = w[key]
 	d["hunters"] = 0
@@ -252,6 +283,8 @@ func _game_tick(delta: float) -> void:
 		if es_t <= 0.0:
 			es_t = ENEMY_DT
 			_send_enemies()
+	if not hosting and connected:
+		send_my_save()   # свой сейв хосту (внутри — не чаще SAVE_SEND_DT)
 	if killer_t > 0.0:
 		killer_t -= delta
 		if killer_t <= 0.0:

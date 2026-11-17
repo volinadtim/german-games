@@ -55,11 +55,11 @@ func _process(delta: float) -> void:
 			if old.get("ip", "") == "127.0.0.1" and Time.get_ticks_msec() / 1000.0 - float(old.get("t_lo", 0.0)) < 3.0:
 				ip = "127.0.0.1"
 			var e := {"name": String(d.get("name", "?")), "ip": ip, "port": int(d.get("port", PORT)),
-				"n": int(d.get("n", 1)), "open": bool(d.get("open", true)), "code": code,
+				"n": int(d.get("n", 1)), "open": bool(d.get("open", true)), "code": code, "ingame": bool(d.get("ingame", false)),
 				"t": Time.get_ticks_msec() / 1000.0, "t_lo": old.get("t_lo", 0.0)}
 			if from_ip == "127.0.0.1":
 				e["t_lo"] = e["t"]
-			if old.is_empty() or old["name"] != e["name"] or old["n"] != e["n"] or old["ip"] != e["ip"] or old["open"] != e["open"]:
+			if old.is_empty() or old["name"] != e["name"] or old["n"] != e["n"] or old["ip"] != e["ip"] or old.get("ingame", false) != e["ingame"]:
 				changed = true
 			rooms[key] = e
 		var now := Time.get_ticks_msec() / 1000.0

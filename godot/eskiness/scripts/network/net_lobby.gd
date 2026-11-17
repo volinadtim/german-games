@@ -1,11 +1,12 @@
 extends VBoxContainer
-## Страница меню «Сетевая игра» (промпт 14.11 19:37): имя игрока, «Создать комнату» / «Присоединиться» / «Назад».
+## Страница меню «Мультиплеер → Сетевая игра» (промпт 14.11 19:37): имя игрока, «Создать комнату» / «Присоединиться» / «Назад».
 ## Комната: код для локальной сети, код для интернета (по введённому внешнему IP), игроки, «Начать».
 ## Присоединиться: поле «код или IP:порт» и список комнат, найденных в локальной сети.
 ## Оформление — функциями menu.gd (_button, _title…), тема с обводкой наследуется от корня меню.
 
 const NetScript := preload("res://scripts/network/net.gd")
 const ModeSelect := preload("res://scripts/ui/mode_select.gd")
+const SaveFile := preload("res://scripts/systems/save.gd")
 
 var menu          # menu.gd
 var net           # net.gd (/root/Net)
@@ -60,7 +61,7 @@ func _retry_button() -> void:
 func back() -> void:
 	match page:
 		"home":
-			menu._show("main")
+			menu._open_multi()   # «Мультиплеер» (промпт 18.11 02:00)
 		_:
 			net.leave()
 			net.stop_discovery()
@@ -175,6 +176,8 @@ func _host() -> void:
 		mrow.add_child(mo)
 		add_child(_centered(mrow))
 		add_child(mh)
+		# сейв сетевой игры (промпт 18.11 02:00): он лежит у хоста вместе с вещами всех игроков (по IP)
+		add_child(_save_row())
 		add_child(_label("Игроки:", 22, Color(0.75, 0.7, 0.62), 0))
 		players_box = VBoxContainer.new()
 		add_child(players_box)
@@ -193,6 +196,52 @@ func _host() -> void:
 	status_l = _label("", 18, Color(0.85, 0.45, 0.35), 0)
 	status_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(status_l)
+
+
+## Строка «Сохранение»: новая игра или продолжить сейв (вещи игроков вернутся по их IP, ник не важен).
+func _save_row() -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var row := _row()
+	row.add_child(_label("Сохранение:", 20, Color(0.82, 0.81, 0.77), 170))
+	var nb: Button = menu._button("Новая игра", func():
+		net.save_id = ""
+		net.save_load = false
+		net.save_crash_sel = false
+		_build("host"))
+	nb.custom_minimum_size = Vector2(200, 46)
+	nb.add_theme_font_size_override("font_size", 19)
+	row.add_child(nb)
+	var last: String = SaveFile.last()
+	if last != "":
+		var cb: Button = menu._button("Продолжить", func():
+			net.save_id = last
+			net.save_load = true
+			net.save_crash_sel = false
+			_build("host"))
+		cb.custom_minimum_size = Vector2(200, 46)
+		cb.add_theme_font_size_override("font_size", 19)
+		row.add_child(cb)
+	if not SaveFile.list().is_empty():
+		var lb: Button = menu._button("Загрузить…", func(): menu._open_loads(_picked_save))
+		lb.custom_minimum_size = Vector2(200, 46)
+		lb.add_theme_font_size_override("font_size", 19)
+		row.add_child(lb)
+	box.add_child(row)
+	var what := "новая игра — все начинают с начала"
+	if net.save_load and SaveFile.exists(net.save_id):
+		what = "продолжаем: %s%s" % [SaveFile.summary(net.save_id), "  (аварийная копия)" if net.save_crash_sel else ""]
+	box.add_child(_hint("%s. Сейв хранится у вас; вещи каждого игрока — по его IP, ник не важен." % what))
+	return box
+
+
+## Хост выбрал сейв в списке сохранений меню (menu._open_loads).
+func _picked_save(id: String, crash: bool) -> void:
+	net.save_id = id
+	net.save_load = true
+	net.save_crash_sel = crash
+	menu._show("net")
+	_build("host")
 
 
 func _join() -> void:
@@ -296,12 +345,13 @@ func _fill_rooms() -> void:
 		return
 	for k in net.rooms:
 		var r: Dictionary = net.rooms[k]
-		var b: Button = menu._button("%s — %d игр.%s" % [r["name"], r["n"], "" if r["open"] else " (идёт игра)"], connect_to.bind(String(r["ip"]), int(r["port"])))
-		b.text = "%s — %d игр.%s" % [r["name"], r["n"], "" if r["open"] else " (идёт игра)"]   # без капса
+		# в идущую игру теперь тоже можно зайти — дозагрузимся по ходу (промпт 18.11 02:00)
+		var txt: String = "%s — %d игр.%s" % [r["name"], r["n"], " (идёт игра — можно зайти)" if r.get("ingame", false) else ""]
+		var b: Button = menu._button(txt, connect_to.bind(String(r["ip"]), int(r["port"])))
+		b.text = txt   # без капса
 		b.custom_minimum_size = Vector2(560, 48)
 		b.add_theme_font_size_override("font_size", 22)
 		b.tooltip_text = "%s:%d  ·  код %s" % [r["ip"], r["port"], r["code"]]
-		b.disabled = not r["open"]
 		rooms_box.add_child(_centered(b))
 
 

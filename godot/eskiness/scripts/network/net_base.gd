@@ -13,6 +13,7 @@ const MAX_PEERS := 3   # до 4 игроков в комнате (хост + 3):
 const VERSION := 1
 const CODE_ABC := "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"   # 32 знака: без 0/O и 1/I
 const CFG := "user://settings.cfg"
+const Save := preload("res://scripts/systems/save.gd")
 
 var peer: ENetMultiplayerPeer
 var port := PORT
@@ -208,6 +209,20 @@ var png_t := 0.0
 # последний адрес подключения — для «Повторить попытку» в лобби (промпт 16.11 21:56)
 var last_ip := ""
 var last_port := 0
+## Сейв сетевой игры хранится у хоста (промпт 18.11 02:00): его мир + вещи каждого игрока по его IP,
+## поэтому ник не важен — зайдёшь под любым и получишь свой персонаж и свои вещи.
+## Новая игра у того же хоста — все начинают с начала (net_saves пустой).
+var net_saves := {}          # хост: ip -> личный сейв игрока (всё, кроме общего мира — WORLD_KEYS)
+var pending_mine := {}       # клиент: свой сейв от хоста, пока мир не построен
+var skip_intro := false      # клиент: вступление не показываем (есть сейв у хоста / дозагрузились в идущую игру)
+var save_id := ""            # хост: id сейва сетевой игры ("" — новая), выбирает лобби (net_lobby.gd)
+var save_load := false       # хост: продолжить выбранный сейв
+var save_crash_sel := false  # хост: выбрана аварийная копия сейва
+var my_save_t := -100.0      # клиент: когда последний раз отправляли свой сейв хосту
+const SAVE_SEND_DT := 10.0
+## Общий мир (его шлёт хост); всё остальное из save_state — личное дело каждого игрока.
+const WORLD_KEYS := ["chest_pos", "chests", "jars", "glass", "stone_piles", "stone_pos", "floor",
+	"jar_ids", "floor_ids", "net_players", "net"]
 var info_l: Label
 
 
@@ -220,3 +235,47 @@ class RemoteTarget:
 
 	func damage_player(amount: float, from: Vector3) -> void:
 		net.rpc_id(peer, "net_damage", amount, from)
+
+
+# ---------- сейв сетевой игры у хоста (промпт 18.11 02:00) ----------
+
+## Личный сейв игрока — всё из save_state, кроме общего мира (его шлёт хост отдельно).
+func _my_state(g) -> Dictionary:
+	var d: Dictionary = g.save_state()
+	for key in WORLD_KEYS:
+		d.erase(key)
+	return d
+
+
+## IP игрока: по нему хост узнаёт его сейв, под каким бы ником тот ни зашёл (промпт 18.11 02:00).
+func peer_ip(id: int) -> String:
+	if peer == null or id <= 1:
+		return ""
+	var pp := peer.get_peer(id)
+	return String(pp.get_remote_address()) if pp else ""
+
+
+func _saved_for(id: int) -> Dictionary:
+	var d = net_saves.get(peer_ip(id), {})
+	return d.duplicate(true) if d is Dictionary else {}
+
+
+## Клиент: отправить хосту свой сейв (вещи, hp, место) — не чаще раза в SAVE_SEND_DT секунд.
+func send_my_save(force := false) -> void:
+	if hosting or not connected or game == null or not is_instance_valid(game) or game.player == null:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if not force and now - my_save_t < SAVE_SEND_DT:
+		return
+	my_save_t = now
+	rpc_id(1, "rq_save", _my_state(game))
+
+
+@rpc("any_peer", "reliable")
+func rq_save(d: Dictionary) -> void:
+	if not hosting:
+		return
+	var ip := peer_ip(multiplayer.get_remote_sender_id())
+	if ip == "":
+		return
+	net_saves[ip] = d

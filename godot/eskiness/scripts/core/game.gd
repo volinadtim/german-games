@@ -187,11 +187,36 @@ func setup(p: Player) -> void:
 	cs.game = self
 	add_child(cs)
 	save_slot = Save.slot()
-	if net:
-		net.on_game_setup(self)   # сетевая сессия в слоты сохранений не пишет; мир у клиента — от хоста
-		_start_intro()   # у всех: одна комната, своё место, одна кат-сцена (промпт 16.11 22:04)
-	elif Engine.get_meta("eskiness_load", false) and Save.exists(save_slot):
-		var sd: Dictionary = Save.read(save_slot)
+	if save_slot == "":
+		save_slot = Save.new_id()
+		Engine.set_meta("eskiness_slot", save_slot)
+	# что грузим: сам сейв или его аварийную копию (вылет игры, save.gd: write_crash)
+	var sd: Dictionary = {}
+	if bool(Engine.get_meta("eskiness_load", false)):
+		if bool(Engine.get_meta("eskiness_crash", false)) and Save.crash_exists(save_slot):
+			sd = Save.read_crash(save_slot)
+		else:
+			sd = Save.read(save_slot)
+	if net and not net.is_host():
+		# клиент: мир и свои вещи присылает хост (сейв сетевой игры лежит у хоста)
+		net.on_game_setup(self)
+		if not net.skip_intro:
+			_start_intro()   # одна комната, своё место, одна кат-сцена (промпт 16.11 22:04)
+	elif net:
+		# хост сетевой игры сохраняется как обычно, в свой сейв (промпт 18.11 02:00)
+		if sd.is_empty():
+			_start_intro()
+		else:
+			from_save = true
+			load_state(sd)
+			var np = sd.get("net_players", {})
+			net.net_saves = np if np is Dictionary else {}
+			if not bool(sd.get("intro_done", true)):
+				_start_intro(false, intro_wake_done)
+		net.on_game_setup(self)
+		save_now()
+	elif not sd.is_empty():
+		from_save = true
 		load_state(sd)
 		# вышли до конца вступления — оно начинается заново, вещи из сейва остаются (промпт 16.11 21:46)
 		# пробуждение уже показано (промпт 18.11 01:10) — сразу с места из сейва, без кат-сцены «встаёт»
@@ -243,6 +268,12 @@ func _physics_process(delta: float) -> void:
 	if autosave_t <= 0.0:
 		autosave_t = AUTOSAVE
 		save_now()
+	# доп. сохранение (промпт 18.11 02:00): отдельный файл, основной сейв не перезаписывает —
+	# после вылета (в том числе с ошибкой) его видно в списке сохранений как «аварийный»
+	crash_t -= delta
+	if crash_t <= 0.0:
+		crash_t = CRASH_SAVE
+		save_crash()
 	if player == null:
 		return
 	focus = null
@@ -450,4 +481,6 @@ func restart() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
-		save_now()
+		save_exit()
+	elif what == NOTIFICATION_CRASH:
+		save_crash()   # вылет игры: доп. сохранение рядом, основное не портим (промпт 18.11 02:00)

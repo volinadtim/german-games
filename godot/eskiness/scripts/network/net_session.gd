@@ -71,18 +71,20 @@ func _hello(id: int, nm: String, ver: int, rejoin_game_ok: bool) -> void:
 		rpc_id(id, "kicked", "Разные версии игры — обновите обе")
 		_drop_later(id)
 		return
-	if in_game and not rejoin_game_ok:
-		rpc_id(id, "kicked", "Игра уже началась")
-		_drop_later(id)
-		return
 	nm = nm.strip_edges().substr(0, 20)
 	if nm == "":
 		nm = "Игрок %d" % players.size()
 	players[id] = nm
 	_send_players()
 	if in_game and game and is_instance_valid(game):
-		_make_puppet(id)
-		game.hud.toast("%s вернулся в игру" % nm, Color(0.75, 0.85, 0.65))
+		if rejoin_game_ok:
+			_make_puppet(id)
+			game.hud.toast("%s вернулся в игру" % nm, Color(0.75, 0.85, 0.65))
+		else:
+			# дозагрузка в идущую игру (промпт 18.11 02:00): шлём текущий мир и его вещи из сейва (по IP)
+			rpc_id(id, "net_start", _world_state(game), players, _saved_for(id), true)
+			_make_puppet(id)
+			game.hud.toast("%s подключился к игре" % nm, Color(0.75, 0.85, 0.65))
 	lobby_changed.emit()
 
 
@@ -291,8 +293,9 @@ func stop_discovery() -> void:
 func _broadcast() -> void:
 	var ips := lan_ips()
 	var code := encode(ips[0], port) if not ips.is_empty() else encode("127.0.0.1", port)
+	# в идущую игру теперь тоже можно зайти (промпт 18.11 02:00) — комната всегда открыта, но помечена «идёт игра»
 	var msg := JSON.stringify({"g": "eskiness", "v": VERSION, "name": "Комната %s" % my_name, "port": port,
-		"code": code, "n": players.size(), "open": not in_game}).to_utf8_buffer()
+		"code": code, "n": players.size(), "open": true, "ingame": in_game}).to_utf8_buffer()
 	for dest in ["255.255.255.255", "127.0.0.1"]:
 		udp_out.set_dest_address(dest, DISCOVERY_PORT)
 		udp_out.put_packet(msg)

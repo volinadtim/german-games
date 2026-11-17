@@ -4,6 +4,8 @@ extends "res://scripts/network/net_base.gd"
 
 ## Выйти из комнаты / закрыть её.
 func leave() -> void:
+	if in_game and not hosting and connected:
+		send_my_save(true)   # уходим из сетевой игры — вещи остаются в сейве у хоста
 	if peer and (hosting or connected):
 		rpc("rq_bye")   # другие узнают, что вышли сами, а не пропала связь
 		peer.host.flush()
@@ -34,6 +36,9 @@ func _net_reset() -> void:
 	enemy_map = {}
 	pickups = {}
 	pending_world = {}
+	pending_mine = {}
+	skip_intro = false
+	net_saves = {}
 	early = []
 	last_seen = {}
 	dead_t = -1.0

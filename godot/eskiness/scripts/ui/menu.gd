@@ -52,7 +52,9 @@ var gfx_box: VBoxContainer        # страница «Графика»
 var settings_from := "main"
 var setup_box: Control            # первая настройка картинки (first_setup.gd, промпт 00:20 16.11)
 var blur_rect: ColorRect
-var pending_slot := 0             # слот, выбранный до первой настройки картинки
+var pending_save := ""            # сейв, выбранный до первой настройки картинки
+var pending_crash := false        # выбрана аварийная копия сейва
+var play_back := "main"           # куда возвращает «Назад» со страницы «Игра» (main / multi)
 const FirstSetup := preload("res://scripts/ui/first_setup.gd")
 var ctl_box: VBoxContainer        # страница «Управление»
 var gen_box: VBoxContainer        # страница «Основное»
@@ -176,12 +178,8 @@ func _ready() -> void:
 	main_box.add_child(_gap(34))
 	main_box.add_child(_button("Играть", func():
 		SplitScr.pending = false
-		_open_slots()))
-	main_box.add_child(_button("Сетевая игра", _open_net))
-	if not _mobile():   # два игрока на одном ПК (network/split.gd, промпт 18.11 00:41)
-		main_box.add_child(_button("Сплитскрин", func():
-			SplitScr.pending = true   # обычная игра из слота, экран пополам
-			_open_slots()))
+		_open_play("main")))
+	main_box.add_child(_button("Мультиплеер", _open_multi))   # сеть и Split-Screen (промпт 18.11 02:00)
 	main_box.add_child(_button("Настройки", func(): _open_settings("main")))
 	main_box.add_child(_button("Выход", func(): get_tree().quit()))
 
@@ -411,7 +409,7 @@ func resume() -> void:
 func _to_main_menu() -> void:
 	var g := _game()
 	if g:
-		g.save_now()
+		g.save_exit()   # сохранились и убрали аварийную копию (промпт 18.11 02:00)
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().reload_current_scene()
@@ -426,10 +424,12 @@ func _open_settings(from: String) -> void:
 func setup_finished() -> void:
 	for k in ["posterize", "gamma", "brightness"]:
 		_set_widget(k)
-	if pending_slot > 0:
-		var i := pending_slot
-		pending_slot = 0
-		_pick_slot(i)
+	if pending_save != "":
+		var id := pending_save
+		var cr := pending_crash
+		pending_save = ""
+		pending_crash = false
+		_pick_save(id, cr)
 	else:
 		_show("main")
 
@@ -469,47 +469,117 @@ func _game() -> Node:
 
 func _save_game() -> void:
 	var g := _game()
-	if g and g.net:
-		g.hud.toast("Сетевая игра не сохраняется", Color(0.85, 0.7, 0.5))
-	elif g:
-		g.save_now()
-		g.hud.toast("Сохранено: слот %d" % g.save_slot, Color(0.8, 0.85, 0.7))
+	if g == null:
+		return
+	if g.net and not g.net.is_host():
+		g.hud.toast("Сейв сетевой игры хранится у хоста", Color(0.85, 0.8, 0.6))
+		g.net.send_my_save(true)
+		return
+	g.save_now()
+	g.hud.toast("Сохранено", Color(0.8, 0.85, 0.7))
 
 
-## «Играть» → три слота: занятый — загрузить, пустой — новая игра; ✕ — удалить слот.
-func _open_slots() -> void:
+## «Играть» (промпт 18.11 02:00): продолжить прошлую сессию, начать новую игру или выбрать сейв.
+func _open_play(from: String) -> void:
+	play_back = from
+	for c in slots_box.get_children():
+		c.queue_free()
+	slots_box.add_child(_title("ИГРА", 60))
+	slots_box.add_child(_gap(18))
+	var last: String = Save.last()
+	if last != "":
+		slots_box.add_child(_button("Продолжить", func(): _pick_save(last, false)))
+	slots_box.add_child(_button("Начать новую игру", _ask_mode))
+	if not Save.list().is_empty():
+		slots_box.add_child(_button("Загрузить", func(): _open_loads(Callable())))
+	slots_box.add_child(_gap(10))
+	slots_box.add_child(_button("Назад", func():
+		if play_back == "multi":
+			_open_multi()
+		else:
+			_show("main")))
+	_show("slots")
+
+
+## «Мультиплеер»: сетевая игра и Split-Screen (два игрока на одном ПК, network/split.gd).
+func _open_multi() -> void:
+	for c in slots_box.get_children():
+		c.queue_free()
+	slots_box.add_child(_title("МУЛЬТИПЛЕЕР", 60))
+	slots_box.add_child(_gap(18))
+	slots_box.add_child(_button("Сетевая игра", func():
+		SplitScr.pending = false
+		_open_net()))
+	if not _mobile():
+		slots_box.add_child(_button("Split-Screen", func():
+			SplitScr.pending = true   # обычная игра из сейва, экран пополам
+			_open_play("multi")))
+	slots_box.add_child(_gap(10))
+	slots_box.add_child(_button("Назад", func(): _show("main")))
+	_show("slots")
+
+
+## Список сейвов: сколько угодно (save.gd). cb(id, crash) — если сейв выбирают не для старта игры
+## (например хост сетевой игры выбирает, какой сейв продолжить).
+func _open_loads(cb: Callable) -> void:
 	for c in slots_box.get_children():
 		c.queue_free()
 	slots_box.add_child(_title("СОХРАНЕНИЯ", 60))
-	slots_box.add_child(_gap(18))
-	for i in range(1, Save.SLOTS + 1):
+	slots_box.add_child(_gap(12))
+	var ids: Array = Save.list()
+	if ids.is_empty():
+		slots_box.add_child(_subtitle("пока ни одного сохранения"))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	box.size_flags_horizontal = Control.SIZE_SHRINK_END
+	var scr := ScrollContainer.new()
+	scr.custom_minimum_size = Vector2(620, mini(ids.size(), 7) * 72)
+	scr.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scr.size_flags_horizontal = Control.SIZE_SHRINK_END
+	scr.add_child(box)
+	slots_box.add_child(scr)
+	for id in ids:
+		var sid: String = String(id)
+		var d: Dictionary = Save.read(sid)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		row.size_flags_horizontal = Control.SIZE_SHRINK_END
-		var used := Save.exists(i)
-		var b := _button("Слот %d" % i, _pick_slot.bind(i))
-		b.custom_minimum_size = Vector2(300, 64)
 		var info := Label.new()
-		info.text = Save.summary(i) if used else "пусто — новая игра"
+		info.text = ("сеть · " if bool(d.get("net", false)) else "") + Save.describe(d)
 		info.add_theme_font_size_override("font_size", 16)
-		info.add_theme_color_override("font_color", Color(0.75, 0.7, 0.62) if used else Color(0.5, 0.47, 0.42))
+		info.add_theme_color_override("font_color", Color(0.75, 0.7, 0.62))
 		info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		info.custom_minimum_size = Vector2(170, 0)
+		info.custom_minimum_size = Vector2(230, 0)
 		info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		row.add_child(info)
+		var b := _button("Играть", func():
+			if cb.is_valid():
+				cb.call(sid, false)
+			else:
+				_pick_save(sid, false))
+		b.custom_minimum_size = Vector2(230, 64)
 		row.add_child(b)
-		if used:
-			var del := _button("✕", _delete_slot.bind(i))
-			del.custom_minimum_size = Vector2(58, 64)
-			del.tooltip_text = "Удалить сохранение"
-			row.add_child(del)
-		else:
-			var gap := Control.new()
-			gap.custom_minimum_size = Vector2(58, 64)
-			row.add_child(gap)
-		slots_box.add_child(row)
+		if Save.crash_exists(sid):
+			# аварийная копия после вылета игры — отдельным сейвом, основной она не перезаписала
+			var cb2 := _button("Аварийный", func():
+				if cb.is_valid():
+					cb.call(sid, true)
+				else:
+					_pick_save(sid, true))
+			cb2.custom_minimum_size = Vector2(170, 64)
+			cb2.tooltip_text = "Сохранение, сделанное при вылете игры: " + Save.describe(Save.read_crash(sid))
+			row.add_child(cb2)
+		var del := _button("✕", _delete_save.bind(sid, cb))
+		del.custom_minimum_size = Vector2(58, 64)
+		del.tooltip_text = "Удалить сохранение"
+		row.add_child(del)
+		box.add_child(row)
 	slots_box.add_child(_gap(10))
-	slots_box.add_child(_button("Назад", func(): _show("main")))
+	slots_box.add_child(_button("Назад", func():
+		if cb.is_valid():
+			_open_net()
+		else:
+			_open_play(play_back)))
 	_show("slots")
 
 
@@ -518,31 +588,38 @@ func _open_net() -> void:
 	net_box.open()
 
 
-func _pick_slot(i: int) -> void:
+## Новая игра: сначала режим (ui/mode_select.gd, промпт 18.11 00:52).
+func _ask_mode() -> void:
+	preload("res://scripts/ui/mode_select.gd").fill(self, slots_box, _new_game, func(): _open_play(play_back))
+	_show("slots")
+
+
+func _pick_save(id: String, crash: bool) -> void:
 	if not FirstSetup.done():
-		pending_slot = i
+		pending_save = id
+		pending_crash = crash
 		_show("setup")
 		return
-	if not Save.exists(i):
-		# новая игра — сначала режим (ui/mode_select.gd, промпт 18.11 00:52)
-		preload("res://scripts/ui/mode_select.gd").fill(self, slots_box, _new_game.bind(i), _open_slots)
-		_show("slots")
-		return
-	Engine.set_meta("eskiness_slot", i)
-	Engine.set_meta("eskiness_load", Save.exists(i))
+	Engine.set_meta("eskiness_slot", id)
+	Engine.set_meta("eskiness_load", Save.exists(id))
+	Engine.set_meta("eskiness_crash", crash)
+	Save.set_last(id)
 	play_pressed.emit()
 
 
-func _new_game(m: int, i: int) -> void:
+func _new_game(m: int) -> void:
+	var id: String = Save.new_id()
 	Engine.set_meta("eskiness_mode", m)
-	Engine.set_meta("eskiness_slot", i)
+	Engine.set_meta("eskiness_slot", id)
 	Engine.set_meta("eskiness_load", false)
+	Engine.set_meta("eskiness_crash", false)
+	Save.set_last(id)
 	play_pressed.emit()
 
 
-func _delete_slot(i: int) -> void:
-	Save.delete(i)
-	_open_slots()
+func _delete_save(id: String, cb: Callable) -> void:
+	Save.delete(id)
+	_open_loads(cb)
 
 
 # ---------- настройки ----------

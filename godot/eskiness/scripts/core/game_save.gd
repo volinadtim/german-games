@@ -3,11 +3,40 @@ extends "res://scripts/core/game_items.gd"
 
 
 func save_now() -> void:
+	if player == null or not alive or save_slot == "":
+		return
 	if net:
-		return   # сетевая игра в обычные слоты не сохраняется
-	if player == null or not alive:
+		# сетевая игра (промпт 18.11 02:00): сейв лежит у хоста — вместе с вещами остальных игроков по их IP
+		if net.is_host():
+			Save.write(save_slot, host_state())
+		else:
+			net.send_my_save()
 		return
 	Save.write(save_slot, save_state())
+
+
+## Сейв хоста сетевой игры: его мир и вещи + вещи остальных игроков (net_base.gd: net_saves).
+func host_state() -> Dictionary:
+	var d := save_state()
+	d["net"] = true
+	d["net_players"] = net.net_saves.duplicate(true) if net else {}
+	return d
+
+
+## Выход из игры по-человечески (в меню / закрыли окно): сохраняемся и убираем аварийную копию.
+func save_exit() -> void:
+	save_now()
+	if save_slot != "" and (net == null or net.is_host()):
+		Save.clear_crash(save_slot)
+
+
+## Вылет игры (game.gd: NOTIFICATION_CRASH): доп. сохранение в отдельный файл, основной сейв не трогаем.
+func save_crash() -> void:
+	if player == null or save_slot == "":
+		return
+	if net and not net.is_host():
+		return
+	Save.write_crash(save_slot, host_state() if net else save_state())
 
 
 ## Режим новой/загруженной игры: сеть — от хоста, сейв — из файла, новая — выбор в меню (ui/mode_select.gd).
@@ -293,4 +322,4 @@ func load_state(d: Dictionary) -> void:
 	inv.notify()
 	loading = false
 	if net == null:
-		hud.toast("Загружено: слот %d" % save_slot, Color(0.8, 0.85, 0.7))
+		hud.toast("Загружено", Color(0.8, 0.85, 0.7))
