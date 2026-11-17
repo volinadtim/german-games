@@ -383,7 +383,6 @@ func drop_equipped(slot_: String) -> void:
 	if id == "":
 		return
 	var d: float = inv.equip_dur.get(slot_, Items.max_dur(id))
-	var sn := inv.snapshot()
 	inv.equip[slot_] = ""
 	inv.equip_dur.erase(slot_)
 	inv.update_blocks()

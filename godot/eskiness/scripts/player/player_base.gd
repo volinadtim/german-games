@@ -314,6 +314,7 @@ var stone_throw   # stone_throw.gd (ставит game.gd)
 var throw_aim := false   # камень в руке, ПКМ держат — замах (своему ставит stone_throw.gd, чужому — сеть, флаг 32)
 var throw_w := 0.0
 var throw_flick := 0.0   # 1 → 0 после броска: рука выбрасывается вперёд
+@warning_ignore("unused_private_class_variable")
 var _whip_lmb := false   # ЛКМ с пистолетом без ПКМ — удар рукоятью рукой с пистолетом (player_combat.gd)
 var game   # game.gd (ставит game.gd): пока открыто окно — клик не захватывает мышь
 var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали

@@ -126,7 +126,7 @@ func voice_pkt(data: PackedByteArray) -> void:
 	var pb := sp.get_stream_playback() as AudioStreamGeneratorPlayback
 	if pb == null:
 		return
-	var cnt := mini(data.size() / 2, pb.get_frames_available())
+	var cnt := mini(data.size() >> 1, pb.get_frames_available())
 	for i in cnt:
 		var v := float(data.decode_s16(i * 2)) / 32767.0
 		pb.push_frame(Vector2(v, v))

@@ -347,7 +347,7 @@ func _reload_pose(eye: Vector3, cb: Basis, torso_inv: Basis) -> void:
 	if gn == null or not is_instance_valid(gn) or not (gn as Node3D).is_inside_tree():
 		return
 	var g: Transform3D = (gn as Node3D).global_transform
-	var gl := func(p: Vector3) -> Vector3: return to_local(g * p)
+	var gl := func(lp: Vector3) -> Vector3: return to_local(g * lp)
 	var sj := _shoulder_pos(j)
 	var belt := sj - cb.y * 0.5 + cb.x * side * 0.02 - cb.z * 0.08
 	var under: Vector3 = gl.call(Vector3(-0.02, -0.07, 0))       # магазин под рукоятью
@@ -730,9 +730,9 @@ func _swap_pose(delta: float) -> void:
 	swap_t = maxf(swap_t - delta, 0.0)
 	var k := 1.0 - swap_t / SWAP_DUR
 	if k >= 0.5 and _swap_cb.is_valid():
-		var cb := _swap_cb
+		var swap_cb := _swap_cb
 		_swap_cb = Callable()
-		cb.call()
+		swap_cb.call()
 	if hands.size() < 2 or skel == null:
 		return
 	var w := smoothstep(0.0, 1.0, 1.0 - absf(k * 2.0 - 1.0) * 1.15)   # в середине — руки полностью внизу

@@ -20,8 +20,6 @@ var root: Control
 var log_l: RichTextLabel
 var edit: LineEdit
 
-var _prev_active := true
-var _prev_inv := true
 var _prev_mouse := Input.MOUSE_MODE_CAPTURED
 
 

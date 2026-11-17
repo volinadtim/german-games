@@ -11,7 +11,7 @@ static var _lever_wav: AudioStreamWAV
 
 ## Одна монетка бьётся о металл: неровные моды диска (быстро гаснут, верхние — быстрее),
 ## короткий мягкий щелчок удара и глухой отклик лотка. Плюс 1–2 затухающих подскока.
-static func _clink(buf: PackedFloat32Array, at: float, amp: float, f0: float, rng: RandomNumberGenerator, tray := 1.0) -> void:
+static func _clink(buf: PackedFloat32Array, at: float, amp: float, f0: float, rng: RandomNumberGenerator, tray_k := 1.0) -> void:
 	var ratios := [1.0, 1.73, 2.33, 3.04]
 	var amps := [1.0, 0.55, 0.32, 0.18]
 	var decs := [26.0, 38.0, 55.0, 80.0]
@@ -40,7 +40,7 @@ static func _clink(buf: PackedFloat32Array, at: float, amp: float, f0: float, rn
 			lp += ((rng.randf() * 2.0 - 1.0) - lp) * 0.3
 			v += lp * exp(-tt * 400.0) * 0.6
 			# лоток: глухое металлическое «тонк»
-			v += (sin(TAU * 640.0 * tt) * 0.5 + sin(TAU * 1130.0 * tt) * 0.3) * exp(-tt * 34.0) * 0.45 * tray
+			v += (sin(TAU * 640.0 * tt) * 0.5 + sin(TAU * 1130.0 * tt) * 0.3) * exp(-tt * 34.0) * 0.45 * tray_k
 			buf[k] += v * a * att
 
 

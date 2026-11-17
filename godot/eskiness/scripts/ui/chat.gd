@@ -12,8 +12,6 @@ var open := false
 var box: VBoxContainer
 var edit: LineEdit
 var lines: Array = []   # [Label, время появления]
-var _prev_active := true
-var _prev_inv := true
 var _prev_mouse := Input.MOUSE_MODE_CAPTURED
 
 

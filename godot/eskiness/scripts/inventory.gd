@@ -411,7 +411,9 @@ class BagGrid extends Control:
 
 	func _gui_input(e: InputEvent) -> void:
 		var o: int = inv.owner_at(cell_at(get_local_mouse_position()))
-		var key = o if o >= 0 else null
+		var key: Variant = null
+		if o >= 0:
+			key = o
 		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.device == InputEvent.DEVICE_ID_EMULATION:
 			if e.pressed:
 				inv.touch_sel = key
@@ -1065,7 +1067,9 @@ func _slot_at():
 		var gc: Control = g
 		if gc.is_visible_in_tree() and Rect2(Vector2.ZERO, gc.size).has_point(gc.get_local_mouse_position()):
 			var o := owner_at(g.cell_at(gc.get_local_mouse_position()))
-			return o if o >= 0 else null
+			if o >= 0:
+				return o
+			return null
 	return null
 
 
@@ -1553,33 +1557,33 @@ func _tab_button(text: String) -> Button:
 
 ## Выкатить / спрятать боковую панель: ширина обёртки плавно 0 ↔ ширина панели.
 ## fixed_h — высота по самой панели (снаряжение), иначе — во всю высоту окна (крафт).
-func _slide(wrap: Control, content: Control, on: bool, instant: bool, tw: Tween, fixed_h: bool) -> Tween:
+func _slide(wrp: Control, content: Control, on: bool, instant: bool, tw: Tween, fixed_h: bool) -> Tween:
 	if tw:
 		tw.kill()
 	var sz := content.get_combined_minimum_size()
-	wrap.custom_minimum_size.y = sz.y if fixed_h else 0.0
-	_fit_slide(wrap, content, fixed_h)
+	wrp.custom_minimum_size.y = sz.y if fixed_h else 0.0
+	_fit_slide(wrp, content, fixed_h)
 	var w := sz.x if on else 0.0
 	if on:
-		wrap.visible = true
+		wrp.visible = true
 	if instant:
-		wrap.custom_minimum_size.x = w
-		wrap.visible = on
+		wrp.custom_minimum_size.x = w
+		wrp.visible = on
 		return null
 	var t := create_tween()
-	t.tween_property(wrap, "custom_minimum_size:x", w, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_property(wrp, "custom_minimum_size:x", w, 0.22).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	if not on:
-		t.tween_callback(func(): wrap.visible = false)
+		t.tween_callback(func(): wrp.visible = false)
 	return t
 
 
 ## Панель в обёртке: полная ширина, высота — по обёртке; снаряжение (слева) прижато к правому краю — выезжает от сумки.
-func _fit_slide(wrap: Control, content: Control, right: bool) -> void:
+func _fit_slide(wrp: Control, content: Control, right: bool) -> void:
 	if content == null:
 		return
 	var sz := content.get_combined_minimum_size()
-	content.size = Vector2(sz.x, maxf(sz.y, wrap.size.y))
-	content.position = Vector2(wrap.size.x - sz.x if right else 0.0, 0.0)
+	content.size = Vector2(sz.x, maxf(sz.y, wrp.size.y))
+	content.position = Vector2(wrp.size.x - sz.x if right else 0.0, 0.0)
 
 
 func show_inventory() -> void:
@@ -1610,13 +1614,10 @@ func close() -> void:
 func set_hover(k) -> void:
 	hover = k
 	var id := ""
-	var n := 0
 	if k is String:
 		id = equip[k]
-		n = 1
 	elif k is int and slots[k] != null:
 		id = slots[k]["id"]
-		n = slots[k]["n"]
 	if id != "":
 		# при наведении — только название (промпт 03:50: без «×количество» и «[F — использовать]»)
 		info_name.text = Items.item_name(id)

@@ -287,8 +287,8 @@ func _make_sounds() -> void:
 	rng.seed = 41
 	for i in n:
 		var tt := float(i) / r
-		var ph := fmod(tt * 16.0, 1.0) / 16.0
-		spin[i] = rng.randf_range(-1, 1) * exp(-ph * 600.0) * 0.8 + sin(TAU * 95.0 * tt) * 0.12 + sin(TAU * 190.0 * tt) * 0.05
+		var seg := fmod(tt * 16.0, 1.0) / 16.0
+		spin[i] = rng.randf_range(-1, 1) * exp(-seg * 600.0) * 0.8 + sin(TAU * 95.0 * tt) * 0.12 + sin(TAU * 190.0 * tt) * 0.05
 	var st := Sfx._wav(spin, 0.55)
 	st.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	st.loop_end = n - int(r * 0.03)
@@ -480,7 +480,7 @@ func _lights(delta: float) -> void:
 		bulbs[k].albedo_color = col if on else col.darkened(0.6)
 		bulbs[k].emission_energy_multiplier = 2.4 if on else 0.15
 	for k in top_bulbs.size():
-		var on := (k + head / 2) % 2 == 0 if not showing else fmod(blink * 8.0 + k * 0.5, 1.0) < 0.5
+		var on := (k + (head >> 1)) % 2 == 0 if not showing else fmod(blink * 8.0 + k * 0.5, 1.0) < 0.5
 		top_bulbs[k].emission = base
 		top_bulbs[k].emission_energy_multiplier = 2.0 if on else 0.2
 	var pulse := 0.9 + (0.6 * sin(blink * 9.0) if busy else 0.1 * sin(blink * 2.0))

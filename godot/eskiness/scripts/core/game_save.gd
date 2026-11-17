@@ -109,7 +109,7 @@ func load_state(d: Dictionary) -> void:
 	# старая раскладка: все вещи раскладываются по ячейкам одежды заново (inv.migrate_bag)
 	var bag_extra: Array = []
 	if old_layout:
-		var mg: Array = inv.migrate_bag(bag)
+		var mg: Array = Inventory.migrate_bag(bag)
 		bag = mg[0]
 		bag_extra = mg[1]
 	var extra_in: Array = []
