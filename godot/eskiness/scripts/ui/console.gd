@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Пока открыта, ввод игрока не обрабатывается (player.active = false, инвентарь выключен).
 ## Создаётся из game.gd (setup) — у каждого игрока своя, команды действуют на локального игрока.
 ## Новая команда: register("имя", "описание", func(args: PackedStringArray) -> void).
+## Читерская команда (money/get/noclip/god и т.п.): register_cheat(...) — работает только после /cheats on.
 
 const Items := preload("res://scripts/items.gd")
 const SUGG_ROWS := 8      # сколько строк подсказок /get видно сразу
@@ -12,7 +13,8 @@ var open := false
 var sugg_l: RichTextLabel   # подсказки предметов над полем (после «/get »)
 var sugg: Array = []        # id подходящих предметов
 var sugg_i := -1            # выделенный
-var commands := {}        # имя -> {"desc": String, "fn": Callable}
+var commands := {}        # имя -> {"desc": String, "fn": Callable, "cheat": bool}
+var cheats_on := false   # /cheats on|off — разблокирует читерские команды
 var history: PackedStringArray = []
 var hist_i := 0
 
@@ -27,15 +29,22 @@ func _ready() -> void:
 	layer = 90
 	_build_ui()
 	register("help", "список команд", _cmd_help)
-	register("money", "/money [кол-во] — выдать монеты (по умолчанию 100)", _cmd_money)
-	register("get", "/get [предмет] [кол-во] — выдать предмет (Tab — подсказки, места нет — под ноги)", _cmd_get)
 	register("clear", "очистить лог", func(_a: PackedStringArray): log_l.clear())
-	register("noclip", "/noclip — полёт сквозь стены вкл/выкл (WASD, Пробел — вверх, Ctrl — вниз, Shift — быстрее)", _cmd_noclip)
+	register("cheats", "/cheats on|off — включить/выключить читерские команды", _cmd_cheats)
+	register_cheat("money", "/money [кол-во] — выдать монеты (по умолчанию 100)", _cmd_money)
+	register_cheat("get", "/get [предмет] [кол-во] — выдать предмет (Tab — подсказки, места нет — под ноги)", _cmd_get)
+	register_cheat("noclip", "/noclip — полёт сквозь стены вкл/выкл (WASD, Пробел — вверх, Ctrl — вниз, Shift — быстрее)", _cmd_noclip)
+	register_cheat("god", "/god — неуязвимость (урон и отравление не берут) вкл/выкл", _cmd_god)
 	print_line("[color=#9a9]Консоль. /help — список команд.[/color]")
 
 
 func register(name_: String, desc: String, fn: Callable) -> void:
-	commands[name_] = {"desc": desc, "fn": fn}
+	commands[name_] = {"desc": desc, "fn": fn, "cheat": false}
+
+
+## Читерская команда — доступна только после /cheats on (run() проверяет cheats_on).
+func register_cheat(name_: String, desc: String, fn: Callable) -> void:
+	commands[name_] = {"desc": desc, "fn": fn, "cheat": true}
 
 
 func print_line(t: String) -> void:
@@ -175,6 +184,9 @@ func run(t: String) -> void:
 	if not commands.has(cmd):
 		print_line("[color=#e77]Нет команды «%s». /help — список.[/color]" % cmd)
 		return
+	if commands[cmd]["cheat"] and not cheats_on:
+		print_line("[color=#e77]Читы выключены. /cheats on — включить.[/color]")
+		return
 	commands[cmd]["fn"].call(parts.slice(1))
 
 
@@ -182,7 +194,25 @@ func _cmd_help(_a: PackedStringArray) -> void:
 	var names := commands.keys()
 	names.sort()
 	for n in names:
-		print_line("[color=#fd6]/%s[/color] — %s" % [n, commands[n]["desc"]])
+		var tag := " [color=#a77](чит)[/color]" if commands[n]["cheat"] else ""
+		print_line("[color=#fd6]/%s[/color] — %s%s" % [n, commands[n]["desc"], tag])
+
+
+func _cmd_cheats(a: PackedStringArray) -> void:
+	if a.is_empty() or not (a[0].to_lower() in ["on", "off"]):
+		print_line("[color=#e77]/cheats on|off[/color]")
+		return
+	cheats_on = a[0].to_lower() == "on"
+	if not cheats_on and game and game.god:
+		game.god = false   # выключаем читы — снимаем и godmode
+	print_line("[color=#9e9]Читы: %s[/color]" % ("вкл" if cheats_on else "выкл"))
+
+
+func _cmd_god(_a: PackedStringArray) -> void:
+	if game == null:
+		return
+	game.god = not game.god
+	print_line("[color=#9e9]Godmode: %s[/color]" % ("вкл" if game.god else "выкл"))
 
 
 func _cmd_money(a: PackedStringArray) -> void:

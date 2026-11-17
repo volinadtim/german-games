@@ -87,7 +87,7 @@ func _tick_buffs(delta: float) -> void:
 # ---------- здоровье ----------
 
 func damage_player(amount: float, from: Vector3) -> void:
-	if not alive:
+	if not alive or god:
 		return
 	# щит в левой руке: половина ударов блокируется полностью
 	if inv.equip["left"] == "shield" and randf() < 0.5:
@@ -117,7 +117,7 @@ func damage_player(amount: float, from: Vector3) -> void:
 
 ## Тихая потеря здоровья (отравление) — без отброса и вспышки.
 func drain_hp(amount: float) -> void:
-	if not alive:
+	if not alive or god:
 		return
 	hp = maxf(hp - amount, 0.0)
 	hud.set_hp(hp, MAX_HP)

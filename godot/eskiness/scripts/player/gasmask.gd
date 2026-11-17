@@ -410,6 +410,10 @@ func _drop_old_filter() -> void:
 
 ## Подсказка сверху: при смене смысла плавно проявляется заново.
 func _status(out: bool, protected: bool) -> void:
+	if not game.alive:
+		status_l.text = ""   # умер — не путать «отравление проходит» с экраном смерти
+		status_kind = ""
+		return
 	var kind := ""
 	var text := ""
 	var col := Color.WHITE

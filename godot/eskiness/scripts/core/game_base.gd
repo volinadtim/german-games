@@ -82,6 +82,7 @@ var inv: Inventory
 var flashlight: Flashlight
 var hp := MAX_HP
 var alive := true
+var god := false   # godmode из консоли (/cheats on → /god): урон и отравление не берут
 var focus: Object = null
 var snd := {}
 var ui_player: AudioStreamPlayer
