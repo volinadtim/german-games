@@ -203,6 +203,12 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		var eye := hb + hd * Vector3(0, 0.08, -0.1)
 		head.position.y = maxf(head.position.y, eye.y)
 		head.position.z = minf(head.position.z, eye.z)
+	if not puppet:
+		# 18.11 00:55: взгляд вниз — камера выносится вперёд за грудь и плечи и чуть приподнимается,
+		# чтобы не смотреть изнутри торса на изнанку рубашки и плечи; руки остаются ниже кадра
+		var down := smoothstep(0.15, 1.3, -head.rotation.x)
+		head.position.z -= 0.24 * down
+		head.position.y += 0.05 * down
 	head.position.y += cam_step   # ступеньки: тело уже наверху/внизу, камера догоняет
 	_cam_wall_pullback()
 	var want_fov: float = fov_base * (gun.fov_mult() if gun else 1.0) + (7.0 if sprinting else 0.0)   # прицел — gun.gd
