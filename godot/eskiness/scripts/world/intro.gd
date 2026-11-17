@@ -102,7 +102,7 @@ func skip_shared() -> bool:
 	return false
 
 
-func start(new_game := true) -> void:
+func start(new_game := true, skip_wake := false) -> void:
 	add_to_group("cutscene")
 	var p = game.player
 	var n = _net()
@@ -112,8 +112,9 @@ func start(new_game := true) -> void:
 		spot = clampi(maxi(ids.find(multiplayer.get_unique_id()), 0), 0, SPOTS.size() - 1)
 	if new_game:
 		_starter_kit()
-	p.global_position = SPOTS[spot][0]
-	p.rotation.y = float(SPOTS[spot][1])   # лицом в комнату
+	if not skip_wake:   # загрузка после пробуждения — игрок остаётся там, где сохранился
+		p.global_position = SPOTS[spot][0]
+		p.rotation.y = float(SPOTS[spot][1])   # лицом в комнату
 	p.head.rotation.x = 0.0
 	_lock(true)
 	# тело не показываем, пока камера «лежит» у пола (иначе видно модель изнутри)
@@ -142,6 +143,9 @@ func start(new_game := true) -> void:
 	if game.slot and is_instance_valid(game.slot):
 		game.slot.set_powered(false)   # KILLBOX выключен до убийства монстрика
 	_wake_pose(0.0)
+	if skip_wake:
+		_end_wake()
+		return
 	if p.has_method("start_wake"):
 		p.start_wake()   # тело лежит → садится → встаёт (player_death.gd), видно другим игрокам
 
@@ -350,6 +354,9 @@ func _end_wake() -> void:
 	fade.visible = false
 	_lock(false)
 	stage = "free"
+	if not game.intro_wake_done:
+		game.intro_wake_done = true
+		game.save_now()   # пробуждение показано — при следующем входе его не будет
 	if pending_cut:
 		pending_cut = false
 		_begin_cut()

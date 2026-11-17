@@ -81,6 +81,7 @@ func save_state() -> Dictionary:
 		"slot_reveal": slot.reveal_pending if slot else false,
 		"play_time": play_time,
 		"intro_done": intro_done,
+		"intro_wake_done": intro_wake_done,
 		"dummy_knife_taken": dummy_knife_taken,
 		"shop_on": shop_on,
 		"shop_cue_done": shop_cue_done,
@@ -237,6 +238,7 @@ func load_state(d: Dictionary) -> void:
 		knife_dummy.remove_knife()
 	# вступление: сохранились посреди него — монстрика уже нет, поэтому автомат всё равно включаем
 	intro_done = true
+	intro_wake_done = bool(d.get("intro_wake_done", false))
 	if slot:
 		slot.set_powered(true)
 	shop_on = bool(d.get("shop_on", true))   # старые сейвы — магазин включён

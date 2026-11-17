@@ -195,20 +195,21 @@ func setup(p: Player) -> void:
 		var sd: Dictionary = Save.read(save_slot)
 		load_state(sd)
 		# вышли до конца вступления — оно начинается заново, вещи из сейва остаются (промпт 16.11 21:46)
+		# пробуждение уже показано (промпт 18.11 01:10) — сразу с места из сейва, без кат-сцены «встаёт»
 		if not bool(sd.get("intro_done", true)):
-			_start_intro(false)
+			_start_intro(false, intro_wake_done)
 	else:
 		_start_intro()
 		save_now()
 
 
 ## Новая игра: пробуждение в северо-западной комнате и заблудший монстрик (world/intro.gd, промпт 16.11 03:13).
-func _start_intro(new_game := true) -> void:
+func _start_intro(new_game := true, skip_wake := false) -> void:
 	var intro = preload("res://scripts/world/intro.gd").new()
 	intro.game = self
 	intro.name = "Intro"   # одинаковый путь у всех игроков — для rpc кат-сцены
 	add_child(intro)
-	intro.start(new_game)
+	intro.start(new_game, skip_wake)
 
 
 ## Первое закрытие магазина (shop_ui.gd _close, промпт 16.11 21:55): камера к выходу на улицу, оттуда звуки монстров.

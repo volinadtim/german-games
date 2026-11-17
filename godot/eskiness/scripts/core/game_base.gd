@@ -73,6 +73,7 @@ var shop_on := true      # Trinkets Market включён (промпт 16.11 04
 var shop_cue_done := false   # подсказка «звуки с улицы» после первого магазина (world/shop_cue.gd); сейв "shop_cue_done"
 var knife_dummy: Node = null   # манекен с ножом в стартовой комнате (промпт 18.11 01:07)
 var dummy_knife_taken := false   # нож из него уже вытащен (в сейве)
+var intro_wake_done := false   # пробуждение (лежит → встаёт) уже показано — при загрузке не повторяем (промпт 18.11 01:10)
 var intro_done := true   # вступление пройдено (world/intro.gd); автомат включён — в сейве "intro_done"
 var takedown   # world/takedown.gd — стелс-добивание мелких врагов сзади на E
 var hud: Hud
