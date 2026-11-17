@@ -106,7 +106,7 @@ func _physics_process(delta: float) -> void:
 					blind_t += delta
 					if _zone(global_position) == _zone(ppos):
 						lost_t += delta
-			if not tg.alive or (not hunter and not surface and global_position.distance_to(home) > LEASH) 					or (surface and not hunter and (lost_t > LOSE_T or blind_t > CHASE_MAX or (_zone(global_position) == 0 and _zone(ppos) == 0 and _from_center(global_position) > Surface.MEADOW_R + 8.0))):
+			if not tg.alive or (not hunter and not surface and global_position.distance_to(home) > LEASH) 					or (surface and not hunter and (lost_t > LOSE_T or blind_t > CHASE_MAX or (_zone(ppos) == 0 and not _in_bounds(ppos) and d > 10.0))):
 				lost_t = 0.0
 				blind_t = 0.0
 				_set_state("return" if surface and _zone(global_position) != 0 else "idle")
@@ -203,6 +203,8 @@ func _physics_process(delta: float) -> void:
 				_set_state("idle")
 			else:
 				want = _steer(Vector3(25.0, Surface.G, 0.0), delta) * speed * 0.7
+	if surface and not hunter and state != "leap":
+		want = _keep_in(want)   # за пределы первой локации не выходит (промпт 18.11 01:01)
 	_check_stuck(delta, want)
 	if surface and state == "idle" and want != Vector3.ZERO and Surface.in_hut(global_position + want.normalized() * 0.7, 0.3):
 		want = Vector3.ZERO

@@ -300,6 +300,47 @@ func _from_center(p: Vector3) -> float:
 	return Vector2(p.x - Surface.CENTER.x, p.z - Surface.CENTER.z).length()
 
 
+# ---------- граница первой локации (промпт 18.11 01:01) ----------
+# Мобы поляны гонятся за игроком куда угодно в пределах локации (поляна + начало дороги в деревню — переход),
+# но сами за границу не выходят: у края стоят и бьют, если игрок рядом.
+const ROAM_R := 22.0         # поляна (MEADOW_R + 8)
+const ROAD_HALF := 9.0       # коридор дороги на север: |x - CENTER.x| < ROAD_HALF
+const ROAD_Z1 := 44.0        # до сюда — ещё первая локация (переход ко второй)
+
+func _in_bounds(p: Vector3) -> bool:
+	if _from_center(p) <= ROAM_R:
+		return true
+	return absf(p.x - Surface.CENTER.x) < ROAD_HALF and p.z > 0.0 and p.z < ROAD_Z1
+
+
+## Не даёт выйти за границу локации: шаг наружу — скользит вдоль края (по одной оси) или стоит.
+func _keep_in(want: Vector3) -> Vector3:
+	if want == Vector3.ZERO or _zone(global_position) != 0:
+		return want
+	var p := global_position
+	if not _in_bounds(p):
+		# уже снаружи (отбросило) — пускаем только внутрь
+		var back := Surface.CENTER - p
+		back.y = 0.0
+		return want if want.dot(back) > 0.0 else back.normalized() * want.length() * 0.6
+	var look := 0.35
+	if _in_bounds(p + want * look):
+		return want
+	var wx := Vector3(want.x, 0.0, 0.0)
+	var wz := Vector3(0.0, 0.0, want.z)
+	if absf(want.x) >= absf(want.z):
+		if _in_bounds(p + wx * look):
+			return wx
+		if _in_bounds(p + wz * look):
+			return wz
+	else:
+		if _in_bounds(p + wz * look):
+			return wz
+		if _in_bounds(p + wx * look):
+			return wx
+	return Vector3.ZERO
+
+
 ## Видит игрока: в пределах дальности (вприсядку — меньше), в конусе взгляда (вплотную — в любую сторону), без стен.
 func _sees(ppos: Vector3, d: float, rng := SIGHT) -> bool:
 	if not tg.alive:
