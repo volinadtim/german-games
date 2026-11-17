@@ -38,7 +38,6 @@ struct App {
     input: Vec<char>,
     cur: usize,
     scroll: HashMap<String, u16>, // строк от низа; 0 — следить за хвостом
-    banner: bool,
     toast: Option<(String, Instant)>,
     jobs: Value,
     log: Vec<String>,
@@ -90,7 +89,6 @@ impl App {
             input: vec![],
             cur: 0,
             scroll: HashMap::new(),
-            banner: true,
             toast: None,
             jobs: Value::Null,
             log: vec![],
@@ -178,7 +176,6 @@ impl App {
         }
         match text.as_str() {
             "/q" | "/quit" | "/exit" => self.quit = true,
-            "/banner" => self.banner = !self.banner,
             "/stop" | "/kill" | "/resume" | "/status" => {
                 let ctl = self.repo.join("scripts").join("dispatch").join("ctl.ps1");
                 let out = std::process::Command::new("powershell")
@@ -194,7 +191,7 @@ impl App {
                     Err(e) => self.toast(format!("ctl.ps1: {e}")),
                 }
             }
-            t if t.starts_with('/') => self.toast("команды: /stop (мягко) /kill (жёстко) /resume /status /banner /q"),
+            t if t.starts_with('/') => self.toast("команды: /stop (мягко) /kill (жёстко) /resume /status /q"),
             _ => {
                 let inbox = self.ddir.join("inbox");
                 let _ = std::fs::create_dir_all(&inbox);
@@ -257,7 +254,6 @@ impl App {
                     self.quit = true;
                 }
             }
-            KeyCode::Char('b') if m.contains(KeyModifiers::CONTROL) => self.banner = !self.banner,
             KeyCode::Char('o') if m.contains(KeyModifiers::CONTROL) => self.open_chat(),
             KeyCode::Up | KeyCode::BackTab => self.sel = (self.sel + n - 1) % n,
             KeyCode::Down | KeyCode::Tab => self.sel = (self.sel + 1) % n,
@@ -296,59 +292,6 @@ impl App {
 
 // ---------- отрисовка ----------
 
-fn lerp(a: Color, b: Color, t: f32) -> Color {
-    if let (Color::Rgb(r1, g1, b1), Color::Rgb(r2, g2, b2)) = (a, b) {
-        let f = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t) as u8;
-        Color::Rgb(f(r1, r2), f(g1, g2), f(b1, b2))
-    } else {
-        a
-    }
-}
-
-fn grad(t: f32) -> Color {
-    if t < 0.5 { lerp(PINK, VIOLET, t * 2.0) } else { lerp(VIOLET, CYAN, (t - 0.5) * 2.0) }
-}
-
-const FONT: &[(char, [&str; 5])] = &[
-    ('>', ["█   ", " █  ", "  █ ", " █  ", "█   "]),
-    ('D', ["████ ", "█   █", "█   █", "█   █", "████ "]),
-    ('I', ["███", " █ ", " █ ", " █ ", "███"]),
-    ('S', [" ████", "█    ", " ███ ", "    █", "████ "]),
-    ('P', ["████ ", "█   █", "████ ", "█    ", "█    "]),
-    ('A', [" ███ ", "█   █", "█████", "█   █", "█   █"]),
-    ('T', ["█████", "  █  ", "  █  ", "  █  ", "  █  "]),
-    ('C', [" ████", "█    ", "█    ", "█    ", " ████"]),
-    ('H', ["█   █", "█   █", "█████", "█   █", "█   █"]),
-];
-
-fn banner_lines() -> Vec<Line<'static>> {
-    let rows: Vec<String> = (0..5)
-        .map(|r| {
-            ">DISPATCH"
-                .chars()
-                .map(|c| FONT.iter().find(|(k, _)| *k == c).map(|(_, g)| format!("{} ", g[r])).unwrap_or_default())
-                .collect()
-        })
-        .collect();
-    let w = rows[0].chars().count().max(1) as f32;
-    rows.iter()
-        .map(|row| {
-            Line::from(
-                row.chars()
-                    .enumerate()
-                    .map(|(i, ch)| {
-                        if ch == ' ' {
-                            Span::raw(" ")
-                        } else {
-                            Span::styled("█", Style::new().fg(grad(i as f32 / w)))
-                        }
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .collect()
-}
-
 fn ctx_color(ctx: u64) -> Color {
     if ctx >= ROTATE { RED } else if ctx >= 100_000 { YELLOW } else { GREEN }
 }
@@ -375,32 +318,12 @@ fn cut(s: &str, n: usize) -> String {
 
 fn draw(f: &mut Frame, app: &App) {
     let area = f.area();
-    let show_banner = app.banner && area.height >= 30;
-    let [top, mid, inp, status] = Layout::vertical([
-        Constraint::Length(if show_banner { 8 } else { 0 }),
+    let [mid, inp, status] = Layout::vertical([
         Constraint::Min(5),
         Constraint::Length(3),
         Constraint::Length(1),
     ])
     .areas(area);
-
-    if show_banner {
-        let mut l = vec![Line::raw("")];
-        l.extend(banner_lines());
-        l.push(Line::from(vec![
-            Span::styled(" ↑↓/Tab", Style::new().fg(CYAN)),
-            Span::styled(" сессии · ", Style::new().fg(DIM)),
-            Span::styled("PgUp/PgDn", Style::new().fg(CYAN)),
-            Span::styled(" прокрутка · ", Style::new().fg(DIM)),
-            Span::styled("Enter", Style::new().fg(CYAN)),
-            Span::styled(" задача диспетчеру · ", Style::new().fg(DIM)),
-            Span::styled("/stop /kill /resume", Style::new().fg(CYAN)),
-            Span::styled(" · ", Style::new().fg(DIM)),
-            Span::styled("Ctrl+O", Style::new().fg(CYAN)),
-            Span::styled(" чат с агентом · Ctrl+B баннер · Ctrl+Q выход", Style::new().fg(DIM)),
-        ]));
-        f.render_widget(Paragraph::new(l), top);
-    }
 
     let [left, right] = Layout::horizontal([Constraint::Length(32), Constraint::Min(20)]).areas(mid);
     draw_list(f, app, left);
@@ -577,7 +500,7 @@ fn draw_input(f: &mut Frame, app: &App, area: Rect) {
     let b = Block::new().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::new().fg(CYAN));
     let inner = b.inner(area);
     let line = if app.input.is_empty() {
-        Line::from(vec![Span::styled("> ", Style::new().fg(PINK).bold()), Span::styled("Задача для диспетчера или /stop /kill /resume /status", Style::new().fg(DIM))])
+        Line::from(vec![Span::styled("> ", Style::new().fg(PINK).bold()), Span::styled("задача диспетчеру · /stop /kill /resume · ↑↓ сессии · PgUp/PgDn · Ctrl+O чат · Ctrl+Q выход", Style::new().fg(DIM))])
     } else {
         // горизонтальная прокрутка, чтобы курсор был виден
         let w = inner.width.saturating_sub(3) as usize;
