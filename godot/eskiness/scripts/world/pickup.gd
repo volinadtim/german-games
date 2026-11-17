@@ -84,7 +84,7 @@ func _physics_process(delta: float) -> void:
 			# мигает всё чаще перед исчезновением
 			model.visible = fmod(life, 0.1 + 0.3 * life / FADE) > 0.08
 	# подбор вплотную — каждый кадр по расстоянию, сразу (стоишь рядом — вещь подлетит, едва упав)
-	if taken or need_leave or game == null or not game.alive or age < 0.15:
+	if taken or need_leave or has_meta("kit") or game == null or not game.alive or age < 0.15:
 		return
 	var pp: Vector3 = game.player.global_position
 	var d := Vector2(pp.x - global_position.x, pp.z - global_position.z).length()

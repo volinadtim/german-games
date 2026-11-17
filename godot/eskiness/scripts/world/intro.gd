@@ -138,6 +138,7 @@ func _starter_kit() -> void:
 		pk.angular_velocity = Vector3.ZERO
 		pk.rotation.y = randf_range(0.0, TAU)
 		pk.need_leave = true   # не подлетает сама, только по E
+		pk.set_meta("kit", true)   # стартовый набор — никогда не подбирается сам (промпт 18.11 00:54)
 		pk.life = 1.0e9        # не исчезает
 		if Items.max_dur(id) > 0.0:
 			pk.set_meta("dur", Items.max_dur(id))
@@ -152,6 +153,7 @@ func _keep_kits() -> void:
 			var gp: Vector3 = c.global_position
 			if gp.x < -4.5 and gp.x > -12.0 and gp.z < -1.5 and gp.z > -9.0:
 				c.life = 1.0e9
+				c.set_meta("kit", true)
 
 
 func _lock(on: bool) -> void:
