@@ -11,12 +11,34 @@ func ping_ms() -> int:
 		for id in players:
 			if id == 1:
 				continue
-			var pp := peer.get_peer(id)
-			if pp:
-				m = maxi(m, int(pp.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)))
+			if rtt.has(id):
+				m = maxi(m, int(rtt[id]))
 		return m
-	var hp := peer.get_peer(1)
-	return int(hp.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)) if hp else -1
+	return int(rtt[1]) if rtt.has(1) else -1
+
+
+## Свой замер пинга (промпт 16.11 22:04): раз в 0.5 с метка времени туда-обратно; первый замер — сразу.
+func _ping_tick(delta: float) -> void:
+	png_t -= delta
+	if png_t > 0.0 or peer == null:
+		return
+	png_t = 0.5
+	if hosting:
+		rpc("png", Time.get_ticks_msec())
+	else:
+		rpc_id(1, "png", Time.get_ticks_msec())
+
+
+@rpc("any_peer", "unreliable", "call_remote")
+func png(t: int) -> void:
+	rpc_id(multiplayer.get_remote_sender_id(), "png_r", t)
+
+
+@rpc("any_peer", "unreliable", "call_remote")
+func png_r(t: int) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	var ms := float(maxi(Time.get_ticks_msec() - t, 0))
+	rtt[id] = ms if not rtt.has(id) else lerpf(float(rtt[id]), ms, 0.5)
 
 
 func _peer_joined(_id: int) -> void:
@@ -24,6 +46,7 @@ func _peer_joined(_id: int) -> void:
 
 
 func _peer_left(id: int, nm: String, lost := false) -> void:
+	rtt.erase(id)
 	if puppets.has(id):
 		if is_instance_valid(puppets[id]):
 			puppets[id].queue_free()
@@ -34,7 +57,7 @@ func _peer_left(id: int, nm: String, lost := false) -> void:
 
 
 func _host_lost_in_game(g) -> void:
-	last_msg = "Хост отключился — игра закончена"
+	last_msg = "Выкинуло из игры: " + last_msg if last_msg != "" else "Хост отключился — игра закончена"
 	_net_reset()
 	if g and is_instance_valid(g):
 		g.to_main_menu()
@@ -166,7 +189,7 @@ func _make_puppet(id: int) -> void:
 	lb.font_size = 44
 	lb.outline_size = 10
 	lb.modulate = Color(0.95, 0.9, 0.8)
-	lb.position.y = 2.05
+	lb.position.y = 1.9   # чуть над макушкой (промпт 16.11 22:04)
 	lb.no_depth_test = true          # ник над головой виден и из-за угла / в темноте (промпт 16.11 21:47)
 	lb.render_priority = 10
 	lb.shaded = false
@@ -188,6 +211,7 @@ func _game_tick(delta: float) -> void:
 		_net_reset()
 		return
 	var p = game.player
+	_ping_tick(delta)
 	send_t -= delta
 	if send_t <= 0.0 and p and peer:
 		send_t = SEND_DT

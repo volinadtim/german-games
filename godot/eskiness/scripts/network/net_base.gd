@@ -194,6 +194,11 @@ var killer_t := 0.0
 var ui: CanvasLayer
 var ping_l: Label
 var ping_shown := true   # ~ переключает
+var rtt := {}            # peer_id -> свой замер пинга, мс (png/png_r; у ENet старт с 500 мс и медленное сглаживание)
+var png_t := 0.0
+# последний адрес подключения — для «Повторить попытку» в лобби (промпт 16.11 21:56)
+var last_ip := ""
+var last_port := 0
 var info_l: Label
 
 

@@ -41,6 +41,18 @@ func open() -> void:
 	if net.last_msg != "":
 		_on_status(net.last_msg, true)
 		net.last_msg = ""
+		_retry_button()
+
+
+## «Повторить попытку» (промпт 16.11 21:56): выкинуло из сетевой игры — переподключиться к тому же адресу.
+func _retry_button() -> void:
+	if net.hosting or net.connected or net.joining or net.last_ip == "" or page != "home" or status_l == null:
+		return
+	var ip: String = net.last_ip
+	var p: int = net.last_port
+	var c := _centered(menu._button("Повторить попытку", func(): connect_to(ip, p)))
+	add_child(c)
+	move_child(c, status_l.get_index() + 1)
 
 
 ## Esc / «Назад».
