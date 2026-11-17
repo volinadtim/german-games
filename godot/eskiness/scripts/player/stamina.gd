@@ -6,7 +6,7 @@ extends Node
 ## Звука дыхания нет (убран, промпт 04:14).
 
 const DRAIN := 1.0 / 7.0        # полная полоска — ~7 с бега
-const JUMP_COST := 0.07
+const JUMP_COST := 0.15      # 18.11 02:18: прыжки тратят больше
 const DASH_COST := 0.2     # рывок (dash.gd)
 const REGEN_WALK := 1.0 / 10.0  # на ходу — ~10 с до полной
 const REGEN_IDLE := 1.0 / 5.0   # стоя — ~5 с
@@ -103,6 +103,5 @@ func _draw_bar() -> void:
 	ui.draw_rect(Rect2(x0 - 1, y0 - 1, w + 2, h + 2), Color(0, 0, 0, 0.45 * a))
 	ui.draw_rect(Rect2(x0, y0, w, h), Color(1, 1, 1, 0.08 * a))
 	ui.draw_rect(Rect2(x0, y0, w * value, h), Color(col.r, col.g, col.b, 0.85 * a))
-	if exhausted:
-		# метка порога, с которого снова можно бежать
-		ui.draw_rect(Rect2(x0 + w * UNLOCK - 0.5, y0 - 1, 1, h + 2), Color(1, 1, 1, 0.5 * a))
+	# метка порога, с которого можно бежать (всегда видна, не только когда выдохся — 18.11 02:18)
+	ui.draw_rect(Rect2(x0 + w * UNLOCK - 0.5, y0 - 1, 1, h + 2), Color(1, 1, 1, 0.5 * a))
