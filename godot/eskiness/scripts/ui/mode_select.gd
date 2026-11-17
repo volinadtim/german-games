@@ -3,10 +3,10 @@ extends RefCounted
 ## В сетевой игре режим выбирает хост в лобби (net_lobby.gd), он рассылается всем (net_session.gd: lobby_mode).
 
 const NAMES := ["Реализм", "По умолчанию", "Казуальный"]
-const HINTS := [
-	"Минимальный интерфейс, правила как обычно. Фильтр Нюхича меняется вручную.",
-	"Как сейчас. Фильтр Нюхича меняется вручную.",
-	"Батарейки, патроны и фильтры ставятся сами — при перезарядке (R) и с фонариком.",
+const HINTS := [   # подписи (промпт 18.11 01:00): у стандартного — без подписи
+	"Для тех, кто хочет посложнее",
+	"",
+	"Фильтры, фонарики, патроны - всё делается за вас",
 ]
 
 
@@ -21,6 +21,9 @@ static func fill(menu, box: VBoxContainer, on_pick: Callable, on_back: Callable)
 		var b: Button = menu._button(NAMES[m], on_pick.bind(m))
 		b.custom_minimum_size = Vector2(340, 58)
 		box.add_child(b)
+		if HINTS[m] == "":
+			box.add_child(menu._gap(6))
+			continue
 		var h := Label.new()
 		h.text = HINTS[m]
 		h.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
