@@ -451,9 +451,12 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	var loose := (1.0 - grip_k) + brake_k * 0.4
 	yaw_rate += (nl - nr) * 0.5 * loose * clampf(vt / MAX_F, 0.0, 1.0) * delta
 	if hand:
+		# торможение по общей скорости (а не отдельно вдоль и вбок — так гасло вдвое быстрее): машина катится в заносе
 		var dec := lerpf(HB_DECEL, HB_DECEL_GAS, maxf(thr_s, 0.0)) * delta
-		speed = move_toward(speed, 0.0, dec)
-		slip = move_toward(slip, 0.0, dec)
+		if vt > 0.001:
+			var kd := maxf(vt - dec, 0.0) / vt
+			speed *= kd
+			slip *= kd
 		if vt < 0.5:
 			# стоит на ручнике: газ не сдвинет
 			speed = 0.0
