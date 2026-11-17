@@ -48,6 +48,7 @@ func _ready() -> void:
 	snd = AudioStreamPlayer3D.new()
 	snd.position.y = 0.5
 	snd.unit_size = 4.0
+	snd.max_distance = 26.0   # скрип ящика не слышно через весь бункер (18.11 01:47)
 	add_child(snd)
 
 

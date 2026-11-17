@@ -156,10 +156,15 @@ func _process(delta: float) -> void:
 
 
 func _play(stream: AudioStreamWAV, db: float) -> void:
+	var mix := get_tree().get_first_node_in_group("audio_mixer")
+	if mix != null:   # общий пул: битьё кувшинов не наслаивается (18.11 01:47)
+		mix.play_3d(stream, global_position + Vector3(0, 0.2, 0), db, randf_range(0.85, 1.15) / sqrt(size), "jar%d" % stream.get_instance_id())
+		return
 	var p := AudioStreamPlayer3D.new()
 	p.stream = stream
 	p.volume_db = db
 	p.unit_size = 4.0
+	p.max_distance = 28.0
 	p.pitch_scale = randf_range(0.85, 1.15) / sqrt(size)
 	add_child(p)
 	p.position.y = 0.2

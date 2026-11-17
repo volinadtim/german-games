@@ -245,6 +245,7 @@ func pshot(pos: Vector3) -> void:
 	var a := AudioStreamPlayer3D.new()
 	a.stream = game.gun.snd_shot
 	a.unit_size = 12.0
+	a.max_distance = 70.0
 	a.volume_db = 2.0
 	a.pitch_scale = randf_range(0.95, 1.05)
 	game.add_child(a)

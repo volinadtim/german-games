@@ -28,6 +28,8 @@ var stone_throw   # stone_throw.gd — бросок камня (камень в 
 var chat   # ui/chat.gd — чат (T)
 var revive   # systems/revive.gd — эффекты смерти, подъём союзника, лечение с полоской
 const Sfx := preload("res://scripts/core/sfx.gd")
+const Audio := preload("res://scripts/core/audio.gd")
+var audio   # core/audio.gd — пул голосов и лимитер (звуки прерывают друг друга, 18.11 01:47)
 const Sfx2 := preload("res://scripts/core/sfx_extra.gd")
 const Car := preload("res://scripts/car/car.gd")
 var car   # старая машина (car.gd): ключ в сейфе; уехать — в деревню, дальше на ней можно ездить
@@ -137,6 +139,8 @@ func _make_sounds() -> void:
 
 
 func play_ui(name_: String, db: float, pitch := 1.0) -> void:
+	if audio != null and not audio.ui_ok(name_):
+		return   # тот же звук уже прозвучал миллисекунду назад — не множим
 	var set_: Array = snd[name_]
 	ui_player.stream = set_[randi() % set_.size()]
 	ui_player.volume_db = db
@@ -144,13 +148,20 @@ func play_ui(name_: String, db: float, pitch := 1.0) -> void:
 	ui_player.play()
 
 
+## Разовый 3D-звук через общий пул (core/audio.gd): голосов ограниченное число,
+## одинаковый звук из той же точки прерывает сам себя.
 func play_at(name_: String, pos: Vector3, db: float, pitch := 1.0) -> void:
 	var set_: Array = snd[name_]
+	var st: AudioStream = set_[randi() % set_.size()]
+	var p2 := pitch * randf_range(0.95, 1.05)
+	if audio != null:
+		audio.play_3d(st, pos, db, p2, name_)
+		return
 	var p := AudioStreamPlayer3D.new()
-	p.stream = set_[randi() % set_.size()]
+	p.stream = st
 	p.volume_db = db
-	p.unit_size = 4.0
-	p.pitch_scale = pitch * randf_range(0.95, 1.05)
+	Audio.setup_3d(p)
+	p.pitch_scale = p2
 	add_child(p)
 	p.global_position = pos
 	p.finished.connect(p.queue_free)

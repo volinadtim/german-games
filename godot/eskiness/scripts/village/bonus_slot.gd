@@ -196,11 +196,13 @@ func _ready() -> void:
 	add_child(lamp)
 	snd = AudioStreamPlayer3D.new()
 	snd.unit_size = 4.0
+	snd.max_distance = 30.0
 	snd.position = Vector3(0, 1.0, 0.3)
 	add_child(snd)
 	for k in 3:
 		var p := AudioStreamPlayer3D.new()
 		p.unit_size = 5.0
+		p.max_distance = 32.0
 		p.position = Vector3(0, 1.4, 0.3)
 		add_child(p)
 		fx.append(p)

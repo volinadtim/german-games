@@ -48,6 +48,7 @@ func _ready() -> void:
 	snd = AudioStreamPlayer3D.new()
 	snd.position = Vector3(0, 1.2, W / 2.0)
 	snd.unit_size = 4.0
+	snd.max_distance = 34.0
 	add_child(snd)
 
 

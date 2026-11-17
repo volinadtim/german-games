@@ -159,14 +159,20 @@ static func lever() -> AudioStreamWAV:
 	return _lever_wav
 
 
-## Разовый 3D-звук от узла (сам удаляется).
+## Разовый 3D-звук: сначала пробуем общий пул (core/audio.gd) — там лимит голосов
+## и повтор того же звука прерывает сам себя (спам рычага больше не наслаивается).
 static func play3d(parent: Node3D, st: AudioStream, pos: Vector3, db: float, pitch := 1.0) -> void:
 	if parent == null or not parent.is_inside_tree():
+		return
+	var mix := parent.get_tree().get_first_node_in_group("audio_mixer")
+	if mix != null:
+		mix.play_3d(st, pos, db, pitch, "slot%d" % st.get_instance_id())
 		return
 	var p := AudioStreamPlayer3D.new()
 	p.stream = st
 	p.volume_db = db
 	p.unit_size = 4.0
+	p.max_distance = 38.0
 	p.pitch_scale = pitch
 	parent.add_child(p)
 	p.global_position = pos

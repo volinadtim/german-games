@@ -1077,7 +1077,18 @@ func _rel_play(s: AudioStream, db: float, pitch: float) -> void:
 		_play(s, db, pitch)
 
 
+## Не больше MAX_SND одновременных голосов пистолета: при спаме стрельбы они складывались
+## и били по ушам — самый старый обрываем (18.11 01:47).
+const MAX_SND := 4
 func _play(s: AudioStream, db: float, pitch: float) -> void:
+	var live: Array[Node] = []
+	for c in get_children():
+		if c is AudioStreamPlayer:
+			live.append(c)
+	while live.size() >= MAX_SND:
+		var old: Node = live.pop_front()
+		if old != voice:
+			old.queue_free()
 	var a := AudioStreamPlayer.new()
 	a.stream = s
 	a.volume_db = db

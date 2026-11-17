@@ -23,10 +23,12 @@ func _ready() -> void:
 	snd = AudioStreamPlayer3D.new()
 	snd.position = Vector3(0, 1.0, 0.3)
 	snd.unit_size = 4.0
+	snd.max_distance = 30.0
 	add_child(snd)
 	snd2 = AudioStreamPlayer3D.new()
 	snd2.position = Vector3(0, 1.0, 0.3)
 	snd2.unit_size = 4.0
+	snd2.max_distance = 30.0
 	add_child(snd2)
 	for i in REELS:
 		stops[i] = randi() % STRIP.size()

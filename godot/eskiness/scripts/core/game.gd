@@ -11,8 +11,11 @@ func setup(p: Player) -> void:
 	_setup_input()
 	_make_sounds()
 	ui_player = AudioStreamPlayer.new()
-	ui_player.max_polyphony = 4
+	ui_player.max_polyphony = 3
 	add_child(ui_player)
+	audio = Audio.new()
+	audio.name = "AudioMixer"
+	add_child(audio)
 
 	hud = Hud.new()
 	add_child(hud)
