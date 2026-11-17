@@ -142,6 +142,8 @@ func start(new_game := true) -> void:
 	if game.slot and is_instance_valid(game.slot):
 		game.slot.set_powered(false)   # KILLBOX выключен до убийства монстрика
 	_wake_pose(0.0)
+	if p.has_method("start_wake"):
+		p.start_wake()   # тело лежит → садится → встаёт (player_death.gd), видно другим игрокам
 
 
 ## Новая игра (промпт 16.11 21:46): персонаж без одежды — футболка, штаны, вещмешок и бинты лежат рядом
@@ -339,6 +341,8 @@ func _aim(point: Vector3, k: float) -> void:
 
 func _end_wake() -> void:
 	_wake_pose(WAKE_T)
+	if game.player.has_method("end_wake"):
+		game.player.end_wake()
 	for c in hidden:
 		if is_instance_valid(c):
 			(c as Node3D).visible = true

@@ -235,7 +235,7 @@ func _game_tick(delta: float) -> void:
 	if send_t <= 0.0 and p and peer and online:
 		send_t = SEND_DT
 		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0) \
-				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0) | (64 if p.dying else 0)   # позы с пистолетом; 64 — лежит (player_death.gd)
+				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0) | (64 if p.dying else 0) | (128 if p.waking else 0)   # 128 — просыпается во вступлении; позы с пистолетом; 64 — лежит (player_death.gd)
 		rpc("ps", p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1])
 	gear_t -= delta
 	if gear_t <= 0.0 and p and peer and online and game.get("inv") != null:
@@ -361,6 +361,11 @@ func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: St
 		pp.start_death()
 	elif not down and pp.dying:
 		pp.end_death()
+	var wake := flags & 128 != 0   # вступление: лежит → встаёт (player_death.gd)
+	if wake and not pp.waking:
+		pp.start_wake()
+	elif not wake and pp.waking:
+		pp.end_wake()
 	if targets.has(id):
 		targets[id].alive = alive
 	if pp.weapon_ids[0] != w0:

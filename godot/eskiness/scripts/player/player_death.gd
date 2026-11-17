@@ -11,6 +11,11 @@ var dying := false
 var death_t := 0.0
 var death_side := 1.0       # +1 — падает вправо, -1 — влево
 var death_drops: Array = [] # выпавшие из рук копии оружия (RigidBody3D)
+# пробуждение в начале игры (промпт 18.11 00:58, world/intro.gd): лежит на боку → садится на колени → встаёт.
+# Тайминги совпадают с камерой вступления (intro.gd _wake_pose); у чужих игроков — флаг 128 в net_world.gd.
+const WAKE_END := 7.6
+var waking := false
+var wake_t := 0.0
 
 
 func start_death() -> void:
@@ -36,6 +41,40 @@ func end_death() -> void:
 		if is_instance_valid(d):
 			d.queue_free()
 	death_drops.clear()
+
+
+func start_wake() -> void:
+	waking = true
+	wake_t = 0.0
+	crouch = 1.0
+
+
+func end_wake() -> void:
+	if not waking:
+		return
+	waking = false
+	if model_root != null:
+		model_root.rotation = Vector3(0.0, model_root.rotation.y, 0.0)
+
+
+## Пробуждение: та же поза «лёжа на боку», что в конце падения (колени согнуты), затем распрямляется
+## на колени и встаёт из приседа. Свою камеру ведёт intro.gd — голову держим в обычном месте.
+func _wake_tick(delta: float) -> void:
+	wake_t += delta
+	var lie := 1.0 - 0.12 * smoothstep(3.4, 4.6, wake_t)          # лежит, чуть поворачивается
+	lie *= 1.0 - smoothstep(4.9, 6.0, wake_t)                      # садится на колени
+	crouch = 1.0 - smoothstep(6.0, 7.3, wake_t)                    # встаёт
+	if model_root != null:
+		var a := lie * DEATH_ANGLE
+		var r := Basis(Vector3(0, 0, 1), -a) * Basis(Vector3.RIGHT, -0.22 * lie)
+		var piv := Vector3(0.12, 0.08, -0.12)
+		var t := Transform3D(r, piv - r * piv)
+		var base := Basis(Vector3.UP, PI + angle_difference(rotation.y, feet_yaw)).scaled(model_root.basis.get_scale())
+		model_root.transform = t * Transform3D(base, model_root.position)
+	if not puppet:
+		head.position = Vector3(0, CAM_Y, -0.22)
+	if not puppet and wake_t >= WAKE_END + 0.5:   # у чужих — по флагу из сети
+		end_wake()
 
 
 ## Оружие из рук падает на пол: копия модели в RigidBody3D, оригинал в руке прячется до подъёма.
@@ -74,6 +113,9 @@ func _drop_hand_items() -> void:
 
 ## После _animate: колени подгибаются (присед), затем всё тело и камера поворачиваются вокруг колен.
 func _death_tick(delta: float) -> void:
+	if waking and not dying:
+		_wake_tick(delta)
+		return
 	if not dying:
 		return
 	death_t += delta
