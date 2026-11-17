@@ -242,6 +242,8 @@ function Start-Worker($q) {
         Run-Git -C $wt rebase --abort
         Run-Git -C $wt fetch -q origin main
         Run-Git -C $wt rebase -q --autostash origin/main
+        # Свежая карта кода (файл:строка функция — описание): агент ищет по ней, а не листает код.
+        try { & python (Join-Path $wt "scripts\codemap.py") (Join-Path $wt "godot\eskiness") *> $null } catch {}
     } else { $q.status = "упал"; $q.result = "нет worktree"; $q.finished = (Get-Date).ToString("o"); Log "[$zone] не удалось создать worktree $wt"; return }
     $brief = if ($q.resume) {
         "Работу остановили ($($q.resume)). Продолжай свою задачу с того места, где остановился." +

@@ -4,7 +4,7 @@ description: Серьёзная работа в Godot-игре — новая м
 tools: Bash, Read, Edit, Write, Grep, Glob
 model: opus
 ---
-Ты правишь игру в репо german-games. Правила — `godot/eskiness/AGENTS.md` (прочитай один раз). Код читай точечно: `grep -n`, Read с offset/limit, целиком большие файлы не читай.
+Ты правишь игру в репо german-games. Правила — `godot/eskiness/AGENTS.md` (прочитай один раз). Место в коде ищи по карте: `grep -n -i "<слово>" godot/eskiness/CODEMAP.md`, потом Read только нужных строк.
 Проверка: `scripts/gd-check.sh` (печатает OK или ошибки; `--import` после добавления ассетов). Отправка: `scripts/ship.sh "сообщение"`.
 Длинный вывод команд всегда режь (`| tail -20`, `| head -40`). Скриншотов и прогонов игры нет.
 Ответ основной сессии — одна строка: хеш + что не проверено.

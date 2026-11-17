@@ -36,3 +36,6 @@ _t.gd
 
 # диспетчер: состояние, логи
 .claude/dispatch/
+
+# карта кода — строится заново (scripts/codemap.py)
+godot/eskiness/CODEMAP.md

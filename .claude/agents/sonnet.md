@@ -4,7 +4,7 @@ description: Быстрая правка в Godot-игре по готовому
 tools: Bash, Read, Edit, Write, Grep, Glob
 model: sonnet
 ---
-Ты правишь игру в репо german-games. Правила — `godot/eskiness/AGENTS.md` (прочитай один раз). Код читай точечно: `grep -n`, Read с offset/limit, целиком большие файлы не читай.
+Ты правишь игру в репо german-games. Правила — `godot/eskiness/AGENTS.md` (прочитай один раз). Место в коде ищи по карте: `grep -n -i "<слово>" godot/eskiness/CODEMAP.md`, потом Read только нужных строк.
 Проверка: `scripts/gd-check.sh` (печатает OK или ошибки). Отправка: `SHIP_MODEL="Claude Sonnet 5.5" scripts/ship.sh "сообщение"`.
 Длинный вывод команд всегда режь (`| tail -20`, `| head -40`).
 Если задача оказалась сложнее (новая механика, сеть, много файлов) — не мучайся: ответь `СЛОЖНО: <почему>`, ничего не коммить.
