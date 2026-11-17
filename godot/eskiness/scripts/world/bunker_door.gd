@@ -14,6 +14,8 @@ var game
 var is_open := false
 var was_opened := false              # открывали хоть раз — дальше без проверки
 var tw: Tween
+var wheel_tw: Tween
+var wheel: Node3D
 var snd: AudioStreamPlayer3D
 var check_t := 0.0
 var msg_layer: CanvasLayer
@@ -24,20 +26,19 @@ var msg_tw: Tween
 func _ready() -> void:
 	position = HINGE
 	sync_to_physics = false
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.3, 0.27, 0.22)
-	wood.roughness = 0.85
-	wood.metallic = 0.35
-	_part(Vector3(0.06, H, W), Vector3(0, H / 2.0, W / 2.0), wood)
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.5, 0.52, 0.55)
+	steel.roughness = 0.35
+	steel.metallic = 0.9
+	_part(Vector3(0.1, H, W), Vector3(0, H / 2.0, W / 2.0), steel)
 	var dark := StandardMaterial3D.new()
-	dark.albedo_color = Color(0.14, 0.13, 0.12)
-	dark.metallic = 0.6
-	dark.roughness = 0.6
-	# рёбра жёсткости и ручки с обеих сторон
-	for y in [0.35, H / 2.0, H - 0.35]:
-		_part(Vector3(0.09, 0.08, W - 0.1), Vector3(0, y, W / 2.0), dark)
-	for sx in [-1.0, 1.0]:
-		_part(Vector3(0.08, 0.04, 0.16), Vector3(sx * 0.07, 1.0, W - 0.18), dark)
+	dark.albedo_color = Color(0.1, 0.1, 0.11)
+	dark.metallic = 0.7
+	dark.roughness = 0.5
+	# рёбра жёсткости бронедвери с обеих сторон
+	for y in [0.35, H - 0.35]:
+		_part(Vector3(0.13, 0.08, W - 0.1), Vector3(0, y, W / 2.0), dark)
+	_build_wheel(steel, dark)
 	var cs := CollisionShape3D.new()
 	var sh := BoxShape3D.new()
 	sh.size = Vector3(0.08, H, W)
@@ -48,6 +49,43 @@ func _ready() -> void:
 	snd.position = Vector3(0, 1.2, W / 2.0)
 	snd.unit_size = 4.0
 	add_child(snd)
+
+
+## Круглая вентильная ручка по центру створки (как на бункерной/сейфовой двери), с обеих сторон —
+## отдельный узел, чтобы крутить его независимо от самой двери (визуально «откручивают» перед открытием.
+func _build_wheel(steel: Material, dark: Material) -> void:
+	wheel = Node3D.new()
+	wheel.position = Vector3(0, H / 2.0, W / 2.0)
+	add_child(wheel)
+	for sx in [-1.0, 1.0]:
+		var hub := MeshInstance3D.new()
+		var hub_m := CylinderMesh.new()
+		hub_m.top_radius = 0.05
+		hub_m.bottom_radius = 0.05
+		hub_m.height = 0.1
+		hub.mesh = hub_m
+		hub.material_override = dark
+		hub.rotation_degrees = Vector3(0, 0, 90)
+		hub.position = Vector3(sx * 0.1, 0, 0)
+		wheel.add_child(hub)
+		var ring := MeshInstance3D.new()
+		var ring_m := TorusMesh.new()
+		ring_m.inner_radius = 0.18
+		ring_m.outer_radius = 0.24
+		ring.mesh = ring_m
+		ring.material_override = steel
+		ring.rotation_degrees = Vector3(0, 0, 90)
+		ring.position = Vector3(sx * 0.1, 0, 0)
+		wheel.add_child(ring)
+		for i in range(4):
+			var spoke := MeshInstance3D.new()
+			var spoke_m := BoxMesh.new()
+			spoke_m.size = Vector3(0.03, 0.4, 0.03)
+			spoke.mesh = spoke_m
+			spoke.material_override = steel
+			spoke.position = Vector3(sx * 0.1, 0, 0)
+			spoke.rotation_degrees = Vector3(45.0 + 90.0 * i, 0, 0)
+			wheel.add_child(spoke)
 
 
 func _part(size: Vector3, pos: Vector3, m: Material) -> void:
@@ -92,6 +130,11 @@ func _set_open(on: bool) -> void:
 		tw.kill()
 	tw = create_tween()
 	tw.tween_property(self, "rotation:y", OPEN_ANG if on else 0.0, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	if wheel_tw:
+		wheel_tw.kill()
+	wheel_tw = create_tween()
+	var turns := wheel.rotation.x + (1.0 if on else -1.0) * PI * 3.0
+	wheel_tw.tween_property(wheel, "rotation:x", turns, 0.7).set_trans(Tween.TRANS_LINEAR)
 	if game and game.snd.has("creak"):
 		snd.stream = game.snd["creak" if on else "creak_close"][randi() % 2]
 		snd.volume_db = -12.0
