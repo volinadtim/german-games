@@ -458,7 +458,7 @@ func toggle_gasmask() -> void:
 	equip(i, "face")
 
 
-## Клавиша 1–5: взять привязанный предмет в руку (применить — удерживать ЛКМ); надетый — снять.
+## Клавиша 1–5: экипировку (оружие/броня) — сразу надеть; расходники (еда, бинты) — взять в руку (применить — удерживать ЛКМ); надетое — снять.
 ## Повторное нажатие той же клавиши — убрать предмет из руки (промпт 18.11 01:16).
 func hotbar_use(k: int) -> void:
 	var id: String = inv.hotbar[k]
@@ -468,8 +468,19 @@ func hotbar_use(k: int) -> void:
 		if inv.equip[sl] == id:
 			unequip(sl)
 			return
-	if inv.bag_index(id) < 0:
+	var i := inv.bag_index(id)
+	if i < 0:
 		hud.toast("Нет: %s" % Items.item_name(id))
+		return
+	# экипировка (оружие, броня, рюкзак, противогаз) — сразу надевается, без ЛКМ (промпт 18.11 01:37)
+	var eq := Items.equip_slot(id)
+	if eq != "":
+		if hb_hand == id:
+			hb_clear()
+		if eq == "hand":
+			# в свободную руку (сначала правая), обе заняты — меняем правую
+			eq = "right" if inv.equip["right"] == "" or inv.equip["left"] != "" else "left"
+		equip(i, eq)
 		return
 	if hb_hand == id:
 		hb_clear("Убрано в сумку: %s" % Items.item_name(id))
