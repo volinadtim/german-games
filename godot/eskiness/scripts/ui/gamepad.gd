@@ -31,6 +31,7 @@ const DZ := 0.18             # мёртвая зона стиков
 const LOOK_PX := 1500.0      # обзор: «пикселей мыши» в секунду при полном отклонении
 const CURSOR_PX := 1100.0    # курсор в меню, пикс/с
 const MOVE_DZ := 0.3         # мёртвая зона действий ходьбы (InputMap)
+const SYNTH := 77            # device у мыши/клавиш, которые шлёт этот узел (сплитскрин отличает их от настоящих)
 
 var preset := "default"      # "default" | "custom"
 var custom := {}             # действие -> спецификация
@@ -49,14 +50,31 @@ var sprint_latch := false
 var pending := []            # [действие, время отпускания, устройство]
 var wheel_t := 0.0
 var last_dev := 0
+var only_device := -1        # сплитскрин (network/split.gd): -1 любой геймпад, -2 никакой, N — только этот
+var virtual_cursor := false  # вторая копия сплитскрина: курсор свой, настоящую мышь не двигаем
+var vpos := Vector2(200, 200)
+var cursor_layer: CanvasLayer
+var cursor_dot: Control
 
 
 func _init() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	load_cfg()
+	virtual_cursor = preload("res://scripts/network/split.gd").client_port() != 0
 
 
 func _ready() -> void:
+	if virtual_cursor:
+		cursor_layer = CanvasLayer.new()
+		cursor_layer.layer = 128
+		add_child(cursor_layer)
+		cursor_dot = Control.new()
+		cursor_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cursor_dot.draw.connect(func():
+			var pts := PackedVector2Array([Vector2.ZERO, Vector2(0, 22), Vector2(6, 16), Vector2(15, 16)])
+			cursor_dot.draw_colored_polygon(pts, Color(1, 1, 1))
+			cursor_dot.draw_polyline(pts + PackedVector2Array([Vector2.ZERO]), Color(0, 0, 0), 2.0))
+		cursor_layer.add_child(cursor_dot)
 	Input.joy_connection_changed.connect(func(_d, _c): apply_map())
 	# убираем геймпад из ui_*: иначе B в игре = Esc (пауза), A жмёт кнопку с фокусом дважды
 	for a in ["ui_accept", "ui_select", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right",
@@ -142,7 +160,9 @@ static func _btn_name(b: int) -> String:
 
 ## Оси ходьбы — в InputMap (вызывает и menu.gd после своих клавиш: он стирает события действий).
 func apply_map() -> void:
-	var pads := not Input.get_connected_joypads().is_empty()
+	var sp = get_tree().root.get_node_or_null("Split") if is_inside_tree() else null
+	only_device = sp.pad_device() if sp else -1
+	var pads := not Input.get_connected_joypads().is_empty() and only_device != -2
 	var sx := JOY_AXIS_RIGHT_X if swapped() else JOY_AXIS_LEFT_X
 	var sy := JOY_AXIS_RIGHT_Y if swapped() else JOY_AXIS_LEFT_Y
 	var axes := {"move_left": [sx, -1.0], "move_right": [sx, 1.0], "move_forward": [sy, -1.0], "move_back": [sy, 1.0],
@@ -156,7 +176,7 @@ func apply_map() -> void:
 		if not pads:
 			continue
 		var m := InputEventJoypadMotion.new()
-		m.device = -1
+		m.device = only_device if only_device >= 0 else -1
 		m.axis = axes[a][0]
 		m.axis_value = axes[a][1]
 		InputMap.action_add_event(a, m)
@@ -166,8 +186,12 @@ func apply_map() -> void:
 
 # ---------- ввод ----------
 
+func _mine(e: InputEvent) -> bool:
+	return only_device == -1 or e.device == only_device
+
+
 func _input(e: InputEvent) -> void:
-	if capturing:
+	if capturing or not _mine(e):
 		return
 	if e is InputEventJoypadButton:
 		last_dev = e.device
@@ -239,6 +263,7 @@ func _ui_button(b: int, pressed: bool) -> bool:
 			k.physical_keycode = KEY_SPACE
 			k.keycode = KEY_SPACE
 			k.pressed = pressed
+			k.device = SYNTH
 			Input.parse_input_event(k)
 			return true
 	return false
@@ -290,15 +315,24 @@ func _mouse_btn(bi: MouseButton, pressed: bool) -> void:
 	var bit := 1 << (int(bi) - 1)
 	mouse_mask = (mouse_mask | bit) if pressed else (mouse_mask & ~bit)
 	mb.button_mask = mouse_mask
-	var p := get_viewport().get_mouse_position()
+	mb.device = SYNTH
+	var p := vpos if virtual_cursor else _win_mouse()
 	mb.position = p
 	mb.global_position = p
 	Input.parse_input_event(mb)
 
 
+func _win_mouse() -> Vector2:
+	return Vector2(DisplayServer.mouse_get_position() - DisplayServer.window_get_position())
+
+
 func _stick(left: bool) -> Vector2:
 	var v := Vector2.ZERO
+	if only_device == -2:
+		return v
 	for d in Input.get_connected_joypads():
+		if only_device >= 0 and d != only_device:
+			continue
 		var w := Vector2(Input.get_joy_axis(d, JOY_AXIS_LEFT_X if left else JOY_AXIS_RIGHT_X),
 			Input.get_joy_axis(d, JOY_AXIS_LEFT_Y if left else JOY_AXIS_RIGHT_Y))
 		if w.length() > v.length():
@@ -316,7 +350,10 @@ func _process(delta: float) -> void:
 		if now >= int(pending[i][1]):
 			_act(pending[i][0], false, int(pending[i][2]))
 			pending.remove_at(i)
-	if Input.get_connected_joypads().is_empty() or capturing:
+	if cursor_dot:
+		cursor_dot.visible = _ui_mode()
+		cursor_dot.position = get_tree().root.get_final_transform().affine_inverse() * vpos
+	if Input.get_connected_joypads().is_empty() or capturing or only_device == -2:
 		return
 	var move := _stick(not swapped())
 	var look := _stick(swapped())
@@ -346,17 +383,20 @@ func _process(delta: float) -> void:
 func _cursor(v: Vector2, delta: float) -> void:
 	if v == Vector2.ZERO:
 		return
-	var vp := get_viewport()
-	var p0 := vp.get_mouse_position()
-	var sz := vp.get_visible_rect().size
+	# координаты окна (пиксели экрана): так их ждут warp_mouse и события, окно само пересчитает масштаб интерфейса
+	var p0 := vpos if virtual_cursor else _win_mouse()
+	var sz := Vector2(DisplayServer.window_get_size())
 	var p1 := (p0 + v * CURSOR_PX * delta).clamp(Vector2.ZERO, sz - Vector2.ONE)
-	Input.warp_mouse(p1)
+	vpos = p1
+	if not virtual_cursor:
+		Input.warp_mouse(p1)
 	var mm := InputEventMouseMotion.new()
 	mm.position = p1
 	mm.global_position = p1
 	mm.relative = p1 - p0
 	mm.velocity = v * CURSOR_PX
 	mm.button_mask = mouse_mask
+	mm.device = SYNTH
 	Input.parse_input_event(mm)
 
 
