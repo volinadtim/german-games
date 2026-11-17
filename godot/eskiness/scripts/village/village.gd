@@ -37,6 +37,12 @@ const STORAGE_POS := Vector3(38.9, B, 350.6)   # у южной стены, сл�
 ## до ключа от машины / отъезда / подхода к деревне пешком. Земля и дорога видны всегда.
 var revealed := false
 var hidden_nodes: Array = []
+## Надпись «заглохла» и её пропуск (ui/cutscene_skip.gd)
+var card_tw: Tween
+var card_seat := -1
+var card_moved := false
+var card_after := false
+var card_fast := false
 
 ## Где бродят мутанты деревни: [точка, вид]
 const MUT_SPOTS := [
@@ -48,6 +54,7 @@ const MUT_RESPAWN := 70.0
 
 func _ready() -> void:
 	name = "Village"
+	add_to_group("cutscene")
 	rng.seed = 2311
 	hn.seed = 17
 	hn.frequency = 0.045
@@ -160,20 +167,70 @@ func spawn_car_loot() -> void:
 
 ## Из car.gd, когда машина отъехала: экран темнеет, надпись, машина переносится в деревню, игрок — в салон.
 ## seat — место этого игрока (0 — водитель).
-func stall_sequence(seat: int) -> void:
+## fast — пропуск кат-сцены (ui/cutscene_skip.gd): короткое затемнение без надписи.
+func stall_sequence(seat: int, fast := false) -> void:
+	card_seat = seat
+	card_moved = false
+	card_after = false
+	card_fast = false
 	card_bg.visible = true
 	card_bg.color.a = 0.0
 	card_l.modulate.a = 0.0
 	card_l.text = "Через пару сотен метров мотор чихнул, кашлянул — и заглох.\nБак пуст.\n\nВокруг — брошенная деревня. Воздух снаружи всё такой же.\nНадо что-то делать."
+	if fast:
+		_card_fast()
+		return
 	var tw := create_tween()
+	card_tw = tw
 	tw.tween_property(card_bg, "color:a", 1.0, 1.6)
-	tw.tween_callback(func(): _relocate(seat))
+	tw.tween_callback(_relocate_once)
 	tw.tween_property(card_l, "modulate:a", 1.0, 1.2)
 	tw.tween_interval(4.5)
 	tw.tween_property(card_l, "modulate:a", 0.0, 0.8)
-	tw.tween_callback(_after_card)
+	tw.tween_callback(_after_once)
 	tw.tween_property(card_bg, "color:a", 0.0, 1.6)
 	tw.tween_callback(func(): card_bg.visible = false)
+
+
+## Пропуск надписи «заглохла»: быстро в чёрное (если ещё не), перенос, сразу игра.
+func _card_fast() -> void:
+	if card_tw and card_tw.is_valid():
+		card_tw.kill()
+	card_fast = true
+	card_bg.visible = true
+	var tw := create_tween()
+	card_tw = tw
+	tw.tween_property(card_bg, "color:a", 1.0, maxf(0.4 * (1.0 - card_bg.color.a), 0.05))
+	tw.parallel().tween_property(card_l, "modulate:a", 0.0, 0.2)
+	tw.tween_callback(_relocate_once)
+	tw.tween_callback(_after_once)
+	tw.tween_property(card_bg, "color:a", 0.0, 0.8)
+	tw.tween_callback(func(): card_bg.visible = false)
+
+
+func _relocate_once() -> void:
+	if not card_moved:
+		card_moved = true
+		_relocate(card_seat)
+
+
+func _after_once() -> void:
+	if not card_after:
+		card_after = true
+		_after_card()
+
+
+func can_skip() -> bool:
+	return card_bg.visible and not card_fast and not card_after
+
+
+func skip_cut() -> void:
+	if can_skip():
+		_card_fast()
+
+
+func skip_shared() -> bool:
+	return game != null and game.get("net") != null
 
 
 func _relocate(seat: int) -> void:

@@ -79,7 +79,31 @@ func _owner() -> bool:
 	return n == null or n.is_host()
 
 
+## Пропуск (ui/cutscene_skip.gd): пробуждение, выглядывание из-за косяка, поворот к KILLBOX — у каждого свой.
+func can_skip() -> bool:
+	return not done and ((stage == "wake" and t < WAKE_T) or (stage == "cut" and t < CUT_T) or (stage == "cue" and t < CUE_T))
+
+
+func skip_cut() -> void:
+	match stage:
+		"wake":
+			groaned = true
+			stood = true
+			t = WAKE_T
+		"cut":
+			held = true
+			exhaled = true
+			t = CUT_T
+		"cue":
+			t = CUE_T
+
+
+func skip_shared() -> bool:
+	return false
+
+
 func start(new_game := true) -> void:
+	add_to_group("cutscene")
 	var p = game.player
 	var n = _net()
 	if n:

@@ -170,6 +170,9 @@ func setup(p: Player) -> void:
 	takedown = preload("res://scripts/world/takedown.gd").new()
 	takedown.game = self
 	add_child(takedown)
+	var cs = preload("res://scripts/ui/cutscene_skip.gd").new()   # пропуск кат-сцен (промпт 18.11 00:49)
+	cs.game = self
+	add_child(cs)
 	save_slot = Save.slot()
 	if net:
 		net.on_game_setup(self)   # сетевая сессия в слоты сохранений не пишет; мир у клиента — от хоста

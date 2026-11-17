@@ -27,6 +27,28 @@ func _ready() -> void:
 	_build()
 	_hollow_collision()
 	figures.resize(4)
+	add_to_group("cutscene")   # пропуск кат-сцены отъезда (ui/cutscene_skip.gd)
+
+
+## Пропуск отъезда: сразу затемнение и деревня (village.stall_sequence fast). В сети — общий (когда удержали все).
+func can_skip() -> bool:
+	return state in ["board", "start", "drive"] and not win_called
+
+
+func skip_cut() -> void:
+	if not can_skip():
+		return
+	win_called = true
+	if starter:
+		starter.stop()
+	if village:
+		village.stall_sequence(order.find(my_id()), true)
+	elif game:
+		game.win()
+
+
+func skip_shared() -> bool:
+	return game != null and game.get("net") != null
 
 
 # ---------- взаимодействие ----------

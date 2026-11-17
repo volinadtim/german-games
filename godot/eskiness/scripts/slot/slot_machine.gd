@@ -16,6 +16,7 @@ extends "res://scripts/slot/slot_machine_board.gd"
 
 
 func _ready() -> void:
+	add_to_group("cutscene")   # пропуск кат-сцены 7/6 (ui/cutscene_skip.gd)
 	_build()
 	_build_board()
 	_build_buff_panel()
@@ -652,6 +653,19 @@ func _cutscene(delta: float) -> void:
 	board_art.queue_redraw()
 	if ct >= CUT_LEN:
 		_end_cut()
+
+
+## Пропуск кат-сцены (ui/cutscene_skip.gd): сразу в конец — следующий кадр закончит её.
+func can_skip() -> bool:
+	return cut_active and cut_t < CUT_LEN
+
+
+func skip_cut() -> void:
+	cut_t = CUT_LEN
+
+
+func skip_shared() -> bool:
+	return false
 
 
 func _start_cut() -> void:

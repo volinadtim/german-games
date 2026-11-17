@@ -16,6 +16,7 @@ var next := 0
 
 func start() -> void:
 	var p = game.player
+	add_to_group("cutscene")   # пропуск (ui/cutscene_skip.gd)
 	game.close_windows()
 	p.set_lock("shop_cue", true)
 	if game.hud and game.hud.has_method("set_cinematic"):
@@ -44,6 +45,18 @@ func _process(delta: float) -> void:
 		next += 1
 	if t >= DUR:
 		_finish()
+
+
+func can_skip() -> bool:
+	return t < DUR and is_processing()
+
+
+func skip_cut() -> void:
+	_finish()
+
+
+func skip_shared() -> bool:
+	return false
 
 
 ## Шорохи — приглушённые шаги-волочение, рык и визг — как у обычных врагов (enemy_combat.gd _growl), не громче.
