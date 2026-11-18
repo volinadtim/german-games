@@ -446,7 +446,8 @@ func _note_pose(tt: float) -> void:
 		_toss_note()
 
 
-## Бросок: записка исчезает из руки и падает на пол отдельной бумажкой (остаётся лежать).
+## Бросок: записка исчезает из руки и плавно слетает на пол (без физики — RigidBody её
+## колбасило и ставило на ребро; тонкий листок обязан лежать плашмя).
 func _toss_note() -> void:
 	note_tossed = true
 	var p = game.player
@@ -454,23 +455,38 @@ func _toss_note() -> void:
 		note.queue_free()
 		note = null
 	var fwd: Vector3 = -p.cam.global_transform.basis.z
+	fwd.y = 0.0
+	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
 	var right: Vector3 = p.cam.global_transform.basis.x
-	var rb := RigidBody3D.new()
-	rb.mass = 0.04
-	rb.gravity_scale = 0.5          # бумага падает медленно
-	rb.linear_damp = 1.4
-	rb.angular_damp = 1.8
-	var col := CollisionShape3D.new()
-	var bs := BoxShape3D.new()
-	bs.size = Vector3(0.11, 0.015, 0.15)
-	col.shape = bs
-	rb.add_child(col)
-	rb.add_child(_note_mesh())
-	game.add_child(rb)
-	rb.global_position = p.cam.global_position + fwd * 0.4 - Vector3(0, 0.25, 0) - right * 0.15
-	rb.linear_velocity = fwd * 1.5 - right * 0.9 + Vector3(0, 0.3, 0)
-	rb.angular_velocity = Vector3(randf_range(-3.0, 3.0), randf_range(-4.0, 4.0), randf_range(-3.0, 3.0))
+	right.y = 0.0
+	right = right.normalized() if right.length() > 0.01 else Vector3.RIGHT
+	var start: Vector3 = p.cam.global_position + fwd * 0.35 - right * 0.14 - Vector3(0, 0.2, 0)
+	var land: Vector3 = start + fwd * 0.5 - right * 0.3
+	land.y = _note_floor_y(land, p.global_position.y) + 0.004
+	var mid: Vector3 = start.lerp(land, 0.55) + Vector3(0, 0.1, 0) + right * 0.06
+	var yaw := randf_range(-PI, PI)
+	var n := _note_mesh()
+	game.add_child(n)
+	n.global_position = start
+	n.rotation = Vector3(-0.7, yaw, randf_range(-0.5, 0.5))
+	var tw := n.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(n, "rotation", Vector3(-PI * 0.5, yaw, 0.0), 0.8) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	var mv := n.create_tween()
+	mv.tween_property(n, "global_position", mid, 0.38).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	mv.tween_property(n, "global_position", land, 0.44).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_paper(-12.0, 0.9)
+
+
+## Пол под точкой падения записки (луч вниз); если не нашёл — высота ног игрока.
+func _note_floor_y(at: Vector3, fallback: float) -> float:
+	var space: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(at + Vector3(0, 0.8, 0), at - Vector3(0, 2.5, 0))
+	q.collide_with_areas = false
+	var hit: Dictionary = space.intersect_ray(q)
+	if hit.is_empty():
+		return fallback
+	return float(hit.position.y)
 
 
 ## Мятый листок с надписью «Выиграй всё» (Node3D: бумага двумя изломанными половинками + текст).
