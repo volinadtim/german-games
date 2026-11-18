@@ -1,13 +1,19 @@
 extends AnimatableBody3D
-## Дверь на самом выходе из бункера на поверхность — в проёме будки после лестницы (промпт 18.11 01:38,
-## было неверно: стояла в начале лестницы, у таблички про противогаз). E — открыть/закрыть.
+## Дверь на самом выходе из бункера на поверхность: в проёме будки, наверху после лестницы
+## (промпт 18.11 02:18 — Герман не увидел переезда; раньше стояла в начале лестницы, у таблички
+## про противогаз). Место больше не зашито числами: считается из геометрии будки (surface_build.gd —
+## X_OUT наружная грань, G пол площадки, TW полуширина прохода, HUT_H высота), так что дверь всегда
+## стоит ровно в проёме выхода, даже если будку подвинут. В проёме — стальной наличник (стойки и
+## перекладина), он не крутится вместе со створкой. E — открыть/закрыть.
 ## Пока у игрока нет Нюхича (в сумке или на лице) и дверь ни разу не открывалась — не открывается:
 ## по центру экрана «Я не хочу открывать это, пока не получу противогаз». Враги подходят — дверь распахивается сама.
-## Проём: surface_build.gd X_OUT 21, G 4 (пол площадки), TW 1.1 (полуширина). Создаётся из game.gd.
+## Создаётся из game.gd.
+const Surface := preload("res://scripts/level/surface.gd")
 
-const HINGE := Vector3(21.0, 4.0, -1.1)
-const W := 2.14
-const H := 2.3
+const JAMB := 0.07                   # толщина стойки наличника (съедает край проёма)
+const INSET := 0.2                   # насколько створка утоплена внутрь будки от наружной грани
+const W := 2.04                      # ширина створки: проём 2.2 минус стойки наличника и зазор
+const H := 2.24
 const OPEN_ANG := -PI / 2.0 * 0.92   # створка открывается внутрь будки (−X), там после лестницы ровный пол
 
 var game
@@ -24,7 +30,7 @@ var msg_tw: Tween
 
 
 func _ready() -> void:
-	position = HINGE
+	position = hinge_pos()   # ровно в проёме будки наверху лестницы, а не в коридоре бункера
 	sync_to_physics = false
 	var steel := StandardMaterial3D.new()
 	steel.albedo_color = Color(0.5, 0.52, 0.55)
@@ -50,6 +56,46 @@ func _ready() -> void:
 	snd.unit_size = 4.0
 	snd.max_distance = 34.0
 	add_child(snd)
+	_build_frame.call_deferred()   # раму вешаем на родителя: створка крутится, проём стоит
+
+
+## Точка петель: наружная грань будки минус INSET (створка внутри проёма, не задевает порог),
+## пол верхней площадки плюс 2 см и ближний край прохода минус стойка наличника.
+## Проём будки: x = Surface.X_OUT, z от −TW до +TW, пол Surface.G, потолок Surface.G + HUT_H.
+func hinge_pos() -> Vector3:
+	return Vector3(Surface.X_OUT - INSET, Surface.G + 0.02, -(Surface.TW - JAMB))
+
+
+## Стальной наличник проёма: две стойки по краям и перекладина под потолком будки.
+## Висит на родителе двери (не на самой створке), иначе крутился бы вместе с ней.
+func _build_frame() -> void:
+	var p := get_parent()
+	if p == null or p.has_node("BunkerDoorFrame"):
+		return
+	var fr := Node3D.new()
+	fr.name = "BunkerDoorFrame"
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.36, 0.37, 0.4)
+	m.roughness = 0.45
+	m.metallic = 0.8
+	var x: float = Surface.X_OUT - INSET
+	var top: float = Surface.G + Surface.HUT_H
+	for s in [-1.0, 1.0]:
+		var jamb := MeshInstance3D.new()
+		var jm := BoxMesh.new()
+		jm.size = Vector3(0.34, top - Surface.G, JAMB)
+		jamb.mesh = jm
+		jamb.material_override = m
+		jamb.position = Vector3(x, (Surface.G + top) / 2.0, s * (Surface.TW - JAMB / 2.0))
+		fr.add_child(jamb)
+	var lintel := MeshInstance3D.new()
+	var lm := BoxMesh.new()
+	lm.size = Vector3(0.34, 0.14, Surface.TW * 2.0)
+	lintel.mesh = lm
+	lintel.material_override = m
+	lintel.position = Vector3(x, top - 0.07, 0.0)
+	fr.add_child(lintel)
+	p.add_child(fr)
 
 
 ## Круглая вентильная ручка по центру створки (как на бункерной/сейфовой двери), с обеих сторон —
@@ -149,7 +195,7 @@ func _physics_process(delta: float) -> void:
 	if is_open or check_t > 0.0:
 		return
 	check_t = 0.2
-	var c := Vector3(21.0, 4.0, 0.0)
+	var c := Vector3(Surface.X_OUT - INSET, Surface.G, 0.0)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e is Node3D and is_instance_valid(e) and (e as Node3D).global_position.distance_to(c) < 3.0:
 			_set_open(true)
