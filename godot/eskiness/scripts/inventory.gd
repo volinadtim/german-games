@@ -1663,13 +1663,24 @@ func set_hover(k) -> void:
 	if id != "":
 		# при наведении — только название (промпт 03:50: без «×количество» и «[F — использовать]»)
 		info_name.text = Items.item_name(id)
-		info_desc.text = Items.ITEMS[id]["desc"] + _size_note(id)
+		var desc: String = Items.ITEMS[id]["desc"] + _size_note(id)
+		info_desc.text = desc
+		# ширина окошка подстраивается под длину текста: короче описание — уже окно (промпт 18.11 02:33)
+		var tw := _tip_width(desc.length())
+		info_name.custom_minimum_size.x = tw
+		info_desc.custom_minimum_size.x = tw
 		tip.visible = true
 		tip.reset_size()
 		_place_tip()
 	else:
 		tip.visible = false
 	_refresh()
+
+
+## Ширина окошка подсказки по длине текста: короткое описание — узкие строки, длинное — чуть шире,
+## чтобы окошко оставалось небольшим и аккуратным (промпт 18.11 02:33).
+static func _tip_width(chars: int) -> float:
+	return clampf(150.0 + sqrt(float(chars)) * 16.0, 190.0, 380.0)
 
 
 ## Подсказка у курсора, в пределах экрана.

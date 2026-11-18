@@ -410,6 +410,8 @@ func _set_tip(t: String) -> void:
 	tip_panel.visible = t != ""
 	if t != "":
 		tip_l.text = t
+		# ширина окошка по длине текста: короче текст — уже строки (промпт 18.11 02:33)
+		tip_l.custom_minimum_size.x = clampf(140.0 + sqrt(float(t.length())) * 16.0, 190.0, 380.0)
 		tip_panel.reset_size()
 		_place_tip()
 
