@@ -24,8 +24,8 @@ static func fill(menu, box: VBoxContainer, on_pick: Callable, on_back: Callable)
 	tip_panel.name = "ModeTip"
 	tip_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var st := StyleBoxFlat.new()
-	st.bg_color = Color(0.05, 0.05, 0.05, 0.96)
-	st.border_color = Color(0.95, 0.6, 0.3, 0.9)
+	st.bg_color = Color(0.05, 0.05, 0.05, 0.8832)   # на 8% прозрачнее (промпт 18.11 02:44)
+	st.border_color = Color(0.95, 0.652, 0.398, 0.9)   # рамка на 15% менее насыщенная (промпт 18.11 02:44)
 	st.set_border_width_all(1)
 	st.set_corner_radius_all(4)
 	st.set_content_margin_all(9)
@@ -52,7 +52,11 @@ static func fill(menu, box: VBoxContainer, on_pick: Callable, on_back: Callable)
 		b.mouse_entered.connect(func():
 			tip_l.text = hint
 			# ширина по длине текста: короткое описание — уже окошко, длинное — чуть шире
-			tip_l.custom_minimum_size.x = clampf(130.0 + sqrt(float(hint.length())) * 15.0, 170.0, 360.0)
+			var tw := clampf(130.0 + sqrt(float(hint.length())) * 15.0, 170.0, 360.0)
+			tip_l.custom_minimum_size.x = tw
+			# форсируем реальную ширину лейбла сразу (баг 18.11 02:44): при первом наведении контейнер
+			# ещё не делал раскладку, Label.size.x == 0, и перенос слов даёт высоту во весь экран
+			tip_l.size.x = tw
 			tip_panel.visible = true
 			tip_panel.reset_size()
 			var vp: Vector2 = menu.get_viewport().get_visible_rect().size
