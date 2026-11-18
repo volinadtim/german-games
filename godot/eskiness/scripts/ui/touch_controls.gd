@@ -72,7 +72,6 @@ func _buttons() -> Dictionary:
 		"reload": [Vector2(s.x - 560, s.y - 250), 40.0, "ПЕРЕЗ.", "game"],
 		"crouch_toggle": [Vector2(s.x - 450, s.y - 140), 44.0, "ПРИСЕД", "game"],
 		"interact": [Vector2(s.x - 200, s.y - 330), 46.0, "E", "game"],
-		"flashlight": [Vector2(s.x - 58, 150), 40.0, "СВЕТ", "game"],
 		"gasmask": [Vector2(s.x - 58, 240), 40.0, "МАСКА", "game"],
 		"quick_heal": [Vector2(s.x - 58, 330), 40.0, "ЛЕЧИТЬ", "game"],
 		"inventory": [Vector2(s.x - 150, 52), 38.0, "СУМКА", "bag"],

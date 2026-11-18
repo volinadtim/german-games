@@ -379,8 +379,6 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("interact") and not e.is_echo():
 		if focus != null and is_instance_valid(focus):
 			focus.interact(self)
-	elif e.is_action_pressed("flashlight") and flashlight:
-		flashlight.toggle()
 	elif e.is_action_pressed("quick_heal"):
 		_quick_heal()
 	elif e.is_action_pressed("swap_hands") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:

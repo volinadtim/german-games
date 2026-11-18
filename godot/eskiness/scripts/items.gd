@@ -19,9 +19,9 @@ const ITEMS := {
 		"icon": "soda", "color": Color(0.75, 0.2, 0.15), "buff": "speed", "power": 0.30, "time": 60.0},
 	"broom": {"name": "Метла с совком", "desc": "Использовать у битого стекла — вымести его.", "stack": 1,
 		"icon": "broom", "color": Color(0.6, 0.48, 0.25)},
-	"flashlight": {"name": "Фонарик", "desc": "F или клавиша хотбара — включить. Нужны батарейки.", "stack": 1,
+	"flashlight": {"name": "Фонарик", "desc": "Светит только в руке: возьми в руку и нажми кнопку этой руки. Нужны батарейки.", "stack": 1,
 		"icon": "flashlight", "color": Color(0.3, 0.32, 0.3)},
-	"battery": {"name": "Батарейка", "desc": "Полностью заряжает фонарик (F).", "stack": 10,
+	"battery": {"name": "Батарейка", "desc": "Полностью заряжает фонарик.", "stack": 10,
 		"icon": "battery", "color": Color(0.34, 0.44, 0.3)},
 	"knuckles": {"name": "Кастет", "desc": "Руки: удар кулаком ×1.5.", "stack": 1,
 		"icon": "knuckles", "color": Color(0.58, 0.58, 0.6), "equip": "hands", "fist": 1.5},
@@ -228,6 +228,13 @@ static func fits(id: String, slot: String) -> bool:
 ## Любой предмет можно взять в руку, как оружие (промпт 18.11 00:27): бьёт им как дубинкой-слабачкой.
 static func holdable(id: String) -> bool:
 	return ITEMS.has(id) and id != "coin"
+
+
+## Можно ли применить предмет прямо из руки кнопкой этой руки (промпт 18.11 02:27):
+## лечение, еда и питьё, ремкомплект, фонарик, батарейка, веник, кошелёк.
+static func hand_use(id: String) -> bool:
+	var d: Dictionary = ITEMS.get(id, {})
+	return d.has("heal") or d.has("buff") or d.has("repair") or id in ["flashlight", "battery", "broom", "wallet"]
 
 
 ## Каким ремкомплектом чинится: "weapon", "gun" (пистолет), "gear" (одежда с прочностью) или "".

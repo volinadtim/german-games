@@ -264,7 +264,7 @@ func try_revive_with(id: String) -> bool:
 func _finish_revive(pp, peer: int, id: String, amount: float, nm: String) -> void:
 	if game.inv.count(id) <= 0 or not is_instance_valid(pp) or not pp.dying:
 		return
-	game.inv.remove(id, 1)
+	game.take_one(id)   # предмет может быть в руке, а не в сумке
 	game.net.rpc_id(peer, "net_revive", amount)
 	game.hud.toast("Вы подняли %s (+%d здоровья)" % [nm, int(amount)], Color(0.75, 0.9, 0.65))
 	game.play_ui("pickup", -10.0, 0.75)
@@ -284,7 +284,7 @@ func _finish_heal(id: String) -> void:
 		return
 	var def: Dictionary = Items.ITEMS[id]
 	var stops: bool = id in ["bandage", "medkit"] and game.bleed_t > 0.0
-	game.inv.remove(id, 1)
+	game.take_one(id)   # предмет может быть в руке, а не в сумке
 	game.heal(def["heal"])
 	if stops:
 		game.stop_bleeding()
@@ -292,11 +292,11 @@ func _finish_heal(id: String) -> void:
 	game.play_ui("pickup", -12.0, 0.8)
 
 
-## Применение предмета из руки (хотбар): полоска идёт, пока держат ЛКМ (game_items.gd hb_press).
-## Отпустили — ch_valid возвращает false, полоска гаснет, предмет цел.
+## Применение предмета из руки: полоска идёт, пока держат кнопку этой руки (game_items.gd hb_press).
+## Отпустили (или предмет убрали из руки) — ch_valid возвращает false, полоска гаснет, предмет цел.
 func use_channel(id: String) -> void:
 	_channel(Items.use_time(id), "Применяет: %s" % Items.item_name(id),
-		func(): _finish_use(id), func(): return game.hb_lmb, false)
+		func(): _finish_use(id), func(): return game.hb_lmb and game.hb_key() != null, false)
 	ch_walk = true
 	ch_silent = true
 
@@ -304,11 +304,11 @@ func use_channel(id: String) -> void:
 func _finish_use(id: String) -> void:
 	if not game.alive:
 		return
-	var i: int = game.inv.bag_index(id)
-	if i < 0:
+	var k = game.hb_key()   # предмет применяют прямо из руки (промпт 18.11 02:27)
+	if k == null:
 		game.hb_clear("Предмет кончился")
 		return
-	game.use_item(i, true)
+	game.use_item(k, true)
 	game.hb_after_use(id)
 
 

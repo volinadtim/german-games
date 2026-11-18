@@ -16,10 +16,7 @@ var hp_lag := 100.0          # «догоняющая» светлая поло�
 var hp_full_t := 0.0         # сколько времени здоровье уже полное — для задержки перед угасанием (промпт 18.11 02:16)
 var hp_alpha := 1.0          # прозрачность полоски здоровья: угасает, если давно полная, во всех режимах
 var coins := 0
-var battery := 1.0
-var light_on := false
 var minimal := false      # режим «Реализм» (game.gd: mode): только полоска здоровья и подсказки
-var has_light := false     # фонарик есть в инвентаре — показываем заряд
 signal restart_pressed
 signal menu_pressed      # экран победы → «В главное меню»
 var death_on := false            # показан экран смерти — курсор держим видимым (game.gd _process)
@@ -27,7 +24,6 @@ var restart_b: Button
 var death_menu_b: Button
 var knuckles := false
 var inv  # inventory.gd — для хотбара 1–5
-var hand := ""            # предмет из хотбара в руке (game_items.gd: hb_hand) — подсвечиваем ячейку
 var bleed := 0.0          # сколько ещё течёт кровь (game.gd: _glass)
 var buffs := {}           # активные баффы (game.gd: buffs)
 var hurt := 0.0
@@ -219,11 +215,6 @@ func set_hp(v: float, mx: float, instant := false) -> void:
 
 func set_coins(n: int) -> void:
 	coins = n
-
-
-func set_battery(v: float, on: bool) -> void:
-	battery = v
-	light_on = on
 
 
 func prompt(text: String) -> void:
@@ -453,7 +444,7 @@ func _paint() -> void:
 			var id: String = inv.hotbar[k]
 			var cnt: int = inv.count(id) if id != "" else 0
 			var worn: bool = id != "" and inv.equip.values().has(id)
-			var in_hand: bool = id != "" and id == hand
+			var in_hand: bool = id != "" and (inv.equip["left"] == id or inv.equip["right"] == id)
 			paint.draw_rect(r, Color(0.1, 0.16, 0.1, 0.55) if in_hand else Color(0, 0, 0, 0.5))
 			var bc := Color(1, 1, 1, 0.18)
 			var bw := 1.0
@@ -474,18 +465,6 @@ func _paint() -> void:
 			paint.draw_string_outline(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.8))
 			paint.draw_string(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0, 0.8, 0.45))
 
-	if has_light:
-		# фонарик (справа снизу)
-		var bx := sz.x - 28.0 - 140.0
-		var by := sz.y - 46.0
-		var lbl := "ФОНАРИК" + ("" if light_on else " (F)")
-		paint.draw_string_outline(f, Vector2(bx, by - 8), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.7))
-		paint.draw_string(f, Vector2(bx, by - 8), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.8, 0.78, 0.72) if light_on else Color(0.55, 0.54, 0.5))
-		paint.draw_rect(Rect2(bx - 2, by - 2, 144, 14), Color(0, 0, 0, 0.6))
-		var bc := Color(0.75, 0.68, 0.4) if battery > 0.2 else Color(0.75, 0.3, 0.15)
-		if not light_on:
-			bc = bc.darkened(0.4)
-		paint.draw_rect(Rect2(bx, by, 140 * battery, 10), bc)
 
 
 ## Полоска здоровья (промпт 18.11 02:15: «слишком простая», во всех режимах одна и та же):

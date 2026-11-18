@@ -75,8 +75,8 @@ func charge_frac() -> float:
 ## Нажал кнопку удара. Кулаки опущены — только поднимаем их, без удара и заряда (промпт 19:08);
 ## следующее нажатие, уже в стойке, копит заряд.
 func charge_begin(arm: int) -> void:
-	# предмет из хотбара в руке (промпт 18.11 01:16): ЛКМ — применение с полоской, а не удар
-	if arm == 0 and game and game.get("hb_hand") != "" and game.hb_press():
+	# предмет в руке (промпт 18.11 02:27): кнопка этой руки применяет его (полоска), а не бьёт
+	if game and game.hb_press(arm):
 		return
 	var whip := false
 	# в боевой стойке (промпт 05:34): кнопка руки с пистолетом — выстрел в центр (ЛКМ — левый, ПКМ — правый,
@@ -126,7 +126,7 @@ func _has_stone() -> bool:
 
 ## Отпустил: удар этой рукой с накопленным зарядом (кулаки ещё поднимаются — ударит, как поднимутся).
 func charge_release(arm: int) -> void:
-	if arm == 0 and game and game.get("hb_hand") != "" and game.hb_release():
+	if game and game.hb_release(arm):
 		return
 	if arm == 1 and gun:
 		gun.rmb_input(false)

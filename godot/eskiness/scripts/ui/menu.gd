@@ -102,8 +102,7 @@ const CONTROLS := [
 	["reload", "Перезарядка", ["k:82"]],           # R — в мире (в окне лута R — «забрать всё»)
 	["mag_eject", "Извлечь магазин (держать)", ["k:4194309"]],   # Enter (gun.gd)
 	["swap_hands", "Поменять руки (левая ↔ правая)", ["m:4", "m:5"]],   # колесо вверх/вниз (game_items.gd)
-	["flashlight", "Фонарик", ["k:57"]],           # F
-	["quick_heal", "Быстрое лечение", ["k:57"]],   # F (18.11 02:27: Q и E теперь наклоны)
+	["quick_heal", "Быстрое лечение", ["k:57"]],   # 9 (18.11 02:27: Q и E теперь наклоны)
 	["lean_left", "Наклон влево (держать)", ["k:81"]],    # Q
 	["lean_right", "Наклон вправо (держать)", ["k:69"]],  # E
 	["gasmask", "Нюхич (противогаз)", ["k:71"]],           # G
@@ -126,7 +125,7 @@ const CONTROLS := [
 const CTL_GROUPS := [
 	["Движение", ["move_forward", "move_back", "move_left", "move_right", "sprint", "jump", "crouch", "crouch_toggle"]],
 	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject", "swap_hands"]],
-	["Действия", ["interact", "carry", "loot_all", "flashlight", "quick_heal", "gasmask", "lean_left", "lean_right"]],
+	["Действия", ["interact", "carry", "loot_all", "quick_heal", "gasmask", "lean_left", "lean_right"]],
 	["Инвентарь", ["inventory", "inv_use", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
 	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat"]],
 	["Машина", ["handbrake", "seat_switch", "car_lean"]],

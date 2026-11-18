@@ -192,11 +192,17 @@ func _quick_heal() -> void:
 
 # ---------- предметы ----------
 
-func use_item(idx: int, no_channel := false) -> void:
-	var s = inv.slots[idx]
-	if s == null:
+## key — ячейка сумки (int) или слот руки "left"/"right" (предмет взят в руку, промпт 18.11 02:27).
+func use_item(key, no_channel := false) -> void:
+	var in_hand: bool = key is String
+	var id := ""
+	if in_hand:
+		id = String(inv.equip[key])
+	elif inv.slots[key] != null:
+		id = String(inv.slots[key]["id"])
+	if id == "" or not Items.ITEMS.has(id):
 		return
-	var id: String = s["id"]
+	var idx = key
 	var def: Dictionary = Items.ITEMS[id]
 	if def.has("repair"):
 		repair(idx, _most_worn(String(def["repair"])))
@@ -207,7 +213,7 @@ func use_item(idx: int, no_channel := false) -> void:
 			var in_car: bool = car != null and is_instance_valid(car) and int(car.my_seat) >= 0
 			hud.toast("В противогазе не поесть и не попить%s — сними его (G)" % (" даже в машине" if in_car else ""), Color(0.95, 0.7, 0.45))
 			return
-		inv.take_at(idx, 1)
+		_use_take(idx)
 		add_buff(id)
 		var what := "−%d%% урона" % int(float(def["power"]) * 100) if def["buff"] == "resist" else "+%d%% скорости" % int(float(def["power"]) * 100)
 		hud.toast("%s: %s на %d с" % [def["name"], what, int(def["time"])], Color(0.8, 0.9, 0.6))
@@ -222,7 +228,7 @@ func use_item(idx: int, no_channel := false) -> void:
 		if revive and not no_channel:
 			revive.heal_channel(id)   # не мгновенно: полоска, прерывается движением и уроном
 			return
-		inv.take_at(idx, 1)
+		_use_take(idx)
 		heal(def["heal"])
 		if stops:
 			stop_bleeding()
@@ -239,27 +245,30 @@ func use_item(idx: int, no_channel := false) -> void:
 			play_at("creak", c, -18.0, 2.2)
 			hud.toast("Стекло выметено", Color(0.8, 0.85, 0.7))
 	elif id == "flashlight":
-		if flashlight:
+		# светит только в руке (промпт 18.11 02:27): в руке — вкл/выкл, из сумки — сначала берём в руку
+		if in_hand and flashlight:
 			flashlight.toggle()
+		elif not in_hand:
+			take_in_hand(idx)
 	elif id == "battery":
 		if flashlight == null:
 			return
 		if flashlight.charge >= 0.99:
 			hud.toast("Фонарик и так заряжен")
 			return
-		inv.take_at(idx, 1)
+		_use_take(idx)
 		flashlight.recharge()
 		hud.toast("Фонарик заряжен", Color(0.9, 0.85, 0.55))
 		play_ui("click", -12.0)
+	elif in_hand and Items.equip_slot(id) != "":
+		pass   # оружие/снаряжение уже в руке — применять нечего
 	elif id == "pistol":
 		# второй пистолет — в свободную левую (стреляют по очереди, gun.gd)
 		equip(idx, "left" if inv.equip["right"] == "pistol" and inv.equip["left"] == "" else "right")
 	elif id == "mag":
 		gun.fill_mag(idx)
 	elif Items.equip_slot(id) == "hand":
-		# оружие: в свободную руку (сначала правая), обе заняты — меняем правую
-		var hand := "right" if inv.equip["right"] == "" or inv.equip["left"] != "" else "left"
-		equip(idx, hand)
+		take_in_hand(idx)   # оружие — в свободную руку (сначала правая), обе заняты — меняем правую
 	elif Items.equip_slot(id) != "":
 		equip(idx, Items.equip_slot(id))
 	elif id == "filter" or id == "filter2":
@@ -272,7 +281,7 @@ func use_item(idx: int, no_channel := false) -> void:
 	elif id == "car_key":
 		hud.toast("Ключ от машины на поляне — подойди к ней и нажми E")
 	elif id == "wallet":
-		inv.take_at(idx, 1)
+		_use_take(idx)
 		var c := randi_range(10, 40)
 		inv.add("coin", c)
 		hud.toast("В кошельке нашлось %d монет" % c, Color(0.92, 0.82, 0.55))
@@ -346,6 +355,8 @@ func _do_swap_hands() -> void:
 		inv.equip_dur["left"] = dr
 	if l != "" and dl != null:
 		inv.equip_dur["right"] = dl
+	if hb_slot != "":
+		hb_slot = "right" if hb_slot == "left" else "left"
 	player.set_weapon(r, 0)
 	player.set_weapon(l, 1)
 	inv.notify()
@@ -416,7 +427,8 @@ func _apply_equip(slot_: String) -> void:
 			var arm := 0 if slot_ == "left" else 1
 			player.set_weapon(id, arm)
 			if id != "" and not loading:
-				hud.toast("%s — %s рука" % [Items.item_name(id), "левая" if arm == 0 else "правая"], Color(0.9, 0.85, 0.7))
+				var how := " (%s — применить)" % ["ЛКМ", "ПКМ"][arm] if Items.hand_use(id) else ""
+				hud.toast("%s — %s рука%s" % [Items.item_name(id), "левая" if arm == 0 else "правая", how], Color(0.9, 0.85, 0.7))
 		"face":
 			# противогаз — в слоте «Лицо», каска при этом остаётся на голове
 			if gasmask:
@@ -458,8 +470,9 @@ func toggle_gasmask() -> void:
 	equip(i, "face")
 
 
-## Клавиша 1–5: экипировку (оружие/броня) — сразу надеть; расходники (еда, бинты) — взять в руку (применить — удерживать ЛКМ); надетое — снять.
-## Повторное нажатие той же клавиши — убрать предмет из руки (промпт 18.11 01:16).
+## Клавиша 1–5: предмет берётся в руку — он виден в руке, как если бы его поставили в слот экипировки
+## (промпт 18.11 02:27). Броня/рюкзак/противогаз — в свой слот, всё остальное (оружие, еда, бинты, фонарик) —
+## в свободную руку. Повторное нажатие той же клавиши — убрать предмет из руки (снять).
 func hotbar_use(k: int) -> void:
 	var id: String = inv.hotbar[k]
 	if id == "":
@@ -472,72 +485,116 @@ func hotbar_use(k: int) -> void:
 	if i < 0:
 		hud.toast("Нет: %s" % Items.item_name(id))
 		return
-	# экипировка (оружие, броня, рюкзак, противогаз) — сразу надевается, без ЛКМ (промпт 18.11 01:37)
 	var eq := Items.equip_slot(id)
-	if eq != "":
-		if hb_hand == id:
-			hb_clear()
-		if eq == "hand":
-			# в свободную руку (сначала правая), обе заняты — меняем правую
-			eq = "right" if inv.equip["right"] == "" or inv.equip["left"] != "" else "left"
-		equip(i, eq)
+	if eq == "" or eq == "hand":
+		take_in_hand(i)
 		return
-	if hb_hand == id:
-		hb_clear("Убрано в сумку: %s" % Items.item_name(id))
-		return
-	hb_hand = id
-	hb_lmb = false
-	hud.hand = id
-	hud.toast("В руке: %s — удерживай ЛКМ" % Items.item_name(id), Color(0.85, 0.85, 0.7))
-	play_ui("click", -16.0)
+	equip(i, eq)
+
+
+## Взять предмет из ячейки idx в свободную руку (сначала правая; обе заняты — меняется правая).
+## Применяется кнопкой этой руки: ЛКМ — левая, ПКМ — правая (hb_press).
+func take_in_hand(idx: int) -> void:
+	equip(idx, "right" if inv.equip["right"] == "" or inv.equip["left"] != "" else "left")
 
 
 ## Убрать предмет из руки (отмена удержания, предмет кончился, смерть).
 func hb_clear(msg := "") -> void:
 	hb_hand = ""
+	hb_slot = ""
 	hb_lmb = false
-	hud.hand = ""
 	if revive and revive.ch_on:
 		revive.cancel_channel()
 	if msg != "":
 		hud.toast(msg, Color(0.85, 0.82, 0.75))
 
 
-## ЛКМ нажали: предмет в руке — начинаем применение с полоской. true — удар не нужен (player_combat.gd).
-func hb_press() -> bool:
-	if hb_hand == "" or not alive:
+## Где лежит предмет, который применяют: слот руки ("left"/"right") или null — предмет из руки пропал.
+func hb_key():
+	return hb_slot if hb_slot != "" and inv.equip.get(hb_slot, "") == hb_hand else null
+
+
+## Предмет в руке arm (0 — левая/ЛКМ, 1 — правая/ПКМ), который применяется кнопкой этой руки; "" — нет такого.
+func hb_item(arm: int) -> String:
+	var id: String = inv.equip["left" if arm == 0 else "right"]
+	if id == "" or not Items.hand_use(id):
+		return ""
+	# пистолет в руках забирает ЛКМ под выстрел (gun.gd) — предмет левой рукой в это время не применить
+	if arm == 0 and player and not player.fists and (player.weapon_ids[0] == "pistol" or player.weapon_ids[1] == "pistol"):
+		return ""
+	return id
+
+
+## Нажали кнопку руки: предмет в этой руке применяется (с полоской; фонарик — сразу).
+## true — удар этой рукой не нужен (player_combat.gd).
+func hb_press(arm := 0) -> bool:
+	var sl := "left" if arm == 0 else "right"
+	var id := hb_item(arm)
+	if id == "" or not alive:
 		return false
-	var i := inv.bag_index(hb_hand)
-	if i < 0:
-		hb_clear("Предмет кончился")
-		return false
+	if id == "flashlight":
+		if flashlight:
+			flashlight.toggle()   # светит только в руке (промпт 18.11 02:27)
+		return true
 	if revive and revive.ch_on:
 		return true
+	hb_hand = id
+	hb_slot = sl
 	hb_lmb = true
 	if revive:
-		revive.use_channel(hb_hand)
+		revive.use_channel(id)
 	else:
-		use_item(i, true)
-		hb_after_use(hb_hand)
+		use_item(sl, true)
+		hb_after_use(id)
 	return true
 
 
-## ЛКМ отпустили: с предметом в руке — отмена применения (полоска гаснет), удара нет.
-func hb_release() -> bool:
-	if hb_hand == "":
+## Отпустили кнопку руки: применение прерывается (полоска гаснет), удара нет.
+func hb_release(arm := 0) -> bool:
+	var sl := "left" if arm == 0 else "right"
+	if hb_item(arm) == "":
 		return false
-	hb_lmb = false
+	if hb_slot == sl:
+		hb_lmb = false
 	return true
 
 
-## После применения: предмет кончился или надет — руки свободны.
+## После применения: предмет израсходован — такой же из сумки сам идёт в ту же руку, иначе рука пустеет.
 func hb_after_use(id: String) -> void:
 	if hb_hand != id:
 		return
-	if inv.count(id) <= 0 or inv.equip.values().has(id):
-		hb_hand = ""
-		hud.hand = ""
 	hb_lmb = false
+	var sl := hb_slot
+	if sl != "" and inv.equip[sl] == "":
+		var i := inv.bag_index(id)
+		if i >= 0:
+			equip(i, sl)
+	if sl == "" or inv.equip[sl] != id:
+		hb_hand = ""
+		hb_slot = ""
+
+
+## Убрать одну штуку предмета: сначала из сумки, иначе из руки (там он тоже считается, inv.count).
+func take_one(id: String) -> bool:
+	if inv.remove(id, 1):
+		return true
+	for sl in ["right", "left"]:
+		if inv.equip[sl] == id:
+			_use_take(sl)
+			return true
+	return false
+
+
+## Убрать одну штуку применённого предмета: из сумки (int) или из руки (слот — пустеет, модель убирает предмет).
+func _use_take(key) -> void:
+	if key is String:
+		inv.equip[key] = ""
+		inv.equip_dur.erase(key)
+		_apply_equip(key)
+		inv.notify()
+	else:
+		inv.take_at(key, 1)
+
 
 ## Самая побитая вещь под этот комплект: надетое и сумка. null — чинить нечего.
 func _most_worn(kind: String):
@@ -559,12 +616,17 @@ func _most_worn(kind: String):
 	return best
 
 
-## Починить вещь target (ячейка или слот) ремкомплектом из ячейки kit_idx: −1 заряд, на нуле комплект исчезает.
-func repair(kit_idx: int, target) -> void:
-	var kit = inv.slots[kit_idx]
-	if kit == null or not Items.ITEMS[kit["id"]].has("repair"):
+## Починить вещь target (ячейка или слот) ремкомплектом из ячейки kit_key (или из руки — слот "left"/"right"):
+## −1 заряд, на нуле комплект исчезает.
+func repair(kit_key, target) -> void:
+	var kit_id := ""
+	if kit_key is String:
+		kit_id = String(inv.equip[kit_key])
+	elif inv.slots[kit_key] != null:
+		kit_id = String(inv.slots[kit_key]["id"])
+	if not Items.ITEMS.get(kit_id, {}).has("repair"):
 		return
-	var kind: String = Items.ITEMS[kit["id"]]["repair"]
+	var kind: String = Items.ITEMS[kit_id]["repair"]
 	if target == null:
 		hud.toast("Чинить нечего — всё целое")
 		return
@@ -586,11 +648,16 @@ func repair(kit_idx: int, target) -> void:
 		inv.equip_dur[target] = store
 	else:
 		inv.slots[target]["dur"] = store
-	var left: float = inv.get_dur(kit_idx) - 1.0
-	if left <= 0.0:
-		inv.slots[kit_idx] = null
+	var left: float = inv.get_dur(kit_key) - 1.0
+	if kit_key is String:
+		if left <= 0.0:
+			_use_take(kit_key)   # комплект в руке кончился — рука пустеет
+		else:
+			inv.equip_dur[kit_key] = left
+	elif left <= 0.0:
+		inv.slots[kit_key] = null
 	else:
-		kit["dur"] = left
+		inv.slots[kit_key]["dur"] = left
 	hud.toast("Починено: %s (%d%%)%s" % [Items.item_name(id), int(round(nd / mx * 100.0)),
 		"" if left > 0.0 else " — ремкомплект закончился"], Color(0.8, 0.9, 0.6))
 	play_ui("creak", -12.0, 1.4)

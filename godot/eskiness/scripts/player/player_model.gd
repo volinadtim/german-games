@@ -539,7 +539,8 @@ func _flex_weapons() -> void:
 ## Можно ли держать оружие в руке i диагональю стойки (05:50): ближний бой, кроме ножа/заточки в левой (обратный хват).
 func _melee_stance_ok(i: int) -> bool:
 	var id: String = weapon_ids[i]
-	if id in MELEE_ST_SKIP:
+	# предмет не оружие (бинт, еда, фонарик — промпт 18.11 02:27): держим в кулаке без боевой диагонали
+	if id in MELEE_ST_SKIP or not Items.ITEMS.get(id, {}).has("weapon"):
 		return false
 	return not (i == 0 and id in ["knife", "shiv"])
 

@@ -1,9 +1,12 @@
 extends Node
-## Фонарик (фишка): F — вкл/выкл. Батарейка садится (~3.75 мин на полный заряд, промпт 18.11 00:50),
-## на последних 15% свет слабеет и мигает. Батарейка из лута заряжает полностью.
+## Фонарик (фишка). Промпт 18.11 02:27: работает только в руке — взять его в руку (хотбар или слот руки)
+## и нажать кнопку мыши этой руки (ЛКМ — левая, ПКМ — правая). Убрали из руки — гаснет, даже если забыли
+## выключить. Индикатора заряда нет: ориентир — мерцание света на последних процентах.
+## В «Казуальном» мерцаний нет, батарейка садится в 2 раза медленнее и меняется сама из сумки.
 
-const DRAIN := 1.0 / 225.0
+const DRAIN := 1.0 / 225.0   # полный заряд ~3.75 мин (в казуальном — вдвое дольше)
 const ENERGY := 3.0
+const BLINK_FROM := 0.22     # с этого заряда свет мерцает — пора менять батарейку
 
 var game  # game.gd
 var light: SpotLight3D
@@ -25,12 +28,23 @@ func attach(cam: Camera3D) -> void:
 	cam.add_child(light)
 
 
+## В какой руке фонарик: "left" / "right" / "" (не в руке — не светит).
+func hand() -> String:
+	if game == null or game.inv == null:
+		return ""
+	for sl in ["right", "left"]:
+		if game.inv.equip[sl] == "flashlight":
+			return sl
+	return ""
+
+
+## Кнопка руки с фонариком: вкл/выкл.
 func toggle() -> void:
-	if not on and game.inv.count("flashlight") == 0:
-		game.hud.toast("Фонарика нет — он в магазине снаряжения")
+	if hand() == "":
+		game.hud.toast("Фонарик светит только в руке — возьми его в руку")
 		return
 	if not on and charge <= 0.0 and not _auto_battery():
-		game.hud.toast("Батарейка села")
+		game.hud.toast("Батарейка села — нужна новая")
 		game.play_ui("click", -16.0)
 		return
 	on = not on
@@ -55,23 +69,27 @@ func _auto_battery() -> bool:
 func _process(delta: float) -> void:
 	if light == null:
 		return
-	var have: bool = game.inv.count("flashlight") > 0
-	game.hud.has_light = have
-	if on and not have:
+	var casual: bool = game.casual()
+	if on and hand() == "":
+		on = false   # убрали из руки (или потеряли) — гаснет сам
+	if not on:
+		light.visible = false
+		return
+	light.visible = true
+	charge = maxf(charge - DRAIN * (0.5 if casual else 1.0) * delta, 0.0)
+	if charge <= 0.0 and not _auto_battery():
 		on = false
 		light.visible = false
-	if on:
-		charge = maxf(charge - DRAIN * delta, 0.0)
-		if charge <= 0.0 and not _auto_battery():
-			on = false
-			light.visible = false
-			game.hud.toast("Фонарик погас — батарейка села")
-		var e := ENERGY * clampf(charge * 5.0, 0.4, 1.0)
-		if charge < 0.15:
-			blink -= delta
-			if blink <= 0.0:
-				blink = randf_range(0.03, 0.4)
-			if blink < 0.06:
-				e *= 0.15
-		light.light_energy = e
-	game.hud.set_battery(charge, on)
+		game.hud.toast("Фонарик погас — батарейка села")
+		return
+	if casual:
+		light.light_energy = ENERGY   # в казуальном свет ровный, без мерцаний и подсказок
+		return
+	var e := ENERGY * clampf(charge * 5.0, 0.4, 1.0)
+	if charge < BLINK_FROM:
+		blink -= delta
+		if blink <= 0.0:
+			blink = randf_range(0.03, 0.4)
+		if blink < 0.06:
+			e *= 0.15
+	light.light_energy = e
