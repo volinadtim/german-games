@@ -180,6 +180,7 @@ func _mult_str(m: float) -> String:
 ## Экран автомата между крутками: сколько круток осталось и множитель серии.
 func _update_screen_hint() -> void:
 	if credits <= 0 and streak <= 0:
+		_refresh_screen()
 		return
 	var parts := PackedStringArray()
 	if streak > 0:
@@ -187,7 +188,7 @@ func _update_screen_hint() -> void:
 	if credits > 0:
 		parts.append("КРУТОК: %d" % credits)
 	# баффы — на табличке на стене (промпт 16.11 04:32), здесь только крутки
-	screen.text = (screen.text + "\n" if screen.text != "" else "") + " · ".join(parts)
+	_set_screen((screen_msg + "\n" if screen_msg != "" else "") + " · ".join(parts))
 
 
 # ---------- табличка баффов (промпт 16.11 04:32) ----------
@@ -348,13 +349,14 @@ func _buy_pack(n: int, price: int) -> void:
 	profit -= price
 	if capped:
 		bank += price
+	send("k_pay", [n, price])   # крутки и касса общие (промпт 18.11 02:13)
 	game.save_now()
 	busy = true
-	screen.text = "ОПЛАТА..."
+	_set_screen("ОПЛАТА...")
 	_coin_toss(3, func():
 		busy = false
 		game.hud.toast("KILLBOX: +%d круток" % n, Color(1.0, 0.8, 0.4))
-		screen.text = ""
+		_set_screen("")
 		_update_screen_hint())
 
 
@@ -439,6 +441,7 @@ func buy_upgrade() -> bool:
 		game.play_ui("buzz", -14.0)
 		return false
 	set_level(level + 1)
+	send("k_level", [level])
 	if level >= MAX_LEVEL:
 		reveal_pending = true   # кат-сцена — когда закроются окна (магазин/покупка)
 		_redraw_board()

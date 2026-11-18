@@ -199,6 +199,7 @@ func setup(p: Player) -> void:
 			sd = Save.read(save_slot)
 	if net and not net.is_host():
 		# клиент: мир и свои вещи присылает хост (сейв сетевой игры лежит у хоста)
+		preload("res://scripts/slot/slot_net.gd").ensure(self)   # автоматы общие (промпт 18.11 02:13)
 		net.on_game_setup(self)
 		if not net.skip_intro:
 			_start_intro()   # одна комната, своё место, одна кат-сцена (промпт 16.11 22:04)
@@ -213,6 +214,7 @@ func setup(p: Player) -> void:
 			net.net_saves = np if np is Dictionary else {}
 			if not bool(sd.get("intro_done", true)):
 				_start_intro(false, intro_wake_done)
+		preload("res://scripts/slot/slot_net.gd").ensure(self)
 		net.on_game_setup(self)
 		save_now()
 	elif not sd.is_empty():

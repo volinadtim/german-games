@@ -130,11 +130,22 @@ func get_prompt(_game) -> String:
 
 func interact(g) -> void:
 	game = g
-	if busy or not powered:
+	if busy or not powered or not net_queue.is_empty():
 		return
 	if credits <= 0:
 		_open_packs()
 		return
+	_spin_start(true)
+	# остальные крутят то же самое: остановки, ленты барабанов и серия — от того, кто крутил
+	var st: Array = []
+	for v in stops:
+		st.append(v)
+	send("k_spin", [st, strips.duplicate(true), streak])
+
+
+## Крутка: mine — своя, иначе чужая по сети (окно уже разыграно тем, кто дернул рычаг).
+func _spin_start(mine: bool, nstops: Array = [], nstrips: Array = []) -> void:
+	spin_mine = mine
 	credits -= 1
 	# гарантированный символ тратится с каждой круткой
 	for k in luck.keys():
@@ -142,10 +153,17 @@ func interact(g) -> void:
 	for k in boost.keys():
 		boost[k] = int(boost[k]) - 1
 	busy = true
-	screen.text = "КРУТИТСЯ..."
-	if g.has_method("save_now"):
-		g.save_now()      # крутка уже списана — перезагрузка не вернёт её
-	_roll_stops()
+	_set_screen("КРУТИТСЯ...")
+	if game and game.has_method("save_now"):
+		game.save_now()      # крутка уже списана — перезагрузка не вернёт её
+	if nstops.is_empty():
+		_roll_stops()
+	else:   # крутит другой игрок — барабаны встанут так же, как у него
+		for i in mini(REELS, nstops.size()):
+			stops[i] = int(nstops[i])
+		for i in mini(REELS, nstrips.size()):
+			strips[i] = nstrips[i]
+		get_tree().create_timer(0.24).timeout.connect(_redraw_strips)
 	for k in luck.keys():
 		if int(luck[k]["left"]) <= 0:
 			var q: Array = luck[k].get("q", [])
@@ -225,7 +243,7 @@ func _reel_stopped(i: int) -> void:
 		game.play_at("clunk", reels[i].global_position, -10.5)   # −25% (промпт 16.11 03:21)
 	if not spinning.has(true):
 		_payout()
-		if credits <= 0 and tray_coins <= 0 and game and game.inv.coins < int(PACKS[0][1]):
+		if spin_mine and credits <= 0 and tray_coins <= 0 and game and game.inv.coins < int(PACKS[0][1]):
 			pity(game)
 
 
@@ -244,6 +262,19 @@ func _process(delta: float) -> void:
 	if not powered:
 		return
 	t += delta
+	# бегущая строка «ОБЧИЩЕНО...» на экране, пока касса обчищена (промпт 18.11 02:13)
+	if capped:
+		var prev := int(cap_scroll)
+		cap_scroll += delta * CAP_SPEED
+		if cap_scroll >= float(CAP_TEXT.length()):
+			cap_scroll -= float(CAP_TEXT.length())
+		if int(cap_scroll) != prev:
+			_refresh_screen()
+	# чужая крутка, пришедшая пока крутились барабаны
+	if not busy and not net_queue.is_empty():
+		var q: Array = net_queue.pop_front()
+		streak = maxi(int(q[2]), 0)
+		_spin_start(false, q[0], q[1])
 	_bp_t -= delta
 	if _bp_t <= 0.0:
 		_bp_t = 0.25
@@ -273,7 +304,7 @@ func _process(delta: float) -> void:
 		var far: bool = game.player.global_position.distance_to(global_position) > CHAIN_DIST
 		if far or t - last_spin_t > CHAIN_IDLE:
 			streak = 0
-			screen.text = "СЕРИЯ СГОРЕЛА"
+			_set_screen("СЕРИЯ СГОРЕЛА")
 			_update_screen_hint()
 	# свечение мерцает и переливается от янтарного к красному
 	var flick := 0.04 * sin(t * 2.3)   # без резких скачков — барабаны не мерцают
@@ -305,7 +336,7 @@ func _payout() -> void:
 		# яблоко спасло: монеты не трогаем, защита сгорает
 		shield -= 1
 		_update_apples()
-		screen.text = "666 — ЯБЛОКО СПАСЛО"
+		_set_screen("666 — ЯБЛОКО СПАСЛО")
 		game.hud.toast("Три шестёрки! Гнилое яблоко спасло твою экипировку", Color(0.7, 1.0, 0.5))
 		game.play_at("buzz", global_position, -10.0, 0.9)
 		game.call_deferred("save_now")
@@ -313,16 +344,20 @@ func _payout() -> void:
 		_update_screen_hint()
 		return
 	if res["six"]:
-		var took := _take_bought()
+		# наказание — личное: вещь пропадает только у того, кто дёрнул рычаг
+		var took := _take_bought() if spin_mine else ""
 		if took != "":
 			var nm: String = preload("res://scripts/items.gd").item_name(took)
-			screen.text = "666 — KILLBOX ЗАБРАЛ: %s" % nm.to_upper()
+			_set_screen("666 — KILLBOX ЗАБРАЛ: %s" % nm.to_upper())
 			game.hud.toast("Три шестёрки! Автомат забрал: %s" % nm, Color(1.0, 0.35, 0.25))
-		else:
-			screen.text = "666 — НЕЧЕГО ЗАБРАТЬ"
+		elif spin_mine:
+			_set_screen("666 — НЕЧЕГО ЗАБРАТЬ")
 			game.hud.toast("Три шестёрки! Но купленной экипировки у тебя нет", Color(1.0, 0.6, 0.35))
+		else:
+			_set_screen("666")
 		game.play_at("buzz", global_position, -6.0, 0.7)
-		game.hud.hurt_flash(0.5)
+		if spin_mine:
+			game.hud.hurt_flash(0.5)
 		game.call_deferred("save_now")
 		streak = 0
 		return
@@ -333,7 +368,7 @@ func _payout() -> void:
 	var msg := ""
 	if sevens:
 		sevens_hit = true
-		if game.open_safe():
+		if _open_safe_net():
 			msg = "СЕЙФ ОТКРЫТ"
 			game.hud.toast("777 — сейф открыт", Color(1.0, 0.85, 0.4))
 		else:
@@ -342,10 +377,8 @@ func _payout() -> void:
 	var mult := chain_mult(streak)
 	win = roundi(win * mult)
 	# лимит 1500 (промпт 18.11 01:03): после него выплата не больше вложенного банка
-	var cut_by_bank := false
 	if capped and win > bank:
-		win = bank
-		cut_by_bank = true
+		win = bank       # подсказок про остаток в кассе нет — только бегущая строка «ОБЧИЩЕНО...»
 	if capped:
 		bank -= win
 	profit += win
@@ -363,9 +396,6 @@ func _payout() -> void:
 		# выигрыш со звоном высыпается в лоток-«пасть», забирать на E (промпт 14.11 17:53)
 		_pour(win)
 		game.hud.toast("KILLBOX: +%d — монеты в лотке" % win, Color(1.0, 0.8, 0.4))
-	if cut_by_bank:
-		msg = (msg + " · ") if msg != "" else ""
-		msg += "КАССА ПУСТА"
 	if sevens or win >= 30:
 		party = 2.5
 		snd2.stream = game.snd["jingle"][0]
@@ -376,7 +406,7 @@ func _payout() -> void:
 		msg = "КОМБО ×%d · " % won_lines.size() + msg
 	if won_lines.size() > 0:
 		hl_t = 6.0
-	screen.text = msg if msg != "" else "ПУСТО"
+	_set_screen(msg if msg != "" else "ПУСТО")
 	if game.has_method("save_now"):
 		game.call_deferred("save_now")
 	_update_screen_hint()
@@ -407,6 +437,90 @@ func _take_bought() -> String:
 	return ""
 
 
+# ---------- сеть: автомат общий для всех игроков (slot/slot_net.gd, промпт 18.11 02:13) ----------
+
+## Крутка другого игрока: пока крутятся барабаны, чужая крутка ждёт очереди (_process).
+## Серию (множитель) берём от него же: у себя она могла сгореть от расстояния до автомата.
+func net_spin(st: Array, sp: Array, strk: int) -> void:
+	if busy or not net_queue.is_empty():
+		net_queue.append([st, sp, strk])
+		return
+	streak = maxi(strk, 0)
+	_spin_start(false, st, sp)
+
+
+## Крутки купил другой игрок: монеты списал он, крутки и касса — общие.
+func net_pay(n: int, price: int) -> void:
+	credits += n
+	profit -= price
+	if capped:
+		bank += price
+	_set_screen("")
+	_update_screen_hint()
+
+
+## Окно прокачал другой игрок.
+func net_level(lv: int) -> void:
+	set_level(lv)
+	if level < MAX_LEVEL:
+		return
+	# кат-сцену с семёрками и шестёрками видит только тот, кто стоит у автомата;
+	# у остальных доска выплат просто обновляется, камеру никто не забирает
+	var near: bool = game != null and game.get("player") != null 		and game.player.global_position.distance_to(global_position) < 8.0
+	set_reveal_pending(near)
+
+
+## Лоток забрал (или пасть сожрала) другой игрок.
+func net_tray(n: int) -> void:
+	_stop_pour()
+	set_tray(n)
+
+
+## Яблоко скормил другой игрок.
+func net_shield(n: int) -> void:
+	set_shield(n)
+	_set_screen("НЯМ. ЗАЩИТА ОТ 666 ×%d" % shield)
+	_update_screen_hint()
+
+
+## Всё состояние автомата (хост — вошедшему игроку).
+func net_state_dict() -> Dictionary:
+	return {
+		"credits": credits, "luck": luck.duplicate(true), "boost": boost.duplicate(true),
+		"level": level, "tray": tray_coins, "shield": shield, "profit": profit,
+		"capped": capped, "bank": bank, "sevens": sevens_hit, "streak": streak,
+	}
+
+
+func net_state(d: Dictionary) -> void:
+	credits = int(d.get("credits", credits))
+	load_buffs(d.get("luck", {}), d.get("boost", {}))
+	set_level(int(d.get("level", level)))
+	set_tray(int(d.get("tray", tray_coins)))
+	set_shield(int(d.get("shield", shield)))
+	profit = int(d.get("profit", profit))
+	capped = bool(d.get("capped", capped))
+	bank = int(d.get("bank", bank))
+	sevens_hit = bool(d.get("sevens", sevens_hit))
+	streak = int(d.get("streak", streak))
+	_set_screen("")
+	_update_screen_hint()
+	_update_buff_panel()
+
+
+## 777: сейф открывает тот, кто крутил (окно сундука — у него); у остальных он просто отпирается.
+func _open_safe_net() -> bool:
+	if game == null:
+		return false
+	if spin_mine:
+		return game.open_safe()
+	var sf = game.get("safe")
+	if sf == null or not is_instance_valid(sf) or sf.opened:
+		return false
+	sf.locked = false
+	return true
+
+
 func _input(e: InputEvent) -> void:
 	if pack_open and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory")):
 		get_viewport().set_input_as_handled()
@@ -416,9 +530,11 @@ func _input(e: InputEvent) -> void:
 
 ## Магазин: гарантированный символ ×k. Гаранты одного символа идут очередью (промпт 16.11 04:32):
 ## сначала докручивается текущий, потом начинается следующий; тот же ×k подряд — просто добавляет круток.
-func add_luck(sym: String, k := 1) -> void:
+func add_luck(sym: String, k := 1, mine := true) -> void:
 	if not LUCK.has(sym):
 		return
+	if mine:
+		send("k_luck", [sym, k])
 	var n := int(LUCK[sym][0])
 	k = clampi(k, 1, LUCK[sym].size() - 1)
 	if not luck.has(sym):
@@ -433,7 +549,7 @@ func add_luck(sym: String, k := 1) -> void:
 		else:
 			q.append([k, n])
 		cur["q"] = q
-	screen.text = ""
+	_set_screen("")
 	_update_screen_hint()
 	_update_buff_panel()
 
@@ -449,11 +565,13 @@ func luck_total(sym: String) -> int:
 
 
 ## Магазин: шанс комбинации символа на BOOST[sym][0] круток.
-func add_boost(sym: String) -> void:
+func add_boost(sym: String, mine := true) -> void:
 	if not BOOST.has(sym):
 		return
+	if mine:
+		send("k_boost", [sym])
 	boost[sym] = int(boost.get(sym, 0)) + int(BOOST[sym][0])
-	screen.text = ""
+	_set_screen("")
 	_update_screen_hint()
 	_update_buff_panel()
 
@@ -565,6 +683,7 @@ func take_tray() -> void:
 	var n := tray_coins
 	var left: int = game.inv.add("coin", n)
 	set_tray(left)
+	send("k_tray", [left])
 	game.play_ui("coin", -8.0, 1.05)
 	game.hud.toast("+%d монет" % (n - left), Color(1.0, 0.8, 0.4))
 	if game.has_method("save_now"):
@@ -611,6 +730,7 @@ func feed_apple() -> void:
 	if not can_feed(game) or not game.inv.remove("rot_apple", 1):
 		return
 	shield += 1
+	send("k_shield", [shield])
 	var a := _apple_mesh()
 	a.scale = Vector3.ONE * 1.6
 	rig.add_child(a)
@@ -633,7 +753,7 @@ func feed_apple() -> void:
 			mt.tween_property(maw_mat, "emission_energy_multiplier", 3.0, 0.12)
 			mt.tween_property(maw_mat, "emission_energy_multiplier", 0.6, 0.6)
 		_update_apples()
-		screen.text = "НЯМ. ЗАЩИТА ОТ 666 ×%d" % shield
+		_set_screen("НЯМ. ЗАЩИТА ОТ 666 ×%d" % shield)
 		_update_screen_hint())
 	if game:
 		game.hud.toast("KILLBOX съел гнилое яблоко: при следующих «666» вещи останутся (%d/%d)" % [shield, SHIELD_MAX], Color(0.7, 1.0, 0.5))

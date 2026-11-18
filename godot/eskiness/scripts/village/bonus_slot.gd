@@ -5,7 +5,8 @@ extends StaticBody3D
 ## три — бонус-игра: 8 бесплатных круток с удвоенным выигрышем.
 ## Джекпоты (корона J): две — мини-джекпот 25 монет, три — ДЖЕКПОТ: весь банк (уменьшается на 1 с каждой платной
 ## крутки, начинается со 1060; в сейве — village.gd).
-## Автомат у каждого игрока свой (монеты свои), в сети не синхронизируется.
+## В сети автомат общий (промпт 18.11 02:13, slot/slot_net.gd): крутки, джекпот, бесплатные крутки,
+## бонус-игра и ставка — одни для всех; монеты и бонуски-подарки достаются тому, кто крутил.
 ## Живее (промпт 16.11 00:17): бегущие лампы по рамке и вывеске, рычаг дёргается, барабаны размыты в крутке
 ## и пружинят при остановке; две короны/звезды/семёрки на первых барабанах — третий крутится дольше («интрига»)
 ## с нарастающим тоном; выигрыш — подсветка символов, табло со счётчиком монет, фонтан монет из лотка;
@@ -42,6 +43,8 @@ var free_spins := 0
 var bonus_game := false      # идёт бонус-игра (выигрыш ×BONUS_MULT)
 var sevens_hit := false      # 777 уже выпадали (сейв — village.gd)
 var busy := false
+var spin_mine := true        # эту крутку дёрнул я (иначе — другой игрок по сети)
+var net_queue: Array = []    # чужие крутки, пришедшие пока крутились барабаны
 var t := 0.0
 var result := ["cherry", "lemon", "plum"]
 var shown := ["seven", "seven", "seven"]
@@ -279,6 +282,7 @@ func cycle_bet() -> void:
 		return
 	bet = BETS[(BETS.find(bet) + 1) % BETS.size()]
 	_update_bet_label()
+	send("f_bet", [bet])
 	_sfx("win", -14.0, 0.8 + 0.1 * BETS.find(bet))
 	msg = "СТАВКА ×%d — КРУТКА %d МОНЕТ" % [bet, COST * bet]
 	msg_col = Color(0.95, 0.85, 0.5)
@@ -288,6 +292,42 @@ func cycle_bet() -> void:
 func set_bet(b: int) -> void:
 	bet = b if BETS.has(b) else 1
 	_update_bet_label()
+
+
+# ---------- сеть: автомат общий (slot/slot_net.gd, промпт 18.11 02:13) ----------
+
+## Узел /root/SlotNet или null в одиночной игре.
+func snet() -> Node:
+	if game == null or not is_instance_valid(game) or game.get("net") == null:
+		return null
+	return get_tree().root.get_node_or_null("SlotNet")
+
+
+func send(method: String, args: Array = []) -> void:
+	var n := snet()
+	if n:
+		n.callv("rpc", [method] + args)
+
+
+## Крутка другого игрока: пока крутятся барабаны, ждёт очереди (_process).
+func net_spin(res: Array, free_used: bool) -> void:
+	if busy or not net_queue.is_empty():
+		net_queue.append([res, free_used])
+		return
+	_spin_start(res, free_used, false)
+
+
+## Всё состояние автомата (хост — вошедшему игроку).
+func net_state_dict() -> Dictionary:
+	return {"jackpot": jackpot, "free": free_spins, "bonus": bonus_game, "sevens": sevens_hit, "bet": bet}
+
+
+func net_state(d: Dictionary) -> void:
+	jackpot = int(d.get("jackpot", jackpot))
+	free_spins = int(d.get("free", free_spins))
+	bonus_game = bool(d.get("bonus", bonus_game))
+	sevens_hit = bool(d.get("sevens", sevens_hit))
+	set_bet(int(d.get("bet", bet)))
 
 
 func _mat(c: Color, metal := 0.0, rough := 0.8) -> StandardMaterial3D:
@@ -452,30 +492,40 @@ func get_prompt(g) -> String:
 
 
 func interact(g) -> void:
-	if busy:
+	if busy or not net_queue.is_empty():
 		return
-	if free_spins > 0:
-		free_spins -= 1
-	elif g.inv.coins >= COST * bet:
+	var free_used := free_spins > 0
+	if not free_used:
+		if g.inv.coins < COST * bet:
+			g.hud.toast("Не хватает монет")
+			return
 		g.inv.remove("coin", COST * bet)
+	var res: Array = [_roll(), _roll(), _roll()]
+	if jackpot <= 0:
+		res = ["jack", "jack", "jack"]
+	if sevens_hit and res.count("seven") == 3 and randf() < SEVENS_REROLL:
+		res[2] = _roll()
+		while res[2] == "seven":
+			res[2] = _roll()
+	_spin_start(res, free_used, true)
+	send("f_spin", [res, free_used])
+
+
+## Крутка: mine — своя, иначе чужая по сети (символы разыграл тот, кто дёрнул рычаг).
+func _spin_start(res: Array, free_used: bool, mine: bool) -> void:
+	spin_mine = mine
+	if free_used:
+		free_spins = maxi(0, free_spins - 1)
+	else:
 		jackpot = maxi(0, jackpot - 1)
 		bonus_game = false
-	else:
-		g.hud.toast("Не хватает монет")
-		return
 	busy = true
 	t = 0.0
 	win_t = 99.0
 	tier = 0
 	banner = ""
 	for i in 3:
-		result[i] = _roll()
-	if jackpot <= 0:
-		result = ["jack", "jack", "jack"]
-	if sevens_hit and result.count("seven") == 3 and randf() < SEVENS_REROLL:
-		result[2] = _roll()
-		while result[2] == "seven":
-			result[2] = _roll()
+		result[i] = String(res[i])
 	for i in 3:
 		reel_done[i] = false
 		win_mask[i] = false
@@ -530,8 +580,11 @@ func _process(delta: float) -> void:
 			busy = false
 			snd.stop()
 			_payout()
-			if free_spins <= 0 and game and game.inv.coins < COST:
+			if spin_mine and free_spins <= 0 and game and game.inv.coins < COST:
 				preload("res://scripts/slot/slot_machine.gd").pity(game)
+	elif not net_queue.is_empty():   # чужая крутка, пришедшая пока крутились барабаны
+		var q: Array = net_queue.pop_front()
+		_spin_start(q[0], bool(q[1]), false)
 	_lights(delta)
 	# счётчик выигрыша бежит, звенят монеты
 	if win_amount > 0 and count_shown < win_amount:
@@ -599,7 +652,10 @@ func _payout() -> void:
 		tier = 3
 		banner = "ДЖЕКПОТ!!!"
 		if game:
-			game.hud.toast("ДЖЕКПОТ НА ФОРТУНЕ: +%d" % roundi(win * mult * bet), Color(1.0, 0.8, 0.3))
+			if spin_mine:
+				game.hud.toast("ДЖЕКПОТ НА ФОРТУНЕ: +%d" % roundi(win * mult * bet), Color(1.0, 0.8, 0.3))
+			else:
+				game.hud.toast("ДЖЕКПОТ НА ФОРТУНЕ сорвал другой игрок", Color(1.0, 0.8, 0.3))
 	elif jacks == 2:
 		win += 25
 		lines.append("МИНИ-ДЖЕКПОТ")
@@ -635,7 +691,7 @@ func _payout() -> void:
 			banner = "+3 КРУТКИ"
 	elif bonus == 1:
 		var gift: Array = GIFTS[randi() % GIFTS.size()]
-		if game:
+		if game and spin_mine:   # подарок — тому, кто крутил
 			var left: int = game.inv.add(gift[0], gift[1])
 			if left > 0:
 				game.spawn_loot(gift[0], left, global_transform * Vector3(0, 0.4, 0.5), global_transform.basis * Vector3(0, 1, 1.5), 0.3)
@@ -657,7 +713,8 @@ func _payout() -> void:
 	win_t = 0.0
 	coin_tick = 0.0
 	if win > 0 and game:
-		game.inv.add("coin", win)
+		if spin_mine:
+			game.inv.add("coin", win)
 		lines.push_front("+%d МОНЕТ" % win)
 		_coin_fountain(10 if tier == 1 else 28 if tier == 2 else 90)
 	# звук по силе выигрыша

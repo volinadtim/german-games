@@ -315,7 +315,7 @@ func load_state(d: Dictionary) -> void:
 		slot.bank = int(d.get("slot_bank", 0))
 		slot.sevens_hit = bool(d.get("slot_sevens", d.get("safe_open", false)))
 		slot.set_reveal_pending(bool(d.get("slot_reveal", false)))
-		slot.screen.text = ""
+		slot.screen_msg = ""
 		slot._update_screen_hint()
 	if village:
 		village.from_save(d.get("village", {}))

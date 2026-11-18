@@ -71,7 +71,7 @@ func _build() -> void:
 	# вывеска
 	_neon_sign(trim, black)
 	screen = Label3D.new()
-	screen.text = "%d КРУТКИ — %d · %d — %d" % [PACKS[0][0], PACKS[0][1], PACKS[1][0], PACKS[1][1]]
+	_set_screen("%d КРУТКИ — %d · %d — %d" % [PACKS[0][0], PACKS[0][1], PACKS[1][0], PACKS[1][1]])
 	screen.font_size = 40
 	screen.pixel_size = 0.0009
 	screen.outline_size = 0

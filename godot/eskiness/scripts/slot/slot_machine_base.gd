@@ -93,6 +93,8 @@ const BOARD_M := Vector2(1.35, 1.47)
 
 var game  # game.gd (выставляет game.gd; в меню — null)
 var busy := false
+var spin_mine := true            # эту крутку дёрнул я (иначе — другой игрок по сети)
+var net_queue: Array = []        # чужие крутки, пришедшие пока барабаны крутились
 var credits := 0                 # оплаченные крутки
 var luck := {}                   # гарантированный символ -> {"left": осталось круток, "k": штук за крутку, "q": [[k, круток], ...] — очередь купленных позже (промпт 16.11 04:32)}
 var buff_panel: Label3D          # табличка баффов на стене между автоматом и магазином
@@ -169,6 +171,58 @@ var t := 0.0
 var tick_t := 0.0
 var snd: AudioStreamPlayer3D
 var snd2: AudioStreamPlayer3D
+
+
+# ---------- сеть (slot/slot_net.gd, промпт 18.11 02:13) ----------
+
+## Узел /root/SlotNet или null в одиночной игре: автомат общий для всех игроков.
+func snet() -> Node:
+	if game == null or not is_instance_valid(game) or game.get("net") == null:
+		return null
+	return get_tree().root.get_node_or_null("SlotNet")
+
+
+## Разослать остальным игрокам действие с автоматом (имя метода — из slot_net.gd).
+func send(method: String, args: Array = []) -> void:
+	var n := snet()
+	if n:
+		n.callv("rpc", [method] + args)
+
+
+# ---------- экран: бегущая строка «ОБЧИЩЕНО…» (промпт 18.11 02:13) ----------
+
+## Касса обчищена (capped) — в строке вывода медленно едет слева направо «ОБЧИЩЕНО...».
+## Сколько в автомате осталось денег, не пишем — только эта строка.
+const CAP_TEXT := "ОБЧИЩЕНО...·"
+const CAP_CHARS := 16      # длина видимого окна бегущей строки, символов
+const CAP_SPEED := 2.5     # символов в секунду
+var screen_msg := ""       # текст экрана без бегущей строки
+var cap_scroll := 0.0
+
+
+## Написать на экране автомата (бегущую строку дописывает _refresh_screen).
+func _set_screen(txt: String) -> void:
+	screen_msg = txt
+	_refresh_screen()
+
+
+func _refresh_screen() -> void:
+	if screen == null:
+		return
+	if not capped:
+		screen.text = screen_msg
+		return
+	screen.text = (screen_msg + "\n" if screen_msg != "" else "") + _cap_line()
+
+
+## Окно бегущей строки: лента CAP_TEXT по кругу; сдвиг растёт — надпись уезжает вправо.
+func _cap_line() -> String:
+	var n := CAP_TEXT.length()
+	var off := n - (int(cap_scroll) % n)
+	var tape := ""
+	while tape.length() < CAP_CHARS + n:
+		tape += CAP_TEXT
+	return tape.substr(off, CAP_CHARS)
 
 
 func _mat(c: Color, metal := 0.0, rough := 0.8) -> StandardMaterial3D:
