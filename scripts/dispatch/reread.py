@@ -55,7 +55,7 @@ def bash_reads(cmd, cwd_rel):
 def scan(path):
     s = dict(file=path, zone=re.search(r'disp-([a-z]+)', path).group(1), model='', turns=0, first_ctx=0,
              first_cache_read=0, cread=0, cwrite=0, out=0, reads=[], greps=0, ritual=collections.Counter(),
-             ritual_chars=0, read_chars=0, first_cmds=[], items=[])
+             ritual_chars=0, read_chars=0, first_cmds=[], items=[], calls=0, tsteps=0)
     tools = {}
     seen = set()
     cwd_rel = ''
@@ -66,6 +66,10 @@ def scan(path):
             continue
         m = d.get('message') or {}
         if d.get('type') == 'assistant':
+            tu = [c for c in (m.get('content') or []) if isinstance(c, dict) and c.get('type') == 'tool_use']
+            if tu and m.get('id') not in s.setdefault('_tid', set()):
+                s['_tid'].add(m.get('id')); s['tsteps'] += 1
+            s['calls'] += len(tu)
             for c in m.get('content') or []:
                 if isinstance(c, dict) and c.get('type') == 'tool_use':
                     tools[c['id']] = (c['name'], c.get('input', {}))
@@ -149,13 +153,15 @@ def main():
     sess = [scan(f) for f in files]
     sess = [s for s in sess if s['turns']]
     print(f'Сессий воркеров: {len(sess)}\n')
-    print(f"{'зона':8} {'модель':10} {'шаг':>4} {'старт':>6} {'кэш@старт':>9} {'чит.стр':>7} {'повтор':>7} {'ритуал':>7} {'grep':>4}  файлов")
+    print(f"{'зона':8} {'модель':10} {'шаг':>4} {'старт':>6} {'кэш@старт':>9} {'чит.стр':>7} {'повтор':>7} {'ритуал':>7} {'grep':>4} {'выз/шаг':>7}  файлов")
     tot_lines = tot_again = 0
     for s in sess:
         t, r, pf = overlap_lines(s['reads'])
         tot_lines += t; tot_again += r
         rit = sum(s['ritual'].values())
-        print(f"{s['zone']:8} {s['model'][:10]:10} {s['turns']:>4} {s['first_ctx']//1000:>5}k {s['first_cache_read']//1000:>8}k {t:>7} {r:>7} {rit:>7} {s['greps']:>4}  {len(pf)}")
+        print(f"{s['zone']:8} {s['model'][:10]:10} {s['turns']:>4} {s['first_ctx']//1000:>5}k {s['first_cache_read']//1000:>8}k {t:>7} {r:>7} {rit:>7} {s['greps']:>4} {s['calls']/max(s['tsteps'],1):>7.2f}  {len(pf)}")
+    ts = sum(s['turns'] for s in sess); st = sum(s['tsteps'] for s in sess); cl = sum(s['calls'] for s in sess)
+    print(f"\nШагов в среднем на сессию: {ts/len(sess):.1f}; вызовов инструментов за шаг: {cl/max(st,1):.2f} (цель — меньше шагов и 2+ вызова за шаг)")
     print(f'\nВсего прочитано строк: {tot_lines}, из них повторно внутри своей же сессии: {tot_again} ({100*tot_again//max(tot_lines,1)}%)')
 
     # между сессиями: файлы и строки, которые читают снова и снова разные агенты

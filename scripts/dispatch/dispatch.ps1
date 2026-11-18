@@ -251,7 +251,7 @@ function Start-Worker($q) {
     } elseif ($q.mode -eq "continue") {
         "Новый промпт Германа ($($q.at)), продолжение твоей работы:`n$($q.text)"
     } else {
-        "Правила — godot/eskiness/AGENTS.md. Время промпта: $($q.at). Задача Германа:`n$($q.text)"
+        "Время промпта: $($q.at). Задача Германа:`n$($q.text)"
     }
     $in = Join-Path $Dir "$zone.in.txt"; $out = Join-Path $Dir "$zone.out.json"; $err = Join-Path $Dir "$zone.err.txt"
     [IO.File]::WriteAllText($in, $brief, $Utf8)
