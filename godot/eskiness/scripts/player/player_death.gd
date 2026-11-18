@@ -33,6 +33,9 @@ func end_death() -> void:
 	dying = false
 	death_t = 0.0
 	head.rotation.z = 0.0
+	if model_root != null:   # иначе _apply_bones трогает только .y — тело осталось бы завалено (18.11 02:23)
+		model_root.rotation.x = 0.0
+		model_root.rotation.z = 0.0
 	for w in weapon_nodes:
 		if w != null and is_instance_valid(w):
 			w.visible = true
