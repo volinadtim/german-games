@@ -11,18 +11,31 @@ func ping_ms() -> int:
 		for id in players:
 			if id == 1:
 				continue
-			if rtt.has(id):
-				m = maxi(m, int(rtt[id]))
+			var v := _rtt_of(id)
+			if v >= 0:
+				m = maxi(m, v)
 		return m
-	return int(rtt[1]) if rtt.has(1) else -1
+	return _rtt_of(1)
 
 
-## Свой замер пинга (промпт 16.11 22:04): раз в 0.5 с метка времени туда-обратно; первый замер — сразу.
+## Пинг по окну замеров — минимум из них (промпт 18.11 02:10). Метка идёт через игровой кадр,
+## поэтому в каждый отдельный замер подмешана просадка кадров у обоих; минимум её отсекает.
+func _rtt_of(id: int) -> int:
+	var w: Array = rtt.get(id, [])
+	if w.is_empty():
+		return -1
+	var m: float = w[0]
+	for v in w:
+		m = minf(m, float(v))
+	return int(m)
+
+
+## Свой замер пинга (промпт 16.11 22:04): метка времени туда-обратно; первый замер — сразу.
 func _ping_tick(delta: float) -> void:
 	png_t -= delta
 	if png_t > 0.0 or peer == null:
 		return
-	png_t = 0.5
+	png_t = 0.4
 	if hosting:
 		rpc("png", Time.get_ticks_msec())
 	else:
@@ -38,7 +51,11 @@ func png(t: int) -> void:
 func png_r(t: int) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	var ms := float(maxi(Time.get_ticks_msec() - t, 0))
-	rtt[id] = ms if not rtt.has(id) else lerpf(float(rtt[id]), ms, 0.5)
+	var w: Array = rtt.get(id, [])
+	w.append(ms)
+	while w.size() > PNG_WINDOW:
+		w.pop_front()
+	rtt[id] = w
 
 
 func _peer_joined(_id: int) -> void:
@@ -475,7 +492,25 @@ func pick_target(e) -> Object:
 
 # ---------- враги ----------
 
+## Есть ли игрок (свой или чужая кукла) ближе r к точке — далёких врагов шлём реже (промпт 18.11 02:10).
+func near_player(pos: Vector3, r: float) -> bool:
+	if game == null or not is_instance_valid(game):
+		return true
+	var r2 := r * r
+	if is_instance_valid(game.player) and game.player.global_position.distance_squared_to(pos) < r2:
+		return true
+	for id in puppets:
+		var pp = puppets[id]
+		if is_instance_valid(pp) and (pp as Node3D).global_position.distance_squared_to(pos) < r2:
+			return true
+	return false
+
+
+## Хост → всем: состояние врагов. Далёких (никого ближе NET_FAR) гоняем только в полной посылке,
+## каждой NET_FULL-й — пока все на поляне, трафик деревни не идёт, и наоборот (промпт 18.11 02:10).
 func _send_enemies() -> void:
+	es_n += 1
+	var full := es_n % NET_FULL == 0
 	var arr: Array = []
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.net_puppet or not e.is_inside_tree():
@@ -484,12 +519,14 @@ func _send_enemies() -> void:
 			e.set_meta("nid", enemy_seq)
 			enemy_map[enemy_seq] = e
 			enemy_seq += 1
+		if not full and not near_player(e.global_position, NET_FAR):
+			continue
 		arr.append([e.get_meta("nid"), 0 if e.kind == "heavy" else 1, e.global_position, e.rotation.y, e.state, e.hp, e.hunter])
-	rpc("es", arr)
+	rpc("es", arr, full)
 
 
 @rpc("authority", "unreliable_ordered", "call_remote", 2)
-func es(arr: Array) -> void:
+func es(arr: Array, full := true) -> void:
 	if game == null or not is_instance_valid(game):
 		return
 	var seen := {}
@@ -513,6 +550,8 @@ func es(arr: Array) -> void:
 			game.add_child(e)
 			enemy_map[nid] = e
 		e.net_apply(a[2], a[3], a[4], a[5])
+	if not full:
+		return   # неполная посылка (только те, кто рядом с игроками) — лишние копии не убираем
 	for nid in enemy_map.keys():
 		if not seen.has(nid):
 			var e = enemy_map[nid]

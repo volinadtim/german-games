@@ -146,7 +146,7 @@ func interact(g) -> void:
 ## Крутка: mine — своя, иначе чужая по сети (окно уже разыграно тем, кто дернул рычаг).
 func _spin_start(mine: bool, nstops: Array = [], nstrips: Array = []) -> void:
 	spin_mine = mine
-	credits -= 1
+	credits = maxi(credits - 1, 0)   # сеть: двое дёрнули рычаг одновременно — в минус не уходим
 	# гарантированный символ тратится с каждой круткой
 	for k in luck.keys():
 		luck[k]["left"] = int(luck[k]["left"]) - 1
@@ -483,12 +483,30 @@ func net_shield(n: int) -> void:
 	_update_screen_hint()
 
 
+## Включить автомат у всех (world/intro.gd: монстрика из кат-сцены добил кто-то из игроков).
+func net_power(on: bool) -> void:
+	var was := powered
+	set_powered(on, on and not was)
+	send("k_power", [on])
+
+
+## Питание пришло по сети: если у этого игрока вступление ещё идёт, монстрика уже добили — заканчиваем
+## его (камера сама повернётся к автомату и он загорится), иначе просто включаем автомат.
+func net_power_apply(on: bool) -> void:
+	var intro = game.get_node_or_null("Intro") if game else null
+	if on and intro != null and not bool(intro.get("done")):
+		intro.net_power_cue()
+	elif on != powered:
+		set_powered(on, on)
+
+
 ## Всё состояние автомата (хост — вошедшему игроку).
 func net_state_dict() -> Dictionary:
 	return {
 		"credits": credits, "luck": luck.duplicate(true), "boost": boost.duplicate(true),
 		"level": level, "tray": tray_coins, "shield": shield, "profit": profit,
 		"capped": capped, "bank": bank, "sevens": sevens_hit, "streak": streak,
+		"power": powered, "shop": bool(game.get("shop_on")) if game else true,
 	}
 
 
@@ -503,6 +521,12 @@ func net_state(d: Dictionary) -> void:
 	bank = int(d.get("bank", bank))
 	sevens_hit = bool(d.get("sevens", sevens_hit))
 	streak = int(d.get("streak", streak))
+	# Trinkets Market включает первая крутка (_first_spins_check) — вошедшему в игру тоже
+	if bool(d.get("shop", true)) and game and not bool(game.get("shop_on")):
+		game.shop_on = true
+		if game.shop and is_instance_valid(game.shop):
+			game.shop.set_powered(true)
+	net_power_apply(bool(d.get("power", powered)))   # у хоста автомат уже включён — и у вошедшего тоже
 	_set_screen("")
 	_update_screen_hint()
 	_update_buff_panel()

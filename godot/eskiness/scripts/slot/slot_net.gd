@@ -9,6 +9,9 @@ extends Node
 ##   k_* — KILLBOX, f_* — ФОРТУНА; *_state хост досылает тому, кто вошёл (возврат после обрыва).
 
 var game
+var got_state := false   # клиент: состояние автоматов от хоста получено (иначе спрашиваем ещё)
+var ask_t := 0.8
+var tries := 6
 
 
 static func ensure(g) -> Node:
@@ -19,7 +22,29 @@ static func ensure(g) -> Node:
 		n.name = "SlotNet"
 		root.add_child(n)
 	n.game = g
+	n.got_state = g.net == null or g.net.is_host()
+	n.ask_t = 0.8
+	n.tries = 6
 	return n
+
+
+## Клиент: пока состояние автоматов не пришло — спрашиваем хоста (он мог ещё не создать узел,
+## а его собственная досылка — попасть в момент, когда у нас ещё нет мира). Промпт 18.11 02:10.
+func _process(delta: float) -> void:
+	if got_state or tries <= 0 or _killbox() == null:
+		return
+	ask_t -= delta
+	if ask_t > 0.0:
+		return
+	ask_t = 1.5
+	tries -= 1
+	rpc_id(1, "k_rq_state")
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func k_rq_state() -> void:
+	if multiplayer.is_server():
+		_send_state(multiplayer.get_remote_sender_id())
 
 
 func _ready() -> void:
@@ -108,8 +133,17 @@ func k_shield(n: int) -> void:
 		k.net_shield(n)
 
 
+## Монстрика из вступления добил любой игрок — KILLBOX включается у всех (промпт 18.11 02:10).
+@rpc("any_peer", "call_remote", "reliable")
+func k_power(on: bool) -> void:
+	var k = _killbox()
+	if k:
+		k.net_power_apply(on)
+
+
 @rpc("authority", "call_remote", "reliable")
 func k_state(d: Dictionary) -> void:
+	got_state = true
 	var k = _killbox()
 	if k:
 		k.net_state(d)

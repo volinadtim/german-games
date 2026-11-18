@@ -70,7 +70,8 @@ var exhaled := false
 var spot := 0            # номер места пробуждения (сеть)
 var pending_cut := false # сеть: кат-сцену запустил другой игрок, пока этот ещё просыпался
 var cut_sent := false    # хост: кат-сцена уже разослана; клиент: уже попросил
-var cue_sent := false    # хост: смерть монстрика уже разослана
+var cue_sent := false    # смерть монстрика уже разослана (хостом — всем, клиентом — хосту)
+var uncalm_sent := false # клиент: попросил хоста снять с монстрика неуязвимость
 var want_note := false   # новая игра: после пробуждения — нескипаемая сцена с запиской
 var note: Node3D         # записка в руке (ребёнок камеры игрока)
 var note_tossed := false
@@ -278,8 +279,12 @@ func _process(delta: float) -> void:
 				_end_side_cam()
 				_lock(false)
 				_show_hint()
-				if is_instance_valid(crawler) and _owner():
-					crawler.set("calm", false)
+				if _owner():
+					if is_instance_valid(crawler):
+						crawler.set("calm", false)
+				elif not uncalm_sent:
+					uncalm_sent = true
+					rpc_id(1, "rq_uncalm")   # пропустил кат-сцену раньше хоста — монстрик должен стать уязвим
 				stage = "hunt"
 		"hunt":
 			if not _owner():
@@ -299,7 +304,7 @@ func _process(delta: float) -> void:
 			if t >= 0.1:   # сразу после убийства (промпт 16.11 03:39)
 				game.intro_done = true
 				if game.slot and is_instance_valid(game.slot):
-					game.slot.set_powered(true, true)   # KILLBOX загорается со звуком
+					game.slot.net_power(true)   # KILLBOX загорается со звуком — у всех игроков
 				_play_echo()
 				p.set_lock("intro_cue", true)
 				t = 0.0
@@ -576,6 +581,15 @@ func rq_cut() -> void:
 		_host_cut()
 
 
+## Клиент закончил кат-сцену раньше хоста (пропустил) — монстрик у хоста больше не неуязвим.
+@rpc("any_peer", "reliable")
+func rq_uncalm() -> void:
+	var n = _net()
+	if n and n.is_host() and is_instance_valid(crawler):
+		crawler.set("calm", false)
+		crawler.crawl_wait = false
+
+
 @rpc("authority", "reliable")
 func net_cut() -> void:
 	if done:
@@ -586,10 +600,29 @@ func net_cut() -> void:
 		_begin_cut()
 
 
+## Монстрика добил клиент — хост заканчивает вступление у себя и у всех остальных.
+@rpc("any_peer", "reliable")
+func rq_cue() -> void:
+	var n = _net()
+	if n == null or not n.is_host():
+		return
+	if not cue_sent:
+		cue_sent = true
+		rpc("net_cue")
+	net_power_cue()
+
+
 @rpc("authority", "reliable")
 func net_cue() -> void:
+	net_power_cue()
+
+
+## Вступление пора заканчивать: монстрика добил кто-то (net_cue) или автомат уже включили у других
+## игроков (slot_machine.gd net_power_apply); у стадий «просыпается» и «записка» — свой выход.
+func net_power_cue() -> void:
 	if done:
 		return
+	cue_sent = true   # о смерти уже знают все — обратно хосту не шлём
 	if stage == "wake":
 		pending_cut = false
 		want_note = false
@@ -716,11 +749,15 @@ func _end_side_cam() -> void:
 		game.player.force_crouch = false
 
 
+## Монстрика добили (любой игрок, промпт 18.11 02:10): конец вступления и включение автомата — у всех.
 func _on_crawler_died(_e) -> void:
 	var n = _net()
-	if n and n.is_host() and not cue_sent:
+	if n and not cue_sent:
 		cue_sent = true
-		rpc("net_cue")   # финал вступления — у всех
+		if n.is_host():
+			rpc("net_cue")        # финал вступления — всем
+		else:
+			rpc_id(1, "rq_cue")   # добил клиент: хост разошлёт конец вступления остальным
 	if stage in ["hunt", "cut", "free"]:
 		if stage == "cut":
 			_end_side_cam()

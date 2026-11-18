@@ -501,8 +501,10 @@ func mutant_by_id(nid: int):
 	return null
 
 
-## Хост: раз в 0.1 с — всем состояние мутантов.
+## Хост: раз в 0.1 с — всем состояние мутантов. Пока никто из игроков не рядом, полная посылка идёт
+## только каждая 5-я (net_base.gd NET_FULL) — трафик деревни не висит на игре на поляне (промпт 18.11 02:10).
 var _mut_send_t := 0.0
+var _mut_n := 0
 
 
 func _send_mutants(delta: float) -> void:
@@ -513,15 +515,21 @@ func _send_mutants(delta: float) -> void:
 	var vn := get_tree().root.get_node_or_null("VillageNet")
 	if vn == null:
 		return
+	_mut_n += 1
+	var net = game.net if game else null
+	var full: bool = net == null or _mut_n % net.NET_FULL == 0
 	var arr: Array = []
 	for m in mutants:
-		if is_instance_valid(m) and m.is_inside_tree():
-			arr.append([int(m.get_meta("nid")), m.kind, m.global_position, m.rotation.y, m.state, m.hp])
-	vn.rpc("v_mut", arr)
+		if not is_instance_valid(m) or not m.is_inside_tree():
+			continue
+		if not full and not net.near_player(m.global_position, net.NET_FAR):
+			continue
+		arr.append([int(m.get_meta("nid")), m.kind, m.global_position, m.rotation.y, m.state, m.hp])
+	vn.rpc("v_mut", arr, full)
 
 
-## Клиент: копии мутантов по данным хоста.
-func net_mutants(arr: Array) -> void:
+## Клиент: копии мутантов по данным хоста. full = false — только те, кто рядом с игроками.
+func net_mutants(arr: Array, full := true) -> void:
 	var seen := {}
 	for a in arr:
 		var nid: int = a[0]
@@ -543,6 +551,8 @@ func net_mutants(arr: Array) -> void:
 			game.add_child(m)
 			mutants.append(m)
 		m.net_apply(a[2], a[3], a[4], a[5])
+	if not full:
+		return
 	for m in mutants.duplicate():
 		if is_instance_valid(m) and not seen.has(int(m.get_meta("nid", -1))):
 			if m.state != "dead":

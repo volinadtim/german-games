@@ -10,7 +10,7 @@ signal status(text: String, bad: bool)   # статус подключения �
 const PORT := 24680
 const DISCOVERY_PORT := 24681
 const MAX_PEERS := 3   # до 4 игроков в комнате (хост + 3): в машине 4 места (промпт 15.11 23:20)
-const VERSION := 1
+const VERSION := 2   # промпт 18.11 02:10: изменились пакеты врагов/мутантов — со старой сборкой не играть
 const CODE_ABC := "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"   # 32 знака: без 0/O и 1/I
 const CFG := "user://settings.cfg"
 const Save := preload("res://scripts/systems/save.gd")
@@ -204,8 +204,13 @@ var killer_t := 0.0
 var ui: CanvasLayer
 var ping_l: Label
 var ping_shown := true   # ~ переключает
-var rtt := {}            # peer_id -> свой замер пинга, мс (png/png_r; у ENet старт с 500 мс и медленное сглаживание)
+var rtt := {}            # peer_id -> окно последних замеров пинга, мс (png/png_r; показываем минимум)
+const PNG_WINDOW := 6    # замеров в окне (~2.4 с)
 var png_t := 0.0
+## синхронизация врагов и мутантов: далёких шлём только в каждой NET_FULL-й посылке (промпт 18.11 02:10)
+const NET_FAR := 55.0
+const NET_FULL := 5
+var es_n := 0            # номер посылки состояния врагов
 # последний адрес подключения — для «Повторить попытку» в лобби (промпт 16.11 21:56)
 var last_ip := ""
 var last_port := 0
