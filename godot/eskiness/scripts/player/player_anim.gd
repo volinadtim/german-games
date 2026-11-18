@@ -25,6 +25,23 @@ func _update_crouch(delta: float) -> void:
 		col_shape.position.y = h / 2.0
 
 
+## Наклон влево/вправо (Q/E, промпт 18.11 02:27): голова и камера уходят в сторону и заваливаются,
+## можно выглянуть из-за угла или прицелиться из-за укрытия; в сети и на чужой модели — не крутим.
+func _lean_tick(delta: float) -> void:
+	var want := 0.0
+	if active and not puppet and not dying:
+		if Input.is_action_pressed("lean_right"):
+			want += 1.0
+		if Input.is_action_pressed("lean_left"):
+			want -= 1.0
+	lean = move_toward(lean, want, delta * 6.0)
+	if lean != 0.0:
+		head.position.x += lean * 0.34
+		head.rotation.z = -lean * deg_to_rad(14.0)
+	elif head.rotation.z != 0.0:
+		head.rotation.z = 0.0
+
+
 ## Можно ли встать: лучи вверх от верха приседа до роста стоя (центр и 4 точки по краю).
 ## Камера не залезает в стену (промпт 23:29): сфера от центра тела до глаз, при касании голова отъезжает назад.
 var _cam_sphere: SphereShape3D
@@ -210,6 +227,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		head.position.z -= 0.24 * down
 		head.position.y += 0.05 * down
 	head.position.y += cam_step   # ступеньки: тело уже наверху/внизу, камера догоняет
+	_lean_tick(delta)
 	_cam_wall_pullback()
 	var want_fov: float = fov_base * (gun.fov_mult() if gun else 1.0) + (7.0 if sprinting else 0.0)   # прицел — gun.gd
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
