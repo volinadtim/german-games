@@ -1,8 +1,10 @@
 extends Node
 ## Выносливость игрока (промпт 16.11 03:03). Только у локального игрока (в сети — у каждого своя).
-## Бег (Shift) тратит, прыжок — немного. На нуле бег заблокирован до UNLOCK.
+## Бег (Shift) тратит, прыжок и рывок — немного. Стоит потратить ниже порога UNLOCK (любым из
+## этих действий) — дальше тратить нельзя, даже если бросил сразу: нужно сначала восстановить
+## стамину обратно до UNLOCK, и только тогда снова можно тратить (промпт 18.11 02:48).
 ## Восстановление после короткой паузы, стоя быстрее, чем на ходу.
-## Полоска над хотбаром: появляется при трате, плавно гаснет, когда полная. F10 прячет (CanvasLayer).
+## Полоска над хотбаром: появляется при трате, плавно гаснет, когда полная; красная ниже порога. F10 прячет (CanvasLayer).
 ## Звука дыхания нет (убран, промпт 04:14).
 
 const DRAIN := 1.0 / 7.0        # полная полоска — ~7 с бега
@@ -45,24 +47,24 @@ func can_sprint() -> bool:
 
 
 func can_jump() -> bool:
-	return value >= JUMP_COST
+	return not exhausted and value >= JUMP_COST
 
 
 func jump() -> void:
 	value = maxf(value - JUMP_COST, 0.0)
 	delay = REGEN_DELAY
-	if value <= 0.0:
+	if value < UNLOCK:
 		exhausted = true
 
 
 func can_dash() -> bool:
-	return value >= DASH_COST
+	return not exhausted and value >= DASH_COST
 
 
 func dash() -> void:
 	value = maxf(value - DASH_COST, 0.0)
 	delay = REGEN_DELAY
-	if value <= 0.0:
+	if value < UNLOCK:
 		exhausted = true
 
 
@@ -72,6 +74,7 @@ func tick(delta: float, sprinting: bool, moving: bool) -> void:
 		delay = REGEN_DELAY
 		if value <= 0.0:
 			value = 0.0
+		if value < UNLOCK:
 			exhausted = true
 	elif delay > 0.0:
 		delay -= delta
@@ -99,7 +102,7 @@ func _draw_bar() -> void:
 	var x0 := sz.x / 2.0 - w / 2.0
 	var y0 := sz.y - 64.0 - 18.0 - 14.0   # 04:25: чуть выше
 	var a := alpha * 0.8
-	var col := Color(0.95, 0.45, 0.35) if exhausted else Color(0.92, 0.9, 0.82)
+	var col := Color(0.95, 0.45, 0.35) if (exhausted or value < UNLOCK) else Color(0.92, 0.9, 0.82)
 	ui.draw_rect(Rect2(x0 - 1, y0 - 1, w + 2, h + 2), Color(0, 0, 0, 0.45 * a))
 	ui.draw_rect(Rect2(x0, y0, w, h), Color(1, 1, 1, 0.08 * a))
 	ui.draw_rect(Rect2(x0, y0, w * value, h), Color(col.r, col.g, col.b, 0.85 * a))
