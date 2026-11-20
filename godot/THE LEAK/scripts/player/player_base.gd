@@ -40,12 +40,12 @@ const REST := Vector4(0, 0, 0, 10)
 const GUARDS: Array[Vector4] = [Vector4(46, 45, 56, 76), Vector4(44, 33, 46, 88)]   # 05:36 — кулаки на ~3,5 см шире
 # доля сгиба кулака, когда пальцы обхватывают рукоять (толще рукоять — меньше): промпт 04:49
 const GRIP_CURL := {"bat": 0.6, "spiked_club": 0.58, "pipe": 0.68, "crowbar": 0.72, "machete": 0.74, "hammer": 0.68,
-		"knife": 0.7, "shiv": 0.76, "pistol": 0.78, "stone": 0.5, "shield": 0.8}
+		"knife": 0.7, "shiv": 0.76, "pistol": 0.78, "stone": 0.5}
 const KNIFE_REV_ADD := Vector4(28, -19, -36, -10)   # добавка к стойке левой с ножом (обратный хват); 04:58 — на ~3–4 см левее и ниже; 05:02 — пересчитана под новую стойку, итоговая поза ножа прежняя (74, 26, 20, 66)
 var knife_rev_w := 0.0
 # 05:50: оружие ближнего боя в стойке — рука чуть ниже, оружие по диагонали вперёд к цели (не вертикально), кромкой вперёд
 const MELEE_ST_ADD := Vector4(-18, 0, 0, -2)
-const MELEE_ST_SKIP := ["", "pistol", "shield", "stone", "flashlight"]
+const MELEE_ST_SKIP := ["", "pistol", "stone", "flashlight"]
 var melee_st_w: Array[float] = [0.0, 0.0]
 const PUNCHES := {
 	"straight": [Vector4(55, 14, 2, 80), Vector4(100, 6, 0, 4)],
@@ -94,16 +94,10 @@ const SWINGS := {
 		{"wind": Vector4(56, 10, 0, 104), "hit": Vector4(94, 8, 0, 8), "thru": Vector4(96, 8, 0, 6),
 			"tw": [-0.12, 0.2, 0.22], "t": [0.07, 0.06, 0.05, 0.2], "rc": [-0.04, 0.15], "wf": [0.0, 0.5, 0.55], "blur": "straight"},
 	],
-	"shield": [   # толчок щитом или удар краем
-		{"wind": Vector4(60, 12, 4, 115), "hit": Vector4(92, 10, 0, 26), "thru": Vector4(95, 10, 0, 20),
-			"tw": [-0.2, 0.25, 0.28], "t": [0.12, 0.08, 0.06, 0.26], "rc": [-0.05, 0.2], "blur": "straight"},
-		{"wind": Vector4(122, -10, 25, 96), "hit": Vector4(56, 24, 0, 40), "thru": Vector4(44, 30, 0, 46),
-			"tw": [-0.3, 0.25, 0.35], "t": [0.12, 0.08, 0.08, 0.26], "rc": [-0.03, 0.08], "blur": "upper"},
-	],
 }
 var WRIST_HIT := 1.1   # сгиб кисти в момент удара (рад)
 # конец оружия (по длинной оси +Y модели) — по нему тянется след
-const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "shield": 0.28, "pistol": 0.12, "stone": 0.05}
+const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "pistol": 0.12, "stone": 0.05}
 const Fx := preload("res://scripts/core/fx.gd")
 
 ## Управление (промпт 16.11 04:51): окна (магазин, лут, автомат…) пишут active как раньше, а консоль, чат,

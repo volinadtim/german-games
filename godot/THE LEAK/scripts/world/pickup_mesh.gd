@@ -44,7 +44,7 @@ const FLAT := ["coin", "photo", "choco", "glass", "wallet", "nut", "gear", "tape
 const MODELS := ["coin", "bandage", "pills", "canned", "water", "soda", "rusk", "choco", "battery",
 	"nut", "gear", "wallet", "tape", "wood", "glass", "medkit", "photo", "scrap", "stone", "twine", "mag", "ammo", "sack"]
 ## Предметы с моделью weapons.gd (через Items.make_mesh).
-const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]
+const WEAPON_LIKE := ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]
 
 static var _icon_cache := {}
 static var _gauze: ImageTexture

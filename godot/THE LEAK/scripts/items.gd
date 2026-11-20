@@ -103,8 +103,6 @@ const ITEMS := {
 		"icon": "crowbar", "color": Color(0.6, 0.14, 0.1), "weapon": true, "dur": 80},
 	"machete": {"name": "Мачете", "desc": "Широкий клинок. Урон ×3.6.", "stack": 1,
 		"icon": "machete", "color": Color(0.62, 0.63, 0.62), "weapon": true, "dur": 70},
-	"shield": {"name": "Щит", "desc": "В левой руке — 50% блокирует удар. В правой — бьёт краем (чуть слабее биты).", "stack": 1,
-		"icon": "shield", "color": Color(0.38, 0.39, 0.4), "weapon": true, "dur": 40},
 	"knife": {"name": "Ножик", "desc": "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.2.", "stack": 1,
 		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true, "dur": 15},
 	# пистолет из сейфа (промпт 14.11 19:49, gun.gd): dur — патроны в нём / в магазине (rounds)
@@ -168,7 +166,7 @@ const RECIPES := [
 ## Размер предмета в ячейках сумки [ширина, высота] (промпт 16.11 02:42); нет в списке — 1×1.
 ## Пробел при перетаскивании поворачивает (inventory.gd).
 const SIZES := {
-	"pistol": [2, 2], "medkit": [2, 2], "shield": [2, 2], "fuel": [2, 2], "backpack": [2, 2], "sack": [2, 2], "tshirt": [2, 1],
+	"pistol": [2, 2], "medkit": [2, 2], "fuel": [2, 2], "backpack": [2, 2], "sack": [2, 2], "tshirt": [2, 1],
 	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
 	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
 	"flashlight": [1, 2], "water": [1, 2], "wood": [1, 2], "gasmask": [2, 2], "gasmask2": [2, 2],
@@ -290,7 +288,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var s := minf(r.size.x, r.size.y)
 	var col: Color = ITEMS[id]["color"]
 	var dark := col.darkened(0.45)
-	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
+	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
@@ -659,7 +657,7 @@ static func make_mesh(id: String) -> Node3D:
 		id = "gasmask"
 	elif id == "filter2":
 		id = "filter"
-	if id in ["bat", "pipe", "crowbar", "machete", "knife", "shield", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
+	if id in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
 		var w := Weapons.make(id)
 		if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club"]:
 			w.rotation.z = PI / 2   # на полу оружие лежит

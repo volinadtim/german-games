@@ -504,9 +504,9 @@ func _apply_bones() -> void:
 				continue
 			var side := -1.0 if arm == 0 else 1.0
 			# с оружием (кроме щита) кисть остаётся большим пальцем вверх — молотковый хват, оружие стоит вертикально
-			var armed_k := ARMED_TWIST if weapon_ids.get(arm) != "" and weapon_ids.get(arm) != "shield" else 1.0
+			var armed_k := ARMED_TWIST if weapon_ids.get(arm) != "" else 1.0
 			# голый кулак (промпт 03:33) вывернут меньше — пальцами к другой руке; щит — как раньше
-			var fist_k := 0.6 if weapon_ids.get(arm) == "shield" else 0.22
+			var fist_k := 0.22
 			var tw := deg_to_rad(90.0) * side * (0.1 + fist_k * fist_blend * armed_k) * (1.0 if e.get(4) else 0.5)
 			if arm == 0 and weapon_ids.get(0) in ["knife", "shiv"]:
 				# нож в левой (промпт 04:48): кисть развёрнута тыльной стороной вверх — лезвие от мизинца лежит поверх предплечья, видно в кадре
@@ -700,13 +700,6 @@ func _grip(arm: int, id: String) -> Transform3D:
 	var palm := (inv.basis * palm_w)
 	palm = (palm - up * palm.dot(up) - fwd * palm.dot(fwd)).normalized()
 	var unit := 1.0 / maxf(fx.global_transform.basis.get_scale().x, 0.0001)   # локальных единиц в метре
-	if id == "shield":
-		# лицо щита — вперёд (в стойке), верх — вдоль предплечья; висит на предплечье ниже кисти
-		var nrm := (palm * 0.6 + fwd * 0.5 - up * 0.4).normalized()
-		var y_ax := (fwd - nrm * fwd.dot(nrm)).normalized()
-		var x_ax := y_ax.cross(nrm).normalized()
-		var o := h - y_ax * 0.17 * unit + nrm * 0.06 * unit
-		return Transform3D(Basis(x_ax * unit, y_ax * unit, nrm * unit), o)
 	# рукоять — в «тоннеле» сжатых пальцев: ось от мизинца к указательному, наклон к костяшкам на GRIP_TILT.
 	# Считаем в осях кости кисти (fist_fx лежит в них же, в метрах, на 8 см дальше по кисти).
 	var hr := skel.get_bone_global_rest(hb)

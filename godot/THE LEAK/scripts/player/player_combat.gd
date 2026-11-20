@@ -282,7 +282,7 @@ func _twist_setter(v: float) -> void:
 ## (прошлая повторяется реже).
 func _weapon_swing(i: int, wid: String) -> void:
 	var group := "heavy"
-	if wid in ["machete", "knife", "shield"]:
+	if wid in ["machete", "knife"]:
 		group = wid
 		if wid in ["knife", "shiv"] and i == 0:
 			group = "knife_rev"   # левая — обратный хват, свой мах
@@ -302,11 +302,11 @@ func _weapon_swing(i: int, wid: String) -> void:
 	var t: Array = sw["t"]
 	var tws: Array = sw["tw"]
 	var rc: Array = sw["rc"]
-	var heavy := group == "heavy" or group == "shield"
+	var heavy := group == "heavy"
 	var ps := _pose_setter(i)
 	var rs := _reach_setter(i)
 	# хлёст кистью: в замахе оружие взведено вверх, к удару кисть «выстреливает» и оружие продолжает руку
-	var fl: Array = sw.get("wf", [-0.25, WRIST_HIT, WRIST_HIT * 1.1] if group != "shield" else [0.0, 0.0, 0.0])
+	var fl: Array = sw.get("wf", [-0.25, WRIST_HIT, WRIST_HIT * 1.1])
 	var fs := func(fv: float) -> void: wrist_flex[i] = fv
 	var tw := create_tween()
 	# замах — с разгоном и торможением в верхней точке

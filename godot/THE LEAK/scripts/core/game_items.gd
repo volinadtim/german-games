@@ -94,16 +94,6 @@ func _tick_buffs(delta: float) -> void:
 func damage_player(amount: float, from: Vector3) -> void:
 	if not alive or god:
 		return
-	# щит в левой руке: половина ударов блокируется полностью
-	if inv.equip["left"] == "shield" and randf() < 0.5:
-		hud.block_flash()
-		_wear("left", 1.0)
-		play_ui("clunk", -6.0, 0.8)
-		var bpush := player.global_position - from
-		bpush.y = 0.0
-		player.velocity += bpush.normalized() * 2.0
-		Fx.popup_text(self, player.global_position + Vector3(0, 1.4, 0) - player.global_transform.basis.z * 0.8, "БЛОК", Color(0.6, 0.85, 1.0))
-		return
 	amount *= buff_mult("resist") * (1.0 - gear_armor())
 	# одежда изнашивается только от вражеских ударов, камней, прыжков (чинит ремкомплект одежды)
 	for sl in ["head", "body", "legs", "feet"]:
