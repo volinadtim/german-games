@@ -269,15 +269,15 @@ func _build() -> void:
 	x.pressed.connect(close)
 	top.add_child(x)
 	# вкладки
-	var tr := HBoxContainer.new()
-	tr.add_theme_constant_override("separation", 10)
-	tr.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_child(tr)
-	tr.add_child(_label("Q / LB  «", 15, Color(0.6, 0.6, 0.55)))
+	var tabs_row := HBoxContainer.new()
+	tabs_row.add_theme_constant_override("separation", 10)
+	tabs_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_child(tabs_row)
+	tabs_row.add_child(_label("Q / LB  «", 15, Color(0.6, 0.6, 0.55)))
 	_tabs = HBoxContainer.new()
 	_tabs.add_theme_constant_override("separation", 8)
-	tr.add_child(_tabs)
-	tr.add_child(_label("»  E / RB", 15, Color(0.6, 0.6, 0.55)))
+	tabs_row.add_child(_tabs)
+	tabs_row.add_child(_label("»  E / RB", 15, Color(0.6, 0.6, 0.55)))
 	# древо + описание
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -339,7 +339,7 @@ func _rebuild() -> void:
 	var pr: Array = Levels.progress()
 	_lvl_l.text = "Уровень %d" % Levels.level()
 	_xp_bar.max_value = maxi(int(pr[1]), 1)
-	_xp_bar.value = int(pr[0]) if int(pr[1]) > 0 else _xp_bar.max_value
+	_xp_bar.value = float(pr[0]) if int(pr[1]) > 0 else _xp_bar.max_value
 	_xp_l.text = ("опыт %d / %d" % [pr[0], pr[1]]) if int(pr[1]) > 0 else "максимальный уровень"
 	_coins_l.text = "Очки: %d     Монеты: %d   " % [Levels.points(), _coins()]
 	_cur = clampi(_cur, 0, maxi(sections.size() - 1, 0))

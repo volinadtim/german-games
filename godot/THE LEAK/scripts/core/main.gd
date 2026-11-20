@@ -223,9 +223,6 @@ func _setup_input() -> void:
 	_add_keys("move_back", [KEY_S])
 	_add_keys("move_left", [KEY_A])
 	_add_keys("move_right", [KEY_D])
-	# поворот камеры стрелками убран (промпт 20.11 11:43): действия остаются пустыми (player.gd: _key_look)
-	for a in ["look_left", "look_right", "look_up", "look_down"]:
-		_add_keys(a, [])
 	_add_keys("sprint", [KEY_SHIFT])
 	_add_keys("jump", [KEY_SPACE])
 	_add_keys("toggle_fullscreen", [KEY_F11])

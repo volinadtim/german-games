@@ -231,7 +231,7 @@ func place_p2(pl, fresh: bool) -> void:
 
 
 ## Сплитскрин: тело (узлы nodes) — только на слое головы (split.gd HEAD1/HEAD2): своя камера не видит, чужая видит.
-func _body_to_layer(nodes: Array, layer: int) -> void:
+func _body_to_layer(nodes: Array, target_layer: int) -> void:
 	for c in nodes:
 		if not is_instance_valid(c):
 			continue
@@ -244,7 +244,7 @@ func _body_to_layer(nodes: Array, layer: int) -> void:
 				continue   # голова — её слоем управляет split.gd _heads
 			if not body_layers.has(m):
 				body_layers[m] = m.layers
-			m.layers = layer
+			m.layers = target_layer
 
 
 ## Вернуть слои тела игрока pl после пробуждения.

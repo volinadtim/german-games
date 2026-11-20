@@ -1203,8 +1203,7 @@ func _sym(c: CanvasItem, id: String, r: Rect2, v: int, sc := 1.0) -> void:
 					el.append(p + Vector2(cos(a) * rr, sin(a) * rr * 0.4))
 				c.draw_polyline(el, Color(0.7, 0.9, 1.0, 0.35), 1.5)
 	if v > 0:
-		var tr := Rect2(p + Vector2(-s * 0.32, s * 0.24), Vector2(s * 0.64, s * 0.22))
-		c.draw_rect(tr, INK)
-		c.draw_rect(tr.grow(-2.0), Color(1.0, 0.82, 0.3))
-		c.draw_string(ThemeDB.fallback_font, Vector2(tr.position.x, tr.end.y - 5.0), str(v * bet), HORIZONTAL_ALIGNMENT_CENTER, tr.size.x, 18, INK)
-	c.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		var tag_rect := Rect2(p + Vector2(-s * 0.32, s * 0.24), Vector2(s * 0.64, s * 0.22))
+		c.draw_rect(tag_rect, INK)
+		c.draw_rect(tag_rect.grow(-2.0), Color(1.0, 0.82, 0.3))
+		c.draw_string(ThemeDB.fallback_font, Vector2(tag_rect.position.x, tag_rect.end.y - 5.0), str(v * bet), HORIZONTAL_ALIGNMENT_CENTER, tag_rect.size.x, 18, INK)

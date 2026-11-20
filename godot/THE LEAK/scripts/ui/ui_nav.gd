@@ -518,7 +518,7 @@ func _collect() -> Array:
 	var out := []
 	for cd in cands:
 		var c: Control = cd[0]
-		var ord: int = cd[1]
+		var order: int = cd[1]
 		var xf := _xf(c)
 		var sc := _scroll_of(c)
 		var sr := Rect2()
@@ -532,7 +532,7 @@ func _collect() -> Array:
 			if not clipped and not vr.has_point(p):
 				continue
 			var q := p.clamp(sr.position + Vector2(4, 4), sr.end - Vector2(4, 4)) if clipped else p
-			if _occluded(q, ord, c, stops):
+			if _occluded(q, order, c, stops):
 				continue
 			out.append({"c": c, "r": r, "p": p, "sc": sc if clipped else null})
 	return out
@@ -557,11 +557,11 @@ func _walk(n: Node, lay: int, cands: Array, stops: Array, idx: Array) -> void:
 		if ch is Control:
 			var c: Control = ch
 			idx[0] += 1
-			var ord: int = (lay + 1000) * 1000000 + idx[0]
+			var order_val: int = (lay + 1000) * 1000000 + idx[0]
 			if c.mouse_filter == Control.MOUSE_FILTER_STOP and c.size.x > 2.0 and c.size.y > 2.0:
-				stops.append([_xf(c) * Rect2(Vector2.ZERO, c.size), ord, c])
+				stops.append([_xf(c) * Rect2(Vector2.ZERO, c.size), order_val, c])
 				if _is_target(c):
-					cands.append([c, ord])
+					cands.append([c, order_val])
 		_walk(ch, lay, cands, stops, idx)
 
 
@@ -583,9 +583,9 @@ func _walk_3d(n: Node, cands: Array, stops: Array, idx: Array) -> void:
 
 
 ## Точку q закрывает контрол, нарисованный позже (выше) и ловящий мышь, — кроме детей самой клетки.
-func _occluded(q: Vector2, ord: int, c: Control, stops: Array) -> bool:
+func _occluded(q: Vector2, order: int, c: Control, stops: Array) -> bool:
 	for s in stops:
-		if int(s[1]) > ord and (s[0] as Rect2).has_point(q) and s[2] != c and not c.is_ancestor_of(s[2]):
+		if int(s[1]) > order and (s[0] as Rect2).has_point(q) and s[2] != c and not c.is_ancestor_of(s[2]):
 			return true
 	return false
 

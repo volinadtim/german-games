@@ -297,8 +297,8 @@ const STAT_KEYS := {"dmg": "cheat_dmg", "damage": "cheat_dmg", "урон": "chea
 ## /time — показать или задать время суток (часы 0-24 или слова), reset — обычные часы.
 func _cmd_time(a: PackedStringArray) -> void:
 	if a.size() == 0:
-		var h := SurfaceBuild.cheat_day_now() * 24.0
-		print_line("[color=#9e9]Время: %02d:%02d, скорость суток ×%s[/color]" % [int(h), int(fmod(h, 1.0) * 60.0), SurfaceBuild.cheat_time_speed])
+		var cur_h := SurfaceBuild.cheat_day_now() * 24.0
+		print_line("[color=#9e9]Время: %02d:%02d, скорость суток ×%s[/color]" % [int(cur_h), int(fmod(cur_h, 1.0) * 60.0), SurfaceBuild.cheat_time_speed])
 		return
 	var w := a[0].to_lower()
 	var named := {"day": 12.0, "noon": 12.0, "день": 12.0, "night": 0.0, "midnight": 0.0, "ночь": 0.0,

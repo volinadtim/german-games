@@ -1207,7 +1207,11 @@ func install_mod(idx: int, target) -> bool:
 	var mods := mods_of(pd)
 	var old: String = mods[k]
 	mods[k] = mid
-	inv.slots[idx] = {"id": old, "n": 1} if old != "" else null
+	inv.slots[idx] = {"id": old, "n": 1} 
+	if old != "":
+		inv.slots[idx] = {"id": old, "n": 1}
+	else:
+		inv.slots[idx] = null
 	_set_pd(target, with_mods(pd, mods))
 	_play(snd_mag, -8.0, 1.5)
 	game.hud.toast("%s: %s" % [MOD_SLOTS[k][1], Items.item_name(mid)], Color(0.9, 0.85, 0.7))

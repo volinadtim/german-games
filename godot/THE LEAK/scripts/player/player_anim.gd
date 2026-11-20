@@ -226,12 +226,12 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 			- CROUCH_CAM * _crouch_k()
 	head.position.x = sin(gait * TAU) * 0.012 * bob
 	# в стойке голова чуть назад — к плечам, чтобы кулаки были перед лицом, а не в камере
-	head.position.z = lerpf(-0.22, 0.0, fist_blend) - 0.06 * _crouch_k()
+	head.position.z = lerpf(1.0, 0.0, fist_blend) - 0.06 * _crouch_k()
 	# камера всегда на уровне глаз тела и перед шеей (присед, наклон, удары): по кости головы
 	if skel != null and head_bone != -1 and not dying:   # при смерти камеру ведёт _death_tick (18.11 01:42)
 		var hb := to_local(skel.global_transform * skel.get_bone_global_pose(head_bone).origin)
 		var hd := Basis(Vector3.UP, angle_difference(rotation.y, torso_yaw))
-		var eye := hb + hd * Vector3(0, 0.08, -0.1)
+		var eye := hb + hd * Vector3(0, 0.08, -0.01)
 		head.position.y = maxf(head.position.y, eye.y)
 		head.position.z = minf(head.position.z, eye.z)
 	if not puppet:

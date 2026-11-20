@@ -516,6 +516,7 @@ func _paint() -> void:
 
 
 ## Хотбар 1–5 внизу по центру — свой холст hot_paint, чтобы гасить его целиком (hot_tab_only, Split-Screen).
+## Хотбар 1–5 внизу по центру — свой холст hot_paint, чтобы гасить его целиком (hot_tab_only, Split-Screen).
 func _paint_hot() -> void:
 	var sz := hot_paint.size
 	var f := ThemeDB.fallback_font
@@ -530,7 +531,7 @@ func _paint_hot() -> void:
 			var cnt: int = inv.count(id) if id != "" else 0
 			var worn: bool = id != "" and inv.equip.values().has(id)
 			var in_hand: bool = id != "" and (inv.equip["left"] == id or inv.equip["right"] == id)
-			paint.draw_rect(r, Color(0.1, 0.16, 0.1, 0.55) if in_hand else Color(0, 0, 0, 0.5))
+			hot_paint.draw_rect(r, Color(0.1, 0.16, 0.1, 0.55) if in_hand else Color(0, 0, 0, 0.5))
 			var bc := Color(1, 1, 1, 0.18)
 			var bw := 1.0
 			if in_hand:
@@ -539,16 +540,16 @@ func _paint_hot() -> void:
 			elif worn:
 				bc = Color(0.95, 0.75, 0.4, 0.9)
 				bw = 2.0
-			paint.draw_rect(r, bc, false, bw)
+			hot_paint.draw_rect(r, bc, false, bw)
 			if id != "":
-				Items.draw_icon(paint, id, r.grow(-11))
+				Items.draw_icon(hot_paint, id, r.grow(-11))
 				if cnt == 0:
-					paint.draw_rect(r.grow(-1), Color(0, 0, 0, 0.6))
+					hot_paint.draw_rect(r.grow(-1), Color(0, 0, 0, 0.6))
 				elif cnt > 1:
-					paint.draw_string_outline(f, r.position + Vector2(0, cell - 5), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 5, 16, 4, Color(0, 0, 0, 0.8))
-					paint.draw_string(f, r.position + Vector2(0, cell - 5), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 5, 16, Color(0.92, 0.9, 0.84))
-			paint.draw_string_outline(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.8))
-			paint.draw_string(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0, 0.8, 0.45))
+					hot_paint.draw_string_outline(f, r.position + Vector2(0, cell - 5), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 5, 16, 4, Color(0, 0, 0, 0.8))
+					hot_paint.draw_string(f, r.position + Vector2(0, cell - 5), str(cnt), HORIZONTAL_ALIGNMENT_RIGHT, cell - 5, 16, Color(0.92, 0.9, 0.84))
+			hot_paint.draw_string_outline(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.8))
+			hot_paint.draw_string(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0, 0.8, 0.45))
 
 
 ## Миникарта в правом верхнем углу (промпты 20.11 14:34/14:38/14:39, только «Обычный» и «Казуальный»):
