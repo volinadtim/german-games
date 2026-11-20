@@ -1,5 +1,6 @@
 extends "res://scripts/shop/shop_model.gd"
 # Часть shop.gd: окно магазина — вкладки, сетка товаров, подсказки, вкладка «Слот-Машина».
+const Perks := preload("res://scripts/systems/perks.gd")
 
 
 func _close() -> void:
@@ -329,6 +330,7 @@ func _can_pay(price: int) -> bool:
 
 
 func _item_cell(grid: GridContainer, id: String, price: int) -> void:
+	price = Perks.cost(price)   # прокачка «Скидка» (systems/perks.gd)
 	var reason := ""
 	if not _can_pay(price):
 		reason = "Не хватает монет."
@@ -457,7 +459,7 @@ func _build_slot_tab() -> void:
 		up_reason, _buy_upgrade, "максимум" if lv >= SM.MAX_LEVEL else "")
 	_section("ЗАЩИТА ОТ 666")
 	var ga := _grid()
-	var ap: int = SM.APPLE_PRICE
+	var ap: int = Perks.cost(SM.APPLE_PRICE)
 	if not SM.syms_for(lv).has("six"):
 		# до шестёрок — замочек без подсказки (промпт 16.11 02:18)
 		_cell(ga, _draw_lock, -1, "", "", "Закрыто.", func(): pass)
@@ -477,7 +479,7 @@ func _build_slot_tab() -> void:
 		var need: int = SM.sym_level(sym)
 		var left := _luck_left(slot, sym)
 		for k in range(1, d.size()):   # алмаз/семёрка — только ×1
-			var price := int(d[k])
+			var price := Perks.cost(int(d[k]))
 			var reason := ""
 			if lv < need:
 				reason = "Символа ещё нет — откроется на окне %s." % SM.level_name(need)
@@ -495,7 +497,7 @@ func _build_slot_tab() -> void:
 	for sym in SM.BOOST:
 		var d: Array = SM.BOOST[sym]
 		var need: int = SM.sym_level(sym)
-		var price := int(d[1])
+		var price := Perks.cost(int(d[1]))
 		var reason := ""
 		if lv < need:
 			reason = "Символа ещё нет — откроется на окне %s." % SM.level_name(need)
@@ -532,7 +534,7 @@ func _build_blueprint_tab() -> void:
 		var title := "Чертёж: %s" % b[1]
 		var cb: Callable
 		if st == 0:
-			price = int(b[3])
+			price = Perks.cost(int(b[3]))
 			reason = "" if _can_pay(price) else "Не хватает монет."
 			cb = _buy_blueprint.bind(id, price)
 		elif st == 1:

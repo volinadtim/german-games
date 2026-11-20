@@ -1,5 +1,6 @@
 extends "res://scripts/enemy/enemy_nav.gd"
 # Часть enemy.gd: бой — удары, прыжки, броски камней, получение урона, смерть.
+const Perks := preload("res://scripts/systems/perks.gd")
 
 
 ## Быстрый бегает рывками: рывок 0.35 с (×1.35), передышка 0.2 с (×0.38) — в среднем ≈ speed.
@@ -313,15 +314,16 @@ func _die(dir: Vector3) -> void:
 		get_tree().create_timer(Gibs.LIFE + 3.0, false).timeout.connect(queue_free)
 		return
 	var coins := randi_range(0, 6) if kind == "heavy" else randi_range(0, 2)
+	coins = int(coins * Perks.luck() + randf())   # прокачка «Удача» (systems/perks.gd)
 	if coins > 0:
 		game.spawn_loot("coin", coins, pos, Vector3(0, 2.5, 0), 1.6)
 	# все материалы для крафта снова падают (промпт 18.11 01:08): гайки, изолента, деревяшка, стекло, железки
 	var extra: Array = ["bandage", "choco", "battery", "scrap", "nut", "tape", "wood", "glass"]
 	for k in (randi_range(0, 2) if kind == "heavy" else randi_range(1, 3)):
 		game.spawn_loot(extra[randi() % extra.size()], 1, pos, Vector3(0, 2.5, 0), 1.2)
-	if randf() < 0.2:   # бечёвка — для молотка и кастета (промпт 14.11 19:22)
+	if randf() < 0.2 * Perks.luck():   # бечёвка — для молотка и кастета (промпт 14.11 19:22)
 		game.spawn_loot("twine", 1, pos, Vector3(0, 2.5, 0), 1.2)
-	if randf() < 0.03:  # кошелёк — редкость (промпт 14.11 17:21)
+	if randf() < 0.03 * Perks.luck():  # кошелёк — редкость (промпт 14.11 17:21)
 		game.spawn_loot("wallet", 1, pos, Vector3(0, 2.5, 0), 1.2)
 	died.emit(self)
 	get_tree().create_timer(Gibs.LIFE + 3.0, false).timeout.connect(queue_free)

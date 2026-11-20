@@ -1,5 +1,6 @@
 extends "res://scripts/slot/slot_machine_model.gd"
 # Часть slot_machine.gd: доска выплат и окно покупки круток.
+const Perks := preload("res://scripts/systems/perks.gd")
 
 
 ## Доска выплат на стене справа от автомата.
@@ -313,11 +314,12 @@ func _build_packs() -> void:
 	v.add_child(pack_info)
 	for pk in PACKS:
 		var b := Button.new()
-		b.text = "%d крутки — %d монет" % [pk[0], pk[1]] if int(pk[0]) < 5 else "%d круток — %d монет" % [pk[0], pk[1]]
+		var pp := Perks.cost(int(pk[1]))   # прокачка «Скидка»
+		b.text = "%d крутки — %d монет" % [pk[0], pp] if int(pk[0]) < 5 else "%d круток — %d монет" % [pk[0], pp]
 		b.custom_minimum_size = Vector2(320, 48)
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_size_override("font_size", 22)
-		b.pressed.connect(_buy_pack.bind(int(pk[0]), int(pk[1])))
+		b.pressed.connect(_buy_pack.bind(int(pk[0]), pp))
 		v.add_child(b)
 	pack_up = Button.new()
 	pack_up.custom_minimum_size = Vector2(416, 48)
@@ -424,7 +426,7 @@ func _pack_upgrade() -> void:
 
 ## Цена следующего уровня (0 — уже максимум).
 func upgrade_price() -> int:
-	return int(LEVELS[level][2]) if level < MAX_LEVEL else 0
+	return Perks.cost(int(LEVELS[level][2])) if level < MAX_LEVEL else 0
 
 
 func upgrade_text() -> String:

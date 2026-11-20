@@ -249,7 +249,7 @@ func _reel_stopped(i: int) -> void:
 		game.play_at("clunk", reels[i].global_position, -10.5)   # −25% (промпт 16.11 03:21)
 	if not spinning.has(true):
 		_payout()
-		if spin_mine and credits <= 0 and tray_coins <= 0 and game and game.inv.coins < int(PACKS[0][1]):
+		if spin_mine and credits <= 0 and tray_coins <= 0 and game and game.inv.coins < Perks.cost(int(PACKS[0][1])):
 			pity(game)
 
 

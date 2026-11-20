@@ -4,6 +4,7 @@ extends CanvasLayer
 ## добавить другой скрипт: game.skills.add_section("ПАССИВНЫЕ", [{id, name, desc, cost, req}]).
 ## Купленное — owned {id: уровень}; проверка — has(id) / level(id). Сохраняется в сейв ("skills").
 
+const Perks := preload("res://scripts/systems/perks.gd")
 const WIN_CD := 10   # «двойной выигрыш»: после срабатывания ждёт столько наград
 
 var game
@@ -34,8 +35,9 @@ func _ready() -> void:
 	_build()
 
 
-## Добавить раздел навыков (колонку окна). items: [{id, name, desc, cost, req?}]
-func add_section(title: String, items: Array) -> void:
+## Добавить раздел навыков (колонку окна). items: [{id, name, desc, cost, req?, nodisc?}]
+## или Callable, возвращающий такой массив (пересобирается при каждой перестройке — systems/perks.gd).
+func add_section(title: String, items: Variant) -> void:
 	for s in sections:
 		if s["title"] == title:
 			s["items"] = items
@@ -174,7 +176,7 @@ func _rebuild() -> void:
 		col.add_theme_constant_override("separation", 10)
 		_cols.add_child(col)
 		col.add_child(_label(s["title"], 20, Color(0.86, 0.85, 0.8)))
-		for it in s["items"]:
+		for it in _items(s):
 			col.add_child(_card(it))
 
 
@@ -196,7 +198,7 @@ func _card(it: Dictionary) -> Control:
 	if not got:
 		var b := Button.new()
 		b.focus_mode = Control.FOCUS_NONE
-		var cost := int(it.get("cost", 0))
+		var cost := int(it.get("cost", 0)) if it.get("nodisc", false) else Perks.cost(int(it.get("cost", 0)))   # прокачка «Скидка»
 		if locked:
 			b.text = "Сначала: %s" % _name_of(req)
 			b.disabled = true
@@ -225,7 +227,7 @@ func _buy(id: String, cost: int) -> void:
 ## Название навыка по id (из всех разделов).
 func _name_of(id: String) -> String:
 	for s in sections:
-		for it in s["items"]:
+		for it in _items(s):
 			if it["id"] == id:
 				return it["name"]
 	return id
@@ -237,3 +239,8 @@ func _label(t: String, size: int, col: Color) -> Label:
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
 	return l
+
+
+## Карточки раздела: массив или результат Callable.
+func _items(s: Dictionary) -> Array:
+	return s["items"].call() if s["items"] is Callable else s["items"]

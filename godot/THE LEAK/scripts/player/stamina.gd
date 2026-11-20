@@ -15,6 +15,7 @@ const REGEN_WALK := 1.25 / 10.0 # на ходу — ~8 с до полной (+25
 const REGEN_IDLE := 1.25 / 5.0  # стоя — ~4 с (+25%)
 const REGEN_DELAY := 0.9        # пауза перед восстановлением
 const UNLOCK := 0.25            # после истощения бег снова можно с 25%
+const Perks := preload("res://scripts/systems/perks.gd")
 
 var player   # player.gd (родитель)
 var value := 1.0
@@ -52,7 +53,7 @@ func can_jump() -> bool:
 
 
 func jump(cost: float = JUMP_COST_PLAIN) -> void:
-	value = maxf(value - cost, 0.0)
+	value = maxf(value - cost / Perks.stamina_k(), 0.0)
 	delay = REGEN_DELAY
 	if value < UNLOCK:
 		exhausted = true
@@ -64,14 +65,14 @@ func can_dash() -> bool:
 
 ## подкат (слайд): стоит в 3 раза дешевле рывка
 func slide() -> void:
-	value = maxf(value - DASH_COST / 3.0, 0.0)
+	value = maxf(value - DASH_COST / 3.0 / Perks.stamina_k(), 0.0)
 	delay = REGEN_DELAY
 	if value < UNLOCK:
 		exhausted = true
 
 
 func dash() -> void:
-	value = maxf(value - DASH_COST, 0.0)
+	value = maxf(value - DASH_COST / Perks.stamina_k(), 0.0)
 	delay = REGEN_DELAY
 	if value < UNLOCK:
 		exhausted = true
@@ -79,7 +80,7 @@ func dash() -> void:
 
 func tick(delta: float, sprinting: bool, moving: bool) -> void:
 	if sprinting:
-		value -= DRAIN * delta
+		value -= DRAIN / Perks.stamina_k() * delta
 		delay = REGEN_DELAY
 		if value <= 0.0:
 			value = 0.0
@@ -90,7 +91,7 @@ func tick(delta: float, sprinting: bool, moving: bool) -> void:
 		if delay > 0.0:
 			delay -= delta
 		else:
-			value = minf(value + (REGEN_WALK if moving else REGEN_IDLE) * delta, 1.0)
+			value = minf(value + (REGEN_WALK if moving else REGEN_IDLE) * Perks.stamina_k() * delta, 1.0)
 	if exhausted and value >= UNLOCK:
 		exhausted = false
 

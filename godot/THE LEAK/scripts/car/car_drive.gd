@@ -3,6 +3,7 @@ extends "res://scripts/car/car_model.gd"
 # Свой игрок в салоне «припаркован»: его физика выключена, камера стоит на месте глаз, мышь крутит обзор.
 # Выход: посмотреть на свою дверь и E — дверь открывается, камера выходит наружу, игрок снова ходит.
 # Водитель (место 0) с бензином: W/S — газ/тормоз/назад, A/D — руль, пробел — ручник.
+const Perks := preload("res://scripts/systems/perks.gd")
 
 
 func my_id() -> int:
@@ -561,7 +562,7 @@ func _drive_tick(delta: float) -> void:
 		_physics(delta, thr, st_in)
 		_lean_slip(delta)
 		if engine_on:
-			fuel = maxf(fuel - delta * FUEL_USE * (0.25 + 0.75 * absf(thr_s)), 0.0)
+			fuel = maxf(fuel - delta * FUEL_USE * Perks.car_fuel() * (0.25 + 0.75 * absf(thr_s)), 0.0)
 		if absf(speed) > 0.05 or absf(slip) > 0.05 or absf(yaw_rate) > 0.01:
 			_move(delta)
 		acc_s = lerpf(acc_s, (speed - v0) / maxf(delta, 0.001), 1.0 - exp(-6.0 * delta))
@@ -662,8 +663,9 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 		if v < -0.3:
 			speed = move_toward(v, 0.0, BRAKE * thr_s * delta)
 		else:
-			var k := clampf(v / MAX_F, 0.0, 1.0)
-			speed = minf(v + ACC * thr_s * (1.0 + LAUNCH_ACC * launch_k) * (1.0 - 0.7 * k * k) * delta, maxf(MAX_F, v))
+			var mx := MAX_F * Perks.car_speed()   # прокачка «Мотор» (systems/perks.gd)
+			var k := clampf(v / mx, 0.0, 1.0)
+			speed = minf(v + ACC * thr_s * (1.0 + LAUNCH_ACC * launch_k) * (1.0 - 0.7 * k * k) * delta, maxf(mx, v))
 	elif thr_s < -0.01:
 		if v > 0.3:
 			speed = move_toward(v, 0.0, BRAKE * -thr_s * delta)
@@ -752,7 +754,7 @@ func _physics(delta: float, thr: float, st_in: float) -> void:
 	# скорость держится, но нос по рулю газ не вытягивает: из заноса выходят сбросом газа и контррулём
 	if drift > 0.05 and thr_s > 0.01:
 		var a := ACC * thr_s * drift * delta
-		speed = minf(speed + a * 0.45, maxf(MAX_F, speed))
+		speed = minf(speed + a * 0.45, maxf(MAX_F * Perks.car_speed(), speed))
 
 
 ## Водитель высунулся: руль держит одной рукой — сцепление хуже и машину дёргает в сторону.

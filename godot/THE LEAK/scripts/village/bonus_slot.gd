@@ -18,6 +18,7 @@ const Sym := preload("res://scripts/slot/slot_symbols.gd")
 const Items := preload("res://scripts/items.gd")
 const Sfx := preload("res://scripts/core/sfx.gd")
 const COST := 20
+const Perks := preload("res://scripts/systems/perks.gd")
 const SYMS := ["cherry", "plum", "grape", "diamond", "seven", "bonus", "jack"]   # лимона нет (промпт 20.11 14:34)
 ## веса и выплаты под 3×3 и 5 линий (отдача ~100%, как была у ФОРТУНЫ)
 const WEIGHT := {"cherry": 18.0, "plum": 14.0, "grape": 12.0, "diamond": 9.0, "seven": 6.0, "bonus": 3.5, "jack": 6.0}
@@ -370,7 +371,7 @@ func bet_prompt() -> String:
 		return "Ставка ×%d — не меняется, пока идут бесплатные крутки" % bet
 	if not guar.is_empty():
 		return "Ставка ×%d — не меняется, пока действуют гаранты" % bet
-	return "[F] Ставка %d" % [COST * bet]
+	return "[F] Ставка %d" % [Perks.cost(COST * bet)]
 
 
 func cycle_bet() -> void:
@@ -381,7 +382,7 @@ func cycle_bet() -> void:
 	_update_bet_label()
 	send("f_bet", [bet])
 	_sfx("win", -14.0, 0.8 + 0.1 * BETS.find(bet))
-	msg = "СТАВКА ×%d — КРУТКА %d МОНЕТ" % [bet, COST * bet]
+	msg = "СТАВКА ×%d — КРУТКА %d МОНЕТ" % [bet, Perks.cost(COST * bet)]
 	msg_col = Color(0.95, 0.85, 0.5)
 
 
@@ -591,7 +592,7 @@ func get_prompt(g) -> String:
 		return ""
 	if free_spins > 0:
 		return "[F] CASHY BOX — бесплатная крутка (%d)" % free_spins
-	var cost := COST * bet
+	var cost := Perks.cost(COST * bet)
 	return "[F] Крутить CASHY BOX ×%d — %d монет" % [bet, cost] if g.inv.coins >= cost else "CASHY BOX ×%d: нужно %d монет" % [bet, cost]
 
 
@@ -600,11 +601,12 @@ func interact(g) -> void:
 		return
 	var free_used := free_spins > 0
 	if not free_used:
-		if g.inv.coins < COST * bet:
+		var cost := Perks.cost(COST * bet)   # прокачка «Скидка» (systems/perks.gd)
+		if g.inv.coins < cost:
 			g.hud.toast("Не хватает монет")
 			return
-		g.inv.remove("coin", COST * bet)
-		profit -= COST * bet
+		g.inv.remove("coin", cost)
+		profit -= cost
 	var res: Array = []
 	for i in 9:
 		res.append(_roll())
@@ -748,7 +750,7 @@ func _process(delta: float) -> void:
 			busy = false
 			snd.stop()
 			_payout()
-			if spin_mine and free_spins <= 0 and game and game.inv.coins < COST:
+			if spin_mine and free_spins <= 0 and game and game.inv.coins < Perks.cost(COST):
 				preload("res://scripts/slot/slot_machine.gd").pity(game)
 	elif not net_queue.is_empty():   # чужая крутка, пришедшая пока крутились барабаны
 		var q: Array = net_queue.pop_front()
