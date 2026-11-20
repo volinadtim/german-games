@@ -246,7 +246,7 @@ func _physics_process(delta: float) -> void:
 		_stand_request()
 		crouched = false
 		if on_floor and stamina.can_jump():
-			velocity.y = JUMP * slide_node.JUMP_UP_MULT
+			velocity.y = JUMP * slide_node.JUMP_UP_MULT * cheat_jump
 			stamina.jump(stamina.JUMP_COST)
 			make_noise(NOISE_JUMP)
 			on_floor = false
@@ -257,14 +257,14 @@ func _physics_process(delta: float) -> void:
 		air_jumped = false
 	elif jump_now and not air_jumped and has_skill("double_jump") and stamina.can_jump():
 		air_jumped = true   # двойной прыжок (древо прокачки)
-		velocity.y = JUMP
+		velocity.y = JUMP * cheat_jump
 		stamina.jump()
 		make_noise(NOISE_JUMP)
 		jump_now = false
 	if not on_floor:
 		velocity.y -= GRAVITY * (FALL_MULT if velocity.y < 0.0 else 1.0) * delta
 	elif jump_now and stamina.can_jump():
-		velocity.y = JUMP
+		velocity.y = JUMP * cheat_jump
 		stamina.jump()
 		make_noise(NOISE_JUMP)
 		on_floor = false
@@ -286,7 +286,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		sprint_carry = move_toward(sprint_carry, 0.0, delta * 2.0)
 
-	var target := dir * (SPRINT if sprinting else WALK) * speed_mult * lerpf(1.0, CROUCH_SPEED, crouch)
+	var target := dir * (SPRINT if sprinting else WALK) * speed_mult * cheat_spd * lerpf(1.0, CROUCH_SPEED, crouch)
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	air_t = 0.0 if on_floor else air_t + delta
 	var air := 1.0 if (on_floor or (air_t < 0.15 and velocity.y <= 0.0)) else 0.25

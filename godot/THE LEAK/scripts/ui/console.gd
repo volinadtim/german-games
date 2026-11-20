@@ -41,6 +41,10 @@ func _ready() -> void:
 	register_cheat("noclip", "/noclip — полёт сквозь стены вкл/выкл (WASD, Пробел — вверх, Ctrl — вниз, Shift — быстрее)", _cmd_noclip)
 	register_cheat("god", "/god — неуязвимость (урон и отравление не берут) вкл/выкл", _cmd_god)
 	register_cheat("freecam", "/freecam — свободная камера вкл/выкл (WASD, Пробел/Ctrl, Shift, Колёсико — скорость)", _cmd_freecam)
+	register_cheat("time", "/time [час 0-24 | day | night | dawn | dusk | reset] — время суток", _cmd_time)
+	register_cheat("timespeed", "/timespeed [x] — скорость смены суток (1 — обычно, 0 — стоп, 10 — быстро)", _cmd_timespeed)
+	register_cheat("slowmo", "/slowmo [x] — скорость всей игры (1 — обычно, 0.3 — замедление, 2 — ускорение)", _cmd_slowmo)
+	register_cheat("stat", "/stat [dmg|speed|jump|taken|reset] [x] — множители урона, скорости, прыжка, получаемого урона", _cmd_stat)
 	print_line("[color=#9a9]Консоль. /help — список команд.[/color]")
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
@@ -246,6 +250,12 @@ func _cmd_cheats(a: PackedStringArray) -> void:
 		print_line("[color=#e77]/cheats on|off[/color]")
 		return
 	cheats_on = a[0].to_lower() == "on"
+	if not cheats_on:
+		Engine.time_scale = 1.0
+		SurfaceBuild.cheat_set_time(-2.0, 1.0)
+		if game and game.player:
+			for v in ["cheat_dmg", "cheat_spd", "cheat_jump", "cheat_taken"]:
+				game.player.set(v, 1.0)
 	if not cheats_on and game and game.god:
 		game.god = false
 	if not cheats_on and _freecam != null:
@@ -262,6 +272,77 @@ func _cmd_god(_a: PackedStringArray) -> void:
 	if game.has_method("save_now"):
 		game.save_now()
 	print_line("[color=#9e9]Godmode: %s[/color]" % ("вкл" if game.god else "выкл"))
+
+
+const SurfaceBuild := preload("res://scripts/level/surface_build.gd")
+const STAT_KEYS := {"dmg": "cheat_dmg", "damage": "cheat_dmg", "урон": "cheat_dmg", "speed": "cheat_spd", "скорость": "cheat_spd",
+	"jump": "cheat_jump", "прыжок": "cheat_jump", "taken": "cheat_taken", "armor": "cheat_taken"}
+
+
+## /time — показать или задать время суток (часы 0-24 или слова), reset — обычные часы.
+func _cmd_time(a: PackedStringArray) -> void:
+	if a.size() == 0:
+		var h := SurfaceBuild.cheat_day_now() * 24.0
+		print_line("[color=#9e9]Время: %02d:%02d, скорость суток ×%s[/color]" % [int(h), int(fmod(h, 1.0) * 60.0), SurfaceBuild.cheat_time_speed])
+		return
+	var w := a[0].to_lower()
+	var named := {"day": 12.0, "noon": 12.0, "день": 12.0, "night": 0.0, "midnight": 0.0, "ночь": 0.0,
+		"dawn": 6.0, "morning": 7.0, "утро": 7.0, "рассвет": 6.0, "dusk": 18.0, "evening": 19.0, "вечер": 19.0, "закат": 18.0}
+	if w == "reset":
+		SurfaceBuild.cheat_set_time(-2.0, 1.0)
+		print_line("[color=#9e9]Время: обычные часы[/color]")
+		return
+	var h := -1.0
+	if named.has(w):
+		h = named[w]
+	elif w.contains(":"):
+		var hm := w.split(":")
+		h = hm[0].to_float() + hm[1].to_float() / 60.0
+	elif w.is_valid_float():
+		h = w.to_float()
+	if h < 0.0:
+		print_line("[color=#e77]/time 14 | 6:30 | day | night | reset[/color]")
+		return
+	SurfaceBuild.cheat_set_time(fposmod(h, 24.0) / 24.0, -1.0)
+	print_line("[color=#9e9]Время суток → %s[/color]" % w)
+
+
+## /timespeed — скорость смены суток (0 — время стоит).
+func _cmd_timespeed(a: PackedStringArray) -> void:
+	if a.size() == 0 or not a[0].is_valid_float():
+		print_line("[color=#e77]/timespeed 10  (сейчас ×%s)[/color]" % SurfaceBuild.cheat_time_speed)
+		return
+	SurfaceBuild.cheat_set_time(-1.0, maxf(a[0].to_float(), 0.0))
+	print_line("[color=#9e9]Скорость суток ×%s[/color]" % SurfaceBuild.cheat_time_speed)
+
+
+## /slowmo — Engine.time_scale (вся игра медленнее/быстрее).
+func _cmd_slowmo(a: PackedStringArray) -> void:
+	var x := 1.0 if a.size() == 0 or not a[0].is_valid_float() else clampf(a[0].to_float(), 0.05, 5.0)
+	Engine.time_scale = x
+	print_line("[color=#9e9]Скорость игры ×%s[/color]" % x)
+
+
+## /stat — множители характеристик игрока (урон, скорость, прыжок, получаемый урон).
+func _cmd_stat(a: PackedStringArray) -> void:
+	if game == null or game.player == null:
+		return
+	var p = game.player
+	if a.size() == 0:
+		print_line("[color=#9e9]Урон ×%s, скорость ×%s, прыжок ×%s, получаемый урон ×%s[/color]" % [p.cheat_dmg, p.cheat_spd, p.cheat_jump, p.cheat_taken])
+		return
+	var k := a[0].to_lower()
+	if k == "reset":
+		for v in ["cheat_dmg", "cheat_spd", "cheat_jump", "cheat_taken"]:
+			p.set(v, 1.0)
+		print_line("[color=#9e9]Характеристики сброшены[/color]")
+		return
+	if not STAT_KEYS.has(k) or a.size() < 2 or not a[1].is_valid_float():
+		print_line("[color=#e77]/stat dmg 5 | speed 2 | jump 1.5 | taken 0.5 | reset[/color]")
+		return
+	var x := clampf(a[1].to_float(), 0.0, 100.0)
+	p.set(STAT_KEYS[k], x)
+	print_line("[color=#9e9]%s ×%s[/color]" % [k, x])
 
 
 func _cmd_money(a: PackedStringArray) -> void:

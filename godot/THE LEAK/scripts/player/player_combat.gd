@@ -407,6 +407,7 @@ func _check_hit(arm: int, _kind := "straight") -> void:
 			var mult: float = Weapons.stats(wid)["mult"] if armed else dmg_mult
 			# без случайности (промпт 19:06): вид удара и криты на урон не влияют, растёт только от заряда
 			var dmg: float = PUNCH_BASE * mult * HAND_DMG[arm] * charge_mult(strike_charge)
+			dmg *= cheat_dmg   # читы /stat dmg
 			# ящик кулаками ломается медленно (~10 ударов)
 			if not armed and hit.collider is StaticBody3D and str(hit.collider.get("kind")) == "crate":
 				dmg *= 0.45

@@ -157,6 +157,10 @@ var dash: Node      # player/dash.gd — рывок на двойной WASD (п
 var slide_node: Node
 var dmg_mult := 1.0           # множитель урона (кастет из сейфа — 1.5)
 var speed_mult := 1.0         # замедление (отравление наверху, gasmask.gd)
+var cheat_dmg := 1.0         # читы /stat dmg — множитель исходящего урона
+var cheat_spd := 1.0         # читы /stat speed — множитель скорости бега
+var cheat_jump := 1.0        # читы /stat jump — множитель силы прыжка
+var cheat_taken := 1.0       # читы /stat taken — множитель получаемого урона
 var weapon_id := ""           # оружие в правой руке (для совместимости; см. weapon_ids)
 var weapon_ids: Array[String] = ["", ""]      # оружие в руках: 0 — левая, 1 — правая (weapons.gd)
 var weapon_nodes: Array = [null, null]

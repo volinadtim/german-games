@@ -51,6 +51,9 @@ const OUT_FOG := Color(0.15, 0.08, 0.065)
 
 # смена дня и ночи (промпт 00:20 16.11). Время берётся из часов системы — у всех игроков в сети совпадает.
 const DAY_LEN := 720.0    # полные сутки, секунд (12 минут)
+static var cheat_base_unix := -1.0   # читы /time: <0 — обычные часы по unix-времени
+static var cheat_base_day := 0.0     # время суток в момент cheat_base_unix
+static var cheat_time_speed := 1.0   # читы /timespeed — скорость смены суток
 ## палитры неба: [верх, горизонт, земля, тёмные облака, светлые облака, туман, рассеянный свет]
 const SKY_NIGHT := [Color(0.012, 0.014, 0.03), Color(0.035, 0.035, 0.055), Color(0.02, 0.02, 0.025),
 	Color(0.01, 0.01, 0.018), Color(0.06, 0.06, 0.08), Color(0.025, 0.025, 0.04), Color(0.22, 0.25, 0.38)]
@@ -355,12 +358,33 @@ func _sky_pal(i: int) -> Color:
 	return Color(c.r * 1.06, c.g * 0.97, c.b * 0.9, c.a)   # лёгкий сдвиг в оранжево-красный
 
 
+## Текущее время суток 0..1 с учётом читов /time и /timespeed.
+static func cheat_day_now() -> float:
+	var now := Time.get_unix_time_from_system()
+	if cheat_base_unix < 0.0:
+		return fmod(now / DAY_LEN, 1.0)
+	return fposmod(cheat_base_day + (now - cheat_base_unix) * cheat_time_speed / DAY_LEN, 1.0)
+
+
+## Читы: задать время суток (t<0 — оставить текущее) и/или скорость (s<0 — оставить); t=-2, s=1 — сброс на обычные часы.
+static func cheat_set_time(t: float, s: float) -> void:
+	if t <= -2.0:
+		cheat_base_unix = -1.0
+		cheat_time_speed = 1.0
+		return
+	var cur := cheat_day_now()
+	cheat_base_unix = Time.get_unix_time_from_system()
+	cheat_base_day = cur if t < 0.0 else fposmod(t, 1.0)
+	if s >= 0.0:
+		cheat_time_speed = s
+
+
 ## Время суток: небо, положение и цвет солнца (ночью тот же свет — тусклая голубая луна).
 func _day_tick() -> void:
 	if Engine.is_editor_hint():
 		day_t = 0.3
 	else:
-		day_t = fmod(Time.get_unix_time_from_system() / DAY_LEN, 1.0)
+		day_t = cheat_day_now()
 	day_e = -cos(day_t * TAU)
 	if sky_mat:
 		var keys := ["top_color", "horizon_color", "ground_color", "cloud_dark", "cloud_lit"]
