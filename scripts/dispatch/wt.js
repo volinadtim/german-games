@@ -3,6 +3,7 @@
 // и для dispatch.ps1 (disp-<зона>), и для субагентов Claude Code с isolation:"worktree" (хук WorktreeCreate).
 //
 //   node wt.js create <имя> [--blender] [--wait СЕК]  -> печатает путь; код 3 — лимит worktree занят
+//                     [--uncounted] — не входит в лимит задач (копия «smoke» для проверки после пуша)
 //   node wt.js release <имя|путь> [--delay СЕК]      -> задача закончена: удалить, если чистый и запушен
 //   node wt.js reap [--hours 6]                      -> удалить законченные и брошенные чистые worktree
 //   node wt.js blender                               -> подключить Blender/ в текущем worktree
@@ -51,6 +52,7 @@ const CFG = Object.assign(
     patterns: ["^agent-", "^disp-", "^dispatcher-launch-"],     // какие чужие worktree считать брошенными задачами
     protect: ["dispatcher"] },                                    // не удалять никогда
   (() => { try { return JSON.parse(fs.readFileSync(path.join(DISP, "wt-config.json"), "utf8")); } catch { return {}; } })());
+if (!CFG.protect.includes("smoke")) CFG.protect.push("smoke");   // постоянная копия проверки smoke.sh после пушей
 if (process.env.WT_MAX) CFG.max = +process.env.WT_MAX;
 if (process.env.WT_MIN_FREE_GB) CFG.minFreeGB = +process.env.WT_MIN_FREE_GB;
 if (process.env.WT_MAX_GB) CFG.maxGB = +process.env.WT_MAX_GB;
@@ -351,7 +353,7 @@ const opt = k => { const i = argv.indexOf(k); return i < 0 ? undefined : argv[i 
 try {
   switch (cmd) {
     case "create": {
-      const p = create(argv[1], { blender: argv.includes("--blender"), wait: +(opt("--wait") || 0), branch: opt("--branch"), by: "dispatch" });
+      const p = create(argv[1], { blender: argv.includes("--blender"), wait: +(opt("--wait") || 0), branch: opt("--branch"), by: "dispatch", counted: !argv.includes("--uncounted") });
       if (!p) { console.log("ждёт: " + (waitReason || `заняты ${CFG.max} worktree`)); process.exit(3); }
       console.log(p); break;
     }

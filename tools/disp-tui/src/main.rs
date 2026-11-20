@@ -487,7 +487,8 @@ fn status_style(st: &str) -> (Color, &'static str) {
         "очередь" => (YELLOW, "◌"),
         "пауза" => (YELLOW, "‖"),
         "готово" | "возобновлён" => (CYAN, "✓"),
-        "упал" | "ошибка" | "прерван" | "СЛОЖНО" => (RED, "✗"),
+        "упал" | "ошибка" | "прерван" | "СЛОЖНО" | "бюджет" => (RED, "✗"),
+        "лимит" => (YELLOW, "‖"),
         _ => (Color::Gray, "·"),
     }
 }
@@ -510,7 +511,22 @@ fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
     sum.extend(chip(count(&["работает"]), "работают", GREEN));
     sum.extend(chip(count(&["очередь", "пауза"]), "ждут", YELLOW));
     sum.extend(chip(count(&["готово", "возобновлён"]), "готово", CYAN));
-    sum.extend(chip(count(&["упал", "ошибка", "прерван", "СЛОЖНО"]), "сбой", RED));
+    sum.extend(chip(count(&["упал", "ошибка", "прерван", "СЛОЖНО", "бюджет"]), "сбой", RED));
+    // проверка после пуша (scripts/smoke.sh на свежем main)
+    let sm = &app.jobs["smoke"];
+    if sm.is_object() {
+        let busy = sm["busy"].as_bool().unwrap_or(false);
+        let last = sm["last"].as_str().unwrap_or("");
+        let (t, c) = if busy {
+            (format!("smoke: {} {}", sm["phase"].as_str().unwrap_or(""), sm["sha"].as_str().unwrap_or("").chars().take(9).collect::<String>()), YELLOW)
+        } else if last.is_empty() {
+            ("smoke: ещё не было".to_string(), DIM)
+        } else {
+            (format!("smoke: {last}"), if last.contains("УПАЛ") { RED } else { GREEN })
+        };
+        let pend = sm["pending"].as_u64().unwrap_or(0);
+        sum.push(Span::styled(format!("{t}{}   ", if pend > 0 { format!(" (+{pend} ждут)") } else { String::new() }), Style::new().fg(c)));
+    }
     sum.push(Span::styled(format!("${cost:.2} за {} задач", jobs.len()), Style::new().fg(DIM)));
     lines.push(Line::from(sum));
     // качество по моделям: сколько задач Герман вернул на переделку
@@ -536,6 +552,17 @@ fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
             ));
         }
         lines.push(Line::from(q));
+    }
+    // статусы для Германа (в TG не уходят — ключ atlas только на чтение; копия в .claude/dispatch/status.md)
+    if let Some(ns) = app.jobs["notes"].as_array() {
+        if !ns.is_empty() {
+            lines.push(Line::styled("СТАТУСЫ для Германа (status.md)", Style::new().fg(VIOLET).bold()));
+            for n in ns.iter().rev().take(6).collect::<Vec<_>>().into_iter().rev() {
+                let t = n.as_str().unwrap_or("");
+                let c = if t.contains('✗') { RED } else if t.contains('⚠') { YELLOW } else if t.contains('✓') { GREEN } else { Color::Gray };
+                lines.push(Line::styled(format!("  {t}"), Style::new().fg(c)));
+            }
+        }
     }
     lines.push(Line::raw(""));
 
@@ -569,7 +596,21 @@ fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
             meta.push(format!("↻ переделка #{x}"));
         }
         if let Some(x) = j["cost"].as_f64() {
-            meta.push(format!("${x:.2}"));
+            meta.push(match j["budget"].as_f64() { Some(b) => format!("${x:.2}/{b}"), None => format!("${x:.2}") });
+        }
+        if let Some(x) = j["merged"].as_u64() {
+            if x > 0 {
+                meta.push(format!("⧉ склеено {}", x + 1));
+            }
+        }
+        if let Some(x) = j["cont_of"].as_u64() {
+            meta.push(format!("→ продолжение #{x}"));
+        }
+        if j["shot"].as_bool().unwrap_or(false) {
+            meta.push("📷 повторная жалоба".into());
+        }
+        if !g("smoke").is_empty() {
+            meta.push(format!("smoke {}", g("smoke")));
         }
         if !meta.is_empty() {
             head.push(Span::styled(format!("   {}", meta.join("  ")), Style::new().fg(DIM)));
@@ -582,6 +623,7 @@ fn draw_dispatcher(f: &mut Frame, app: &App, area: Rect) {
         }
         let (rc, rt) = match st {
             "работает" => (GREEN, format!("{} работает…", SPIN[app.tick % SPIN.len()])),
+            "очередь" if j["held"].as_bool().unwrap_or(false) => (YELLOW, format!("ждёт поправок Германа до {} (склейка)", g("hold"))),
             "очередь" => (YELLOW, "ждёт, пока освободится агент зоны".to_string()),
             _ => (if c == RED { RED } else { Color::Rgb(160, 200, 170) }, g("result")),
         };
@@ -678,3 +720,4 @@ fn main() -> std::io::Result<()> {
     ratatui::restore();
     res
 }
+

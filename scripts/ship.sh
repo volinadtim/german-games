@@ -56,6 +56,9 @@ for i in 1 2 3 4; do
   # пока шла проверка, main мог сдвинуться — тогда rebase и проверка заново
   git fetch -q origin main >/dev/null 2>&1
   [ "$(git rev-parse origin/main)" != "$BASE" ] && continue
-  git push -q origin HEAD:main >/dev/null 2>&1 && { git log --oneline -1; exit 0; }
+  if git push -q origin HEAD:main >/dev/null 2>&1; then
+    git rev-parse HEAD >>"$(git rev-parse --git-path shipped)"   # диспетчер по этому файлу знает свои пуши (smoke и виновник)
+    git log --oneline -1; exit 0
+  fi
 done
 echo "push не прошёл 4 раза (main всё время двигался)"; exit 4
