@@ -20,16 +20,38 @@ var vel := Vector3.ZERO
 var cd := 0.0
 var jump_boost := Vector3.ZERO
 var jump_boost_t := 0.0
+var k := 0.0   # плавная «сила» подката 0..1 для камеры (FOV, наклон вниз)
+var snd: AudioStreamPlayer
 
 
 func _ready() -> void:
 	player = get_parent()
+	snd = AudioStreamPlayer.new()
+	snd.stream = _scrape()
+	snd.volume_db = -8.0
+	add_child(snd)
+
+
+## Звук скольжения: шорох/скрежет шума с падающей полосой.
+static func _scrape() -> AudioStreamWAV:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 777
+	var n := int(Sfx.RATE * 0.55)
+	var buf := PackedFloat32Array()
+	buf.resize(n)
+	var f := Sfx.Svf.new(900.0, 0.7)
+	for i in n:
+		var x := float(i) / n
+		f.set_fc(lerpf(1500.0, 350.0, x))
+		buf[i] = f.bp(rng.randf() * 2.0 - 1.0) * minf(x * 12.0, 1.0) * pow(1.0 - x, 1.3)
+	return Sfx._wav(buf, 0.6)
 
 
 ## Вызывается каждый физический кадр из player.gd.
 ## want_crouch — нажата ли кнопка приседа или включён тумблер приседа.
 func poll(delta: float, can: bool, sprinting: bool, want_crouch: bool, move_dir: Vector3) -> void:
 	cd = maxf(cd - delta, 0.0)
+	k = move_toward(k, 1.0 if active else 0.0, delta * 6.0)
 	if jump_boost_t > 0.0:
 		jump_boost_t = maxf(jump_boost_t - delta, 0.0)
 		if jump_boost_t <= 0.0:
@@ -46,6 +68,8 @@ func poll(delta: float, can: bool, sprinting: bool, want_crouch: bool, move_dir:
 			dir.y = 0.0
 			vel = dir.normalized() * clampf(maxf(spd, MIN_START_SPEED) * START_BOOST, MIN_START_SPEED, MAX_SPEED)
 			player.make_noise(player.NOISE_JUMP)
+			snd.pitch_scale = randf_range(0.92, 1.08)
+			snd.play()
 		return
 
 	# Условия прерывания подката: отпустили присед, запретили действие или упали в воздух

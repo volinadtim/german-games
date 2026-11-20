@@ -226,10 +226,12 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		var down := smoothstep(0.15, 1.3, -head.rotation.x)
 		head.position.z -= 0.24 * down
 		head.position.y += 0.05 * down
+	if slide_node != null:
+		head.position.y -= 0.1 * slide_node.k   # подкат: камера ныряет ниже
 	head.position.y += cam_step   # ступеньки: тело уже наверху/внизу, камера догоняет
 	_lean_tick(delta)
 	_cam_wall_pullback()
-	var want_fov: float = fov_base * (gun.fov_mult() if gun else 1.0) + (7.0 if sprinting else 0.0)   # прицел — gun.gd
+	var want_fov: float = fov_base * (gun.fov_mult() if gun else 1.0) + (7.0 if sprinting else 0.0) + (9.0 * slide_node.k if slide_node != null else 0.0)   # прицел — gun.gd
 	cam.fov = lerpf(cam.fov, want_fov, 1.0 - exp(-5.0 * delta))
 	_swap_pose(delta)
 	_stance_gun_wrist()
