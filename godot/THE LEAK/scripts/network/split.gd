@@ -11,11 +11,15 @@ extends Node
 ## Кат-сцену видят оба (камера игрока 1 у обоих), пропуск — когда удержали оба (ui/cutscene_skip.gd).
 ## Взаимодействие и инвентарь у игрока 2 — тем же кодом игры, что у игрока 1 (промпт 20.11 15:27): на время вызова
 ## game.player — он (_as_p2), окно, которое он открыл, — в его половине и водится его геймпадом (_own_ui).
-## Сумка и монеты пока общие. Цифры урона и сообщения — тому, кто ударил / действует (core/fx.gd: by, hud.gd: redirect).
+## Своя сумка, монеты, экипировка и хотбар (inv2 — такой же inventory.gd, промпт 20.11 15:30); всё, что код игры
+## делает от лица игрока 2, идёт под _as_p2: game.player / inv / hud / hp на время вызова — его. Ввод в его половину
+## (его окна) — тоже под _as_p2 (P2Box), поэтому окна, инвентарь и game.gd работают с его вещами без особых веток.
+## Цифры урона и сообщения — тому, кто ударил / действует (core/fx.gd: by, hud.gd: redirect).
 ## Создаёт main.gd (_enter_game), если в меню выбран «Split-Screen» (pending). Узел — ребёнок main.
 
 const PlayerScript := preload("res://scripts/player/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
+const InvScript := preload("res://scripts/inventory.gd")
 const Fx := preload("res://scripts/core/fx.gd")
 const MM_K := 0.8            # миникарта в половинке: на 20% меньше и на 20% ближе
 const PUPPET_LAYER := 512
@@ -40,6 +44,7 @@ var cams: Array = []
 var screens: CanvasLayer
 var hud2: Control
 var hud_p2                   # hud.gd игрока 2 — тот же интерфейс, что у игрока 1
+var inv2                     # inventory.gd игрока 2 — своя сумка, монеты, экипировка, хотбар
 var info_l: Label
 var tgt: Target2
 
@@ -104,6 +109,14 @@ class PadInput:
 		return move if neg_x == &"move_left" else Vector2.ZERO   # обзор крутит split.gd сам
 
 
+## Контейнер правой половины: ввод в неё (окна игрока 2) — только его геймпад / курсор и от его лица (split._feed2).
+class P2Box extends SubViewportContainer:
+	var split
+
+	func _propagate_input_event(e: InputEvent) -> bool:
+		return split._feed2(e)
+
+
 ## Цель для врагов (как RemoteTarget в net_base.gd): player, alive, damage_player.
 class Target2:
 	var player: CharacterBody3D
@@ -165,6 +178,7 @@ func _exit_tree() -> void:
 	get_tree().root.disable_3d = false
 	if is_instance_valid(game):
 		game.remove_meta("split")
+		game.invs.erase(inv2)
 		var g1 = game.get("hud")
 		if g1:
 			g1.redirect = Callable()
@@ -194,7 +208,9 @@ func _build_screens() -> void:
 	row.mouse_filter = Control.MOUSE_FILTER_PASS
 	screens.add_child(row)
 	for i in 2:
-		var cont := SubViewportContainer.new()
+		var cont: SubViewportContainer = P2Box.new() if i == 1 else SubViewportContainer.new()
+		if i == 1:
+			cont.split = self
 		cont.stretch = true
 		cont.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		cont.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -224,6 +240,7 @@ func _build_screens() -> void:
 			h.mm_range = 50.0 * MM_K
 	if g1:
 		g1.hot_tab_only = true
+	hud_p2.hot_tab_only = true
 	var l2 := CanvasLayer.new()
 	l2.layer = 5
 	svs[1].add_child(l2)
@@ -345,7 +362,9 @@ func _is_window(n: Node) -> bool:
 	var sc = n.get_script()
 	if sc:
 		var path: String = sc.resource_path
-		if path.ends_with("inventory.gd") or path.ends_with("loot_window.gd") or path.ends_with("sell_window.gd"):
+		if path.ends_with("inventory.gd"):
+			return false   # у каждого игрока свой инвентарь в своей половине
+		if path.ends_with("loot_window.gd") or path.ends_with("sell_window.gd"):
 			return true
 	var o = n.get_meta("split_owner", n.get_parent())
 	return is_instance_valid(o) and (o.get("ui") == n or o.get("pack_ui") == n) 		and (o.get("opened") != null or o.get("pack_open") != null)
@@ -374,18 +393,52 @@ func _own_ui(on: bool) -> void:
 	_route_windows()
 
 
-## Код игры от лица игрока 2: на время вызова game.player и game.focus — его, сообщения — в его HUD.
+## Код игры от лица игрока 2: на время вызова game.player, focus, inv, hud, hp и alive — его.
 func _as_p2(f: Callable) -> void:
+	if acting or not is_instance_valid(pp):
+		f.call()
+		return
 	var p0 = game.player
 	var f0 = game.focus
+	var i0 = game.inv
+	var h0 = game.hud
+	var hp0: float = game.hp
+	var a0: bool = game.alive
 	game.player = pp
 	game.focus = focus2
+	game.inv = inv2
+	game.hud = hud_p2
+	game.hp = hp
+	game.alive = alive
 	acting = true
 	f.call()
 	acting = false
 	focus2 = game.focus
+	if absf(game.hp - hp) > 0.001:
+		hp = clampf(game.hp, 1.0, MAX_HP)   # аптечка, еда — его здоровье (урон идёт через damage2)
+		hud_p2.set_hp(hp, MAX_HP)
 	game.player = p0
 	game.focus = f0
+	game.inv = i0
+	game.hud = h0
+	game.hp = hp0
+	game.alive = a0
+
+
+## P2Box: событие для правой половины. Пока окно игрока 2 открыто — его геймпад и курсор, код окна — от его лица.
+func _feed2(e: InputEvent) -> bool:
+	if not ui_p2 or not is_instance_valid(pp):
+		return false   # клавиатура игрока 1 не должна открыть инвентарь игрока 2
+	var pad = main.menu.pad if main.get("menu") else null
+	var synth: int = pad.SYNTH if pad else -999
+	if e is InputEventMouse or e is InputEventScreenTouch or e is InputEventScreenDrag or e.device == _dev() or e.device == synth:
+		_as_p2(svs[1].push_input.bind(e))
+	return false
+
+
+## UiNav: в какой половине искать клетки окна (у кого оно открыто).
+func ui_vp() -> Node:
+	return svs[1] if ui_p2 else svs[0]
 
 
 ## hud.gd: redirect — сообщения игрока 2 (его действие, его окно, его удар) — в его HUD.
@@ -489,6 +542,35 @@ func _spawn_p2() -> void:
 	tgt = Target2.new()
 	tgt.player = pp
 	tgt.split = self
+	_make_inv2()
+
+
+## Свой инвентарь игрока 2 — тот же inventory.gd, сигналы — в те же функции game.gd, но от его лица (_as_p2).
+func _make_inv2() -> void:
+	inv2 = InvScript.new()
+	inv2.name = "Inventory2"
+	inv2.game = game
+	svs[1].add_child(inv2)
+	game.invs.append(inv2)
+	var g = game
+	inv2.changed.connect(func(): hud_p2.set_coins(inv2.count("coin")))
+	inv2.use_requested.connect(func(i): _as_p2(g.use_item.bind(i, true)))   # лечение без полоски: её ведёт revive.gd за игроком 1
+	inv2.drop_requested.connect(func(i, all): _as_p2(g.drop_item.bind(i, all)))
+	inv2.drop_count_requested.connect(func(i, n): _as_p2(g.drop_count.bind(i, n)))
+	inv2.drop_coins_requested.connect(func(n): _as_p2(g.drop_coins.bind(n)))
+	inv2.equip_requested.connect(func(i, sl): _as_p2(g.equip.bind(i, sl)))
+	inv2.unequip_requested.connect(func(sl, to): _as_p2(func():
+		if to < 0 and inv2._try_stack_unequip(sl):
+			return
+		g.unequip(sl, to)))
+	inv2.drop_equipped_requested.connect(func(sl): _as_p2(g.drop_equipped.bind(sl)))
+	inv2.craft_requested.connect(func(r): _as_p2(g.craft.bind(r)))
+	inv2.repair_requested.connect(func(k, t): _as_p2(g.repair.bind(k, t)))
+	inv2.message.connect(func(t): hud_p2.toast(t))
+	inv2.spilled.connect(func(items): _as_p2(g.drop_spilled.bind(items)))
+	hud_p2.inv = inv2
+	inv2.update_blocks()
+	inv2.add("coin", 25)   # как у игрока 1 в начале
 
 
 ## enemy.gd / mutant.gd: ближайший живой игрок.
@@ -602,6 +684,12 @@ func _act2(a: String, pressed: bool) -> void:
 	if a == "interact" or a == "inventory":
 		_p2_action(a)
 		return
+	if a.begins_with("hot_") and not game.window_open():
+		_as_p2(game.hotbar_use_hand.bind(int(a.substr(4)) - 1, "right" if pi.is_action_pressed(&"hand_right") else "left"))
+		return
+	if a == "swap_hands":
+		_as_p2(game.swap_hands)
+		return
 	pi.press(a, true)
 	match a:
 		"fists":
@@ -680,7 +768,6 @@ func _process(delta: float) -> void:
 	# HUD игрока 2 — как у игрока 1
 	var g1 = game.get("hud")
 	if g1:
-		hud_p2.coins = g1.coins
 		hud_p2.minimal = g1.minimal
 	if mirrored != was:
 		hud_p2.set_cinematic(mirrored)

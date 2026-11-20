@@ -17,6 +17,7 @@ const REP_T := 0.1
 const SAME_PX := 24.0         # клетка на прежнем месте (окно перестроилось) — та же
 const FRAME_COL := Color(1.0, 0.82, 0.3)
 const PAD_HINT := "Крестовина / правый стик — клетка  ·  %s — взять / положить (держать + стрелки — перетащить)  ·  %s — действия  ·  %s — использовать  ·  %s — крафт  ·  %s + стрелка — в слот  ·  %s — курсор"
+const Split := preload("res://scripts/network/split.gd")
 const DIRS := {"ui_up": Vector2.UP, "ui_down": Vector2.DOWN, "ui_left": Vector2.LEFT, "ui_right": Vector2.RIGHT}
 
 var pad                        # ui/gamepad.gd (menu.pad) — ставит себя сам
@@ -444,7 +445,7 @@ func _warp() -> void:
 func _tpoint() -> Vector2:
 	if not _valid(target):
 		return last_pt if last_pt.x >= 0.0 else _mouse_canvas()
-	return target.get_global_transform_with_canvas() * trect.get_center()
+	return _xf(target) * trect.get_center()
 
 
 func _mouse_canvas() -> Vector2:
@@ -482,11 +483,11 @@ func _collect() -> Array:
 	for cd in cands:
 		var c: Control = cd[0]
 		var ord: int = cd[1]
-		var xf := c.get_global_transform_with_canvas()
+		var xf := _xf(c)
 		var sc := _scroll_of(c)
 		var sr := Rect2()
 		if sc != null:
-			sr = sc.get_global_transform_with_canvas() * Rect2(Vector2.ZERO, sc.size)
+			sr = _xf(sc) * Rect2(Vector2.ZERO, sc.size)
 			if not vr.intersects(sr):
 				continue
 		for r in _rects(c):
@@ -503,6 +504,9 @@ func _collect() -> Array:
 
 func _walk(n: Node, lay: int, cands: Array, stops: Array, idx: Array) -> void:
 	for ch in n.get_children():
+		if ch is SubViewport and ch == _ui_vp():
+			_walk(ch, lay, cands, stops, idx)   # Split-Screen: окна в половине того, у кого окно открыто
+			continue
 		if ch is Node3D or ch is SubViewport or ch is Window or ch == _layer:
 			continue
 		if ch is CanvasLayer:
@@ -516,7 +520,7 @@ func _walk(n: Node, lay: int, cands: Array, stops: Array, idx: Array) -> void:
 			idx[0] += 1
 			var ord: int = (lay + 1000) * 1000000 + idx[0]
 			if c.mouse_filter == Control.MOUSE_FILTER_STOP and c.size.x > 2.0 and c.size.y > 2.0:
-				stops.append([c.get_global_transform_with_canvas() * Rect2(Vector2.ZERO, c.size), ord, c])
+				stops.append([_xf(c) * Rect2(Vector2.ZERO, c.size), ord, c])
 				if _is_target(c):
 					cands.append([c, ord])
 		_walk(ch, lay, cands, stops, idx)
@@ -609,7 +613,34 @@ func _game():
 
 func _inv():
 	var g = _game()
-	return g.inv if g != null else null
+	if g == null:
+		return null
+	for i in g.get("invs"):
+		if is_instance_valid(i) and i.open:
+			return i   # Split-Screen: открытый — может быть инвентарь игрока 2
+	return g.inv
+
+
+## Split-Screen (network/split.gd): SubViewport половины, где открыто окно; без сплитскрина — null.
+func _ui_vp() -> Node:
+	var s = Split.inst
+	return s.ui_vp() if s != null and is_instance_valid(s) else null
+
+
+## Контрол → координаты корневого окна (холст): в Split-Screen окна лежат в SubViewport половинки
+## (свой масштаб size_2d_override и сдвиг контейнера).
+func _xf(c: CanvasItem) -> Transform2D:
+	var t := c.get_global_transform_with_canvas()
+	var vp := c.get_viewport()
+	while vp is SubViewport and vp.get_parent() is SubViewportContainer:
+		var sv := vp as SubViewport
+		var cont := sv.get_parent() as SubViewportContainer
+		var k := Vector2.ONE
+		if sv.size_2d_override != Vector2i.ZERO and sv.size_2d_override_stretch:
+			k = Vector2(sv.size) / Vector2(sv.size_2d_override)
+		t = cont.get_global_transform_with_canvas() * Transform2D(0.0, k, 0.0, Vector2.ZERO) * t
+		vp = cont.get_viewport()
+	return t
 
 
 # ---------- рамка и мышь ----------
@@ -664,7 +695,7 @@ func _show(on: bool) -> void:
 func _draw_frame() -> void:
 	if not _valid(target) or _styled():
 		return
-	var r: Rect2 = (target.get_global_transform_with_canvas() * trect).grow(3.0)
+	var r: Rect2 = (_xf(target) * trect).grow(3.0)
 	_frame.draw_rect(r, Color(FRAME_COL, 0.12), true)
 	_frame.draw_rect(r, FRAME_COL, false, 3.0)
 

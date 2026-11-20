@@ -22,6 +22,7 @@ func setup(p: Player) -> void:
 	inv = Inventory.new()
 	inv.game = self
 	add_child(inv)
+	invs.append(inv)
 	inv.changed.connect(func(): hud.set_coins(inv.count("coin")))
 	inv.use_requested.connect(use_item)
 	inv.drop_requested.connect(drop_item)
@@ -350,15 +351,16 @@ func _aimed_pickup(from: Vector3, fwd: Vector3) -> Node:
 
 ## Одно окно за раз: пока открыт инвентарь или магазин, другие окна не открываются.
 func window_open() -> bool:
-	return (inv != null and inv.open) or (shop != null and shop.opened) or (slot != null and slot.pack_open) \
+	return invs.any(func(i): return is_instance_valid(i) and i.open) or (shop != null and shop.opened) or (slot != null and slot.pack_open) \
 		or (loot_window != null and loot_window.open)
 
 
 ## Закрыть все окна (инвентарь, магазин с продажей, наборы KILLBOX, лут) — перед кат-сценой (промпт 16.11 21:40).
 ## Вызывать ДО блокировки игрока: _close магазина/наборов возвращают player.active = true.
 func close_windows() -> void:
-	if inv != null and inv.open:
-		inv.close()
+	for i in invs:
+		if is_instance_valid(i) and i.open:
+			i.close()
 	if shop != null and shop.opened:
 		shop._close()
 	if slot != null and slot.pack_open:
