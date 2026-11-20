@@ -39,3 +39,4 @@ _t.gd
 
 # карта кода — строится заново (scripts/codemap.py)
 godot/THE LEAK/CODEMAP.md
+__pycache__/
