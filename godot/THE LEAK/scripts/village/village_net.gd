@@ -46,7 +46,29 @@ func v_city() -> void:
 @rpc("any_peer", "call_local", "reliable")
 func v_lake_spot(i: int) -> void:
 	if game and is_instance_valid(game) and game.village and game.village.lake:
-		game.village.lake.stash_open(i)
+		game.village.lake.stash_open(i, multiplayer.get_remote_sender_id())
+
+
+## Хост — тому, кто обыскал тайник: «Пусто» / «Редкая находка!» (lake_camp.gd: stash_msg).
+@rpc("authority", "call_remote", "reliable")
+func v_lake_msg(n: int) -> void:
+	if game and is_instance_valid(game) and game.village and game.village.lake:
+		game.village.lake.stash_msg(n)
+
+
+## Клиент построил у себя лагерь — просит у хоста обысканные тайники и постройки.
+@rpc("any_peer", "call_remote", "reliable")
+func v_lake_ask() -> void:
+	if not multiplayer.is_server() or game == null or not is_instance_valid(game) or game.village == null or game.village.lake == null:
+		return
+	rpc_id(multiplayer.get_remote_sender_id(), "v_lake_state", game.village.lake.to_save())
+
+
+## Хост -> клиент: состояние лагеря (lake_camp.gd: net_state).
+@rpc("authority", "call_remote", "reliable")
+func v_lake_state(d: Dictionary) -> void:
+	if game and is_instance_valid(game) and game.village and game.village.lake:
+		game.village.lake.net_state(d)
 
 
 ## Построили что-то в лагере у озера (lake_base.gd): у всех появляется постройка.

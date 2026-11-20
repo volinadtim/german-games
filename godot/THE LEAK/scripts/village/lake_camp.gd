@@ -50,6 +50,25 @@ func _ready() -> void:
 
 	_trees()
 	_hidden_safe()
+	call_deferred("_ask_state")
+
+
+## Клиент в сети: просим у хоста уже обысканные тайники и постройки (дозагрузка в идущую игру).
+func _ask_state() -> void:
+	var g = get_parent().get("game")
+	if g and g.net and not g.net.is_host():
+		preload("res://scripts/village/village_net.gd").ensure(g).rpc_id(1, "v_lake_ask")
+
+
+## Состояние лагеря от хоста: добавляем обысканное и построенное (без звуков и надписей).
+func net_state(d: Dictionary) -> void:
+	var sd: Dictionary = d.get("searched", {})
+	for k in sd:
+		if not searched.has(int(k)):
+			searched[int(k)] = float(sd[k])
+	if base:
+		for id in d.get("built", []):
+			base.build(String(id), false)
 
 
 ## Тайники (промпт 20.11 18:33): пни, кусты, брошенные палатки, клады — [F] обыскать.
@@ -202,7 +221,7 @@ func spot_use(s, g) -> void:
 
 
 ## Обыскали тайник (у всех игроков): помечаем пустым; лут выпадает у хоста (или без сети).
-func stash_open(i: int) -> void:
+func stash_open(i: int, who := 0) -> void:
 	if i < 0 or i >= spots.size() or searched.has(i):
 		return
 	var s = spots[i]
@@ -216,8 +235,7 @@ func stash_open(i: int) -> void:
 		return
 	var at: Vector3 = s.global_position + Vector3(0, 1.0, 0)
 	if randf() < float(st[4]):
-		if g.net == null:
-			g.hud.toast("Пусто — только труха и ветки", Color(0.8, 0.75, 0.6))
+		stash_msg(0, who)
 		return
 	var cnt := (2 + randi() % 2) if s.get_meta("kind") == "tent" else 1
 	for k in cnt:
@@ -226,8 +244,21 @@ func stash_open(i: int) -> void:
 	if randf() < float(st[3]):
 		var e2: Array = (st[2] as Array).pick_random()
 		g.spawn_loot(String(e2[0]), randi_range(int(e2[1]), int(e2[2])), at, Vector3(0, 2.6, 0), 1.2)
-		if g.net == null:
-			g.hud.toast("Редкая находка!", Color(1.0, 0.85, 0.4))
+		stash_msg(1, who)
+
+
+## Надпись после обыска (0 — пусто, 1 — редкая находка) тому, кто обыскал; в сети хост шлёт её этому игроку.
+func stash_msg(n: int, who := 0) -> void:
+	var g = get_parent().get("game")
+	if g == null:
+		return
+	if g.net and who > 1:
+		preload("res://scripts/village/village_net.gd").ensure(g).rpc_id(who, "v_lake_msg", n)
+		return
+	if n == 0:
+		g.hud.toast("Пусто — только труха и ветки", Color(0.8, 0.75, 0.6))
+	else:
+		g.hud.toast("Редкая находка!", Color(1.0, 0.85, 0.4))
 
 
 ## Сейв лагеря (village.gd: lake_d): обысканные тайники и постройки.
