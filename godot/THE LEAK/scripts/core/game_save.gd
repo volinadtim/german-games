@@ -72,6 +72,7 @@ func save_state() -> Dictionary:
 		"bag_layout": inv.BAG_LAYOUT,
 		"equip": inv.equip.duplicate(),
 		"equip_dur": inv.equip_dur.duplicate(),
+		"gear": inv.gear.duplicate(),
 		"hotbar": inv.hotbar.duplicate(),
 		"p2": get_meta("split").p2_state() if has_meta("split") else p2_save,   # Split-Screen: вещи игрока 2
 		"hp": hp,
@@ -129,6 +130,7 @@ func load_state(d: Dictionary) -> void:
 	loading = true
 	p2_save = d.get("p2", {})
 	inv.coins = int(d.get("coins", 0))
+	inv.gear = d.get("gear", {}).duplicate()   # кобура / крючки (промпт 20.11 18:38)
 	if skills:
 		skills.from_save(d.get("skills", {}))
 	var bag: Array = d.get("bag", [])

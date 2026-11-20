@@ -39,15 +39,15 @@ const START_GEAR := {"body": "tshirt", "legs": "rag_pants", "back": "sack"}   # 
 const COLS := 5
 const SLOT := 76.0
 const CELL := 58.0               # ячейка сетки сумки
-const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left", "right", "gps"]
+const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left", "right", "gps", "holster", "hook1", "hook2"]
 ## тела, на которые крепится GPS (лучшая куртка деревни и выше тиром, промпт 20.11 18:38)
 const GPS_BODIES := ["bushlat", "vest", "plate_vest"]
-const EQUIP_NAMES := {"gps": "Крепление GPS", "head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
+const EQUIP_NAMES := {"gps": "Крепление GPS", "holster": "Кобура", "hook1": "Крючок", "hook2": "Крючок", "head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
 	"left": "Левая", "right": "Правая"}
 ## Слоты вплотную в форме тела, без фигуры и подписей (промпт 04:23; вид со спины: левая рука слева).
 ## В пустом слоте — полупрозрачная иконка части тела (Slot._draw_part). Перчатки — на обеих кистях (HANDS2 —
 ## второй квадратик того же слота).
-const DOLL_POS := {"gps": Vector2(0, 64), "head": Vector2(64, 0), "face": Vector2(64, 64), "back": Vector2(128, 64), "body": Vector2(64, 128),
+const DOLL_POS := {"gps": Vector2(0, 64), "holster": Vector2(0, 256), "hook1": Vector2(0, 0), "hook2": Vector2(128, 0), "head": Vector2(64, 0), "face": Vector2(64, 64), "back": Vector2(128, 64), "body": Vector2(64, 128),
 	"hands": Vector2(128, 128), "left": Vector2(0, 192), "right": Vector2(128, 192), "legs": Vector2(64, 192), "feet": Vector2(64, 256)}
 const HANDS2 := Vector2(0, 128)
 const HOLD_TIME := 0.4                  # Shift + держать ПКМ столько — выбросить всю стопку
@@ -55,7 +55,8 @@ const TOUCH_HOLD := 0.5                 # палец: столько держа�
 
 var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
-var equip := {"head": "", "face": "", "back": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": "", "gps": ""}
+var equip := {"head": "", "face": "", "back": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": "", "gps": "", "holster": "", "hook1": "", "hook2": ""}
+var gear := {}                  # куплено в магазине деревни: "holster", "bag_hooks" — открывают слоты (сейв: gear)
 var hotbar: Array = ["bandage", "water", "choco", "", ""]   # по умолчанию: 1 — бинт, 2 — вода, 3 — шоколадка (сухарей больше нет, 20.11 14:22)
 var equip_dur := {}             # прочность надетого: слот -> значение
 var open := false
@@ -1787,6 +1788,10 @@ func _size_note(_id: String) -> String:
 func slot_open(k: String) -> bool:
 	if k == "gps":
 		return String(equip.get("body", "")) in GPS_BODIES
+	if k == "holster":
+		return gear.has("holster")
+	if k == "hook1" or k == "hook2":
+		return gear.has("bag_hooks")
 	return true
 
 

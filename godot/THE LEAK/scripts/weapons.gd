@@ -51,7 +51,7 @@ const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["g
 	["sapper", 110], ["sledge", 170], ["bushlat", 95], ["berets", 75],
 	["fire_axe", 240], ["kevlar_helmet", 180], ["plate_vest", 220],
 	["scuba", 260], ["dive_light", 90],
-	["gps", 150]]   # GPS — миникарта, деревня (промпт 20.11 18:38)   # дайвинг, тир 2 (промпт 20.11 18:33)
+	["gps", 150], ["holster", 60], ["bag_hooks", 45]]   # GPS — миникарта, деревня (промпт 20.11 18:38)   # дайвинг, тир 2 (промпт 20.11 18:33)
 
 
 static func _m(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:

@@ -199,6 +199,11 @@ const ITEMS := {
 	# GPS (промпт 20.11 18:38): без него миникарты нет. Работает в руке; на бушлате / бронежилете — в креплении на груди
 	"gps": {"name": "GPS", "desc": "Навигатор: пока работает — в углу миникарта. Работает в руке; на бушлате, бронежилете или лучше — крепится на грудь (слот слева от лица) и работает без рук.", "stack": 1,
 		"icon": "gps", "color": Color(0.85, 0.8, 0.2)},
+	# кобура и крючки на рюкзак (промпт 20.11 18:38): покупка открывает слоты на кукле снаряжения (inventory.gd: gear)
+	"holster": {"name": "Кобура", "desc": "Кобура на пояс: слот на кукле снаряжения (слева внизу) — туда пистолет. Клавиша хотбара с пистолетом — выхватить / убрать в кобуру.", "stack": 1,
+		"icon": "holster", "color": Color(0.36, 0.24, 0.14)},
+	"bag_hooks": {"name": "Крючки для рюкзака", "desc": "Два крючка на лямки: слоты сверху куклы снаряжения — туда инструменты и холодное оружие. Клавиша хотбара — снять в руку / повесить обратно.", "stack": 1,
+		"icon": "hooks", "color": Color(0.6, 0.6, 0.62)},
 }
 
 
@@ -284,9 +289,21 @@ static func fits(id: String, slot: String) -> bool:
 	var k := equip_slot(id)
 	if slot == "gps":
 		return id == "gps"
+	if slot == "holster":
+		return ITEMS.has(id) and ITEMS[id].get("gun", false)
+	if slot == "hook1" or slot == "hook2":
+		return hookable(id)
 	if slot == "left" or slot == "right":
 		return k == "hand" or holdable(id)
 	return k != "" and k == slot
+
+
+## Можно повесить на крючок рюкзака: холодное оружие и инструменты (не огнестрел, не камень).
+static func hookable(id: String) -> bool:
+	if not ITEMS.has(id):
+		return false
+	var d: Dictionary = ITEMS[id]
+	return (d.get("weapon", false) and not d.get("gun", false) and id != "stone") or id in ["flashlight", "broom", "dive_light"]
 
 
 ## Любой предмет можно взять в руку, как оружие (промпт 18.11 00:27): бьёт им как дубинкой-слабачкой.
@@ -352,6 +369,17 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
+		"holster":
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.18, -s * 0.34), c + Vector2(s * 0.2, -s * 0.34),
+				c + Vector2(s * 0.14, s * 0.38), c + Vector2(-s * 0.06, s * 0.38), c + Vector2(-s * 0.2, s * 0.1)]), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.3, -s * 0.38), Vector2(s * 0.6, s * 0.08)), dark)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.04, -s * 0.24), Vector2(s * 0.14, s * 0.1)), col.lightened(0.25))
+		"hooks":
+			for i in 2:
+				var hx := c + Vector2(-s * 0.18 + i * s * 0.36, 0)
+				ci.draw_line(hx + Vector2(0, -s * 0.36), hx + Vector2(0, s * 0.1), col, s * 0.06)
+				ci.draw_arc(hx + Vector2(s * 0.09, s * 0.1), s * 0.09, 0.0, PI, 8, col, s * 0.06)
+				ci.draw_rect(Rect2(hx + Vector2(-s * 0.07, -s * 0.4), Vector2(s * 0.14, s * 0.06)), dark)
 		"gps":
 			ci.draw_rect(Rect2(c - Vector2(s * 0.2, s * 0.32), Vector2(s * 0.4, s * 0.64)), col.darkened(0.6))
 			ci.draw_rect(Rect2(c - Vector2(s * 0.15, s * 0.25), Vector2(s * 0.3, s * 0.3)), Color(0.3, 0.6, 0.4))

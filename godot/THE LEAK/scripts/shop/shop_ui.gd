@@ -711,6 +711,20 @@ func _buy(id: String, price: int) -> void:
 		info_l.text = "Не хватает монет"
 		game.play_ui("buzz", -14.0)
 		return
+	if id in ["holster", "bag_hooks"]:
+		# кобура / крючки (промпт 20.11 18:38): не вещь, а слоты на кукле снаряжения — покупаются один раз
+		if game.inv.gear.has(id):
+			info_l.text = "Уже есть: %s" % Items.item_name(id)
+			game.play_ui("buzz", -14.0)
+			return
+		game.inv.remove("coin", price)
+		game.inv.gear[id] = true
+		game.inv.notify()
+		info_l.text = "Куплено: %s — новые слоты на кукле снаряжения" % Items.item_name(id)
+		_vend(id)
+		game.play_ui("coin", -10.0)
+		_refresh()
+		return
 	game.inv.remove("coin", price)
 	if Items.ITEMS[id].has("equip"):
 		# одежда/снаряжение (промпт 05:37): без лимита; надеть → в сумку → на пол, покупку не отменяем

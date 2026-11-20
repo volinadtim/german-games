@@ -544,6 +544,8 @@ func hotbar_use(k: int) -> void:
 	var id: String = inv.hotbar[k]
 	if id == "":
 		return
+	if _holster_key(id):
+		return
 	for sl in inv.equip:
 		if inv.equip[sl] == id:
 			unequip(sl)
@@ -557,6 +559,29 @@ func hotbar_use(k: int) -> void:
 		take_in_hand(i)
 		return
 	equip(i, eq)
+
+
+## Хотбар и кобура / крючки (промпт 20.11 18:38): предмет в кобуре или на крючке — в свободную руку;
+## в руке — обратно в кобуру / на крючок, если там свободно. true — обработано.
+func _holster_key(id: String) -> bool:
+	const RACK := ["holster", "hook1", "hook2"]
+	for sl in ["right", "left"]:
+		if inv.equip[sl] == id:
+			for r in RACK:
+				if inv.equip[r] == "" and inv.can_fit(id, r):
+					inv._swap_equip(sl, r)
+					return true
+			return false
+	for r in RACK:
+		if inv.equip[r] == id:
+			var hand := "right" if inv.equip["right"] == "" else ("left" if inv.equip["left"] == "" else "right")
+			if drive_hand() != "":
+				hand = drive_hand()
+			if not can_take_hand(hand):
+				return true
+			inv._swap_equip(r, hand)
+			return true
+	return false
 
 
 ## Взять предмет из ячейки idx в свободную руку (сначала правая; обе заняты — меняется правая).
