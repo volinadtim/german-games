@@ -14,6 +14,7 @@ const MENU_CAM_POS := Vector3(-5.0, 1.5, 6.3)    # с другой сторон�
 const MENU_CAM_LOOK := Vector3(-7.45, 1.35, 8.2)
 
 var menu_cam: Camera3D
+var menu_bg: CanvasLayer          # фон главного меню (ui/menu_scene.gd), убирается при входе в игру
 var slot_board: Node3D
 var fly_t := 0.0
 var slot: Node3D
@@ -58,6 +59,10 @@ func _ready() -> void:
 	add_child(menu_cam)
 	menu_cam.current = true
 	_update_fly(0.0, true)
+	# фон меню — ночной бункер с персонажем (ui/menu_scene.gd, промпт 20.11 18:55); мир под ним не рисуем
+	menu_bg = preload("res://scripts/ui/menu_scene.gd").new()
+	add_child(menu_bg)
+	menu_cam.cull_mask = 0
 
 	menu = Menu.new()
 	add_child(menu)
@@ -124,6 +129,10 @@ func _start_game() -> void:
 
 func _enter_game() -> void:
 	menu.visible = false
+	if menu_bg:
+		menu_bg.queue_free()
+		menu_bg = null
+	menu_cam.cull_mask = 0xFFFFF
 	menu.net_box.visible = false   # страница сети не ловит Esc в игре (иначе net.leave() — вылет из комнаты)
 	if slot_board:
 		slot_board.visible = true

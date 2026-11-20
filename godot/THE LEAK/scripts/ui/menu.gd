@@ -484,6 +484,12 @@ func _show(which: String) -> void:
 	if setup_box:
 		setup_box.visible = which == "setup"
 	blur_rect.visible = which != "setup"   # превью настройки картинки — без размытия
+	# главное меню — фон-сцена (ui/menu_scene.gd) чёткая, остальные страницы — размытые
+	var sharp := which == "main" and not in_game
+	var bm := blur_rect.material as ShaderMaterial
+	bm.set_shader_parameter("lod", 0.0 if sharp else 1.4)
+	bm.set_shader_parameter("spread", 0.0 if sharp else 2.6)
+	bm.set_shader_parameter("darken", 1.0 if sharp else 0.88)
 	for i in icons:
 		i.visible = which != "setup"
 	if which != "settings":
