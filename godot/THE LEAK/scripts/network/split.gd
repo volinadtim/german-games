@@ -20,6 +20,7 @@ extends Node
 const PlayerScript := preload("res://scripts/player/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const InvScript := preload("res://scripts/inventory.gd")
+const Items := preload("res://scripts/items.gd")
 const Fx := preload("res://scripts/core/fx.gd")
 const MM_K := 0.8            # миникарта в половинке: на 20% меньше и на 20% ближе
 const PUPPET_LAYER := 512
@@ -585,7 +586,53 @@ func _make_inv2() -> void:
 	inv2.spilled.connect(func(items): _as_p2(g.drop_spilled.bind(items)))
 	hud_p2.inv = inv2
 	inv2.update_blocks()
-	inv2.add("coin", 25)   # как у игрока 1 в начале
+	if not _load_p2(game.p2_save):
+		inv2.add("coin", 25)   # как у игрока 1 в начале
+
+
+## Вещи игрока 2 для сейва (game_save.gd: "p2").
+func p2_state() -> Dictionary:
+	var bag: Array = []
+	for s in inv2.slots:
+		bag.append(s.duplicate() if s != null else null)
+	return {"coins": inv2.coins, "bag": bag, "bag_layout": inv2.BAG_LAYOUT, "equip": inv2.equip.duplicate(),
+		"equip_dur": inv2.equip_dur.duplicate(), "hotbar": inv2.hotbar.duplicate(), "hp": hp}
+
+
+## Сейв с вещами игрока 2 — разложить их ему (как game_save.gd: load_state). false — в сейве их нет.
+func _load_p2(d: Dictionary) -> bool:
+	if d.is_empty() or int(d.get("bag_layout", -1)) != int(inv2.BAG_LAYOUT):
+		return false
+	inv2.coins = int(d.get("coins", 0))
+	var eq: Dictionary = d.get("equip", {})
+	var ed: Dictionary = d.get("equip_dur", {})
+	inv2.equip_dur.clear()
+	for k in inv2.equip:
+		var id := String(eq.get(k, ""))
+		inv2.equip[k] = id if Items.ITEMS.has(id) else ""
+		if ed.has(k):
+			inv2.equip_dur[k] = float(ed[k])
+		_as_p2(game._apply_equip.bind(k))
+	inv2.slots.clear()
+	inv2.slots.resize(inv2.TOTAL)
+	var bag: Array = d.get("bag", [])
+	for i in mini(bag.size(), inv2.slots.size()):
+		var s = bag[i]
+		if s is Dictionary and Items.ITEMS.has(String(s.get("id", ""))):
+			var e := {"id": String(s["id"]), "n": int(s.get("n", 1))}
+			if s.has("dur"):
+				e["dur"] = float(s["dur"])
+			if bool(s.get("r", false)):
+				e["r"] = true
+			inv2.slots[i] = e
+	inv2.reflow([])
+	var hb: Array = d.get("hotbar", [])
+	for k in 5:
+		inv2.hotbar[k] = String(hb[k]) if k < hb.size() and hb[k] != null else ""
+	hp = clampf(float(d.get("hp", MAX_HP)), 1.0, MAX_HP)
+	hud_p2.set_hp(hp, MAX_HP, true)
+	inv2.notify()
+	return true
 
 
 ## enemy.gd / mutant.gd: ближайший живой игрок.

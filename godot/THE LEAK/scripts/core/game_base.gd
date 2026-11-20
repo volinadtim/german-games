@@ -81,6 +81,7 @@ var takedown   # world/takedown.gd — стелс-добивание мелки�
 var hud: Hud
 var net = null   # net.gd в сетевой игре (выставляет main.gd до setup), иначе null
 var inv: Inventory
+var p2_save := {}   # Split-Screen: вещи игрока 2 из сейва ("p2"); split.gd забирает при старте, без сплитскрина — хранятся как есть
 var invs: Array = []   # инвентари всех игроков этого экрана (Split-Screen: и игрока 2) — окно открыто, если открыт любой
 var flashlight: Flashlight
 var hp := MAX_HP

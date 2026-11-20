@@ -72,6 +72,7 @@ func save_state() -> Dictionary:
 		"equip": inv.equip.duplicate(),
 		"equip_dur": inv.equip_dur.duplicate(),
 		"hotbar": inv.hotbar.duplicate(),
+		"p2": get_meta("split").p2_state() if has_meta("split") else p2_save,   # Split-Screen: вещи игрока 2
 		"hp": hp,
 		"bleed": bleed_t,
 		"buffs": buffs.duplicate(true),
@@ -124,6 +125,7 @@ func save_state() -> Dictionary:
 
 func load_state(d: Dictionary) -> void:
 	loading = true
+	p2_save = d.get("p2", {})
 	inv.coins = int(d.get("coins", 0))
 	var bag: Array = d.get("bag", [])
 	var eq: Dictionary = d.get("equip", {}).duplicate()
