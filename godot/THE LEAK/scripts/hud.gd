@@ -14,6 +14,8 @@ var hp := 100.0
 var hp_max := 100.0
 var hp_lag := 100.0          # «догоняющая» светлая полоска
 var hp_full_t := 0.0         # сколько времени здоровье уже полное — для задержки перед угасанием (промпт 18.11 02:16)
+var hp_still_t := 0.0        # сколько здоровье не менялось (полоска гаснет и при неполном хп)
+var hp_seen := 100.0
 var hp_alpha := 1.0          # прозрачность полоски здоровья: угасает, если давно полная, во всех режимах
 var coins := 0
 var minimal := false      # режим «Реализм» (game.gd: mode): только полоска здоровья и подсказки
@@ -180,12 +182,16 @@ func _process(delta: float) -> void:
 			toast("−%d здоровья" % int(round(dmg_acc)), Color(1.0, 0.32, 0.25), true)
 			dmg_acc = 0.0
 	hp_lag = move_toward(hp_lag, hp, delta * 25.0) if hp_lag > hp else hp
+	# полоска пропадает: при полном здоровье через 2.5 с, при неполном и неизменном — через 9 с; Tab показывает снова
+	if Input.is_action_just_pressed("inventory") or hp != hp_seen:
+		hp_full_t = 0.0
+		hp_still_t = 0.0
+	hp_seen = hp
+	hp_still_t += delta
 	if hp >= hp_max - 0.01:
 		hp_full_t += delta
-	else:
-		hp_full_t = 0.0
-		hp_alpha = 1.0
-	var hp_target := 0.0 if hp_full_t > 2.5 else 1.0
+	var hp_hide := 2.5 if hp >= hp_max - 0.01 else 9.0
+	var hp_target := 0.0 if maxf(hp_full_t, hp_still_t) > hp_hide else 1.0
 	hp_alpha = move_toward(hp_alpha, hp_target, delta * (0.5 if hp_target < hp_alpha else 4.0))
 	hurt = move_toward(hurt, 0.0, delta * 1.6)
 	var low := 0.0
