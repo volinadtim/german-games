@@ -508,6 +508,14 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 			var tuck := Vector3(0, GROUND_Y + 0.24 + 0.04 * i, -0.14 + 0.2 * i)
 			foot[i] = foot[i].lerp(tuck, 1.0 - exp(-9.0 * delta))
 			foot_pitch[i] = lerpf(foot_pitch[i], -0.35, 1.0 - exp(-9.0 * delta))
+	elif slide_node != null and slide_node.active:
+		# подкат: левая нога вытянута вперёд, правая подогнута назад; цикл шага не крутим
+		stopping = false
+		var kk := 1.0 - exp(-14.0 * delta)
+		foot[0] = foot[0].lerp(Vector3(-0.02, GROUND_Y + 0.06, -0.38), kk)
+		foot[1] = foot[1].lerp(Vector3(0.05, GROUND_Y + 0.2, 0.14), kk)
+		foot_pitch[0] = lerpf(foot_pitch[0], 0.35, kk)
+		foot_pitch[1] = lerpf(foot_pitch[1], -0.5, kk)
 	elif spd > 0.4:
 		stopping = false
 		var run := clampf((spd - WALK) / (SPRINT - WALK), 0.0, 1.0)
@@ -601,11 +609,6 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 		t += Vector3(side * 0.075, 0.0, -0.12 if i == 0 else 0.09) * bk
 		# разгруженная нога: пятка чуть приподнята, колено подсогнуто
 		t.y += 0.16 * maxf(-sin(idle_pitch[i]), 0.0)
-		var sk: float = slide_node.k if slide_node != null else 0.0
-		if sk > 0.01:
-			# подкат: левая нога выпрямлена вперёд, правая подогнута назад под себя
-			var tuck := Vector3(0.04, 0.2, 0.12) if i == 1 else Vector3(-0.03, 0.04, -0.3)
-			t = t.lerp(t + tuck, sk)
 		_leg_ik(i, t, idle_pitch[i], -side * deg_to_rad(9.0 + 3.0 * unl) * rk - side * deg_to_rad(6.0 if i == 0 else 18.0) * bk)
 
 
