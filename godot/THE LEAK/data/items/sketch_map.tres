@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_eryct"]
+
+[resource]
+script = ExtResource("1_eryct")
+id = "sketch_map"
+order = 105
+name = "Карта-зарисовывалка"
+desc = "Пока лежит в сумке — сама зарисовывает места, где ты проходил. [M] — открыть карту, ставить метки."
+icon = "sketch_map"
+color = Color(0.86, 0.8, 0.62, 1)

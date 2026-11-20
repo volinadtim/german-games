@@ -1,0 +1,50 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_sbdpi"]
+
+[resource]
+script = ExtResource("1_sbdpi")
+values = {
+"BETS": [1, 2, 3, 5, 10],
+"BURST_T": 2.0,
+"CH": 98.0,
+"COST": 30,
+"CW": 136.0,
+"GAP": 8.0,
+"GEIGER": 12,
+"H": 450,
+"LINES": [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]],
+"MUT_T": 0.8,
+"PAY": {
+"barrel": 250,
+"can": 15,
+"mask": 140,
+"neon": 500,
+"rat": 60,
+"tire": 30
+},
+"PROFIT_CAP": 12000,
+"RANK": ["can", "tire", "rat", "mask", "neon"],
+"SPIN_T": 0.9,
+"STEP_T": 0.3,
+"SYMS": ["can", "tire", "rat", "mask", "neon", "barrel"],
+"TOP": 52.0,
+"W": 480,
+"WEIGHT": {
+"barrel": 5.0,
+"can": 22.0,
+"mask": 8.0,
+"neon": 2.5,
+"rat": 13.0,
+"tire": 18.0
+},
+"X0": 28.0
+}
+order = {
+"PAY": {
+"_": ["can", "tire", "rat", "mask", "neon", "barrel"]
+},
+"WEIGHT": {
+"_": ["can", "tire", "rat", "mask", "neon", "barrel"]
+}
+}

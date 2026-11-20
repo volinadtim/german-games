@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_tidwx"]
+
+[resource]
+script = ExtResource("1_tidwx")
+id = "broom"
+order = 6
+name = "Метла с совком"
+desc = "Использовать у битого стекла — вымести его."
+icon = "broom"
+color = Color(0.6, 0.48, 0.25, 1)

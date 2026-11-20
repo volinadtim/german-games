@@ -6,31 +6,32 @@ extends StaticBody3D
 ## по очереди даёт зелёную вспышку, и соседи по кресту мутируют на ранг выше.
 ## СЧЁТЧИК ГЕЙГЕРА: каждая бочка — +1; полный (GEIGER) — ВЫБРОС: всё поле +1 ранг и выигрыш ×2.
 ## Ставка — кнопка на полке слева. По сети не синхронизируется, счётчик не сохраняется.
+const _D_RADIATION := preload("res://data/slots/radiation.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
 const Sfx := preload("res://scripts/core/sfx.gd")
 const Perks := preload("res://scripts/systems/perks.gd")
 const SlotSounds := preload("res://scripts/slot/slot_sounds.gd")
-const COST := 30
-const BETS := [1, 2, 3, 5, 10]
-const RANK := ["can", "tire", "rat", "mask", "neon"]
-const SYMS := ["can", "tire", "rat", "mask", "neon", "barrel"]
-const WEIGHT := {"can": 22.0, "tire": 18.0, "rat": 13.0, "mask": 8.0, "neon": 2.5, "barrel": 5.0}
-const PAY := {"can": 15, "tire": 30, "rat": 60, "mask": 140, "neon": 500, "barrel": 250}
-const LINES := [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
-const GEIGER := 12
-const PROFIT_CAP := 12000
-const SPIN_T := 0.9
-const STEP_T := 0.3
-const MUT_T := 0.8
-const BURST_T := 2.0
-const W := 480
-const H := 450
-const X0 := 28.0
-const CW := 136.0
-const GAP := 8.0
-const TOP := 52.0
-const CH := 98.0
-const FIELD_B := TOP + CH * 3.0
+static var COST: int = _D_RADIATION.v("COST")
+static var BETS: Array = _D_RADIATION.v("BETS")
+static var RANK: Array = _D_RADIATION.v("RANK")
+static var SYMS: Array = _D_RADIATION.v("SYMS")
+static var WEIGHT: Dictionary = _D_RADIATION.v("WEIGHT")
+static var PAY: Dictionary = _D_RADIATION.v("PAY")
+static var LINES: Array = _D_RADIATION.v("LINES")
+static var GEIGER: int = _D_RADIATION.v("GEIGER")
+static var PROFIT_CAP: int = _D_RADIATION.v("PROFIT_CAP")
+static var SPIN_T: float = _D_RADIATION.v("SPIN_T")
+static var STEP_T: float = _D_RADIATION.v("STEP_T")
+static var MUT_T: float = _D_RADIATION.v("MUT_T")
+static var BURST_T: float = _D_RADIATION.v("BURST_T")
+static var W: int = _D_RADIATION.v("W")
+static var H: int = _D_RADIATION.v("H")
+static var X0: float = _D_RADIATION.v("X0")
+static var CW: float = _D_RADIATION.v("CW")
+static var GAP: float = _D_RADIATION.v("GAP")
+static var TOP: float = _D_RADIATION.v("TOP")
+static var CH: float = _D_RADIATION.v("CH")
+static var FIELD_B := TOP + CH * 3.0
 
 var game
 var bet := 1

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_e77uk"]
+
+[resource]
+script = ExtResource("1_e77uk")
+id = "rag_pants"
+order = 29
+name = "Рваные штаны"
+desc = "Ноги: лохмотья в заплатах, −3% урона. Расползаются от ударов."
+icon = "pants"
+color = Color(0.3, 0.27, 0.22, 1)
+dur = 30
+props = {
+"armor": 0.03,
+"equip": "legs"
+}

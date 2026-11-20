@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_r8luw"]
+
+[resource]
+script = ExtResource("1_r8luw")
+id = "shiv"
+order = 64
+name = "Заточка"
+desc = "Металлолом, отбитый молотком в острое жало. Урон ×2.7, быстрая."
+icon = "shiv"
+color = Color(0.5, 0.48, 0.46, 1)
+dur = 25
+props = {
+"weapon": true
+}

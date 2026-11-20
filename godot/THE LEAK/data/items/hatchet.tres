@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_e7lf5"]
+
+[resource]
+script = ExtResource("1_e7lf5")
+id = "hatchet"
+order = 63
+name = "Топорик"
+desc = "Небольшой топор. Урон ×2.9. На поляне — руби сухие деревья и старые доски (ЛКМ с топориком в руке): деревяшки."
+icon = "hatchet"
+color = Color(0.6, 0.62, 0.63, 1)
+dur = 50
+props = {
+"weapon": true
+}

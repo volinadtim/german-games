@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_8kao7"]
+
+[resource]
+script = ExtResource("1_8kao7")
+id = "bat"
+order = 39
+name = "Бита"
+desc = "Деревянная бита. Урон ×2.0, бьёт чуть дальше."
+icon = "bat"
+color = Color(0.55, 0.38, 0.22, 1)
+dur = 40
+props = {
+"weapon": true
+}

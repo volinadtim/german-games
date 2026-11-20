@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_m506g"]
+
+[resource]
+script = ExtResource("1_m506g")
+id = "coin"
+name = "Монета"
+desc = "Старая монета. Её ест игровой автомат."
+stack = 999
+icon = "coin"
+color = Color(0.86, 0.66, 0.3, 1)

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_no1xw"]
+
+[resource]
+script = ExtResource("1_no1xw")
+id = "kevlar_helmet"
+order = 89
+name = "Кевларовый шлем"
+desc = "Голова: −22% урона. Лёгкий и прочный. Изнашивается от ударов."
+icon = "moto_helmet"
+color = Color(0.2, 0.24, 0.18, 1)
+dur = 140
+props = {
+"armor": 0.22,
+"equip": "head"
+}

@@ -5,14 +5,15 @@ extends Node
 ## Камень (предмет stone, с каменных кучек) летит по дуге из руки; упал — стук и пыль, враги в HEAR_R, которые не видят игрока, идут проверить место
 ## и стоят там пару секунд (enemy.gd: hear_stone) — отвлечь. Попал во врага — малый урон, враг агрится — привлечь.
 ## После падения камень лежит на земле обычным предметом (pickup.gd) — его можно подобрать снова.
+const _D_STONE := preload("res://data/weapons/stone.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
 const Fx := preload("res://scripts/core/fx.gd")
 const HEAR_R := 15.0
 const DMG := 6.0
-const SPEED := 15.0
-const CD := 0.55
+static var SPEED: float = _D_STONE.v("SPEED")
+static var CD: float = _D_STONE.v("CD")
 
-const SLOTS := ["left", "right"]
+static var SLOTS: Array = _D_STONE.v("SLOTS")
 
 var game
 var cd := 0.0

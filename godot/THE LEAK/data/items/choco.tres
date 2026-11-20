@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_v65bh"]
+
+[resource]
+script = ExtResource("1_v65bh")
+id = "choco"
+order = 4
+name = "Шоколадка"
+desc = "Еда: −20% входящего урона на 60 с."
+stack = 3
+icon = "choco"
+color = Color(0.36, 0.2, 0.12, 1)
+props = {
+"buff": "resist",
+"power": 0.2,
+"time": 60.0
+}

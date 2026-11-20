@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_dlfqf"]
+
+[resource]
+script = ExtResource("1_dlfqf")
+id = "gear"
+order = 35
+name = "Шестерёнка"
+desc = "Из какого-то механизма. Хлам — магазин купит за 3 монеты."
+stack = 10
+icon = "gear"
+color = Color(0.55, 0.5, 0.4, 1)
+props = {
+"junk": true,
+"price": 3
+}

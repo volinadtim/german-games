@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_r6ir6"]
+
+[resource]
+script = ExtResource("1_r6ir6")
+id = "ammo_box"
+order = 83
+name = "Пачка патронов"
+desc = "Открыть: внутри 20 пистолетных патронов."
+stack = 5
+icon = "ammo"
+color = Color(0.62, 0.5, 0.25, 1)

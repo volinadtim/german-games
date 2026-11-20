@@ -1,0 +1,15 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_smiyw"]
+
+[resource]
+script = ExtResource("1_smiyw")
+id = "car_key"
+order = 74
+name = "Ключ от машины"
+desc = "От старой легковушки на поляне. Водительская дверь — [F] открыть; за рулём наведись на ключ зажигания — [F] уехать."
+icon = "car_key"
+color = Color(0.7, 0.55, 0.25, 1)
+props = {
+"quest": true
+}

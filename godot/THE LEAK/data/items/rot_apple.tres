@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_umckp"]
+
+[resource]
+script = ExtResource("1_umckp")
+id = "rot_apple"
+order = 32
+name = "Гнилое яблоко"
+desc = "Защищает от шестёрок. Его надо скормить KILLBOX."
+stack = 5
+icon = "rot_apple"
+color = Color(0.55, 0.16, 0.1, 1)

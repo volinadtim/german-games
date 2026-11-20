@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_am13m"]
+
+[resource]
+script = ExtResource("1_am13m")
+id = "soda"
+order = 5
+name = "Газировка"
+desc = "Напиток: +30% к скорости на 60 с. 2 глотка."
+icon = "soda"
+color = Color(0.75, 0.2, 0.15, 1)
+uses = true
+dur = 2
+props = {
+"buff": "speed",
+"power": 0.3,
+"time": 60.0
+}

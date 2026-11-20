@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_4b10m"]
+
+[resource]
+script = ExtResource("1_4b10m")
+id = "ushanka"
+order = 15
+name = "Шапка-ушанка"
+desc = "Голова: −4% урона. Дёшево и тепло. Изнашивается от ударов."
+icon = "ushanka"
+color = Color(0.4, 0.3, 0.2, 1)
+dur = 40
+props = {
+"armor": 0.04,
+"equip": "head"
+}

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_01qm2"]
+
+[resource]
+script = ExtResource("1_01qm2")
+id = "canned"
+order = 30
+name = "Тушёнка"
+desc = "Еда: −30% входящего урона на 90 с. На 2 раза."
+icon = "canned"
+color = Color(0.55, 0.56, 0.58, 1)
+uses = true
+dur = 2
+props = {
+"buff": "resist",
+"power": 0.3,
+"time": 90.0
+}

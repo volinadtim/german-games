@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_oaft7"]
+
+[resource]
+script = ExtResource("1_oaft7")
+id = "cap"
+order = 78
+name = "Кепка"
+desc = "Голова: −2% урона. Почти ничего, зато дёшево. Изнашивается от ударов."
+icon = "ushanka"
+color = Color(0.5, 0.2, 0.16, 1)
+dur = 30
+props = {
+"armor": 0.02,
+"equip": "head"
+}

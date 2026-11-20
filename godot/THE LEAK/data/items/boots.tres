@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_s7kpy"]
+
+[resource]
+script = ExtResource("1_s7kpy")
+id = "boots"
+order = 14
+name = "Кирзовые сапоги"
+desc = "Обувь: +15% к скорости, стекло не ранит. Изнашиваются от ходьбы и стекла."
+icon = "boots"
+color = Color(0.17, 0.13, 0.1, 1)
+dur = 100
+props = {
+"equip": "feet",
+"glassproof": true,
+"speed": 0.15
+}

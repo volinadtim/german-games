@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_qpmi0"]
+
+[resource]
+script = ExtResource("1_qpmi0")
+id = "knife"
+order = 43
+name = "Ножик"
+desc = "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.2."
+icon = "knife"
+color = Color(0.55, 0.7, 0.68, 1)
+dur = 15
+props = {
+"weapon": true
+}

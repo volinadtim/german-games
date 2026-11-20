@@ -1,0 +1,214 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_aibfj"]
+
+[resource]
+script = ExtResource("1_aibfj")
+values = {
+"ALIAS": {
+"ammo_box": "ammo",
+"assault_helmet": "moto_helmet",
+"berets": "boots",
+"bushlat": "jacket",
+"cap": "ushanka",
+"combat_boots": "boots",
+"dive_light": "flashlight",
+"energy": "soda",
+"fire_axe": "hatchet",
+"katana": "machete",
+"kevlar_helmet": "moto_helmet",
+"kevlar_pants": "wpants",
+"medkit_army": "medkit",
+"mre": "canned",
+"plate_vest": "vest",
+"ration": "canned",
+"riot_armor": "vest",
+"sapper": "hatchet",
+"scuba": "backpack",
+"sledge": "steel_hammer",
+"stim": "soda",
+"sweater": "kurtka",
+"tea": "water",
+"trauma_kit": "medkit",
+"wrench": "steel_hammer"
+},
+"SHOP": [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["gasmask", 50], ["filter", 25], ["flashlight", 35], ["broom", 30], ["helmet", 45], ["jacket", 60], ["gloves", 30], ["pants", 35], ["boots", 40], ["backpack", 70], ["ushanka", 15], ["moto_helmet", 90], ["kurtka", 30], ["vest", 120], ["jeans", 20], ["wpants", 55], ["sneakers", 25], ["tac_gloves", 75], ["wrench", 35], ["cap", 8], ["sweater", 18], ["sapper", 110], ["sledge", 170], ["bushlat", 95], ["berets", 75], ["fire_axe", 240], ["kevlar_helmet", 180], ["plate_vest", 220], ["scuba", 260], ["dive_light", 90], ["katana", 420], ["assault_helmet", 320], ["riot_armor", 420], ["kevlar_pants", 200], ["combat_boots", 160], ["gps", 150], ["holster", 60], ["bag_hooks", 45], ["sketch_map", 120]],
+"WEAPONS": {
+"bat": {
+"mult": 2.0,
+"price": 40,
+"reach": 1.5
+},
+"crowbar": {
+"mult": 3.0,
+"price": 90,
+"reach": 1.45
+},
+"fire_axe": {
+"mult": 4.4,
+"price": 240,
+"reach": 1.5
+},
+"hammer": {
+"mult": 2.2,
+"price": 0,
+"reach": 1.3
+},
+"hatchet": {
+"mult": 2.9,
+"price": 55,
+"reach": 1.35
+},
+"katana": {
+"mult": 5.2,
+"price": 420,
+"reach": 1.6
+},
+"knife": {
+"mult": 2.4,
+"price": 0,
+"reach": 1.25
+},
+"knuckles": {
+"mult": 1.9,
+"price": 0,
+"reach": 1.05
+},
+"machete": {
+"mult": 3.6,
+"price": 120,
+"reach": 1.5
+},
+"pipe": {
+"mult": 2.5,
+"price": 60,
+"reach": 1.55
+},
+"pistol": {
+"mult": 1.6,
+"price": 0,
+"reach": 1.15
+},
+"rifle": {
+"mult": 2.3,
+"price": 0,
+"reach": 1.4
+},
+"sapper": {
+"mult": 3.3,
+"price": 110,
+"reach": 1.4
+},
+"sawnoff": {
+"mult": 2.0,
+"price": 0,
+"reach": 1.2
+},
+"shiv": {
+"mult": 2.7,
+"price": 0,
+"reach": 1.25
+},
+"sledge": {
+"mult": 4.0,
+"price": 170,
+"reach": 1.5
+},
+"smg": {
+"mult": 1.7,
+"price": 0,
+"reach": 1.15
+},
+"spiked_club": {
+"mult": 3.2,
+"price": 0,
+"reach": 1.5
+},
+"steel_hammer": {
+"mult": 2.6,
+"price": 45,
+"reach": 1.3
+},
+"stone": {
+"mult": 1.4,
+"price": 0,
+"reach": 1.05
+},
+"wrench": {
+"mult": 2.3,
+"price": 35,
+"reach": 1.3
+}
+}
+}
+order = {
+"ALIAS": {
+"_": ["wrench", "tea", "cap", "sweater", "sapper", "sledge", "energy", "ration", "ammo_box", "bushlat", "berets", "fire_axe", "medkit_army", "kevlar_helmet", "plate_vest", "scuba", "dive_light", "trauma_kit", "stim", "mre", "assault_helmet", "riot_armor", "kevlar_pants", "combat_boots", "katana"]
+},
+"WEAPONS": {
+"_": ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol", "sawnoff", "rifle", "smg", "knuckles", "stone", "wrench", "sapper", "sledge", "fire_axe", "katana"],
+"bat": {
+"_": ["mult", "reach", "price"]
+},
+"crowbar": {
+"_": ["mult", "reach", "price"]
+},
+"fire_axe": {
+"_": ["mult", "reach", "price"]
+},
+"hammer": {
+"_": ["mult", "reach", "price"]
+},
+"hatchet": {
+"_": ["mult", "reach", "price"]
+},
+"katana": {
+"_": ["mult", "reach", "price"]
+},
+"knife": {
+"_": ["mult", "reach", "price"]
+},
+"knuckles": {
+"_": ["mult", "reach", "price"]
+},
+"machete": {
+"_": ["mult", "reach", "price"]
+},
+"pipe": {
+"_": ["mult", "reach", "price"]
+},
+"pistol": {
+"_": ["mult", "reach", "price"]
+},
+"rifle": {
+"_": ["mult", "reach", "price"]
+},
+"sapper": {
+"_": ["mult", "reach", "price"]
+},
+"sawnoff": {
+"_": ["mult", "reach", "price"]
+},
+"shiv": {
+"_": ["mult", "reach", "price"]
+},
+"sledge": {
+"_": ["mult", "reach", "price"]
+},
+"smg": {
+"_": ["mult", "reach", "price"]
+},
+"spiked_club": {
+"_": ["mult", "reach", "price"]
+},
+"steel_hammer": {
+"_": ["mult", "reach", "price"]
+},
+"stone": {
+"_": ["mult", "reach", "price"]
+},
+"wrench": {
+"_": ["mult", "reach", "price"]
+}
+}
+}

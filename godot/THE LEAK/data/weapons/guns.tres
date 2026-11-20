@@ -1,0 +1,38 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_6wjas"]
+
+[resource]
+script = ExtResource("1_6wjas")
+values = {
+"AIM_FOV": 0.7,
+"CAP": 8,
+"DMG": 40.0,
+"DMG_FAR_D": 50.0,
+"DMG_FAR_MULT": 0.5,
+"DMG_FULL_D": 20.0,
+"DOT_X": 0.08,
+"DUR_MAX": 60.0,
+"EJECT_T": 0.5,
+"FIRE_CD": 0.28,
+"HEAD_MULT": 2.5,
+"HEAR_R": 28.0,
+"HIP_H": 0.17,
+"IRON_H": 0.137,
+"LAG_MAX": 0.1,
+"LAG_SPEED": 14.0,
+"MAX_SND": 4,
+"MODW": 100.0,
+"MOD_SLOTS": [["sight", "Прицел", ["mod_reddot", "mod_scope"]], ["muzzle", "Дуло", ["mod_silencer", "mod_comp"]], ["stock", "Приклад", ["mod_stock"]], ["grip", "Цевьё", ["mod_grip", "mod_laser"]]],
+"OPTIC_H": 0.1435,
+"RANGE": 120.0,
+"RATE": 22050,
+"RELOAD_SND": false,
+"RELOAD_T": 1.7,
+"REL_EVENTS": [[0.02, "release"], [0.55, "insert"], [0.79, "rack_back"], [0.87, "rack_fwd"]],
+"SLOTS": ["left", "right"],
+"SPREAD_AIM": 0.01,
+"SPREAD_HIP": 0.03,
+"SPREAD_STANCE": 0.045,
+"TAP_T": 0.22
+}

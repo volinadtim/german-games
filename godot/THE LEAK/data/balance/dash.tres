@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_olv0p"]
+
+[resource]
+script = ExtResource("1_olv0p")
+values = {
+"COOLDOWN": 0.8,
+"SPEED": 18.0,
+"TAP_MAX": 0.12,
+"TIME": 0.18
+}

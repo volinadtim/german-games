@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_rhjmi"]
+
+[resource]
+script = ExtResource("1_rhjmi")
+id = "water"
+order = 31
+name = "Бутылка воды"
+desc = "Напиток: +15% к скорости на 30 с. 3 глотка."
+icon = "water"
+color = Color(0.45, 0.6, 0.7, 1)
+uses = true
+dur = 3
+props = {
+"buff": "speed",
+"power": 0.15,
+"time": 30.0
+}

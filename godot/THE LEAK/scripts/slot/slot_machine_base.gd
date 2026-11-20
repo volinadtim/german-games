@@ -1,4 +1,5 @@
 extends StaticBody3D
+const _D_KILLBOX := preload("res://data/slots/killbox.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
 const SlotSounds := preload("res://scripts/slot/slot_sounds.gd")   # звуки монет в лотке и рычага (промпт 16.11 04:18)
 # Часть slot_machine.gd: константы, состояние, математика барабанов и выплат (static), процедурные звуки, примитивы мешей.
@@ -6,86 +7,70 @@ const Sym := preload("res://scripts/slot/slot_symbols.gd")
 const PickupMesh := preload("res://scripts/world/pickup_mesh.gd")
 const WornMetal := preload("res://shaders/worn_metal.gdshader")
 
-const COST := 3                  # цена одной крутки в пакете «3 за 8» (для подписей)
+static var COST: int = _D_KILLBOX.v("COST")   # цена одной крутки в пакете «3 за 8» (для подписей)
 ## пакеты круток (промпт 23:57): [круток, монет]
-const PACKS := [[3, 8], [6, 15]]
+static var PACKS: Array = _D_KILLBOX.v("PACKS")
 ## гарантированный символ из магазина (промпты 14.11 17:18, 18:08): символ -> [круток, цена ×1, ×2, ×3].
 ## Пока действует — после каждого прокрута k штук этого символа встают в случайные открытые клетки,
 ## где его нет (выигравшие линии не трогает). k за крутку не больше GUAR_MAX уровня окна.
 ## Цены подобраны симуляцией: прибавка выигрыша за все крутки баффа меньше его цены. Шестёрка не продаётся.
-const LUCK := {
-	"cherry": [6, 6, 12, 16], "lemon": [6, 8, 18, 15], "plum": [5, 10, 20, 25],
-	"grape": [4, 15, 30],   # промпт 20.11 11:45: гарант ×3 арбуза убран
-	# промпт 18.11 00:45: алмаз и семёрка — только ×1 (не больше +1 гарантом за крутку);
-	# семёрка всё равно не ставится на барабан, где она уже есть (одна семёрка на барабан)
-	"diamond": [5, 24, 40], "seven": [4, 34],
-}
-const REELS := 5
-const ROWS := 3
+static var LUCK: Dictionary = _D_KILLBOX.v("LUCK")
+static var REELS: int = _D_KILLBOX.v("REELS")
+static var ROWS: int = _D_KILLBOX.v("ROWS")
 ## прокачка окна: LEVELS[ур-1] = [рядов, барабанов, цена перехода на этот уровень]
 ## упрощено (промпт 15.11 23:03): переходы дешевле — первая локация проходится быстрее
 ## промпт 18.11 00:39: окно 2×3 вернули (1×3 → 2×3 → 3×3 → 3×4 → 3×5); сейвы — slot_level_v3 в game_save.gd
-const LEVELS := [[1, 3, 0], [2, 3, 25], [3, 3, 45], [3, 4, 80], [3, 5, 120]]
-const MAX_LEVEL := 5
+static var LEVELS: Array = _D_KILLBOX.v("LEVELS")
+static var MAX_LEVEL: int = _D_KILLBOX.v("MAX_LEVEL")
 ## лента барабана (одна на все барабаны, у каждого свой сдвиг): семёрки далеко друг от друга,
 ## поэтому в окне одного барабана больше одной семёрки не бывает
-const STRIP := ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"]
+static var STRIP: Array = _D_KILLBOX.v("STRIP")
 ## Шанс символа в каждой клетке окна, %: чем ценнее, тем реже.
 ## Окно разыгрывается по этим весам, затем на ленты барабанов «впечатываются» выпавшие символы.
 ## семёрки и шестёрки чаще (промпт 15.11 23:03)
-const WEIGHTS := {"cherry": 23.5, "lemon": 20.5, "plum": 18.0, "grape": 14.0, "diamond": 12.5, "seven": 15.0, "six": 6}
+static var WEIGHTS: Dictionary = _D_KILLBOX.v("WEIGHTS")
 ## символы по уровням окна (промпт 14.11 17:40): на ур.1 только вишня, лимон, слива; дальше по символу,
 ## семёрки и шестёрки — только на последнем уровне (3×5). SYM_ORDER — порядок появления,
 ## LEVEL_SYMS[ур-1] — сколько первых символов в игре. Шансы — WEIGHTS среди доступных.
-const SYM_ORDER := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"]
+static var SYM_ORDER: Array = _D_KILLBOX.v("SYM_ORDER")
 ## алмазы — с 4-го уровня (3×4), промпт 15.11 22:53
-const LEVEL_SYMS := [3, 4, 4, 5, 7]
+static var LEVEL_SYMS: Array = _D_KILLBOX.v("LEVEL_SYMS")
 ## гарантов одного символа за крутку максимум по уровню окна (промпт 14.11 18:08)
-const GUAR_MAX := [1, 1, 2, 2, 3]
+static var GUAR_MAX: Array = _D_KILLBOX.v("GUAR_MAX")
 ## шанс комбинации (промпт 14.11 18:08): символ -> [круток, цена]. Пока действует, этот символ
 ## «липнет» к соседу слева с шансом STICK_BOOST вместо STICK — 3 в ряд выпадают заметно чаще.
-const BOOST := {
-	"cherry": [6, 8], "lemon": [6, 14], "plum": [6, 18],
-	"grape": [5, 30], "diamond": [4, 50]
-}
-const STICK_BOOST := 0.28   # промпт 20.11 11:45: было 0.45 — слишком имбово
+static var BOOST: Dictionary = _D_KILLBOX.v("BOOST")
+static var STICK_BOOST: float = _D_KILLBOX.v("STICK_BOOST")   # промпт 20.11 11:45: было 0.45 — слишком имбово
 ## шанс, что клетка повторит символ соседа слева по ряду (чаще собираются комбинации)
-const STICK := 0.12
+static var STICK: float = _D_KILLBOX.v("STICK")
 ## выплаты за линию: символ -> {сколько одинаковых: монет}. Простая таблица (промпт 15.11 22:53):
 ## одна на все уровни, без множителей по уровню. Промпт 16.11 02:16 — всё ≈ −12%.
-const PAY := {
-	"cherry": {3: 7, 4: 11, 5: 16},
-	"lemon": {3: 13, 4: 19, 5: 28},
-	"plum": {3: 18, 4: 26, 5: 40},
-	"grape": {3: 22, 4: 35, 5: 53},
-	"diamond": {3: 31, 4: 53, 5: 88},
-	"seven": {3: 44},
-}
+static var PAY: Dictionary = _D_KILLBOX.v("PAY")
 ## пара одинаковых соседних в ряду — только на 1-м уровне (1×3): любая, кроме вишни, +2 (промпт 15.11 22:53)
-const PAIR_MAX_LEVEL := 1
+static var PAIR_MAX_LEVEL: int = _D_KILLBOX.v("PAIR_MAX_LEVEL")
 ## две вишни — 1 монета (промпт 16.11 03:19)
-const PAY2 := {"cherry": 1, "lemon": 2, "plum": 2}
+static var PAY2: Dictionary = _D_KILLBOX.v("PAY2")
 ## множитель за серию (промпт 14.11 17:56): CHAIN[побед подряд перед этой круткой] — множитель выплаты.
 ## Проигрыш (и 666) сбрасывает серию; она живёт, пока крутишь: уход от автомата дальше CHAIN_DIST м
 ## или CHAIN_IDLE с без крутки — сброс.
 ## промпт 16.11 03:16: множитель порезан (был до ×2), потолок ×1.3
-const CHAIN := [1.0, 1.1, 1.2, 1.3]
+static var CHAIN: Array = _D_KILLBOX.v("CHAIN")
 ## 777 уже выпадали (флаг в сейве): семёрки в 4 раза реже, а 777 на линии перебрасывается с шансом SEVENS_REROLL
-const SEVENS_RARE_W := 0.25
-const SEVENS_REROLL := 0.85
-const CHAIN_DIST := 4.0
-const CHAIN_IDLE := 30.0
-const R := 0.19            # радиус барабана
-const RW := 0.125          # ширина барабана
-const REEL_Y := 0.98
-const REEL_Z := 0.07
-const TEX := 64            # пикселей на символ в ленте (мало — крупные «пиксели», как у стен)
-const K := 1.3             # во сколько раз автомат больше «базового»
-const PED := 0.25          # высота подиума
-const RIG_Z := 0.1         # сдвиг вперёд, чтобы задняя стенка не уходила в стену
+static var SEVENS_RARE_W: float = _D_KILLBOX.v("SEVENS_RARE_W")
+static var SEVENS_REROLL: float = _D_KILLBOX.v("SEVENS_REROLL")
+static var CHAIN_DIST: float = _D_KILLBOX.v("CHAIN_DIST")
+static var CHAIN_IDLE: float = _D_KILLBOX.v("CHAIN_IDLE")
+static var R: float = _D_KILLBOX.v("R")   # радиус барабана
+static var RW: float = _D_KILLBOX.v("RW")   # ширина барабана
+static var REEL_Y: float = _D_KILLBOX.v("REEL_Y")
+static var REEL_Z: float = _D_KILLBOX.v("REEL_Z")
+static var TEX: int = _D_KILLBOX.v("TEX")   # пикселей на символ в ленте (мало — крупные «пиксели», как у стен)
+static var K: float = _D_KILLBOX.v("K")   # во сколько раз автомат больше «базового»
+static var PED: float = _D_KILLBOX.v("PED")   # высота подиума
+static var RIG_Z: float = _D_KILLBOX.v("RIG_Z")   # сдвиг вперёд, чтобы задняя стенка не уходила в стену
 ## на сколько корпус шире с каждой стороны, чем у прежнего автомата на 4 барабана (пол-барабана)
-const EX := 0.0725
-const PITCH := 0.145      # шаг барабанов
+static var EX: float = _D_KILLBOX.v("EX")
+static var PITCH: float = _D_KILLBOX.v("PITCH")   # шаг барабанов
 ## доска выплат на стене справа от автомата (в координатах автомата)
 const BOARD_POS := Vector3(1.55, 1.6, -0.25)
 const BOARD_PX := Vector2i(900, 980)
@@ -109,12 +94,12 @@ var streak := 0                  # побед подряд (множитель �
 var last_spin_t := 0.0
 var fast := false                # быстрые крутки ×3 (тумблер слева, fast_switch.gd)
 ## защита от 666 (промпт 14.11 19:23): скормленные гнилые яблоки; при «666» одно сгорает, монеты целы
-const SHIELD_MAX := 2
-const APPLE_PRICE := 150   # цена (промпт 11:46); купить можно только одно
+static var SHIELD_MAX: int = _D_KILLBOX.v("SHIELD_MAX")
+static var APPLE_PRICE: int = _D_KILLBOX.v("APPLE_PRICE")   # цена (промпт 11:46); купить можно только одно
 var shield := 0
 ## промпт 18.11 01:03: KILLBOX платит как обычно, пока чистый выигрыш игрока (выплаты − купленные крутки)
 ## не дошёл до PROFIT_CAP; после этого он отдаёт только то, что в него вложили после этого (bank)
-const PROFIT_CAP := 2000
+static var PROFIT_CAP: int = _D_KILLBOX.v("PROFIT_CAP")
 var profit := 0       # чистый выигрыш игрока у автомата (сейв)
 var capped := false   # лимит достигнут — дальше платит только из bank (сейв)
 var bank := 0         # вложено в крутки после лимита и ещё не выплачено (сейв)
@@ -157,7 +142,7 @@ var rig: Node3D
 var hl_cells: Array = []        # подсветка ячеек 3×5 на стекле: [ряд][барабан]
 var hl_lines: Array = []        # выигравшие линии последней крутки
 var hl_t := 0.0
-const HL_COLORS := [Color(1.0, 0.75, 0.25), Color(0.4, 1.0, 0.5), Color(0.4, 0.8, 1.0), Color(1.0, 0.45, 0.8), Color(1.0, 0.35, 0.2)]
+static var HL_COLORS: Array = _D_KILLBOX.v("HL_COLORS")
 var light: OmniLight3D
 var screen: Label3D
 var neon: Array[Label3D] = []       # буквы KILLBOX
@@ -194,9 +179,9 @@ func send(method: String, args: Array = []) -> void:
 
 ## Касса обчищена (capped) — в строке вывода медленно едет слева направо «ОБЧИЩЕНО...».
 ## Сколько в автомате осталось денег, не пишем — только эта строка.
-const CAP_TEXT := "ОБЧИЩЕНО "
-const CAP_CHARS := 16      # длина видимого окна бегущей строки, символов
-const CAP_SPEED := 3     # символов в секунду
+static var CAP_TEXT: String = _D_KILLBOX.v("CAP_TEXT")
+static var CAP_CHARS: int = _D_KILLBOX.v("CAP_CHARS")   # длина видимого окна бегущей строки, символов
+static var CAP_SPEED: int = _D_KILLBOX.v("CAP_SPEED")   # символов в секунду
 var screen_msg := ""       # текст экрана без бегущей строки
 var cap_scroll := 0.0
 
@@ -472,7 +457,7 @@ static func _guarantee_one(g: Array, lv: int, sym: String) -> void:
 ## rare7 — 777 уже выпадали: семёрки реже, 777 на линии чаще перебрасывается.
 ## промпт 16.11 04:19: шанс любой выплаты ×0.9 — 10% выигрышных окон (без купленных гарантов)
 ## заменяются проигрышными; пропорции между комбинациями сохраняются.
-const WIN_CUT := 0.1
+static var WIN_CUT: float = _D_KILLBOX.v("WIN_CUT")
 
 
 static func _is_win(g: Array, lv: int) -> bool:
@@ -544,8 +529,8 @@ static func chain_mult(streak_: int) -> float:
 
 ## Выплата за n символов sym на линии при уровне окна lv (0 — не платит).
 ## промпт 18.11 01:02: на окнах 3×3, 3×4, 3×5 (ур. 3–5) все выплаты ×0.75
-const HIGH_PAY_MULT := 0.75
-const HIGH_PAY_FROM := 3
+static var HIGH_PAY_MULT: float = _D_KILLBOX.v("HIGH_PAY_MULT")
+static var HIGH_PAY_FROM: int = _D_KILLBOX.v("HIGH_PAY_FROM")
 
 
 static func pay_for(sym: String, n: int, lv := 0) -> int:
@@ -717,7 +702,7 @@ static func level_name(lv: int) -> String:
 ## Лоток в «пасти»: горка до TRAY_MAX маленьких золотых монеток (как монеты лута) на дне,
 ## и отдельная цель взгляда перед пастью (TrayTarget) — подсказка «[E] Забрать N монет».
 ## Если лоток пуст, цель ведёт себя как сам автомат (крутка / окно покупки).
-const TRAY_MAX := 30
+static var TRAY_MAX: int = _D_KILLBOX.v("TRAY_MAX")
 
 
 ## Монеты забираются только взглядом на лоток (промпт 14.11 18:32); пустой лоток — как сам автомат.
@@ -744,9 +729,9 @@ class TrayTarget extends StaticBody3D:
 
 ## Место монеты k на дне лотка: слой k/12, в слое — ячейка 4×3 (по ширине и глубине) со случайным сдвигом.
 ## Отступ от стенок — чтобы монета не торчала из лотка.
-const TRAY_X := 0.17
-const TRAY_Z0 := 0.335
-const TRAY_Z1 := 0.425
+static var TRAY_X: float = _D_KILLBOX.v("TRAY_X")
+static var TRAY_Z0: float = _D_KILLBOX.v("TRAY_Z0")
+static var TRAY_Z1: float = _D_KILLBOX.v("TRAY_Z1")
 
 
 ## 666 при монетах в лотке (промпт 14.11 18:32): пасть «съедает» их — монетки втягиваются внутрь
@@ -799,7 +784,7 @@ static func _crunch() -> AudioStreamWAV:
 	return st
 
 
-const CUT_LEN := 4.3
+static var CUT_LEN: float = _D_KILLBOX.v("CUT_LEN")
 
 
 static func _smooth(x: float) -> float:

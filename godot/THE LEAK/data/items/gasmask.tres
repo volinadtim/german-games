@@ -1,0 +1,15 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_7ra5m"]
+
+[resource]
+script = ExtResource("1_7ra5m")
+id = "gasmask"
+order = 68
+name = "Нюхич"
+desc = "Самодельный противогаз «Нюхич»: резина, два окуляра, шланг к фильтру. Лицо (вместе с каской). [V] — надеть/снять. Наверху без него не выжить."
+icon = "gasmask"
+color = Color(0.22, 0.25, 0.2, 1)
+props = {
+"equip": "face"
+}

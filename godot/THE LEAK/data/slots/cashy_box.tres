@@ -1,0 +1,69 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_u1kl4"]
+
+[resource]
+script = ExtResource("1_u1kl4")
+values = {
+"BETS": [1, 2, 3, 5, 10],
+"BONUS_BUY": 20,
+"BONUS_MULT": 2.0,
+"CH": 108.0,
+"COST": 20,
+"CW": 136.0,
+"DEC_T": 0.45,
+"DEC_T_TEASE": 1.4,
+"EASE_C1": 1.3,
+"FREE_2": 2,
+"FREE_2_BONUS": 3,
+"FREE_3": 8,
+"GAP": 10.0,
+"GUAR": {
+"cherry": [10, 3],
+"diamond": [6, 7],
+"grape": [8, 5],
+"plum": [10, 4]
+},
+"H": 450,
+"JACK_BASE": 100,
+"JACK_WIN": 300,
+"LINES": [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]],
+"MINI_JACK": 100,
+"PAY": {
+"cherry": 30,
+"diamond": 200,
+"grape": 80,
+"plum": 50,
+"seven": 500
+},
+"PROFIT_CAP": 10000,
+"REEL_V": 11.25,
+"SEVENS_REROLL": 0.85,
+"SPIN_T": 0.88,
+"STEP_T": 0.3,
+"SYMS": ["cherry", "plum", "grape", "diamond", "seven", "bonus", "jack"],
+"TEASE_T": 1.2,
+"TOP": 44.0,
+"W": 480,
+"WEIGHT": {
+"bonus": 3.5,
+"cherry": 18.0,
+"diamond": 9.0,
+"grape": 12.0,
+"jack": 6.0,
+"plum": 14.0,
+"seven": 6.0
+},
+"X0": 26.0
+}
+order = {
+"GUAR": {
+"_": ["cherry", "plum", "grape", "diamond"]
+},
+"PAY": {
+"_": ["cherry", "plum", "grape", "diamond", "seven"]
+},
+"WEIGHT": {
+"_": ["cherry", "plum", "grape", "diamond", "seven", "bonus", "jack"]
+}
+}

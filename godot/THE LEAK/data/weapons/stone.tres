@@ -1,0 +1,11 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_hxs82"]
+
+[resource]
+script = ExtResource("1_hxs82")
+values = {
+"CD": 0.55,
+"SLOTS": ["left", "right"],
+"SPEED": 15.0
+}

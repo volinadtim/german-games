@@ -1,0 +1,20 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_jp85k"]
+
+[resource]
+script = ExtResource("1_jp85k")
+id = "mod_grip"
+order = 57
+name = "Передняя рукоятка"
+desc = "Модуль, слот «Цевьё». Разброс от бедра −25%, в стойке −15%, отдача −20%. Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."
+icon = "mod_grip"
+color = Color(0.2, 0.18, 0.16, 1)
+props = {
+"mod": "grip",
+"ms": {
+"hip": 0.75,
+"recoil": 0.8,
+"stance": 0.85
+}
+}

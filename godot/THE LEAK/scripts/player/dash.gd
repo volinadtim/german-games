@@ -3,11 +3,12 @@ extends Node
 ## Удержание Shift — обычный бег (player.gd).
 ## Только у локального игрока; в сети позицию разносит обычная синхронизация игрока.
 ## Тратит выносливость (stamina.gd: DASH_COST), кулдаун COOLDOWN.
+const _D_DASH := preload("res://data/balance/dash.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
-const TAP_MAX := 0.12    # макс. длительность нажатия Shift для срабатывания рывка, с
-const SPEED := 18.0      # скорость в начале рывка (+50% от прежних 12.0 м/с)
-const TIME := 0.18       # длительность рывка
-const COOLDOWN := 0.8    # задержка между рывками
+static var TAP_MAX: float = _D_DASH.v("TAP_MAX")   # макс. длительность нажатия Shift для срабатывания рывка, с
+static var SPEED: float = _D_DASH.v("SPEED")   # скорость в начале рывка (+50% от прежних 12.0 м/с)
+static var TIME: float = _D_DASH.v("TIME")   # длительность рывка
+static var COOLDOWN: float = _D_DASH.v("COOLDOWN")   # задержка между рывками
 
 var player   # player.gd (родитель)
 var hold_t := 0.0

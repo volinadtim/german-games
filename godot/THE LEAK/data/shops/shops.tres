@@ -1,0 +1,96 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_bf31f"]
+
+[resource]
+script = ExtResource("1_bf31f")
+values = {
+"AMMO_PACK": 10,
+"AMMO_SHOP": [["ammo", 50], ["shells", 70], ["rifle_ammo", 110]],
+"BP_TIER": {
+"cot": 1,
+"lamp": 2,
+"rack": 2,
+"sandbags": 1,
+"turret": 3,
+"wallpaper": 1
+},
+"CHEST_REFRESH": 80,
+"CLOTHES": [["Голова", ["cap", "ushanka", "helmet", "moto_helmet", "kevlar_helmet", "assault_helmet"]], ["Верх", ["sweater", "kurtka", "jacket", "bushlat", "vest", "plate_vest", "riot_armor"]], ["Низ", ["jeans", "pants", "wpants", "kevlar_pants"]], ["Ботинки", ["sneakers", "boots", "berets", "combat_boots"]], ["Перчатки", ["gloves", "tac_gloves"]], ["Снаряжение", ["gasmask", "filter", "backpack", "gps", "holster", "bag_hooks", "sketch_map", "scuba", "dive_light"]]],
+"CONSUMABLES": [["battery", 3], ["water", 10], ["soda", 30], ["choco", 15], ["canned", 50], ["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80], ["tea", 18], ["pills", 15], ["energy", 40], ["ration", 70], ["ammo_box", 90], ["medkit_army", 180], ["trauma_kit", 320], ["stim", 120], ["mre", 150]],
+"CONS_SUBS": [["Пропитание", ["water", "tea", "soda", "energy", "choco", "canned", "ration", "mre"]], ["Медицина", ["pills", "bandage", "medkit", "medkit_army", "stim", "trauma_kit"]], ["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]], ["Патроны", ["ammo", "ammo_box", "mag", "shells", "rifle_ammo"]]],
+"D": 0.7,
+"FONT_PICK": "Courier New",
+"GUN_IDS": ["pistol", "sawnoff", "rifle", "smg"],
+"GUN_SHOP": [["pistol", 320], ["sawnoff", 450], ["rifle", 900], ["smg", 1200]],
+"H": 2.15,
+"MAG_SHOP": [["mag", 55]],
+"MOD_IDS": ["mod_reddot", "mod_scope", "mod_silencer", "mod_comp", "mod_stock", "mod_grip", "mod_laser"],
+"MOD_SHOP": [["mod_reddot", 140], ["mod_scope", 260], ["mod_silencer", 220], ["mod_comp", 120], ["mod_stock", 160], ["mod_grip", 110], ["mod_laser", 180]],
+"SHELF_Y": [1.78, 1.44, 1.1, 0.76],
+"TABS": ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"],
+"TIER": {
+"ammo": 1,
+"ammo_box": 1,
+"assault_helmet": 3,
+"bag_hooks": 1,
+"berets": 1,
+"bushlat": 1,
+"canned": 1,
+"combat_boots": 3,
+"crowbar": 1,
+"dive_light": 2,
+"energy": 1,
+"fire_axe": 2,
+"gps": 1,
+"holster": 1,
+"katana": 3,
+"kevlar_helmet": 2,
+"kevlar_pants": 3,
+"machete": 1,
+"mag": 1,
+"medkit": 1,
+"medkit_army": 2,
+"mod_comp": 1,
+"mod_grip": 1,
+"mod_laser": 1,
+"mod_reddot": 1,
+"mod_scope": 2,
+"mod_silencer": 2,
+"mod_stock": 1,
+"moto_helmet": 1,
+"mre": 3,
+"pistol": 1,
+"plate_vest": 2,
+"ration": 1,
+"rifle": 2,
+"rifle_ammo": 2,
+"riot_armor": 3,
+"sapper": 1,
+"sawnoff": 2,
+"scuba": 2,
+"shells": 2,
+"sketch_map": 2,
+"sledge": 1,
+"smg": 2,
+"soda": 1,
+"stim": 3,
+"tac_gloves": 1,
+"trauma_kit": 3,
+"vest": 1,
+"wpants": 1
+},
+"TOOLS": [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55], ["lockpick", 20000]],
+"TRAY_Y": 0.3,
+"W": 1.0,
+"WIN_X0": -0.47,
+"WIN_X1": 0.17
+}
+order = {
+"BP_TIER": {
+"_": ["wallpaper", "cot", "sandbags", "rack", "lamp", "turret"]
+},
+"TIER": {
+"_": ["medkit", "canned", "soda", "moto_helmet", "vest", "wpants", "tac_gloves", "crowbar", "machete", "pistol", "ammo", "mag", "sawnoff", "rifle", "smg", "shells", "rifle_ammo", "energy", "ration", "ammo_box", "bushlat", "berets", "sapper", "sledge", "gps", "holster", "bag_hooks", "mod_reddot", "mod_comp", "mod_grip", "mod_stock", "mod_laser", "mod_scope", "mod_silencer", "medkit_army", "kevlar_helmet", "plate_vest", "fire_axe", "scuba", "dive_light", "sketch_map", "trauma_kit", "stim", "mre", "assault_helmet", "riot_armor", "kevlar_pants", "combat_boots", "katana"]
+}
+}

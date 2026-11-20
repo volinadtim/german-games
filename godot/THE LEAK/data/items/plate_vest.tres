@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_jd21n"]
+
+[resource]
+script = ExtResource("1_jd21n")
+id = "plate_vest"
+order = 90
+name = "Армейский бронежилет"
+desc = "Тело: −32% урона, −3% к скорости. Керамические плиты. Изнашивается от ударов."
+icon = "vest"
+color = Color(0.22, 0.26, 0.2, 1)
+dur = 180
+props = {
+"armor": 0.32,
+"equip": "body",
+"speed": -0.03
+}

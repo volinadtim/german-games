@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_ty74x"]
+
+[resource]
+script = ExtResource("1_ty74x")
+id = "battery"
+order = 8
+name = "Батарейка"
+desc = "Полностью заряжает фонарик."
+stack = 10
+icon = "battery"
+color = Color(0.34, 0.44, 0.3, 1)

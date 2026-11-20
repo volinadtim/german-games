@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_15scv"]
+
+[resource]
+script = ExtResource("1_15scv")
+id = "riot_armor"
+order = 96
+name = "Штурмовая броня"
+desc = "Тело: −42% урона, −4% к скорости. Плиты и наплечники. Изнашивается от ударов."
+icon = "vest"
+color = Color(0.1, 0.11, 0.12, 1)
+dur = 280
+props = {
+"armor": 0.42,
+"equip": "body",
+"speed": -0.04
+}

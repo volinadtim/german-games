@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_shbwj"]
+
+[resource]
+script = ExtResource("1_shbwj")
+id = "dive_light"
+order = 101
+name = "Подводный фонарь"
+desc = "Герметичный фонарь. Лежит в сумке — под водой светит сам, на дне видно куда лучше."
+icon = "flashlight"
+color = Color(0.95, 0.6, 0.1, 1)

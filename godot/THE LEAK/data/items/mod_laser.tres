@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_4f6ib"]
+
+[resource]
+script = ExtResource("1_4f6ib")
+id = "mod_laser"
+order = 58
+name = "ЛЦУ"
+desc = "Модуль, слот «Цевьё». Лазерный целеуказатель: разброс от бедра −45%, в стойке −35%. Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."
+icon = "mod_laser"
+color = Color(0.2, 0.2, 0.22, 1)
+props = {
+"mod": "grip",
+"ms": {
+"hip": 0.55,
+"stance": 0.65
+}
+}

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_j2rhb"]
+
+[resource]
+script = ExtResource("1_j2rhb")
+id = "rifle"
+order = 48
+name = "Охотничье ружьё"
+desc = "Болтовое, на 5 винтовочных патронов: бьёт сильно и далеко, в прицеле почти без разброса, но стреляет медленно. Управление — как у пистолета. [R] — зарядить винтовочными патронами из сумки, [Enter] (держать) — разрядить. Слоты модулей: прицел, дуло, приклад, цевьё. Прочность — 60 выстрелов, чинится ремкомплектом огнестрела."
+icon = "rifle"
+color = Color(0.32, 0.31, 0.3, 1)
+dur = 1
+props = {
+"gun": true,
+"rounds": true,
+"weapon": true
+}

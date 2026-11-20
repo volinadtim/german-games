@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_ciaqs"]
+
+[resource]
+script = ExtResource("1_ciaqs")
+id = "snyuhatel5088"
+order = 71
+name = "Снюхатель5088"
+desc = "Противогаз «Снюхатель5088»: герметичная маска с панорамным стеклом и двойным клапаном. Только в нём можно выжить в городе. Лицо (вместе с каской). [V] — надеть/снять."
+icon = "gasmask"
+color = Color(0.16, 0.2, 0.26, 1)
+props = {
+"equip": "face",
+"price": 120
+}

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_v43u2"]
+
+[resource]
+script = ExtResource("1_v43u2")
+id = "moto_helmet"
+order = 16
+name = "Армейский шлем"
+desc = "Голова: −16% урона. Стальной, с подбородочным ремнём; лицо открыто — нюхать не мешает. Изнашивается от ударов."
+icon = "moto_helmet"
+color = Color(0.32, 0.36, 0.24, 1)
+dur = 90
+props = {
+"armor": 0.16,
+"equip": "head"
+}

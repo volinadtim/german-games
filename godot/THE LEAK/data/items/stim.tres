@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_ew8ci"]
+
+[resource]
+script = ExtResource("1_ew8ci")
+id = "stim"
+order = 93
+name = "Стимулятор"
+desc = "Укол: +60% к скорости на 50 с. Один шприц — один раз."
+stack = 3
+icon = "pills"
+color = Color(0.3, 0.85, 0.95, 1)
+props = {
+"buff": "speed",
+"power": 0.6,
+"time": 50.0
+}

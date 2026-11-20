@@ -10,39 +10,40 @@ extends StaticBody3D
 ##  УТКА (DUCK_CHANCE, если рыбы есть, а рыбака нет) — пролетает, ныряет в клетку, оттуда выныривает рыбак;
 ##  САДОК — каждая пойманная рыба падает в садок справа; полный (BUCKET) — «УХА!»: UHA_PAY×ставка.
 ## Ставка — кнопка на полке слева. По сети не синхронизируется, садок не сохраняется.
+const _D_KLEV := preload("res://data/slots/klev.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
 const Sfx := preload("res://scripts/core/sfx.gd")
 const Perks := preload("res://scripts/systems/perks.gd")
 const SlotSounds := preload("res://scripts/slot/slot_sounds.gd")
-const COST := 25
-const BETS := [1, 2, 3, 5, 10]
-const SYMS := ["worm", "float", "boot", "perch", "pike", "catfish", "fisher"]
-const WEIGHT := {"worm": 20.0, "float": 16.0, "boot": 14.0, "perch": 10.0, "pike": 6.0, "catfish": 2.0, "fisher": 2.5}
-const PAY := {"worm": 20, "float": 40, "perch": 60, "pike": 120, "catfish": 250, "fisher": 400}
-const FISH_VAL := {"perch": [2, 3, 5, 5, 8, 10], "pike": [8, 10, 10, 15, 20, 30], "catfish": [20, 40, 40, 80, 150]}
-const LINES := [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
-const PIKE_CHANCE := 0.15
-const DUCK_CHANCE := 0.22
-const BUCKET := 15
-const UHA_PAY := 60
-const PROFIT_CAP := 10000
-const SPIN_T := 0.9
-const STEP_T := 0.32
-const PIKE_T := 2.4
-const DUCK_T := 1.9
-const DUCK_DIVE := 1.35
-const CAST_T := 0.3
-const PULL_T := 0.62
-const JOB_T := 0.85
-const UHA_T := 2.2
-const W := 480
-const H := 450
-const X0 := 22.0
-const CW := 120.0
-const GAP := 8.0
-const TOP := 46.0
-const CH := 106.0
-const FIELD_B := TOP + CH * 3.0
+static var COST: int = _D_KLEV.v("COST")
+static var BETS: Array = _D_KLEV.v("BETS")
+static var SYMS: Array = _D_KLEV.v("SYMS")
+static var WEIGHT: Dictionary = _D_KLEV.v("WEIGHT")
+static var PAY: Dictionary = _D_KLEV.v("PAY")
+static var FISH_VAL: Dictionary = _D_KLEV.v("FISH_VAL")
+static var LINES: Array = _D_KLEV.v("LINES")
+static var PIKE_CHANCE: float = _D_KLEV.v("PIKE_CHANCE")
+static var DUCK_CHANCE: float = _D_KLEV.v("DUCK_CHANCE")
+static var BUCKET: int = _D_KLEV.v("BUCKET")
+static var UHA_PAY: int = _D_KLEV.v("UHA_PAY")
+static var PROFIT_CAP: int = _D_KLEV.v("PROFIT_CAP")
+static var SPIN_T: float = _D_KLEV.v("SPIN_T")
+static var STEP_T: float = _D_KLEV.v("STEP_T")
+static var PIKE_T: float = _D_KLEV.v("PIKE_T")
+static var DUCK_T: float = _D_KLEV.v("DUCK_T")
+static var DUCK_DIVE: float = _D_KLEV.v("DUCK_DIVE")
+static var CAST_T: float = _D_KLEV.v("CAST_T")
+static var PULL_T: float = _D_KLEV.v("PULL_T")
+static var JOB_T: float = _D_KLEV.v("JOB_T")
+static var UHA_T: float = _D_KLEV.v("UHA_T")
+static var W: int = _D_KLEV.v("W")
+static var H: int = _D_KLEV.v("H")
+static var X0: float = _D_KLEV.v("X0")
+static var CW: float = _D_KLEV.v("CW")
+static var GAP: float = _D_KLEV.v("GAP")
+static var TOP: float = _D_KLEV.v("TOP")
+static var CH: float = _D_KLEV.v("CH")
+static var FIELD_B := TOP + CH * 3.0
 const INK := Color(0.06, 0.05, 0.05)
 
 var game

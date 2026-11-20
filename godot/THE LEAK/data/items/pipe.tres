@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_ss3y6"]
+
+[resource]
+script = ExtResource("1_ss3y6")
+id = "pipe"
+order = 40
+name = "Труба"
+desc = "Стальная труба. Урон ×2.5."
+icon = "pipe"
+color = Color(0.42, 0.43, 0.44, 1)
+dur = 60
+props = {
+"weapon": true
+}

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_cf2q5"]
+
+[resource]
+script = ExtResource("1_cf2q5")
+id = "helmet"
+order = 10
+name = "Каска"
+desc = "Голова: −10% урона. Изнашивается от ударов."
+icon = "helmet"
+color = Color(0.78, 0.6, 0.15, 1)
+dur = 60
+props = {
+"armor": 0.1,
+"equip": "head"
+}

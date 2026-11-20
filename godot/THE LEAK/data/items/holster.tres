@@ -1,0 +1,12 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_smlnm"]
+
+[resource]
+script = ExtResource("1_smlnm")
+id = "holster"
+order = 103
+name = "Кобура"
+desc = "Кобура на пояс: слот на кукле снаряжения (слева внизу) — туда пистолет. Клавиша хотбара с пистолетом — выхватить / убрать в кобуру."
+icon = "holster"
+color = Color(0.36, 0.24, 0.14, 1)

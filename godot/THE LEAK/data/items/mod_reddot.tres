@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_i6vcb"]
+
+[resource]
+script = ExtResource("1_i6vcb")
+id = "mod_reddot"
+order = 52
+name = "Коллиматор"
+desc = "Модуль, слот «Прицел». Красная точка: в прицеле разброс −45%. Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."
+icon = "mod_reddot"
+color = Color(0.22, 0.22, 0.24, 1)
+props = {
+"mod": "sight",
+"ms": {
+"aim": 0.55
+}
+}

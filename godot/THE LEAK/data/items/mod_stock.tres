@@ -1,0 +1,21 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_0o2b5"]
+
+[resource]
+script = ExtResource("1_0o2b5")
+id = "mod_stock"
+order = 56
+name = "Приклад"
+desc = "Модуль, слот «Приклад». Складной, проволочный: отдача −30%, разброс от бедра и в стойке −20%, в прицеле −15%. Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."
+icon = "mod_stock"
+color = Color(0.25, 0.25, 0.25, 1)
+props = {
+"mod": "stock",
+"ms": {
+"aim": 0.85,
+"hip": 0.8,
+"recoil": 0.7,
+"stance": 0.8
+}
+}

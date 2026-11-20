@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_0m6jj"]
+
+[resource]
+script = ExtResource("1_0m6jj")
+id = "mre"
+order = 94
+name = "Армейский ИРП"
+desc = "Еда: −50% входящего урона на 180 с. На 3 раза."
+icon = "canned"
+color = Color(0.5, 0.42, 0.26, 1)
+uses = true
+dur = 3
+props = {
+"buff": "resist",
+"power": 0.5,
+"time": 180.0
+}

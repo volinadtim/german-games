@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_ldo45"]
+
+[resource]
+script = ExtResource("1_ldo45")
+id = "jeans"
+order = 19
+name = "Джинсы"
+desc = "Ноги: −6% урона. Изнашиваются от ударов."
+icon = "jeans"
+color = Color(0.22, 0.32, 0.55, 1)
+dur = 60
+props = {
+"armor": 0.06,
+"equip": "legs"
+}

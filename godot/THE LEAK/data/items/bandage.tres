@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_fhnjs"]
+
+[resource]
+script = ExtResource("1_fhnjs")
+id = "bandage"
+order = 2
+name = "Бинт"
+desc = "Восстанавливает 20 здоровья."
+stack = 5
+icon = "bandage"
+color = Color(0.84, 0.8, 0.7, 1)
+props = {
+"heal": 20.0
+}

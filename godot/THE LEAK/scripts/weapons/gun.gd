@@ -14,45 +14,45 @@ extends Node
 ## Прочность (промпт 18.11 01:52): каждый выстрел −1, на нуле пистолет ломается и пропадает;
 ## чинит «Ремкомплект огнестрела» (items.gd: repair_gun, game_items.gd: repair).
 ## Выстрел слышат враги вокруг и бегут на звук. Счётчик «в магазине / в сумке» — справа от хотбара.
+const _D_GUNS := preload("res://data/weapons/guns.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
 const Items := preload("res://scripts/items/items.gd")
 const Fx := preload("res://scripts/core/fx.gd")
 const Hud := preload("res://scripts/ui/hud.gd")
 const Weapons := preload("res://scripts/weapons/weapons.gd")
-const CAP := 8                   # патронов в магазине
-const DUR_MAX := 60.0            # прочность пистолета: столько выстрелов до поломки
-const DMG := 40.0                # по бетоннику (95 HP) — 3 попадания
-const RANGE := 120.0
-const HEAD_MULT := 2.5           # хэдшот (промпт 18.11 00:56)
+static var CAP: int = _D_GUNS.v("CAP")   # патронов в магазине
+static var DUR_MAX: float = _D_GUNS.v("DUR_MAX")   # прочность пистолета: столько выстрелов до поломки
+static var DMG: float = _D_GUNS.v("DMG")   # по бетоннику (95 HP) — 3 попадания
+static var RANGE: float = _D_GUNS.v("RANGE")
+static var HEAD_MULT: float = _D_GUNS.v("HEAD_MULT")   # хэдшот (промпт 18.11 00:56)
 # урон падает с дистанцией (промпт 18.11 01:16): до FULL_D — полный, дальше линейно до FAR_MULT на FAR_D и дальше
-const DMG_FULL_D := 20.0
-const DMG_FAR_D := 50.0
-const DMG_FAR_MULT := 0.5
-const FIRE_CD := 0.28
-const RELOAD_T := 1.7             # фазы анимации — player_anim.gd: _reload_pose, звуки — REL_EVENTS
-const HEAR_R := 28.0             # радиус, в котором враги слышат выстрел
-const EJECT_T := 0.5             # столько держать Enter — извлечь магазин
-const AIM_FOV := 0.7             # множитель поля зрения в прицеле
-const SPREAD_HIP := 0.03         # разброс от бедра, рад
-const SPREAD_AIM := 0.01     # даже в прицеле на 100 м уходит на ~1 м
-const SPREAD_STANCE := 0.045     # в боевой стойке — заметно больше, чем в прицеле (промпт 18:28)
-const OPTIC_H := 0.1435          # высота центра линзы коллиматора над началом модели пистолета (weapons.gd)
-const DOT_X := 0.08              # точка коллиматора: вперёд по стволу от начала модели
-const HIP_H := 0.17              # от бедра: пистолет настолько ниже линии взгляда — виден в нижней части кадра
-const IRON_H := 0.137           # линия механического прицела (целик и мушка на затворе, weapons.gd) — без модуля прицела
+static var DMG_FULL_D: float = _D_GUNS.v("DMG_FULL_D")
+static var DMG_FAR_D: float = _D_GUNS.v("DMG_FAR_D")
+static var DMG_FAR_MULT: float = _D_GUNS.v("DMG_FAR_MULT")
+static var FIRE_CD: float = _D_GUNS.v("FIRE_CD")
+static var RELOAD_T: float = _D_GUNS.v("RELOAD_T")   # фазы анимации — player_anim.gd: _reload_pose, звуки — REL_EVENTS
+static var HEAR_R: float = _D_GUNS.v("HEAR_R")   # радиус, в котором враги слышат выстрел
+static var EJECT_T: float = _D_GUNS.v("EJECT_T")   # столько держать Enter — извлечь магазин
+static var AIM_FOV: float = _D_GUNS.v("AIM_FOV")   # множитель поля зрения в прицеле
+static var SPREAD_HIP: float = _D_GUNS.v("SPREAD_HIP")   # разброс от бедра, рад
+static var SPREAD_AIM: float = _D_GUNS.v("SPREAD_AIM")   # даже в прицеле на 100 м уходит на ~1 м
+static var SPREAD_STANCE: float = _D_GUNS.v("SPREAD_STANCE")   # в боевой стойке — заметно больше, чем в прицеле (промпт 18:28)
+static var OPTIC_H: float = _D_GUNS.v("OPTIC_H")   # высота центра линзы коллиматора над началом модели пистолета (weapons.gd)
+static var DOT_X: float = _D_GUNS.v("DOT_X")   # точка коллиматора: вперёд по стволу от начала модели
+static var HIP_H: float = _D_GUNS.v("HIP_H")   # от бедра: пистолет настолько ниже линии взгляда — виден в нижней части кадра
+static var IRON_H: float = _D_GUNS.v("IRON_H")   # линия механического прицела (целик и мушка на затворе, weapons.gd) — без модуля прицела
 ## Модули огнестрела (промпт 20.11 18:43): [слот, название, варианты]. В dur пистолета они — старшие разряды:
 ## dur = код × MODW + (магазин, патроны, прочность). Код — смешанная система счисления по слотам: 0 — пусто,
 ## i+1 — MOD_SLOTS[s][2][i]. Так модули сохраняются в сейв, в сундуки и на пол вместе с пистолетом.
 ## Статы модулей — items.gd: "ms" (aim/hip/stance — разброс, fov — зум, recoil, noise, flash, dmg).
-const MOD_SLOTS := [["sight", "Прицел", ["mod_reddot", "mod_scope"]], ["muzzle", "Дуло", ["mod_silencer", "mod_comp"]],
-	["stock", "Приклад", ["mod_stock"]], ["grip", "Цевьё", ["mod_grip", "mod_laser"]]]
-const MODW := 100.0
+static var MOD_SLOTS: Array = _D_GUNS.v("MOD_SLOTS")
+static var MODW: float = _D_GUNS.v("MODW")
 ## Стволы (промпт 20.11 19:15): статы по id предмета. mag — предмет-магазин ("" — встроенный: [R] заряжает
 ## патронами ammo из сумки, [Enter] — разрядить), cap — патронов, dmg — урон пули/дробины, pel — дробин за выстрел,
 ## cone — разлёт дроби (рад), cd — пауза между выстрелами, spr — множитель разброса, rng — дальность, far — доля урона
 ## вдали, rel — перезарядка (с), auto — очередь при зажатой ЛКМ, wear — износ за выстрел, kick — отдача,
 ## pitch — тон выстрела, mx — дуло по +X модели (weapons.gd). Модули (MOD_SLOTS) ставятся на любой ствол.
-const GUNS := {
+static var GUNS := {
 	"pistol": {"name": "Пистолет", "mag": "mag", "ammo": "ammo", "cap": CAP, "dmg": DMG, "pel": 1, "cone": 0.0, "cd": FIRE_CD,
 		"spr": 1.0, "rng": RANGE, "far": DMG_FAR_MULT, "rel": RELOAD_T, "auto": false, "wear": 1.0, "kick": 1.0, "pitch": 1.0, "mx": 0.145},
 	"sawnoff": {"name": "Обрез", "mag": "", "ammo": "shells", "cap": 2, "dmg": 14.0, "pel": 8, "cone": 0.055, "cd": 0.3,
@@ -73,8 +73,8 @@ static func spec(id) -> Dictionary:
 static func cap_of(id) -> int:
 	return int(spec(id)["cap"])
 
-const TAP_T := 0.22             # ПКМ короче — клик (переключить прицел), дольше — держать (от бедра)
-const RATE := 22050
+static var TAP_T: float = _D_GUNS.v("TAP_T")   # ПКМ короче — клик (переключить прицел), дольше — держать (от бедра)
+static var RATE: int = _D_GUNS.v("RATE")
 
 var game
 var cd := 0.0
@@ -103,14 +103,14 @@ var cross: Control
 var _ready_told := false
 ## Инерция оружия в прицеле (промпт 02:49): поворот пистолета и рук догоняет камеру с лагом.
 ## Камера и попадание (по центру) — без задержки. lag_b — поворот «лаг относительно камеры» в мировых осях.
-const LAG_SPEED := 14.0
-const LAG_MAX := 0.1             # рад — дальше оружие не отстаёт
+static var LAG_SPEED: float = _D_GUNS.v("LAG_SPEED")
+static var LAG_MAX: float = _D_GUNS.v("LAG_MAX")   # рад — дальше оружие не отстаёт
 var lag_q := Quaternion.IDENTITY
 var lag_b := Basis.IDENTITY
 var _lag_init := false
 ## Два пистолета (промпт 16.11 02:04): управление то же, стреляют по очереди, у каждого свой магазин.
 ## Рука h: 0 — левая, 1 — правая (как player.weapon_nodes).
-const SLOTS := ["left", "right"]
+static var SLOTS: Array = _D_GUNS.v("SLOTS")
 var next_hand := 1
 var _dmg_k := 1.0               # множитель урона текущего выстрела (модули, _shoot)
 var _gs: Dictionary = GUNS["pistol"]   # статы ствола текущего выстрела (_shoot → _deal, _bullet_hit, _muzzle)
@@ -119,7 +119,7 @@ var _hand := 1                  # из какого стреляли после�
 var _reload_h := 1               # какой перезаряжается
 ## Перезарядка (промпт 16.11 02:37): фаза 0..1 → player.gun_rel_k; звуки по фазе: защёлка и выход магазина,
 ## вставка, затвор назад, затвор вперёд. Магазин в руке — отдельный меш, старый магазин падает на пол.
-const REL_EVENTS := [[0.02, "release"], [0.55, "insert"], [0.79, "rack_back"], [0.87, "rack_fwd"]]
+static var REL_EVENTS: Array = _D_GUNS.v("REL_EVENTS")
 var _rel_t := 0.0
 var _rel_had := false
 var _rel_ev := 0
@@ -1384,7 +1384,7 @@ func fill_mag(idx: int) -> void:
 # ---------- звуки (процедурные) ----------
 
 ## Звуки перезарядки пока выключены (промпт 16.11 05:10) — вернуть: RELOAD_SND = true.
-const RELOAD_SND := false
+static var RELOAD_SND: bool = _D_GUNS.v("RELOAD_SND")
 func _rel_play(s: AudioStream, db: float, pitch: float) -> void:
 	if RELOAD_SND:
 		_play(s, db, pitch)
@@ -1392,7 +1392,7 @@ func _rel_play(s: AudioStream, db: float, pitch: float) -> void:
 
 ## Не больше MAX_SND одновременных голосов пистолета: при спаме стрельбы они складывались
 ## и били по ушам — самый старый обрываем (18.11 01:47).
-const MAX_SND := 4
+static var MAX_SND: int = _D_GUNS.v("MAX_SND")
 func _play(s: AudioStream, db: float, pitch: float) -> void:
 	var live: Array[Node] = []
 	for c in get_children():

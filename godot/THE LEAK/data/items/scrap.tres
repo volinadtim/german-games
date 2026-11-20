@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_257np"]
+
+[resource]
+script = ExtResource("1_257np")
+id = "scrap"
+order = 34
+name = "Металлолом"
+desc = "Гнутые железки. Хлам — магазин купит за 3 монеты."
+stack = 10
+icon = "scrap"
+color = Color(0.4, 0.33, 0.28, 1)
+props = {
+"junk": true,
+"price": 3
+}

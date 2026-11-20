@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_jgevm"]
+
+[resource]
+script = ExtResource("1_jgevm")
+id = "berets"
+order = 85
+name = "Берцы"
+desc = "Обувь: +10% к скорости, стекло не ранит. Очень крепкие. Изнашиваются от ударов и стекла."
+icon = "boots"
+color = Color(0.1, 0.1, 0.1, 1)
+dur = 150
+props = {
+"equip": "feet",
+"glassproof": true,
+"speed": 0.1
+}

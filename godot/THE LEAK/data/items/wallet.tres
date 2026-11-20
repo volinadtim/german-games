@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_hc3u0"]
+
+[resource]
+script = ExtResource("1_hc3u0")
+id = "wallet"
+order = 33
+name = "Старый кошелёк"
+desc = "Открыть: внутри 10–40 монет."
+stack = 5
+icon = "wallet"
+color = Color(0.32, 0.2, 0.12, 1)

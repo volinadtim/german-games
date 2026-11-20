@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_vlcrv"]
+
+[resource]
+script = ExtResource("1_vlcrv")
+id = "energy"
+order = 81
+name = "Энергетик"
+desc = "Напиток: +40% к скорости на 40 с. Одна банка — один раз."
+stack = 3
+icon = "soda"
+color = Color(0.3, 0.62, 0.22, 1)
+props = {
+"buff": "speed",
+"power": 0.4,
+"time": 40.0
+}

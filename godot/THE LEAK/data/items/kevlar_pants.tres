@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_mpjgb"]
+
+[resource]
+script = ExtResource("1_mpjgb")
+id = "kevlar_pants"
+order = 97
+name = "Кевларовые штаны"
+desc = "Ноги: −22% урона. Лёгкие, с наколенниками. Изнашиваются от ударов."
+icon = "wpants"
+color = Color(0.18, 0.2, 0.16, 1)
+dur = 180
+props = {
+"armor": 0.22,
+"equip": "legs"
+}

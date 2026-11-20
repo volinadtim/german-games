@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_kjqpr"]
+
+[resource]
+script = ExtResource("1_kjqpr")
+id = "pants"
+order = 13
+name = "Рабочие штаны"
+desc = "Ноги: −10% урона. Изнашиваются от ударов."
+icon = "pants"
+color = Color(0.2, 0.24, 0.32, 1)
+dur = 80
+props = {
+"armor": 0.1,
+"equip": "legs"
+}

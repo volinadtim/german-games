@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_4oqqg"]
+
+[resource]
+script = ExtResource("1_4oqqg")
+id = "mod_comp"
+order = 55
+name = "Компенсатор"
+desc = "Модуль, слот «Дуло». Отдача −45%, разброс от бедра −10%. Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."
+icon = "mod_comp"
+color = Color(0.35, 0.35, 0.37, 1)
+props = {
+"mod": "muzzle",
+"ms": {
+"hip": 0.9,
+"recoil": 0.55
+}
+}

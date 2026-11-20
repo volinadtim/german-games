@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_5xc65"]
+
+[resource]
+script = ExtResource("1_5xc65")
+id = "filter2"
+order = 73
+name = "Большой фильтр"
+desc = "Армейский фильтр из деревни: 200 секунд наверху. Ставится в любой противогаз."
+stack = 10
+icon = "filter"
+color = Color(0.5, 0.45, 0.22, 1)
+props = {
+"price": 15
+}

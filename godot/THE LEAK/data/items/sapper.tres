@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_rrgl3"]
+
+[resource]
+script = ExtResource("1_rrgl3")
+id = "sapper"
+order = 86
+name = "Сапёрная лопатка"
+desc = "Заточенный край, короткая ручка. Урон ×3.3, очень крепкая."
+icon = "hatchet"
+color = Color(0.36, 0.4, 0.3, 1)
+dur = 90
+props = {
+"weapon": true
+}

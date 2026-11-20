@@ -31,6 +31,7 @@ func _fail(t: String) -> void:
 
 
 func _run() -> void:
+	_check_scripts()
 	main = load("res://scenes/main.tscn").instantiate()
 	get_tree().root.add_child(main)
 	get_tree().current_scene = main
@@ -77,6 +78,23 @@ func _run() -> void:
 	await _check_windows()
 	await _check_split()
 	_finish()
+
+
+## Все скрипты компилируются (и те, что грузятся позже, по ходу игры).
+func _check_scripts() -> void:
+	var stack: Array[String] = ["res://scripts"]
+	var n := 0
+	while not stack.is_empty():
+		var d: String = stack.pop_back()
+		for f in DirAccess.get_files_at(d):
+			if f.ends_with(".gd"):
+				n += 1
+				var s = load(d + "/" + f)
+				if s == null or not s.can_instantiate():
+					_fail("скрипт не компилируется: %s/%s" % [d, f])
+		for sd in DirAccess.get_directories_at(d):
+			stack.append(d + "/" + sd)
+	stats["scripts"] = n
 
 
 ## Пропустить кат-сцену пробуждения (как кнопкой пропуска) и закончить вступление (дальше оно ждёт действий игрока).

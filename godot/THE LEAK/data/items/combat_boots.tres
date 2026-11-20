@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_83xvu"]
+
+[resource]
+script = ExtResource("1_83xvu")
+id = "combat_boots"
+order = 98
+name = "Штурмовые ботинки"
+desc = "Обувь: +15% к скорости, стекло не ранит. Изнашиваются от ударов и стекла."
+icon = "boots"
+color = Color(0.16, 0.14, 0.1, 1)
+dur = 240
+props = {
+"equip": "feet",
+"glassproof": true,
+"speed": 0.15
+}

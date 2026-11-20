@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_f70lu"]
+
+[resource]
+script = ExtResource("1_f70lu")
+id = "gasmask2"
+order = 70
+name = "Шлемыч"
+desc = "Армейский противогаз из деревни: панорамное стекло, чистая резина — обзор куда шире, чем у Нюхича. Лицо (вместе с каской). [V] — надеть/снять."
+icon = "gasmask"
+color = Color(0.3, 0.34, 0.22, 1)
+props = {
+"equip": "face",
+"price": 45
+}

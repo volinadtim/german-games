@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_7cjg7"]
+
+[resource]
+script = ExtResource("1_7cjg7")
+id = "sledge"
+order = 87
+name = "Кувалда"
+desc = "Тяжёлая. Урон ×4.0."
+icon = "steel_hammer"
+color = Color(0.32, 0.32, 0.34, 1)
+dur = 50
+props = {
+"weapon": true
+}

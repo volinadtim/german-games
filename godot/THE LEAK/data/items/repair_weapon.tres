@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_hlblo"]
+
+[resource]
+script = ExtResource("1_hlblo")
+id = "repair_weapon"
+order = 23
+name = "Ремкомплект ближнего боя"
+desc = "3 заряда, каждый чинит оружие ближнего боя на 50%. Нажать — самое побитое оружие; или перетащить на нужное."
+icon = "repair_weapon"
+color = Color(0.6, 0.2, 0.15, 1)
+dur = 3
+props = {
+"repair": "weapon"
+}

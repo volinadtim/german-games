@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_tyw24"]
+
+[resource]
+script = ExtResource("1_tyw24")
+id = "wrench"
+order = 80
+name = "Гаечный ключ"
+desc = "Тяжёлый разводной ключ. Урон ×2.3."
+icon = "steel_hammer"
+color = Color(0.5, 0.55, 0.6, 1)
+dur = 45
+props = {
+"weapon": true
+}

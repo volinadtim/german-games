@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_uinp6"]
+
+[resource]
+script = ExtResource("1_uinp6")
+id = "gloves"
+order = 12
+name = "Рабочие перчатки"
+desc = "Руки: удар кулаком ×1.2."
+icon = "gloves"
+color = Color(0.55, 0.48, 0.32, 1)
+props = {
+"equip": "hands",
+"fist": 1.2
+}

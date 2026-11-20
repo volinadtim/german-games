@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_wqpkm"]
+
+[resource]
+script = ExtResource("1_wqpkm")
+id = "steel_hammer"
+order = 62
+name = "Слесарный молоток"
+desc = "Стальной боёк на крепкой ручке. Урон ×2.6, 40 ударов. Инструмент: заменяет каменный молоток в крафте."
+icon = "steel_hammer"
+color = Color(0.55, 0.56, 0.58, 1)
+dur = 40
+props = {
+"tool_of": "hammer",
+"weapon": true
+}

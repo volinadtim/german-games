@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_xl45n"]
+
+[resource]
+script = ExtResource("1_xl45n")
+id = "lockpick"
+order = 72
+name = "Отмычка"
+desc = "Набор тонких стальных отмычек. Вскрывает запертый сейф (одноразовая)."
+stack = 5
+icon = "lockpick"
+color = Color(0.6, 0.62, 0.66, 1)

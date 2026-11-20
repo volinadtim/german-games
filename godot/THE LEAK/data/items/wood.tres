@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_pkq13"]
+
+[resource]
+script = ExtResource("1_pkq13")
+id = "wood"
+order = 66
+name = "Деревяшка"
+desc = "Обломок доски. Нужна для крафта."
+stack = 5
+icon = "wood"
+color = Color(0.5, 0.35, 0.2, 1)

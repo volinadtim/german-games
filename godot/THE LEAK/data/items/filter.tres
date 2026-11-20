@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_wyp2t"]
+
+[resource]
+script = ExtResource("1_wyp2t")
+id = "filter"
+order = 69
+name = "Фильтр"
+desc = "Сменный фильтр для Нюхича: 100 секунд наверху."
+stack = 10
+icon = "filter"
+color = Color(0.36, 0.38, 0.3, 1)

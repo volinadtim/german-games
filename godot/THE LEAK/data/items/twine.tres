@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_j0ueg"]
+
+[resource]
+script = ExtResource("1_j0ueg")
+id = "twine"
+order = 60
+name = "Бечёвка"
+desc = "Моток грубой верёвки. Для крафта: молоток."
+stack = 10
+icon = "twine"
+color = Color(0.7, 0.6, 0.4, 1)

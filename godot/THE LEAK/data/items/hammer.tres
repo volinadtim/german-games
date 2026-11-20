@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_e50dg"]
+
+[resource]
+script = ExtResource("1_e50dg")
+id = "hammer"
+order = 61
+name = "Молоток"
+desc = "Камень на палке. Урон ×2.2, но всего 6 ударов. Инструмент: заточка, дубина (крафт тратит прочность)."
+icon = "hammer"
+color = Color(0.46, 0.45, 0.42, 1)
+dur = 6
+props = {
+"weapon": true
+}

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_86een"]
+
+[resource]
+script = ExtResource("1_86een")
+id = "photo"
+order = 37
+name = "Старое фото"
+desc = "Люди в касках у входа в бункер. Лица выцвели. Магазин купит за 5 монет."
+stack = 5
+icon = "photo"
+color = Color(0.75, 0.68, 0.55, 1)
+props = {
+"junk": true,
+"price": 5
+}

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_bnl6k"]
+
+[resource]
+script = ExtResource("1_bnl6k")
+id = "tape"
+order = 36
+name = "Изолента"
+desc = "Синяя. Нужна для ножика. Магазин купит за 2 монеты."
+stack = 10
+icon = "tape"
+color = Color(0.2, 0.3, 0.6, 1)
+props = {
+"price": 2
+}

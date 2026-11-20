@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_248mf"]
+
+[resource]
+script = ExtResource("1_248mf")
+id = "repair_gun"
+order = 25
+name = "Ремкомплект огнестрела"
+desc = "3 заряда, каждый чинит пистолет на 50% прочности. Нажать — самый побитый; или перетащить на пистолет."
+icon = "repair_gun"
+color = Color(0.35, 0.33, 0.3, 1)
+dur = 3
+props = {
+"repair": "gun"
+}

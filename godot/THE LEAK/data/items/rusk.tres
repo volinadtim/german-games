@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_xl3sp"]
+
+[resource]
+script = ExtResource("1_xl3sp")
+id = "rusk"
+order = 3
+name = "Сухарь"
+desc = "Еда: −10% входящего урона на 30 с."
+stack = 3
+icon = "rusk"
+color = Color(0.6, 0.42, 0.22, 1)
+props = {
+"buff": "resist",
+"power": 0.1,
+"time": 30.0
+}

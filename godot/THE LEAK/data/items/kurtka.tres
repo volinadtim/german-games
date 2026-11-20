@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_5ri08"]
+
+[resource]
+script = ExtResource("1_5ri08")
+id = "kurtka"
+order = 17
+name = "Куртка"
+desc = "Тело: −8% урона. Лёгкая, на молнии. Изнашивается от ударов."
+icon = "kurtka"
+color = Color(0.22, 0.2, 0.18, 1)
+dur = 60
+props = {
+"armor": 0.08,
+"equip": "body"
+}

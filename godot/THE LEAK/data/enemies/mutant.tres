@@ -1,0 +1,58 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_rlpat"]
+
+[resource]
+script = ExtResource("1_rlpat")
+values = {
+"CHARGE_DMG": 28.0,
+"CHARGE_SPEED": 11.5,
+"G": 4.0,
+"KINDS": {
+"charger": {
+"glow": Color(1, 0.35, 0.1, 1),
+"h": 2.15,
+"hp": 150.0,
+"name": "Таран",
+"skin": Color(0.33, 0.17, 0.12, 1),
+"speed": 2.3
+},
+"spitter": {
+"glow": Color(0.55, 0.9, 0.2, 1),
+"h": 1.6,
+"hp": 48.0,
+"name": "Плевун",
+"skin": Color(0.32, 0.36, 0.22, 1),
+"speed": 3.1
+},
+"stalker": {
+"glow": Color(0.75, 0.85, 1, 1),
+"h": 1.95,
+"hp": 62.0,
+"name": "Тень",
+"skin": Color(0.08, 0.08, 0.1, 1),
+"speed": 5.0
+}
+},
+"LEASH": 38.0,
+"SIGHT": 15.0,
+"SLAM_DMG": 18.0,
+"SPIT_CD": 2.3,
+"SPIT_DMG": 11.0,
+"STALK_DMG": 9.0,
+"SWIPE_DMG": 6.0
+}
+order = {
+"KINDS": {
+"_": ["spitter", "charger", "stalker"],
+"charger": {
+"_": ["name", "hp", "speed", "h", "skin", "glow"]
+},
+"spitter": {
+"_": ["name", "hp", "speed", "h", "skin", "glow"]
+},
+"stalker": {
+"_": ["name", "hp", "speed", "h", "skin", "glow"]
+}
+}
+}

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_rokxb"]
+
+[resource]
+script = ExtResource("1_rokxb")
+id = "sneakers"
+order = 21
+name = "Кеды"
+desc = "Обувь: +25% к скорости, но стекло ранит. Изнашиваются от ударов."
+icon = "sneakers"
+color = Color(0.2, 0.3, 0.5, 1)
+dur = 50
+props = {
+"equip": "feet",
+"speed": 0.25
+}

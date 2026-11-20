@@ -1,45 +1,13 @@
 extends RefCounted
 ## Оружие ближнего боя из магазина: урон (множитель к удару кулаком), дальность, цена и 3D-модель.
 ## Модель строится кодом; длинная ось — +Y, рукоять в начале координат.
+const _D_MELEE := preload("res://data/weapons/melee.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
-const WEAPONS := {
-	"bat": {"mult": 2.0, "reach": 1.5, "price": 40},
-	"pipe": {"mult": 2.5, "reach": 1.55, "price": 60},
-	"crowbar": {"mult": 3.0, "reach": 1.45, "price": 90},
-	"machete": {"mult": 3.6, "reach": 1.5, "price": 120},
-	"knife": {"mult": 2.4, "reach": 1.25, "price": 0},     # крафт: деревяшка + стекло + изолента
-	# крафт с молотком (промпт 14.11 19:22)
-	"hammer": {"mult": 2.2, "reach": 1.3, "price": 0},     # камень + деревяшка + бечёвка; 6 ударов
-	"steel_hammer": {"mult": 2.6, "reach": 1.3, "price": 45},   # магазин, «Инструменты»; инструмент вместо каменного молотка
-	"hatchet": {"mult": 2.9, "reach": 1.35, "price": 55},       # магазин; рубит деревья и доски на поляне (world/wood_source.gd)
-	"shiv": {"mult": 2.7, "reach": 1.25, "price": 0},      # молоток + металлолом ×2
-	"spiked_club": {"mult": 3.2, "reach": 1.5, "price": 0}, # молоток + деревяшка ×2 + гайки ×3
-	"pistol": {"mult": 1.6, "reach": 1.15, "price": 0},     # стреляет gun.gd; это — удар рукоятью
-	"sawnoff": {"mult": 2.0, "reach": 1.2, "price": 0},     # огнестрел у озера (gun.gd: GUNS, промпт 20.11 19:15); удар прикладом
-	"rifle": {"mult": 2.3, "reach": 1.4, "price": 0},
-	"smg": {"mult": 1.7, "reach": 1.15, "price": 0},
-	"knuckles": {"mult": 1.9, "reach": 1.05, "price": 0},   # кастет — оружие, а не перчатки (промпт 20.11 14:27)
-	"stone": {"mult": 1.4, "reach": 1.05, "price": 0},      # камень в руке: бросок — stone_throw.gd, это — удар
-	# новые предметы по тирам (промпт 20.11 17:59): тир 0 — бункер
-	"wrench": {"mult": 2.3, "reach": 1.3, "price": 35},
-	# тир 1 — деревня
-	"sapper": {"mult": 3.3, "reach": 1.4, "price": 110},
-	"sledge": {"mult": 4.0, "reach": 1.5, "price": 170},
-	# тир 2 — следующая локация
-	"fire_axe": {"mult": 4.4, "reach": 1.5, "price": 240},
-	# тир 3 — город (промпт 20.11 18:44)
-	"katana": {"mult": 5.2, "reach": 1.6, "price": 420},
-}
+static var WEAPONS: Dictionary = _D_MELEE.v("WEAPONS")
 
 ## Новые предметы без своей модели берут модель/форму у похожего (промпт 20.11 17:59): id -> базовый id.
 ## Иконка — поле "icon" в items.gd, цвет иконки свой.
-const ALIAS := {"wrench": "steel_hammer", "tea": "water", "cap": "ushanka", "sweater": "kurtka",
-	"sapper": "hatchet", "sledge": "steel_hammer", "energy": "soda", "ration": "canned", "ammo_box": "ammo",
-	"bushlat": "jacket", "berets": "boots",
-	"fire_axe": "hatchet", "medkit_army": "medkit", "kevlar_helmet": "moto_helmet", "plate_vest": "vest",
-	"scuba": "backpack", "dive_light": "flashlight",
-	"trauma_kit": "medkit", "stim": "soda", "mre": "canned", "assault_helmet": "moto_helmet", "riot_armor": "vest",
-	"kevlar_pants": "wpants", "combat_boots": "boots", "katana": "machete"}
+static var ALIAS: Dictionary = _D_MELEE.v("ALIAS")
 
 ## Удар предметом в руке; не оружие (любой предмет с пола, промпт 18.11 00:27) — чуть сильнее кулака.
 static func stats(id: String) -> Dictionary:
@@ -47,20 +15,7 @@ static func stats(id: String) -> Dictionary:
 
 
 # что продаёт магазин, по порядку
-const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["gasmask", 50], ["filter", 25], ["flashlight", 35], ["broom", 30],
-	["helmet", 45], ["jacket", 60], ["gloves", 30], ["pants", 35], ["boots", 40], ["backpack", 70],
-	# одежда на выбор (промпт 14.11 21:14), подвкладки «Одежды» — shop.gd: CLOTHES
-	["ushanka", 15], ["moto_helmet", 90], ["kurtka", 30], ["vest", 120], ["jeans", 20], ["wpants", 55],
-	["sneakers", 25], ["tac_gloves", 75],
-	# тир 0 — бункер (промпт 20.11 17:59)
-	["wrench", 35], ["cap", 8], ["sweater", 18],
-	# тир 1 — деревня, тир 2 — пока нигде (shop_model.gd: TIER)
-	["sapper", 110], ["sledge", 170], ["bushlat", 95], ["berets", 75],
-	["fire_axe", 240], ["kevlar_helmet", 180], ["plate_vest", 220],
-	["scuba", 260], ["dive_light", 90],
-	["katana", 420], ["assault_helmet", 320], ["riot_armor", 420], ["kevlar_pants", 200], ["combat_boots", 160],   # тир 3 — город
-	["gps", 150], ["holster", 60], ["bag_hooks", 45],
-	["sketch_map", 120]]   # карта-зарисовывалка, лагерь у озера (промпт 20.11 18:42)
+static var SHOP: Array = _D_MELEE.v("SHOP")
 
 
 static func _m(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_7bkxv"]
+
+[resource]
+script = ExtResource("1_7bkxv")
+id = "bushlat"
+order = 84
+name = "Бушлат"
+desc = "Тело: −20% урона. Тёплый, на вате, два больших кармана. Изнашивается от ударов."
+icon = "jacket"
+color = Color(0.14, 0.16, 0.24, 1)
+dur = 110
+props = {
+"armor": 0.2,
+"equip": "body"
+}

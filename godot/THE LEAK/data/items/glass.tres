@@ -1,0 +1,13 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_gy7mt"]
+
+[resource]
+script = ExtResource("1_gy7mt")
+id = "glass"
+order = 67
+name = "Кусочек стекла"
+desc = "Острый осколок. Нужен для крафта."
+stack = 5
+icon = "glass"
+color = Color(0.6, 0.78, 0.76, 1)

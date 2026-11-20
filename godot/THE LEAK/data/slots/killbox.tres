@@ -1,0 +1,145 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_r6r3o"]
+
+[resource]
+script = ExtResource("1_r6r3o")
+values = {
+"APPLE_PRICE": 150,
+"BOOST": {
+"cherry": [6, 8],
+"diamond": [4, 50],
+"grape": [5, 30],
+"lemon": [6, 14],
+"plum": [6, 18]
+},
+"CAP_CHARS": 16,
+"CAP_SPEED": 3,
+"CAP_TEXT": "ОБЧИЩЕНО ",
+"CHAIN": [1.0, 1.1, 1.2, 1.3],
+"CHAIN_DIST": 4.0,
+"CHAIN_IDLE": 30.0,
+"COST": 3,
+"CUT_LEN": 4.3,
+"EX": 0.0725,
+"GUAR_MAX": [1, 1, 2, 2, 3],
+"HIGH_PAY_FROM": 3,
+"HIGH_PAY_MULT": 0.75,
+"HL_COLORS": [Color(1, 0.75, 0.25, 1), Color(0.4, 1, 0.5, 1), Color(0.4, 0.8, 1, 1), Color(1, 0.45, 0.8, 1), Color(1, 0.35, 0.2, 1)],
+"K": 1.3,
+"LEVELS": [[1, 3, 0], [2, 3, 25], [3, 3, 45], [3, 4, 80], [3, 5, 120]],
+"LEVEL_SYMS": [3, 4, 4, 5, 7],
+"LUCK": {
+"cherry": [6, 6, 12, 16],
+"diamond": [5, 24, 40],
+"grape": [4, 15, 30],
+"lemon": [6, 8, 18, 15],
+"plum": [5, 10, 20, 25],
+"seven": [4, 34]
+},
+"MAX_LEVEL": 5,
+"PACKS": [[3, 8], [6, 15]],
+"PAIR_MAX_LEVEL": 1,
+"PAY": {
+"cherry": {
+3: 7,
+4: 11,
+5: 16
+},
+"diamond": {
+3: 31,
+4: 53,
+5: 88
+},
+"grape": {
+3: 22,
+4: 35,
+5: 53
+},
+"lemon": {
+3: 13,
+4: 19,
+5: 28
+},
+"plum": {
+3: 18,
+4: 26,
+5: 40
+},
+"seven": {
+3: 44
+}
+},
+"PAY2": {
+"cherry": 1,
+"lemon": 2,
+"plum": 2
+},
+"PED": 0.25,
+"PITCH": 0.145,
+"PROFIT_CAP": 2000,
+"R": 0.19,
+"REELS": 5,
+"REEL_Y": 0.98,
+"REEL_Z": 0.07,
+"RIG_Z": 0.1,
+"ROWS": 3,
+"RW": 0.125,
+"SEVENS_RARE_W": 0.25,
+"SEVENS_REROLL": 0.85,
+"SHIELD_MAX": 2,
+"STICK": 0.12,
+"STICK_BOOST": 0.28,
+"STRIP": ["cherry", "seven", "lemon", "plum", "cherry", "grape", "six", "lemon", "seven", "cherry", "diamond", "plum"],
+"SYM_ORDER": ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"],
+"TEX": 64,
+"TRAY_MAX": 30,
+"TRAY_X": 0.17,
+"TRAY_Z0": 0.335,
+"TRAY_Z1": 0.425,
+"WEIGHTS": {
+"cherry": 23.5,
+"diamond": 12.5,
+"grape": 14.0,
+"lemon": 20.5,
+"plum": 18.0,
+"seven": 15.0,
+"six": 6
+},
+"WIN_CUT": 0.1
+}
+order = {
+"BOOST": {
+"_": ["cherry", "lemon", "plum", "grape", "diamond"]
+},
+"LUCK": {
+"_": ["cherry", "lemon", "plum", "grape", "diamond", "seven"]
+},
+"PAY": {
+"_": ["cherry", "lemon", "plum", "grape", "diamond", "seven"],
+"cherry": {
+"_": [3, 4, 5]
+},
+"diamond": {
+"_": [3, 4, 5]
+},
+"grape": {
+"_": [3, 4, 5]
+},
+"lemon": {
+"_": [3, 4, 5]
+},
+"plum": {
+"_": [3, 4, 5]
+},
+"seven": {
+"_": [3]
+}
+},
+"PAY2": {
+"_": ["cherry", "lemon", "plum"]
+},
+"WEIGHTS": {
+"_": ["cherry", "lemon", "plum", "grape", "diamond", "seven", "six"]
+}
+}

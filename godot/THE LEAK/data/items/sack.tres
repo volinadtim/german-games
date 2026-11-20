@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_ff5nq"]
+
+[resource]
+script = ExtResource("1_ff5nq")
+id = "sack"
+order = 27
+name = "Вещмешок"
+desc = "Спина: простой мешок с лямками, отсек 3×3."
+icon = "sack"
+color = Color(0.42, 0.4, 0.28, 1)
+props = {
+"bag": [3, 3],
+"equip": "back"
+}

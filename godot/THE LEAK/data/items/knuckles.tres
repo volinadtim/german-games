@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_4g650"]
+
+[resource]
+script = ExtResource("1_4g650")
+id = "knuckles"
+order = 9
+name = "Кастет"
+desc = "Оружие: удар ×1.9, бьёт быстро и близко."
+icon = "knuckles"
+color = Color(0.58, 0.58, 0.6, 1)
+dur = 60
+props = {
+"weapon": true
+}

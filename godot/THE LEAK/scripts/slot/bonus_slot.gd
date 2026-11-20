@@ -13,51 +13,52 @@ extends StaticBody3D
 ## и пружинят при остановке; две короны/звезды/семёрки на первых барабанах — третий крутится дольше («интрига»)
 ## с нарастающим тоном; выигрыш — подсветка символов, табло со счётчиком монет, фонтан монет из лотка;
 ## бонус-игра — фиолетовый экран и маячок; джекпот — сирена, стробоскоп, ливень монет. Звуки — свои (синтез).
+const _D_CASHY_BOX := preload("res://data/slots/cashy_box.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
 const Sym := preload("res://scripts/slot/slot_symbols.gd")
 const Items := preload("res://scripts/items/items.gd")
 const Sfx := preload("res://scripts/core/sfx.gd")
-const COST := 20
+static var COST: int = _D_CASHY_BOX.v("COST")
 const Perks := preload("res://scripts/systems/perks.gd")
-const SYMS := ["cherry", "plum", "grape", "diamond", "seven", "bonus", "jack"]   # лимона нет (промпт 20.11 14:34)
+static var SYMS: Array = _D_CASHY_BOX.v("SYMS")   # лимона нет (промпт 20.11 14:34)
 ## веса и выплаты под 3×3 и 5 линий (отдача ~100%, как была у ФОРТУНЫ)
-const WEIGHT := {"cherry": 18.0, "plum": 14.0, "grape": 12.0, "diamond": 9.0, "seven": 6.0, "bonus": 3.5, "jack": 6.0}
-const PAY := {"cherry": 30, "plum": 50, "grape": 80, "diamond": 200, "seven": 500}
+static var WEIGHT: Dictionary = _D_CASHY_BOX.v("WEIGHT")
+static var PAY: Dictionary = _D_CASHY_BOX.v("PAY")
 ## клетка поля = барабан*3 + ряд; линии — три ряда и две диагонали
-const LINES := [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
-const FREE_2 := 2             # две бонуски — бесплатные крутки (вне бонус-игры)
-const FREE_2_BONUS := 3       # две бонуски во время бонус-игры
-const FREE_3 := 8             # три бонуски — бонус-игра
-const BONUS_BUY := 20         # покупка бонус-игры: столько круток по ставке (промпт 20.11 11:53)
-const MINI_JACK := 100
+static var LINES: Array = _D_CASHY_BOX.v("LINES")
+static var FREE_2: int = _D_CASHY_BOX.v("FREE_2")   # две бонуски — бесплатные крутки (вне бонус-игры)
+static var FREE_2_BONUS: int = _D_CASHY_BOX.v("FREE_2_BONUS")   # две бонуски во время бонус-игры
+static var FREE_3: int = _D_CASHY_BOX.v("FREE_3")   # три бонуски — бонус-игра
+static var BONUS_BUY: int = _D_CASHY_BOX.v("BONUS_BUY")   # покупка бонус-игры: столько круток по ставке (промпт 20.11 11:53)
+static var MINI_JACK: int = _D_CASHY_BOX.v("MINI_JACK")
 ## баффы красного магазина (промпт 20.11 18:07): гарант одного символа на несколько круток.
 ## символ -> [круток, цена в крутках по ставке]; 7, бонуски и короны не продаются.
-const GUAR := {"cherry": [10, 3], "plum": [10, 4], "grape": [8, 5], "diamond": [6, 7]}
-const JACK_WIN := 300
+static var GUAR: Dictionary = _D_CASHY_BOX.v("GUAR")
+static var JACK_WIN: int = _D_CASHY_BOX.v("JACK_WIN")
 ## ставка (промпт 18.11 01:03): крутка стоит COST×ставка, денежные выигрыши (линии, мини-джекпот, джекпот) ×ставка.
 ## Переключается кнопкой «СТАВКА» слева на полке автомата; пока идут бесплатные крутки — не меняется.
-const BETS := [1, 2, 3, 5, 10]
-const JACK_BASE := 100
+static var BETS: Array = _D_CASHY_BOX.v("BETS")
+static var JACK_BASE: int = _D_CASHY_BOX.v("JACK_BASE")
 ## промпт 16.11 03:16: бонус-игра ×1.5 (было ×2); после первых 777 они перебрасываются с шансом SEVENS_REROLL
-const BONUS_MULT := 2.0
-const SEVENS_REROLL := 0.85
+static var BONUS_MULT: float = _D_CASHY_BOX.v("BONUS_MULT")
+static var SEVENS_REROLL: float = _D_CASHY_BOX.v("SEVENS_REROLL")
 const SlotSounds := preload("res://scripts/slot/slot_sounds.gd")   # общие звуки рычага/монет
 ## крутка ×0.8 (промпт 16.11 04:18): было 1.1 / 0.38 / 1.5, скорость ленты 9 → 11.25, петля звука ×1.25
-const SPIN_T := 0.88
-const STEP_T := 0.3
-const TEASE_T := 1.2          # «интрига»: третий барабан крутится дольше
-const REEL_V := 11.25         # скорость ленты, клеток/с
-const DEC_T := 0.45           # торможение барабана (плавно, с лёгким перекатом)
-const DEC_T_TEASE := 1.4      # торможение третьего барабана в «интриге» — медленно доползает
-const EASE_C1 := 1.3          # перекат при остановке (easeOutBack)
-const W := 480
-const H := 450
+static var SPIN_T: float = _D_CASHY_BOX.v("SPIN_T")
+static var STEP_T: float = _D_CASHY_BOX.v("STEP_T")
+static var TEASE_T: float = _D_CASHY_BOX.v("TEASE_T")   # «интрига»: третий барабан крутится дольше
+static var REEL_V: float = _D_CASHY_BOX.v("REEL_V")   # скорость ленты, клеток/с
+static var DEC_T: float = _D_CASHY_BOX.v("DEC_T")   # торможение барабана (плавно, с лёгким перекатом)
+static var DEC_T_TEASE: float = _D_CASHY_BOX.v("DEC_T_TEASE")   # торможение третьего барабана в «интриге» — медленно доползает
+static var EASE_C1: float = _D_CASHY_BOX.v("EASE_C1")   # перекат при остановке (easeOutBack)
+static var W: int = _D_CASHY_BOX.v("W")
+static var H: int = _D_CASHY_BOX.v("H")
 ## экран 3×3: барабаны с X0, клетка CW×CH, сверху полоса названия и банка, снизу — табло
-const X0 := 26.0
-const CW := 136.0
-const GAP := 10.0
-const TOP := 44.0
-const CH := 108.0
+static var X0: float = _D_CASHY_BOX.v("X0")
+static var CW: float = _D_CASHY_BOX.v("CW")
+static var GAP: float = _D_CASHY_BOX.v("GAP")
+static var TOP: float = _D_CASHY_BOX.v("TOP")
+static var CH: float = _D_CASHY_BOX.v("CH")
 const INK := Color(0.09, 0.05, 0.04)
 
 var game
@@ -95,7 +96,7 @@ var blink := 0.0
 # показ выигрыша
 var tier := 0                # 0 — мимо, 1 — мелкий, 2 — крупный/бонус, 3 — джекпот
 var win_amount := 0
-const PROFIT_CAP := 10000   # лимит чистой прибыли автомата (как у KILLBOX)
+static var PROFIT_CAP: int = _D_CASHY_BOX.v("PROFIT_CAP")   # лимит чистой прибыли автомата (как у KILLBOX)
 var profit := 0
 var win_t := 99.0
 var count_shown := 0

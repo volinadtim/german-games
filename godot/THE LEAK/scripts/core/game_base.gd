@@ -1,5 +1,6 @@
 extends Node3D
 # Часть game.gd: константы, состояние, звуки, клавиши.
+const _D_GAME := preload("res://data/balance/game.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 const Player := preload("res://scripts/player/player.gd")
 const Hud := preload("res://scripts/ui/hud.gd")
 const Inventory := preload("res://scripts/items/inventory.gd")
@@ -55,9 +56,9 @@ const START := Vector3(-10.5, 0.05, 0.0)
 const DUMMY_POS := Vector3(-2.75, 0.0, 7.75)
 const STORAGE_POS := Vector3(-1.35, 0.0, 8.55)
 ## враги бродят по поляне наверху (выход из бункера — лестница в восточном торце коридора)
-const ENEMY_SPOTS := [Vector3(28.0, 4.1, 7.0), Vector3(36.0, 4.1, -6.0), Vector3(40.0, 4.1, 4.0), Vector3(31.0, 4.1, -10.0)]
-const RESPAWN := 75.0   # было 40 (промпт 20.11 14:31)
-const FAST_SHARE := 0.4   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
+static var ENEMY_SPOTS: Array = _D_GAME.v("ENEMY_SPOTS")
+static var RESPAWN: float = _D_GAME.v("RESPAWN")   # было 40 (промпт 20.11 14:31)
+static var FAST_SHARE: float = _D_GAME.v("FAST_SHARE")   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
 
 ## Режим игры (промпт 18.11 00:52), выбирается при новой игре / хостом в лобби, в сейве "mode":
 ## 0 — реализм (минимальный интерфейс, фильтр меняется вручную), 1 — по умолчанию (фильтр вручную),
@@ -107,15 +108,8 @@ var gasmask: GasMask
 ## разных форм и размеров (jar.gd). Разбиваются ударом — лут выпадает на пол.
 ## Не ставим у проёмов, автомата, магазина, сейфа, манекена, завалов и стекла; пересечения проверяет физика.
 ## Расстановка (место, вид, размер, рисунок, разбит ли) пишется в сейв (jars).
-const CHEST_AVOID := [[Vector3(-6.0, 0, 8.5), 1.9], [Vector3(-4.05, 0, 8.5), 1.7], [Vector3(-11.5, 0, 5.6), 1.4],
-	[Vector3(-2.75, 0, 7.75), 1.2], [Vector3(-2.4, 0, -5.4), 1.2], [Vector3(-1.35, 0, 8.55), 1.2], [Vector3(-10.8, 0, -4.3), 1.8], [Vector3(-7.7, 0, -7.7), 1.5], [Vector3(-8.6, 0, -2.9), 1.4], [Vector3(-10.6, 0, -6.0), 1.4], [Vector3(-6.95, 0, 8.66), 1.0], [Vector3(-10.5, 0, 0), 1.5],
-	[Vector3(-6, 0, -1.6), 1.6], [Vector3(-6, 0, 1.6), 1.6], [Vector3(6, 0, -1.6), 1.6], [Vector3(6, 0, 1.6), 1.6],
-	[Vector3(0, 0, 5.5), 1.6], [Vector3(-8.5, 0, 5.5), 1.0], [Vector3(8.5, 0, 5.5), 1.0],
-	# завалы из level.gd
-	[Vector3(-10, 0, -7.5), 1.4], [Vector3(-3, 0, -4), 1.4], [Vector3(2.5, 0, -7.8), 1.4], [Vector3(10, 0, -3.5), 1.4],
-	[Vector3(-10.5, 0, 8), 1.4], [Vector3(-2.5, 0, 3.5), 1.4], [Vector3(3, 0, 8), 1.4], [Vector3(10.8, 0, 3.5), 1.4],
-	[Vector3(11.0, 0, -6.8), 1.4], [Vector3(-5.5, 0, -8.3), 1.6], [Vector3(7.5, 0, 8.2), 1.5]]
-const RUINS := [Vector3(26, 0, -9), Vector3(38, 0, 7), Vector3(35, 0, -12), Vector3(24, 0, 9), Vector3(42, 0, -3)]
+static var CHEST_AVOID: Array = _D_GAME.v("CHEST_AVOID")
+static var RUINS: Array = _D_GAME.v("RUINS")
 var jars: Array = []
 
 
@@ -123,8 +117,8 @@ var jars: Array = []
 ## На поляне одновременно не больше OUT_JARS_MAX целых кувшинов. Раз в OUT_JAR_EVERY с, если целых меньше,
 ## появляется ещё один — в случайном месте поляны: не в будке, не впритык к другим кувшинам и препятствиям,
 ## не ближе 6 м к игроку (чтобы не возникал на глазах). Старые разбитые снаружи убираем (осколки), держим ≤ 6.
-const OUT_JARS_MAX := 4   # было 5 — кувшинов на 20% меньше (промпт 18.11 01:08)
-const OUT_JAR_EVERY := 25.0
+static var OUT_JARS_MAX: int = _D_GAME.v("OUT_JARS_MAX")   # было 5 — кувшинов на 20% меньше (промпт 18.11 01:08)
+static var OUT_JAR_EVERY: float = _D_GAME.v("OUT_JAR_EVERY")
 @warning_ignore("unused_private_class_variable")
 var _out_jar_t := OUT_JAR_EVERY
 
@@ -189,8 +183,8 @@ var storage: Chest            # сундук-хранилище
 var home                      # locations/bunker/bunker_home.gd — постройки по чертежам
 var carry                     # world/carry.gd — перенос объектов в руках (B)
 var glass_floor: GlassFloor   # кучки стекла (glass_floor.gd), случайные каждую новую игру
-const BLEED_TIME := 10.0
-const BLEED_DPS := 3.0
+static var BLEED_TIME: float = _D_GAME.v("BLEED_TIME")
+static var BLEED_DPS: float = _D_GAME.v("BLEED_DPS")
 var on_glass := false
 var last_feet_pos := Vector3.INF
 var glass_cd := 0.0
@@ -214,14 +208,14 @@ var buffs := {}
 
 # ---------- ремкомплекты (промпт 14.11 17:59) ----------
 
-const REPAIR_PART := 0.5    # один заряд — +50% прочности
+static var REPAIR_PART: float = _D_GAME.v("REPAIR_PART")   # один заряд — +50% прочности
 
 
 # ---------- каменные кучки (промпт 14.11 19:22) ----------
 
 ## Где лежат кучки: в бункере у завалов (level.gd: _debris) и наверху у руин (surface.gd: _ruins).
-const STONE_BUNKER := [Vector3(-9.2, 0.0, -6.8), Vector3(3.3, 0.0, -7.1), Vector3(10.1, 0.0, 2.9)]
-const STONE_SURFACE := [Vector3(27.8, 0.0, -9.5), Vector3(36.6, 0.0, 8.6), Vector3(42.5, 0.0, -1.2)]
+static var STONE_BUNKER: Array = _D_GAME.v("STONE_BUNKER")
+static var STONE_SURFACE: Array = _D_GAME.v("STONE_SURFACE")
 var stone_piles: Array = []
 
 
@@ -234,8 +228,8 @@ var apple_bought := false   # гнилое яблоко куплено (можн
 # ---------- сохранения (промпт 23:39) ----------
 ## Сколько угодно сейвов (save.gd, промпт 18.11 02:00); id сейва — save_slot. Автосейв: каждые 2 минуты, после каждой крутки KILLBOX (и сразу после оплаты —
 ## перезагрузка не откатит проигрыш), при выходе в меню и при закрытии окна.
-const AUTOSAVE := 120.0
-const CRASH_SAVE := 30.0     # как часто обновляется аварийная копия (save.gd: write_crash)
+static var AUTOSAVE: float = _D_GAME.v("AUTOSAVE")
+static var CRASH_SAVE: float = _D_GAME.v("CRASH_SAVE")   # как часто обновляется аварийная копия (save.gd: write_crash)
 var save_slot := ""
 var from_save := false      # игра началась загрузкой сейва (своего или присланного хостом)
 var autosave_t := AUTOSAVE

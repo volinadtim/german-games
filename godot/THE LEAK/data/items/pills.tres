@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_ekpkb"]
+
+[resource]
+script = ExtResource("1_ekpkb")
+id = "pills"
+order = 77
+name = "Таблетки"
+desc = "Обезболивающее: каждая восстанавливает 10 здоровья. 3 штуки в баночке."
+icon = "pills"
+color = Color(0.75, 0.42, 0.12, 1)
+uses = true
+dur = 3
+props = {
+"heal": 10.0
+}

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_2hqgw"]
+
+[resource]
+script = ExtResource("1_2hqgw")
+id = "mag"
+order = 45
+name = "Магазин"
+desc = "Пистолетный магазин на 8 патронов. Перетащи на пистолет или [R] с пистолетом в руке — вставить. Перетащи на него патроны — зарядить."
+icon = "mag"
+color = Color(0.2, 0.2, 0.2, 1)
+dur = 8
+props = {
+"rounds": true
+}

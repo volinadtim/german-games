@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_pf3gb"]
+
+[resource]
+script = ExtResource("1_pf3gb")
+id = "machete"
+order = 42
+name = "Мачете"
+desc = "Широкий клинок. Урон ×3.6."
+icon = "machete"
+color = Color(0.62, 0.63, 0.62, 1)
+dur = 70
+props = {
+"weapon": true
+}

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_itpsa"]
+
+[resource]
+script = ExtResource("1_itpsa")
+id = "repair_gear"
+order = 24
+name = "Ремкомплект одежды"
+desc = "3 заряда, каждый чинит одежду (голова, тело, ноги, обувь) на 50%. Нажать — самую потрёпанную; или перетащить на нужную."
+icon = "repair_gear"
+color = Color(0.3, 0.42, 0.5, 1)
+dur = 3
+props = {
+"repair": "gear"
+}

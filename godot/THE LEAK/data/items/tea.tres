@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_e46hi"]
+
+[resource]
+script = ExtResource("1_e46hi")
+id = "tea"
+order = 76
+name = "Термос с чаем"
+desc = "Напиток: +20% к скорости на 45 с. 2 кружки."
+icon = "water"
+color = Color(0.42, 0.5, 0.36, 1)
+uses = true
+dur = 2
+props = {
+"buff": "speed",
+"power": 0.2,
+"time": 45.0
+}

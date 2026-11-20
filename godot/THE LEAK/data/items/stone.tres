@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_nrqy1"]
+
+[resource]
+script = ExtResource("1_nrqy1")
+id = "stone"
+order = 59
+name = "Камень"
+desc = "Увесистый булыжник. Нужен для молотка. Возьми в руку: ПКМ держать — прицел с траекторией, ЛКМ — бросить (отвлечь врагов); без ПКМ — бить камнем."
+stack = 10
+icon = "stone"
+color = Color(0.46, 0.45, 0.42, 1)
+props = {
+"weapon": true
+}

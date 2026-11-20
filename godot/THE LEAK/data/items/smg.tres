@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_d3xii"]
+
+[resource]
+script = ExtResource("1_d3xii")
+id = "smg"
+order = 49
+name = "ПП"
+desc = "Пистолет-пулемёт на 25 пистолетных патронов: зажми ЛКМ (в прицеле или от бедра) — очередь. Урон пули меньше, разброс больше. [R] — зарядить пистолетными патронами из сумки, [Enter] (держать) — разрядить. Слоты модулей: прицел, дуло, приклад, цевьё. Прочность — 150 выстрелов, чинится ремкомплектом огнестрела."
+icon = "smg"
+color = Color(0.2, 0.2, 0.21, 1)
+dur = 1
+props = {
+"gun": true,
+"rounds": true,
+"weapon": true
+}

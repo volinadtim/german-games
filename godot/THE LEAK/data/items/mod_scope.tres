@@ -1,0 +1,20 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_ruo1q"]
+
+[resource]
+script = ExtResource("1_ruo1q")
+id = "mod_scope"
+order = 53
+name = "Оптика 2×"
+desc = "Модуль, слот «Прицел». В прицеле зум сильнее, разброс −70%; от бедра разброс +20%. Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."
+icon = "mod_scope"
+color = Color(0.16, 0.17, 0.2, 1)
+props = {
+"mod": "sight",
+"ms": {
+"aim": 0.3,
+"fov": 0.6,
+"hip": 1.2
+}
+}

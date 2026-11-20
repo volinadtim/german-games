@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_j812e"]
+
+[resource]
+script = ExtResource("1_j812e")
+id = "medkit_army"
+order = 88
+name = "Армейская аптечка"
+desc = "4 применения, каждое восстанавливает 75 здоровья."
+icon = "medkit"
+color = Color(0.3, 0.4, 0.2, 1)
+uses = true
+dur = 4
+props = {
+"heal": 75.0
+}

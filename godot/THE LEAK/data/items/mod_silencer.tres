@@ -1,0 +1,20 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_emfpa"]
+
+[resource]
+script = ExtResource("1_emfpa")
+id = "mod_silencer"
+order = 54
+name = "Глушитель"
+desc = "Модуль, слот «Дуло». Выстрел тихий, без вспышки: враги слышат втрое ближе. Урон −10%. Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."
+icon = "mod_silencer"
+color = Color(0.15, 0.15, 0.15, 1)
+props = {
+"mod": "muzzle",
+"ms": {
+"dmg": 0.9,
+"flash": 0.0,
+"noise": 0.35
+}
+}

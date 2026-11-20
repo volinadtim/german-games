@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_eiew3"]
+
+[resource]
+script = ExtResource("1_eiew3")
+id = "katana"
+order = 99
+name = "Катана"
+desc = "Самодельная, из рессоры. Урон ×5.2, длинная."
+icon = "machete"
+color = Color(0.75, 0.78, 0.82, 1)
+dur = 90
+props = {
+"weapon": true
+}

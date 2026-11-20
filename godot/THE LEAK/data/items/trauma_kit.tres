@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_qml20"]
+
+[resource]
+script = ExtResource("1_qml20")
+id = "trauma_kit"
+order = 92
+name = "Хирургический набор"
+desc = "4 применения, каждое восстанавливает 100 здоровья."
+icon = "medkit"
+color = Color(0.85, 0.85, 0.88, 1)
+uses = true
+dur = 4
+props = {
+"heal": 100.0
+}

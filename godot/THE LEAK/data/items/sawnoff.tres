@@ -1,0 +1,18 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_u25r8"]
+
+[resource]
+script = ExtResource("1_u25r8")
+id = "sawnoff"
+order = 47
+name = "Обрез"
+desc = "Двустволка с отпиленными стволами: 2 патрона 12 калибра, дробь — 8 дробин конусом. Страшен вблизи, вдали почти бесполезен. ПКМ держать — от бедра, ПКМ клик — прицел, с ПКМ ЛКМ — выстрел, без — удар. [R] — зарядить патронами 12 к. из сумки, [Enter] (держать) — разрядить. Слоты модулей: прицел, дуло, приклад, цевьё. Прочность — 60 выстрелов, чинится ремкомплектом огнестрела."
+icon = "sawnoff"
+color = Color(0.3, 0.28, 0.26, 1)
+dur = 1
+props = {
+"gun": true,
+"rounds": true,
+"weapon": true
+}

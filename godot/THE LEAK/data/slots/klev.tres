@@ -1,0 +1,66 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_ni2pt"]
+
+[resource]
+script = ExtResource("1_ni2pt")
+values = {
+"BETS": [1, 2, 3, 5, 10],
+"BUCKET": 15,
+"CAST_T": 0.3,
+"CH": 106.0,
+"COST": 25,
+"CW": 120.0,
+"DUCK_CHANCE": 0.22,
+"DUCK_DIVE": 1.35,
+"DUCK_T": 1.9,
+"FISH_VAL": {
+"catfish": [20, 40, 40, 80, 150],
+"perch": [2, 3, 5, 5, 8, 10],
+"pike": [8, 10, 10, 15, 20, 30]
+},
+"GAP": 8.0,
+"H": 450,
+"JOB_T": 0.85,
+"LINES": [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]],
+"PAY": {
+"catfish": 250,
+"fisher": 400,
+"float": 40,
+"perch": 60,
+"pike": 120,
+"worm": 20
+},
+"PIKE_CHANCE": 0.15,
+"PIKE_T": 2.4,
+"PROFIT_CAP": 10000,
+"PULL_T": 0.62,
+"SPIN_T": 0.9,
+"STEP_T": 0.32,
+"SYMS": ["worm", "float", "boot", "perch", "pike", "catfish", "fisher"],
+"TOP": 46.0,
+"UHA_PAY": 60,
+"UHA_T": 2.2,
+"W": 480,
+"WEIGHT": {
+"boot": 14.0,
+"catfish": 2.0,
+"fisher": 2.5,
+"float": 16.0,
+"perch": 10.0,
+"pike": 6.0,
+"worm": 20.0
+},
+"X0": 22.0
+}
+order = {
+"FISH_VAL": {
+"_": ["perch", "pike", "catfish"]
+},
+"PAY": {
+"_": ["worm", "float", "perch", "pike", "catfish", "fisher"]
+},
+"WEIGHT": {
+"_": ["worm", "float", "boot", "perch", "pike", "catfish", "fisher"]
+}
+}

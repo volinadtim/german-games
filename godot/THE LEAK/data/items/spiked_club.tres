@@ -1,0 +1,16 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_1y7qe"]
+
+[resource]
+script = ExtResource("1_1y7qe")
+id = "spiked_club"
+order = 65
+name = "Дубина с гвоздями"
+desc = "Доски, сбитые гайками и болтами. Урон ×3.2, бьёт широко."
+icon = "spiked_club"
+color = Color(0.45, 0.32, 0.2, 1)
+dur = 35
+props = {
+"weapon": true
+}

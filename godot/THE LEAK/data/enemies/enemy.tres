@@ -1,0 +1,36 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_1j0yh"]
+
+[resource]
+script = ExtResource("1_1j0yh")
+values = {
+"ABILITY_CD": 12.0,
+"ATTACK_RANGE": 1.35,
+"BACKSTAB": 2.5,
+"CHASE_MAX": 45.0,
+"DAMAGE": 16.0,
+"DOORS": [[Vector3(-6, 0, -1.6), Vector3(0, 0, 1)], [Vector3(-6, 0, 1.6), Vector3(0, 0, 1)], [Vector3(6, 0, -1.6), Vector3(0, 0, 1)], [Vector3(6, 0, 1.6), Vector3(0, 0, 1)], [Vector3(0, 0, 5.5), Vector3(1, 0, 0)], [Vector3(12, 0, 0), Vector3(1, 0, 0)]],
+"DOOR_HALF": 0.85,
+"FOV_DEG": 65.0,
+"HIT_RANGE": 1.8,
+"LEAP_DMG": 11.0,
+"LEASH": 14.0,
+"LOSE_T": 8.0,
+"MAX_HP": 95.0,
+"MEM_T": 12.0,
+"NEAR_FEEL": 1.8,
+"NEAR_FEEL_CROUCH": 0.9,
+"NOTICE_FAR": 2.2,
+"NOTICE_NEAR": 0.3,
+"RISE_DROP": 1.7,
+"RISE_FADE": 0.55,
+"RISE_T": 2.0,
+"RISE_UP": 1.45,
+"ROCK_DMG": 13.0,
+"SIGHT": 9.0,
+"SIGHT_CROUCH": 0.4,
+"SPEED": 2.1,
+"WANDER_SPEED": 0.85,
+"WAYPOINTS": [Vector3(-10.5, 0, 0), Vector3(-6, 0, 0), Vector3(0, 0, 0), Vector3(6, 0, 0), Vector3(11.3, 0, 0), Vector3(-6, 0, -0.9), Vector3(-6, 0, -2.4), Vector3(6, 0, -0.9), Vector3(6, 0, -2.4), Vector3(-6, 0, 0.9), Vector3(-6, 0, 2.4), Vector3(6, 0, 0.9), Vector3(6, 0, 2.4), Vector3(-0.9, 0, 5.5), Vector3(0.9, 0, 5.5), Vector3(-6, 0, -5.3), Vector3(6, 0, -5.3), Vector3(-6, 0, 5.3), Vector3(6, 0, 5.3)]
+}

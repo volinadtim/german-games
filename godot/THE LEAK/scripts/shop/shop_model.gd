@@ -1,5 +1,6 @@
 extends StaticBody3D
 # Часть shop.gd: константы, состояние, 3D-модель торгового автомата, витрина, шрифты.
+const _D_SHOPS := preload("res://data/shops/shops.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 const Weapons := preload("res://scripts/weapons/weapons.gd")
 const Items := preload("res://scripts/items/items.gd")
 
@@ -17,63 +18,36 @@ var tab := 0                  # открытая вкладка (TABS)
 var tab_btns: Array[Button] = []
 var content: VBoxContainer    # содержимое вкладки — пересобирается при переключении и покупке
 
-const TABS := ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"]
+static var TABS: Array = _D_SHOPS.v("TABS")
 ## подвкладки «Расходников» во всех магазинах (промпт 16.11 02:57); цены — CONSUMABLES
-const CONS_SUBS := [
-	["Пропитание", ["water", "tea", "soda", "energy", "choco", "canned", "ration", "mre"]],
-	["Медицина", ["pills", "bandage", "medkit", "medkit_army", "stim", "trauma_kit"]],
-	["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]],
-	["Патроны", ["ammo", "ammo_box", "mag", "shells", "rifle_ammo"]],   # только в деревне (TIER1_HIDE), промпт 20.11 14:27
-]
+static var CONS_SUBS: Array = _D_SHOPS.v("CONS_SUBS")
 var sub_c := 0                # открытая подвкладка «Расходников»
 ## вкладка «Оружие» (промпт 20.11 14:27): огнестрел (только в деревне) и холодное оружие из Weapons.SHOP
-const GUN_IDS := ["pistol", "sawnoff", "rifle", "smg"]   # обрез, ружьё, ПП — с лагеря у озера (тир 2, промпт 20.11 19:15)
+static var GUN_IDS: Array = _D_SHOPS.v("GUN_IDS")   # обрез, ружьё, ПП — с лагеря у озера (тир 2, промпт 20.11 19:15)
 var sub_g := 0                # открытая подвкладка «Оружия»
-const AMMO_SHOP := [["ammo", 50], ["shells", 70], ["rifle_ammo", 110]]   # набор из AMMO_PACK патронов за 50 (промпт 20.11 14:27)
-const AMMO_PACK := 10
-const MAG_SHOP := [["mag", 55]]   # магазин с 8 патронами (было 30; дороже — промпт 18.11 00:56)
-const GUN_SHOP := [["pistol", 320], ["sawnoff", 450], ["rifle", 900], ["smg", 1200]]   # пистолет без магазина (промпт 18.11 01:52)
+static var AMMO_SHOP: Array = _D_SHOPS.v("AMMO_SHOP")   # набор из AMMO_PACK патронов за 50 (промпт 20.11 14:27)
+static var AMMO_PACK: int = _D_SHOPS.v("AMMO_PACK")
+static var MAG_SHOP: Array = _D_SHOPS.v("MAG_SHOP")   # магазин с 8 патронами (было 30; дороже — промпт 18.11 00:56)
+static var GUN_SHOP: Array = _D_SHOPS.v("GUN_SHOP")   # пистолет без магазина (промпт 18.11 01:52)
 ## модули огнестрела (промпт 20.11 18:43, gun.gd: MOD_SLOTS) — подвкладка «Модули» во «Вкладке оружия»
-const MOD_IDS := ["mod_reddot", "mod_scope", "mod_silencer", "mod_comp", "mod_stock", "mod_grip", "mod_laser"]
-const MOD_SHOP := [["mod_reddot", 140], ["mod_scope", 260], ["mod_silencer", 220], ["mod_comp", 120],
-	["mod_stock", 160], ["mod_grip", 110], ["mod_laser", 180]]
+static var MOD_IDS: Array = _D_SHOPS.v("MOD_IDS")
+static var MOD_SHOP: Array = _D_SHOPS.v("MOD_SHOP")
 ## «Инструменты» (промпт 16.11 02:42): фонарик, метла, нормальный молоток, топорик (рубит деревья на поляне — surface.gd)
-const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55], ["lockpick", 20000]]   # отмычка — вскрыть сейф у озера (промпт 20.11 18:35)
+static var TOOLS: Array = _D_SHOPS.v("TOOLS")   # отмычка — вскрыть сейф у озера (промпт 20.11 18:35)
 ## расходники: [id, цена] (промпты 20.11 14:22, 14:27; аптечка — 4 применения, вода/газировка/тушёнка — по нескольку)
-const CONSUMABLES := [["battery", 3], ["water", 10], ["soda", 30], ["choco", 15], ["canned", 50],
-	["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80],
-	["tea", 18], ["pills", 15],   # тир 0 (промпт 20.11 17:59)
-	["energy", 40], ["ration", 70], ["ammo_box", 90],   # тир 1
-	["medkit_army", 180],   # тир 2
-	["trauma_kit", 320], ["stim", 120], ["mre", 150]]   # тир 3 — город
+static var CONSUMABLES: Array = _D_SHOPS.v("CONSUMABLES")
 ## подвкладки «Одежды» (промпт 14.11 21:14): [название, товары]. Цены — Weapons.SHOP / CONSUMABLES (_price).
 ## Обувь — отдельная подвкладка «Ботинки»; ремкомплект одежды — в «Расходниках»; фонарик и метла — в «Инструментах»
 ## (промпт 16.11 02:42). «Снаряжение» — последняя (CLOTHES[-1]).
-const CLOTHES := [
-	["Голова", ["cap", "ushanka", "helmet", "moto_helmet", "kevlar_helmet", "assault_helmet"]],
-	["Верх", ["sweater", "kurtka", "jacket", "bushlat", "vest", "plate_vest", "riot_armor"]],
-	["Низ", ["jeans", "pants", "wpants", "kevlar_pants"]],
-	["Ботинки", ["sneakers", "boots", "berets", "combat_boots"]],
-	["Перчатки", ["gloves", "tac_gloves"]],
-	["Снаряжение", ["gasmask", "filter", "backpack", "gps", "holster", "bag_hooks", "sketch_map", "scuba", "dive_light"]],
-]
+static var CLOTHES: Array = _D_SHOPS.v("CLOTHES")
 var sub := 0                  # открытая подвкладка «Одежды» (CLOTHES)
 ## Тир товара (промпт 20.11 17:59): 0 — бункер (пролог), 1 — деревня, 2 — следующая локация (пока нигде не продаётся).
 ## Нет в списке — тир 0. Тир 1 — аптечки, тушёнка, газировка, лучшая одежда, монтировка, мачете, огнестрел (промпты 16.11 03:13, 04:35).
-const TIER := {"medkit": 1, "canned": 1, "soda": 1, "moto_helmet": 1, "vest": 1, "wpants": 1, "tac_gloves": 1,
-	"crowbar": 1, "machete": 1, "pistol": 1, "ammo": 1, "mag": 1,
-	"sawnoff": 2, "rifle": 2, "smg": 2, "shells": 2, "rifle_ammo": 2,   # огнестрел у озера (промпт 20.11 19:15)
-	# новые (промпт 20.11 17:59)
-	"energy": 1, "ration": 1, "ammo_box": 1, "bushlat": 1, "berets": 1, "sapper": 1, "sledge": 1,
-	"gps": 1, "holster": 1, "bag_hooks": 1,   # промпт 20.11 18:38
-	"mod_reddot": 1, "mod_comp": 1, "mod_grip": 1, "mod_stock": 1, "mod_laser": 1, "mod_scope": 2, "mod_silencer": 2,   # модули огнестрела, 18:43
-	"medkit_army": 2, "kevlar_helmet": 2, "plate_vest": 2, "fire_axe": 2, "scuba": 2, "dive_light": 2, "sketch_map": 2,
-	# тир 3 — город (city_shop.gd, промпт 20.11 18:44)
-	"trauma_kit": 3, "stim": 3, "mre": 3, "assault_helmet": 3, "riot_armor": 3, "kevlar_pants": 3, "combat_boots": 3, "katana": 3}
+static var TIER: Dictionary = _D_SHOPS.v("TIER")
 
 
 ## Тир чертежа (промпт 20.11 18:52): в каждом следующем магазине — все прежние чертежи + новые. Нет в списке — тир 0.
-const BP_TIER := {"wallpaper": 1, "cot": 1, "sandbags": 1, "rack": 2, "lamp": 2, "turret": 3}
+static var BP_TIER: Dictionary = _D_SHOPS.v("BP_TIER")
 
 
 ## Тир этого магазина: бункер — 0, деревня (village_shop.gd) — 1, лагерь у озера (lake_shop.gd) — 2, город (city_shop.gd) — 3.
@@ -92,7 +66,7 @@ func sells(id: String) -> bool:
 	return int(TIER.get(id, 0)) <= shop_tier()
 
 
-const CHEST_REFRESH := 80   # «Обновить все ящики»
+static var CHEST_REFRESH: int = _D_SHOPS.v("CHEST_REFRESH")   # «Обновить все ящики»
 
 ## красный маркет (промпт 16.11 03:04): village_shop.gd ставит true до _ready — корпус, вывеска, свет и окно
 ## перекрашиваются из зелёного/коричневого в красный через _tint()
@@ -137,13 +111,13 @@ func _box(size: Vector3, pos: Vector3, m: Material, collide := false) -> void:
 ## справа панель с кнопками и щелью для монет, внизу лоток выдачи, сверху светящаяся вывеска.
 ## Купленный товар падает с витрины в лоток (_vend), а в инвентарь кладётся сразу.
 ## Перед — +Z.
-const W := 1.0          # ширина
-const H := 2.15         # высота корпуса
-const D := 0.7          # глубина
-const WIN_X0 := -0.47   # витрина по X
-const WIN_X1 := 0.17
-const SHELF_Y := [1.78, 1.44, 1.1, 0.76]
-const TRAY_Y := 0.3
+static var W: float = _D_SHOPS.v("W")   # ширина
+static var H: float = _D_SHOPS.v("H")   # высота корпуса
+static var D: float = _D_SHOPS.v("D")   # глубина
+static var WIN_X0: float = _D_SHOPS.v("WIN_X0")   # витрина по X
+static var WIN_X1: float = _D_SHOPS.v("WIN_X1")
+static var SHELF_Y: Array = _D_SHOPS.v("SHELF_Y")
+static var TRAY_Y: float = _D_SHOPS.v("TRAY_Y")
 var shelf_pos := {}     # id товара -> где он лежит на витрине
 var _noise_tex: NoiseTexture2D
 
@@ -356,7 +330,7 @@ var _last_toggle := -10000   # защита от «закликивания» E:
 ## Шрифт вывески «Trinkets Market» (промпт 14.11 17:19): узкий жирный «вывесочный» —
 ## Bahnschrift из Windows, если нет — Impact / Arial Black / Roboto Condensed.
 ## Шрифт надписей на самой модели автомата-магазина (промпт 14.11 19:36): FONT_PICK — имя системного шрифта.
-const FONT_PICK := "Courier New"   # ретро «печатный»; на Android — monospace
+static var FONT_PICK: String = _D_SHOPS.v("FONT_PICK")   # ретро «печатный»; на Android — monospace
 static var _model_font: SystemFont
 static func model_font() -> SystemFont:
 	if _model_font == null:

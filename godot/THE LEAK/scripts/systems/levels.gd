@@ -3,20 +3,15 @@ extends RefCounted
 ## Каждый новый уровень — очко атрибута; атрибуты качаются в окне прокачки (systems/skills.gd, K) разделом
 ## «АТРИБУТЫ», у каждого лимит MAX_ATTR. Данные живут в skills (xp, attrs) и сохраняются вместе с ним.
 ## Множители читаются отовсюду статически через preload. Split-Screen: уровень общий на экран.
+const _D_LEVELS := preload("res://data/balance/levels.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
 
-const MAX_ATTR := 5
-const MAX_LEVEL := 26   # 25 очков = все атрибуты до лимита
+static var MAX_ATTR: int = _D_LEVELS.v("MAX_ATTR")
+static var MAX_LEVEL: int = _D_LEVELS.v("MAX_LEVEL")   # 25 очков = все атрибуты до лимита
 ## атрибуты: [id, название, что даёт один уровень]
-const ATTRS := [
-	["speed", "Скорость", "+4% скорости ходьбы и бега"],
-	["melee", "Ближний бой", "+8% урона кулаками и холодным оружием"],
-	["steady", "Твёрдая рука", "−12% качания ствола огнестрела"],
-	["resist", "Стойкость", "−5% получаемого урона"],
-	["hp", "Здоровье", "+10 к максимуму здоровья"],
-]
-const XP_KILL := 12
-const XP_KILL_HEAVY := 25
-const XP_LOOT := 4
+static var ATTRS: Array = _D_LEVELS.v("ATTRS")
+static var XP_KILL: int = _D_LEVELS.v("XP_KILL")
+static var XP_KILL_HEAVY: int = _D_LEVELS.v("XP_KILL_HEAVY")
+static var XP_LOOT: int = _D_LEVELS.v("XP_LOOT")
 
 static var skills: Node = null   # systems/skills.gd текущей игры
 

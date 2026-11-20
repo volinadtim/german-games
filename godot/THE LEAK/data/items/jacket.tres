@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_p7het"]
+
+[resource]
+script = ExtResource("1_p7het")
+id = "jacket"
+order = 11
+name = "Ватник"
+desc = "Тело: −15% урона. Изнашивается от ударов."
+icon = "jacket"
+color = Color(0.24, 0.27, 0.21, 1)
+dur = 80
+props = {
+"armor": 0.15,
+"equip": "body"
+}

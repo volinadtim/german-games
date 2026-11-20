@@ -1,0 +1,19 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_t3k5g"]
+
+[resource]
+script = ExtResource("1_t3k5g")
+id = "ration"
+order = 82
+name = "Сухпаёк"
+desc = "Еда: −35% входящего урона на 120 с. На 2 раза."
+icon = "canned"
+color = Color(0.4, 0.44, 0.26, 1)
+uses = true
+dur = 2
+props = {
+"buff": "resist",
+"power": 0.35,
+"time": 120.0
+}

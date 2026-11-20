@@ -1,0 +1,17 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/item_type.gd" id="1_qaoxv"]
+
+[resource]
+script = ExtResource("1_qaoxv")
+id = "sweater"
+order = 79
+name = "Свитер"
+desc = "Тело: −5% урона. Колючий, вязаный. Изнашивается от ударов."
+icon = "kurtka"
+color = Color(0.45, 0.36, 0.3, 1)
+dur = 50
+props = {
+"armor": 0.05,
+"equip": "body"
+}

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_wdaua"]
+
+[resource]
+script = ExtResource("1_wdaua")
+values = {
+"ATTRS": [["speed", "Скорость", "+4% скорости ходьбы и бега"], ["melee", "Ближний бой", "+8% урона кулаками и холодным оружием"], ["steady", "Твёрдая рука", "−12% качания ствола огнестрела"], ["resist", "Стойкость", "−5% получаемого урона"], ["hp", "Здоровье", "+10 к максимуму здоровья"]],
+"MAX_ATTR": 5,
+"MAX_LEVEL": 26,
+"XP_KILL": 12,
+"XP_KILL_HEAVY": 25,
+"XP_LOOT": 4
+}
