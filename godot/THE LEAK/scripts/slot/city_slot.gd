@@ -6,31 +6,31 @@ extends StaticBody3D
 ## по очереди даёт зелёную вспышку, и соседи по кресту мутируют на ранг выше.
 ## СЧЁТЧИК ГЕЙГЕРА: каждая бочка — +1; полный (GEIGER) — ВЫБРОС: всё поле +1 ранг и выигрыш ×2.
 ## Ставка — кнопка на полке слева. По сети не синхронизируется, счётчик не сохраняется.
-const _D_RADIATION := preload("res://data/slots/radiation.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_RADIATION := preload("res://data/slots/radiation.tres")   # настройки — правятся в Инспекторе
 
 const Sfx := preload("res://scripts/core/sfx.gd")
 const Perks := preload("res://scripts/systems/perks.gd")
 const SlotSounds := preload("res://scripts/slot/slot_sounds.gd")
-static var COST: int = _D_RADIATION.v("COST")
-static var BETS: Array = _D_RADIATION.v("BETS")
-static var RANK: Array = _D_RADIATION.v("RANK")
-static var SYMS: Array = _D_RADIATION.v("SYMS")
-static var WEIGHT: Dictionary = _D_RADIATION.v("WEIGHT")
-static var PAY: Dictionary = _D_RADIATION.v("PAY")
-static var LINES: Array = _D_RADIATION.v("LINES")
-static var GEIGER: int = _D_RADIATION.v("GEIGER")
-static var PROFIT_CAP: int = _D_RADIATION.v("PROFIT_CAP")
-static var SPIN_T: float = _D_RADIATION.v("SPIN_T")
-static var STEP_T: float = _D_RADIATION.v("STEP_T")
-static var MUT_T: float = _D_RADIATION.v("MUT_T")
-static var BURST_T: float = _D_RADIATION.v("BURST_T")
-static var W: int = _D_RADIATION.v("W")
-static var H: int = _D_RADIATION.v("H")
-static var X0: float = _D_RADIATION.v("X0")
-static var CW: float = _D_RADIATION.v("CW")
-static var GAP: float = _D_RADIATION.v("GAP")
-static var TOP: float = _D_RADIATION.v("TOP")
-static var CH: float = _D_RADIATION.v("CH")
+static var COST: int = _D_RADIATION.spin_price
+static var BETS: Array = _D_RADIATION.bets
+static var RANK: Array = _D_RADIATION.mutation_ranks
+static var SYMS: Array = _D_RADIATION.ids()
+static var WEIGHT: Dictionary = _D_RADIATION.weights()
+static var PAY: Dictionary = _D_RADIATION.pays_3()
+static var LINES: Array = _D_RADIATION.lines_table()
+static var GEIGER: int = _D_RADIATION.geiger_max
+static var PROFIT_CAP: int = _D_RADIATION.profit_cap
+static var SPIN_T: float = _D_RADIATION.spin_time
+static var STEP_T: float = _D_RADIATION.step_time
+static var MUT_T: float = _D_RADIATION.mutation_time
+static var BURST_T: float = _D_RADIATION.burst_time
+static var W: int = _D_RADIATION.screen_w
+static var H: int = _D_RADIATION.screen_h
+static var X0: float = _D_RADIATION.field_x0
+static var CW: float = _D_RADIATION.cell_w
+static var GAP: float = _D_RADIATION.cell_gap
+static var TOP: float = _D_RADIATION.field_top
+static var CH: float = _D_RADIATION.cell_h
 static var FIELD_B := TOP + CH * 3.0
 
 var game

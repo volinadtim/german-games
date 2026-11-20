@@ -1,50 +1,58 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="RadiationConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_sbdpi"]
+[ext_resource type="Script" path="res://scripts/data/slots/radiation_config.gd" id="1_6lmw8"]
+[ext_resource type="Script" path="res://scripts/data/slots/slot_symbol.gd" id="2_oyiq5"]
+
+[sub_resource type="Resource" id="Resource_a80px"]
+script = ExtResource("2_oyiq5")
+id = "can"
+title = "Банка"
+weight = 22.0
+pay_3 = 15
+
+[sub_resource type="Resource" id="Resource_ultaa"]
+script = ExtResource("2_oyiq5")
+id = "tire"
+title = "Шина"
+weight = 18.0
+pay_3 = 30
+
+[sub_resource type="Resource" id="Resource_r4uw0"]
+script = ExtResource("2_oyiq5")
+id = "rat"
+title = "Крыса"
+weight = 13.0
+pay_3 = 60
+
+[sub_resource type="Resource" id="Resource_3ynjj"]
+script = ExtResource("2_oyiq5")
+id = "mask"
+title = "Противогаз"
+weight = 8.0
+pay_3 = 140
+
+[sub_resource type="Resource" id="Resource_i6a0l"]
+script = ExtResource("2_oyiq5")
+id = "neon"
+title = "Неоновая 7"
+weight = 2.5
+pay_3 = 500
+
+[sub_resource type="Resource" id="Resource_ja8mq"]
+script = ExtResource("2_oyiq5")
+id = "barrel"
+title = "Бочка"
+weight = 5.0
+pay_3 = 250
 
 [resource]
-script = ExtResource("1_sbdpi")
-values = {
-"BETS": [1, 2, 3, 5, 10],
-"BURST_T": 2.0,
-"CH": 98.0,
-"COST": 30,
-"CW": 136.0,
-"GAP": 8.0,
-"GEIGER": 12,
-"H": 450,
-"LINES": [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]],
-"MUT_T": 0.8,
-"PAY": {
-"barrel": 250,
-"can": 15,
-"mask": 140,
-"neon": 500,
-"rat": 60,
-"tire": 30
-},
-"PROFIT_CAP": 12000,
-"RANK": ["can", "tire", "rat", "mask", "neon"],
-"SPIN_T": 0.9,
-"STEP_T": 0.3,
-"SYMS": ["can", "tire", "rat", "mask", "neon", "barrel"],
-"TOP": 52.0,
-"W": 480,
-"WEIGHT": {
-"barrel": 5.0,
-"can": 22.0,
-"mask": 8.0,
-"neon": 2.5,
-"rat": 13.0,
-"tire": 18.0
-},
-"X0": 28.0
-}
-order = {
-"PAY": {
-"_": ["can", "tire", "rat", "mask", "neon", "barrel"]
-},
-"WEIGHT": {
-"_": ["can", "tire", "rat", "mask", "neon", "barrel"]
-}
-}
+script = ExtResource("1_6lmw8")
+symbols = Array[ExtResource("2_oyiq5")]([SubResource("Resource_a80px"), SubResource("Resource_ultaa"), SubResource("Resource_r4uw0"), SubResource("Resource_3ynjj"), SubResource("Resource_i6a0l"), SubResource("Resource_ja8mq")])
+mutation_ranks = Array[String](["can", "tire", "rat", "mask", "neon"])
+spin_price = 30
+lines = Array[PackedInt32Array]([PackedInt32Array(0, 3, 6), PackedInt32Array(1, 4, 7), PackedInt32Array(2, 5, 8), PackedInt32Array(0, 4, 8), PackedInt32Array(2, 4, 6)])
+field_x0 = 28.0
+cell_gap = 8.0
+field_top = 52.0
+cell_h = 98.0
+profit_cap = 12000

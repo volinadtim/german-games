@@ -1,66 +1,67 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="KlevConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_ni2pt"]
+[ext_resource type="Script" path="res://scripts/data/slots/klev_config.gd" id="1_qjgva"]
+[ext_resource type="Script" path="res://scripts/data/slots/klev_symbol.gd" id="2_n22yr"]
+
+[sub_resource type="Resource" id="Resource_kx1oi"]
+script = ExtResource("2_n22yr")
+id = "worm"
+title = "Червяк"
+weight = 20.0
+pay_3 = 20
+
+[sub_resource type="Resource" id="Resource_v4c46"]
+script = ExtResource("2_n22yr")
+id = "float"
+title = "Поплавок"
+weight = 16.0
+pay_3 = 40
+
+[sub_resource type="Resource" id="Resource_ckc5b"]
+script = ExtResource("2_n22yr")
+id = "boot"
+title = "Сапог"
+weight = 14.0
+
+[sub_resource type="Resource" id="Resource_j5nlf"]
+script = ExtResource("2_n22yr")
+catch_values = Array[int]([2, 3, 5, 5, 8, 10])
+id = "perch"
+title = "Окунь"
+pay_3 = 60
+
+[sub_resource type="Resource" id="Resource_hcw12"]
+script = ExtResource("2_n22yr")
+catch_values = Array[int]([8, 10, 10, 15, 20, 30])
+id = "pike"
+title = "Щука"
+weight = 6.0
+pay_3 = 120
+
+[sub_resource type="Resource" id="Resource_fso8e"]
+script = ExtResource("2_n22yr")
+catch_values = Array[int]([20, 40, 40, 80, 150])
+id = "catfish"
+title = "Сом"
+weight = 2.0
+pay_3 = 250
+
+[sub_resource type="Resource" id="Resource_rhsh8"]
+script = ExtResource("2_n22yr")
+id = "fisher"
+title = "Рыбак"
+weight = 2.5
+pay_3 = 400
 
 [resource]
-script = ExtResource("1_ni2pt")
-values = {
-"BETS": [1, 2, 3, 5, 10],
-"BUCKET": 15,
-"CAST_T": 0.3,
-"CH": 106.0,
-"COST": 25,
-"CW": 120.0,
-"DUCK_CHANCE": 0.22,
-"DUCK_DIVE": 1.35,
-"DUCK_T": 1.9,
-"FISH_VAL": {
-"catfish": [20, 40, 40, 80, 150],
-"perch": [2, 3, 5, 5, 8, 10],
-"pike": [8, 10, 10, 15, 20, 30]
-},
-"GAP": 8.0,
-"H": 450,
-"JOB_T": 0.85,
-"LINES": [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]],
-"PAY": {
-"catfish": 250,
-"fisher": 400,
-"float": 40,
-"perch": 60,
-"pike": 120,
-"worm": 20
-},
-"PIKE_CHANCE": 0.15,
-"PIKE_T": 2.4,
-"PROFIT_CAP": 10000,
-"PULL_T": 0.62,
-"SPIN_T": 0.9,
-"STEP_T": 0.32,
-"SYMS": ["worm", "float", "boot", "perch", "pike", "catfish", "fisher"],
-"TOP": 46.0,
-"UHA_PAY": 60,
-"UHA_T": 2.2,
-"W": 480,
-"WEIGHT": {
-"boot": 14.0,
-"catfish": 2.0,
-"fisher": 2.5,
-"float": 16.0,
-"perch": 10.0,
-"pike": 6.0,
-"worm": 20.0
-},
-"X0": 22.0
-}
-order = {
-"FISH_VAL": {
-"_": ["perch", "pike", "catfish"]
-},
-"PAY": {
-"_": ["worm", "float", "perch", "pike", "catfish", "fisher"]
-},
-"WEIGHT": {
-"_": ["worm", "float", "boot", "perch", "pike", "catfish", "fisher"]
-}
-}
+script = ExtResource("1_qjgva")
+symbols = Array[ExtResource("2_n22yr")]([SubResource("Resource_kx1oi"), SubResource("Resource_v4c46"), SubResource("Resource_ckc5b"), SubResource("Resource_j5nlf"), SubResource("Resource_hcw12"), SubResource("Resource_fso8e"), SubResource("Resource_rhsh8")])
+spin_price = 25
+lines = Array[PackedInt32Array]([PackedInt32Array(0, 3, 6), PackedInt32Array(1, 4, 7), PackedInt32Array(2, 5, 8), PackedInt32Array(0, 4, 8), PackedInt32Array(2, 4, 6)])
+step_time = 0.32
+field_x0 = 22.0
+cell_w = 120.0
+cell_gap = 8.0
+field_top = 46.0
+cell_h = 106.0
+profit_cap = 10000

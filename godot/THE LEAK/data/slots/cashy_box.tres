@@ -1,69 +1,66 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="CashyBoxConfig" format=3 uid="uid://b1cvkgeqf7f5l"]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_u1kl4"]
+[ext_resource type="Script" uid="uid://bwsr663r1xb23" path="res://scripts/data/slots/cashy_box_config.gd" id="1_bkauf"]
+[ext_resource type="Script" uid="uid://dnoqsmntopsoy" path="res://scripts/data/slots/cashy_symbol.gd" id="2_mw34x"]
+
+[sub_resource type="Resource" id="Resource_u8i67"]
+script = ExtResource("2_mw34x")
+guarantee_spins = 10
+guarantee_price = 3
+id = "cherry"
+title = "Вишня"
+weight = 18.0
+pay_3 = 30
+
+[sub_resource type="Resource" id="Resource_lkt37"]
+script = ExtResource("2_mw34x")
+guarantee_spins = 10
+guarantee_price = 4
+id = "plum"
+title = "Слива"
+weight = 14.0
+pay_3 = 50
+
+[sub_resource type="Resource" id="Resource_t806s"]
+script = ExtResource("2_mw34x")
+guarantee_spins = 8
+guarantee_price = 5
+id = "grape"
+title = "Арбуз"
+weight = 12.0
+pay_3 = 80
+
+[sub_resource type="Resource" id="Resource_rbvt4"]
+script = ExtResource("2_mw34x")
+guarantee_spins = 6
+guarantee_price = 7
+id = "diamond"
+title = "Алмаз"
+weight = 9.0
+pay_3 = 200
+
+[sub_resource type="Resource" id="Resource_wq4jd"]
+script = ExtResource("2_mw34x")
+id = "seven"
+title = "Семёрка"
+weight = 6.0
+pay_3 = 500
+
+[sub_resource type="Resource" id="Resource_g04v6"]
+script = ExtResource("2_mw34x")
+id = "bonus"
+title = "Бонуска"
+weight = 3.5
+
+[sub_resource type="Resource" id="Resource_rjfny"]
+script = ExtResource("2_mw34x")
+id = "jack"
+title = "Корона"
+weight = 6.0
 
 [resource]
-script = ExtResource("1_u1kl4")
-values = {
-"BETS": [1, 2, 3, 5, 10],
-"BONUS_BUY": 20,
-"BONUS_MULT": 2.0,
-"CH": 108.0,
-"COST": 20,
-"CW": 136.0,
-"DEC_T": 0.45,
-"DEC_T_TEASE": 1.4,
-"EASE_C1": 1.3,
-"FREE_2": 2,
-"FREE_2_BONUS": 3,
-"FREE_3": 8,
-"GAP": 10.0,
-"GUAR": {
-"cherry": [10, 3],
-"diamond": [6, 7],
-"grape": [8, 5],
-"plum": [10, 4]
-},
-"H": 450,
-"JACK_BASE": 100,
-"JACK_WIN": 300,
-"LINES": [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]],
-"MINI_JACK": 100,
-"PAY": {
-"cherry": 30,
-"diamond": 200,
-"grape": 80,
-"plum": 50,
-"seven": 500
-},
-"PROFIT_CAP": 10000,
-"REEL_V": 11.25,
-"SEVENS_REROLL": 0.85,
-"SPIN_T": 0.88,
-"STEP_T": 0.3,
-"SYMS": ["cherry", "plum", "grape", "diamond", "seven", "bonus", "jack"],
-"TEASE_T": 1.2,
-"TOP": 44.0,
-"W": 480,
-"WEIGHT": {
-"bonus": 3.5,
-"cherry": 18.0,
-"diamond": 9.0,
-"grape": 12.0,
-"jack": 6.0,
-"plum": 14.0,
-"seven": 6.0
-},
-"X0": 26.0
-}
-order = {
-"GUAR": {
-"_": ["cherry", "plum", "grape", "diamond"]
-},
-"PAY": {
-"_": ["cherry", "plum", "grape", "diamond", "seven"]
-},
-"WEIGHT": {
-"_": ["cherry", "plum", "grape", "diamond", "seven", "bonus", "jack"]
-}
-}
+script = ExtResource("1_bkauf")
+symbols = Array[ExtResource("2_mw34x")]([SubResource("Resource_u8i67"), SubResource("Resource_lkt37"), SubResource("Resource_t806s"), SubResource("Resource_rbvt4"), SubResource("Resource_wq4jd"), SubResource("Resource_g04v6"), SubResource("Resource_rjfny")])
+lines = Array[PackedInt32Array]([PackedInt32Array(0, 3, 6), PackedInt32Array(1, 4, 7), PackedInt32Array(2, 5, 8), PackedInt32Array(0, 4, 8), PackedInt32Array(2, 4, 6)])
+spin_time = 0.88
+profit_cap = 10000

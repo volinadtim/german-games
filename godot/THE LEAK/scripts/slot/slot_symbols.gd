@@ -4,10 +4,10 @@ extends RefCounted
 ## (лента барабана и доска выплат — через SubViewport).
 ## Стиль — «нарисовано тушью»: толстый тёмный контур, два-три плоских тона без градиентов, блик точкой,
 ## у вишни и семёрки — потёки, лимон с гнильцой, у шестёрки в петле тлеет красный глаз.
-const _D_SYMBOLS := preload("res://data/slots/symbols.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_SYMBOLS := preload("res://data/slots/killbox.tres")   # названия символов — в символах KILLBOX (Инспектор)
 
-static var IDS: Array = _D_SYMBOLS.v("IDS")
-static var NAMES: Dictionary = _D_SYMBOLS.v("NAMES")
+static var IDS: Array = _D_SYMBOLS.ids()
+static var NAMES: Dictionary = _D_SYMBOLS.titles()
 const INK := Color(0.09, 0.05, 0.04)
 
 
