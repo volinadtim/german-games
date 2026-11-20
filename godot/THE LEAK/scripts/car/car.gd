@@ -2,7 +2,10 @@ extends "res://scripts/car/car_drive.gd"
 ## Старая ржавая легковушка на поляне (промпт 14.11 18:07). Советский седан «копейка»: выцветшая
 ## голубая краска облуплена до ржавчины (worn_metal.gdshader), дверь в красном грунте, лобовое стекло
 ## выбито, водительское окно тоже, одна фара разбита, заднее правое колесо спущено — машина осела на угол.
-## Ключ (car_key) лежит в сейфе; использованный остаётся в зажигании (ign_key), из инвентаря пропадает. С ключом [E] — кат-сцена (промпт 15.11 23:01): человек подходит,
+## Ключ (car_key) лежит в сейфе; использованный остаётся в зажигании (ign_key), из инвентаря пропадает.
+## Промпт 20.11 11:58: ключ в водительской двери только открывает машину; сесть, багажник — как обычно,
+## уехать — за рулём навестись на ключ зажигания и [F] (depart), люди уже сидят — сразу стартер.
+## Раньше с ключом [E] — кат-сцена (промпт 15.11 23:01): человек подходит,
 ## открывает дверь, садится, дверь хлопает, стартер «чух-чух» — и мотор с первой попытки
 ## заводится, машина уезжает по дороге на север, экран темнеет — надпись «заглохла» и игрок уже сидит
 ## в салоне в деревне (village.gd). В сети кат-сцену видят все; до 4 игроков — каждый на своём месте,
@@ -60,16 +63,18 @@ func get_prompt(g) -> String:
 		if g.inv.count("car_key") <= 0:
 			return "Заперто. Нужен ключ"
 		if aim_zone() == "door0":
-			return "[F] Открыть ключом и уехать"
+			return "[F] Открыть ключом"
 		return "Заперто. Ключ — к водительской двери"
 	if state != "parked":
 		return ""
 	if my_seat >= 0:
+		if can_depart() and _looking_at_key():
+			return "[F] Повернуть ключ — уехать"
 		if seat_dir == 0 and _looking_at_door():
 			return "[F] Открыть дверь и выйти"
 		return "[F] Пересесть за руль" if can_take_wheel() else ""
 	var zone := aim_zone()
-	if zone == "fuel":
+	if zone == "fuel" and escaped:   # на поляне не заправляем: бак выжжет кат-сцена отъезда
 		if fuel >= 0.9:
 			return "Бак полный"
 		if g.inv.count("fuel") > 0:
@@ -105,32 +110,26 @@ func interact(g) -> void:
 			g.hud.toast("Замок — в водительской двери")
 			g.play_at("clunk", door_world(0), -10.0, 1.4)
 			return
-		# ключ остаётся в зажигании (виден в салоне) и уходит из инвентаря — не занимает слот
+		# ключ остаётся в зажигании (виден в салоне) и уходит из инвентаря — не занимает слот.
+		# Промпт 20.11 11:58: ключ только открывает машину; уехать — из-за руля, повернув ключ (depart)
 		g.inv.remove("car_key", 1)
-		var o := [my_id(), 0, 0, 0]
-		if g.net:
-			var ids: Array = g.net.players.keys()
-			ids.sort()
-			var k := 1
-			for id in ids:
-				if id != my_id() and k < 4:
-					o[k] = id
-					k += 1
 		if vnet():
-			vnet().rpc("v_escape", o)
+			vnet().rpc("v_unlock")
 		else:
-			escape(o)
+			unlock()
 		return
 	if state != "parked":
 		return
 	if my_seat >= 0:
-		if seat_dir == 0 and _looking_at_door():
+		if can_depart() and _looking_at_key():
+			depart()
+		elif seat_dir == 0 and _looking_at_door():
 			exit_local()
 		elif can_take_wheel():
 			take_wheel()
 		return
 	var zone := aim_zone()
-	if zone == "fuel":
+	if zone == "fuel" and escaped:
 		# заправка — только когда прицел на лючке бака
 		if fuel >= 0.9:
 			g.hud.toast("Бак полный")
@@ -155,9 +154,45 @@ func interact(g) -> void:
 		seat_local(s)
 
 
-## Кат-сцена отъезда. o — места [водитель, пассажир, сзади, сзади] (id игроков; без сети — [1, 0, 0, 0]).
-func escape(o := [1, 0, 0, 0]) -> void:
+## Ключ повернули в замке двери (промпт 20.11 11:58): машина открыта, но стоит на поляне —
+## можно сесть, пересесть, сложить вещи в багажник. Уехать — из-за руля, ключом зажигания (depart).
+func unlock() -> void:
 	if state != "idle":
+		return
+	state = "parked"
+	if ign_key:
+		ign_key.visible = true
+	if game:
+		game.play_at("click", door_world(0), -6.0, 0.8)
+		game.play_at("clunk", door_world(0), -10.0, 1.3)
+		game.hud.toast("Открыто. Сядь за руль и наведись на ключ зажигания", Color(0.75, 0.9, 0.6))
+
+
+## Водитель повернул ключ зажигания на поляне: кат-сцена отъезда. Места — кто где сидит;
+## остальные игроки (в сети) — на свободные места, как раньше.
+func depart() -> void:
+	if not can_depart():
+		return
+	var o: Array = seats.duplicate()
+	if game.net:
+		var ids: Array = game.net.players.keys()
+		ids.sort()
+		for id in ids:
+			if not id in o:
+				var k := o.find(0)
+				if k >= 0:
+					o[k] = id
+	if vnet():
+		vnet().rpc("v_escape", o)
+	else:
+		escape(o)
+
+
+## Кат-сцена отъезда. o — места [водитель, пассажир, сзади, сзади] (id игроков; без сети — [1, 0, 0, 0]).
+## Машина открыта и в ней сидят (промпт 20.11 11:58) — посадку пропускаем: люди уже на местах, сразу стартер.
+func escape(o := [1, 0, 0, 0]) -> void:
+	var inside := state == "parked" and not escaped
+	if state != "idle" and not inside:
 		return
 	order = o
 	state = "board"
@@ -165,9 +200,24 @@ func escape(o := [1, 0, 0, 0]) -> void:
 		ign_key.visible = true
 	t = 0.0
 	fuel = 0.0
+	lean = 0.0
+	if fuel_ui:
+		fuel_ui.visible = false
+	for n in wheel_hands:
+		if is_instance_valid(n):
+			n.visible = false
 	if game:
 		game.begin_escape()
-	# люди — модель игрока (car_figure.gd): каждый подходит к своей двери
+	if inside:
+		for i in 4:
+			door_want[i] = 0.0
+		# тела сидящих других игроков не показываем — вместо них фигуры (park_at вернёт)
+		if game and game.net:
+			for id in order:
+				var pp = game.net.puppets.get(id)
+				if pp != null and is_instance_valid(pp) and pp.model_root:
+					pp.model_root.visible = false
+	# люди — модель игрока (car_figure.gd): каждый подходит к своей двери (или уже сидит)
 	for i in 4:
 		if int(order[i]) == 0:
 			continue
@@ -177,7 +227,13 @@ func escape(o := [1, 0, 0, 0]) -> void:
 		f.position = _approach(i)
 		f.rotation.y = PI / 2.0 * float(DOORS[i][0])   # лицом к машине
 		f.wheel = i == 0
+		if inside:
+			f.position = Vector3(SEAT_HIP[i].x, FIG_HIP - f.HIP_Y * FIG_S, SEAT_HIP[i].z + 0.06)
+			f.rotation.y = PI
+			f.sit = 1.0
 		figures[i] = f
+	if inside:
+		state = "start"
 	# своё тело (стоит, где нажал E) в кат-сцене не показываем — вместо него идёт фигура
 	if game and game.player and game.player.model_root:
 		game.player.model_root.visible = false
@@ -263,7 +319,10 @@ func _process(delta: float) -> void:
 		# камера едет следом с отставанием — машина понемногу отрывается
 		cam.global_position = cam.global_position.lerp(_cam_want(CAM_OFF), 1.0 - exp(-1.2 * delta))
 		cam.look_at(_cam_look())
-		if t > 2.4 and not win_called:
+		# старый забор на выезде с поляны — проламываем носом (промпт 20.11 11:59)
+		if village:
+			village.fence_hit(global_transform * Vector3(0, 0.5, 2.1))
+		if t > 2.9 and not win_called:
 			win_called = true
 			if village:
 				village.stall_sequence(order.find(my_id()))

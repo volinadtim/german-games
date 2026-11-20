@@ -149,6 +149,10 @@ func seat_local(i: int, instant := false) -> void:
 func _driver_in() -> void:
 	if game:
 		game.drive_hands_hint()   # за рулём занята максимум одна рука (game_items.gd: driving)
+	if not escaped:
+		if game:
+			game.hud.toast("Ключ в зажигании — наведись на него и нажми F, чтобы уехать", Color(0.85, 0.85, 0.7))
+		return
 	if broken:
 		if game:
 			game.hud.toast("Машина сломана — почини молотком", Color(1.0, 0.6, 0.4))
@@ -266,6 +270,8 @@ func _seat_tick(delta: float) -> void:
 		_place_player(seat_eye_world(my_seat))
 		if lean > 0.5:
 			game.hud.prompt.call_deferred("Высунулся из окна — отпусти, чтобы сесть ровно")
+		elif can_depart() and not game.window_open() and (_looking_at_key() or not _looking_at_door()):
+			game.hud.prompt.call_deferred("[F] Повернуть ключ — уехать" if _looking_at_key() else "Ключ зажигания — справа от руля: наведись и нажми F")
 		elif game.focus == null and can_take_wheel() and not _looking_at_door():
 			game.hud.prompt.call_deferred("[F] Пересесть за руль")
 		elif game.focus == null and next_seat() >= 0 and not game.window_open():
@@ -274,7 +280,7 @@ func _seat_tick(delta: float) -> void:
 
 ## Шкала бензина внизу экрана, пока сидишь в машине (промпт 16.11 05:55).
 func _fuel_ui_tick() -> void:
-	var on := my_seat >= 0 and state == "parked" and game != null
+	var on := my_seat >= 0 and state == "parked" and escaped and game != null
 	if fuel_ui == null:
 		if not on:
 			return
@@ -362,6 +368,27 @@ func _wheel_vis(delta: float) -> void:
 func vis_yaw() -> float:
 	var z := global_transform.basis.z
 	return atan2(z.x, z.z)
+
+
+## Можно уехать с поляны: машина открыта, но ещё не уезжала, свой игрок сидит за рулём (промпт 20.11 11:58).
+func can_depart() -> bool:
+	return state == "parked" and not escaped and my_seat == 0 and seat_dir == 0 and game != null and game.alive
+
+
+## Водитель смотрит на ключ в замке зажигания (узкий конус от глаз).
+func _looking_at_key() -> bool:
+	if ign_key == null or game == null or game.player == null:
+		return false
+	var cam_: Camera3D = game.player.cam
+	var to: Vector3 = ign_key.global_position - cam_.global_position
+	if to.length() > 1.4:
+		return false
+	return (-cam_.global_transform.basis.z).angle_to(to) < deg_to_rad(13.0)
+
+
+## Уехать с поляны — кат-сцена отъезда (car.gd).
+func depart() -> void:
+	pass
 
 
 ## С переднего пассажирского — за руль, если водительское свободно (промпт 16.11 05:13).
@@ -470,6 +497,11 @@ func _free_seat_near(pos: Vector3) -> int:
 func _unhandled_input(e: InputEvent) -> void:
 	if my_seat < 0 or game == null or ctl_locked():
 		return
+	# повернуть ключ зажигания на поляне — уехать (промпт 20.11 11:58)
+	if e.is_action_pressed("interact") and not e.is_echo() and can_depart() and _looking_at_key() and not game.window_open():
+		depart()
+		get_viewport().set_input_as_handled()
+		return
 	# пересесть за руль — E, когда не смотришь на дверь (если луч попал в машину, это делает interact)
 	if e.is_action_pressed("interact") and not e.is_echo() and game.focus != self and can_take_wheel() 			and not _looking_at_door() and not game.window_open():
 		take_wheel()
@@ -507,7 +539,7 @@ func _drive_tick(delta: float) -> void:
 			thr = 0.0
 			st_in = 0.0
 			hand = false
-		if fuel <= 0.0 or broken:
+		if fuel <= 0.0 or broken or not escaped:   # на поляне — только ключом (car.gd depart)
 			thr = 0.0
 			if engine_on:
 				_engine(false)
@@ -991,6 +1023,12 @@ func repair_hit() -> void:
 ## Поставить машину (заглохшую) в точку: для деревни после кат-сцены и для загрузки.
 func park_at(p: Vector3, a: float) -> void:
 	escaped = true
+	if village:
+		village.fence_broken()   # старый забор на выезде с поляны остаётся проломанным
+	if game and game.net:
+		for pp in game.net.puppets.values():   # кат-сцена прятала сидящих (car.gd escape)
+			if is_instance_valid(pp) and pp.model_root:
+				pp.model_root.visible = true
 	if ign_key:
 		ign_key.visible = true
 	state = "parked"
@@ -1052,12 +1090,23 @@ func refuel() -> void:
 
 
 func to_save() -> Dictionary:
-	return {"escaped": escaped, "pos": [position.x, position.y, position.z], "yaw": yaw, "fuel": fuel, "hp": car_hp,
+	return {"escaped": escaped, "open": state == "parked" or escaped, "pos": [position.x, position.y, position.z], "yaw": yaw, "fuel": fuel, "hp": car_hp,
 		"seat": my_seat if seat_dir == 0 else -1, "trunk": trunk.contents.duplicate(true)}
 
 
 func from_save(d: Dictionary) -> void:
 	if not bool(d.get("escaped", false)):
+		# открыта ключом, но ещё на поляне (промпт 20.11 11:58)
+		if bool(d.get("open", false)) and state == "idle":
+			state = "parked"
+			if ign_key:
+				ign_key.visible = true
+			if game and game.inv.count("car_key") > 0:
+				game.inv.remove("car_key", game.inv.count("car_key"))
+			set_trunk(d.get("trunk", []))
+			var s0 := int(d.get("seat", -1))
+			if s0 >= 0 and s0 < 4:
+				seat_local.call_deferred(s0, true)
 		return
 	var a: Array = d.get("pos", [position.x, position.y, position.z])
 	var pz := float(a[2])

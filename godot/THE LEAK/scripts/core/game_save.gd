@@ -292,7 +292,7 @@ func load_state(d: Dictionary) -> void:
 	# сейвы до машины: сейф уже открыт, а ключа нигде нет — кладём его в сейф
 	if safe and safe.opened:
 		# машина уже уехала — ключ в её зажигании (car_drive.gd: from_save)
-		var has_key := inv.count("car_key") > 0 or bool(d.get("village", {}).get("car", {}).get("escaped", false))
+		var has_key := inv.count("car_key") > 0 or bool(d.get("village", {}).get("car", {}).get("escaped", false)) 				or bool(d.get("village", {}).get("car", {}).get("open", false))
 		for arr in [safe.contents, storage.contents if storage else [], d.get("floor", []).map(func(x): return [String(x.get("id", ""))])]:
 			for it in arr:
 				if String(it[0]) == "car_key":

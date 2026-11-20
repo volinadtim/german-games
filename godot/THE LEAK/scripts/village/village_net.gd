@@ -30,6 +30,14 @@ func v_escape(o: Array) -> void:
 		c.escape(o)
 
 
+## Машину открыли ключом (промпт 20.11 11:58): у всех она стоит открытая на поляне.
+@rpc("any_peer", "call_local", "reliable")
+func v_unlock() -> void:
+	var c = _car()
+	if c:
+		c.unlock()
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func v_seat(peer_id: int, idx: int) -> void:
 	var c = _car()

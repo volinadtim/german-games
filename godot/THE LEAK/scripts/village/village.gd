@@ -12,6 +12,8 @@ const BonusSlot := preload("res://scripts/village/bonus_slot.gd")
 const Mutant := preload("res://scripts/village/mutant.gd")
 const VillageShop := preload("res://scripts/village/village_shop.gd")
 const ChestScript := preload("res://scripts/world/chest.gd")
+const OldFence := preload("res://scripts/village/old_fence.gd")
+var fence                            # old_fence.gd — забор на выезде с поляны (проламывает машина)
 
 var game                             # game.gd
 var car                              # car.gd
@@ -66,6 +68,10 @@ func _ready() -> void:
 	_ground()
 	_road()
 	_bounds()
+	fence = OldFence.new()
+	fence.name = "OldFence"
+	add_child(fence)
+	fence.build(self, ROAD_X)
 	var first := get_child_count()
 	_basement_house()
 	for h in HOUSES:
@@ -350,8 +356,26 @@ func _process(delta: float) -> void:
 		marker.text = "▼\n%d м" % int(game.player.global_position.distance_to(mp))
 
 
+## Кат-сцена отъезда (car.gd): нос машины дошёл до старого забора — проламываем (один раз).
+func fence_hit(front: Vector3) -> void:
+	if fence == null or fence.broken or front.z < OldFence.Z - 0.1:
+		return
+	fence.smash()
+	if game:
+		var p := Vector3(front.x, G + 0.6, OldFence.Z)
+		game.play_at("thud", p, 0.0, 0.7)
+		game.play_at("clunk", p, -2.0, 0.55)
+		game.play_at("creak", p, -6.0, 1.7)
+
+
+## Забор уже проломан (машина уехала: после кат-сцены и при загрузке).
+func fence_broken() -> void:
+	if fence and not fence.broken:
+		fence.set_broken()
+
+
 func _can_reveal() -> bool:
-	if car and (car.state != "idle" or car.escaped):
+	if car and (car.state in ["board", "start", "drive", "done"] or car.escaped):
 		return true
 	# до первой посадки в машину о деревне ни слова (промпт 16.11 02:18); пешком — видна вблизи
 	return game.player.global_position.z > VZ0 - 160.0
