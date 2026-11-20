@@ -58,6 +58,7 @@ var fresh2 := false          # вещей игрока 2 нет в сейве �
 var dead_t := 0.0
 var can_was := false
 var mirrored := true
+var cine2 := true            # HUD игрока 2 в режиме кат-сцены
 var sweep_t := 0.0
 var head_paths: Array = []
 var head_paths2: Array = []
@@ -970,7 +971,7 @@ func _process(delta: float) -> void:
 	# кат-сцена, машина и т.п. (камера не игрока 1) — у обоих одно и то же
 	var was := mirrored
 	# кат-сцена на камере игрока 1 (пробуждение, монстрик, магазин) — тоже у обоих
-	mirrored = src != p1.cam or _in_cut()
+	mirrored = src != p1.cam or (_in_cut() and not _p2_intro())
 	if mirrored:
 		_copy_cam(cams[1], src, HEAD2 if own2 else HEAD1)
 	else:
@@ -981,8 +982,10 @@ func _process(delta: float) -> void:
 	var g1 = game.get("hud")
 	if g1:
 		hud_p2.minimal = g1.minimal
-	if mirrored != was:
-		hud_p2.set_cinematic(mirrored)
+	var cine := mirrored or _p2_intro()
+	if cine != cine2:
+		cine2 = cine
+		hud_p2.set_cinematic(cine)
 	if ui_p2 and not game.window_open():
 		_own_ui(false)
 	if alive and not mirrored and not ui_p2 and _dev() >= 0:
@@ -1008,6 +1011,12 @@ func _in_cut() -> bool:
 		if is_instance_valid(n) and n.is_inside_tree() and n.can_skip():
 			return true
 	return false
+
+
+## Игрок 2 сам проходит пробуждение/записку вступления (intro.gd p2_own) — своя камера, не зеркало игрока 1.
+func _p2_intro() -> bool:
+	var it = game.get_node_or_null("Intro")
+	return it != null and it.has_method("p2_own") and it.p2_own()
 
 
 ## Чей персонаж в идущей кат-сцене (свойство pl у кат-сцены, напр. shop_cue.gd); null — игрока 1.

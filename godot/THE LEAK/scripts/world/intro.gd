@@ -79,6 +79,14 @@ var done := false
 var keep_t := 0.0
 var actor                # кто выглядывает в кат-сцене у проёма (сплитскрин: любой из двух игроков)
 var new_run := false     # новая игра (стартовые наборы на полу)
+const HEAD1_L := 1 << 19 # слои голов split.gd HEAD1/HEAD2
+const HEAD2_L := 1 << 18
+var p2                   # сплитскрин: игрок 2 сам просыпается и читает записку (place_p2)
+var p2_stage := ""       # "wake" → "note" → ""
+var p2_t := 0.0
+var p2_note: Node3D
+var p2_tossed := false
+var body_layers := {}    # GeometryInstance3D → прежние слои (тело на время пробуждения)
 
 
 func _net():
@@ -102,6 +110,8 @@ func skip_cut() -> void:
 			groaned = true
 			stood = true
 			t = WAKE_T
+			if p2_stage == "wake":
+				p2_t = WAKE_T
 		"cut":
 			held = true
 			exhaled = true
@@ -191,13 +201,126 @@ func _starter_kit(sp := -1) -> void:
 
 ## Сплитскрин (network/split.gd _spawn_p2): игрок 2 в новой игре встаёт на второе место этой же комнаты, рядом — его набор.
 func place_p2(pl, fresh: bool) -> void:
-	if not new_run:
+	if new_run:
+		pl.global_position = SPOTS[1][0]
+		pl.rotation.y = float(SPOTS[1][1])
+		pl.velocity = Vector3.ZERO
+		if fresh:
+			_starter_kit(1)
+	if stage != "wake" or t >= WAKE_T:
 		return
-	pl.global_position = SPOTS[1][0]
-	pl.rotation.y = float(SPOTS[1][1])
-	pl.velocity = Vector3.ZERO
-	if fresh:
-		_starter_kit(1)
+	# своё пробуждение на своём месте: камера у пола, тело лежит и встаёт, потом записка
+	p2 = pl
+	p2_stage = "wake"
+	p2_t = t
+	pl.set_lock("intro", true)
+	pl.cinematic_stance(true)
+	pl.head.rotation.x = 0.0
+	if pl.has_method("start_wake"):
+		pl.start_wake()
+		pl.set("wake_t", t)
+	# тела не прячем, а убираем со своей камеры (слой головы) — другой игрок видит, как он лежит и встаёт
+	_body_to_layer(hidden, HEAD1_L)
+	hidden.clear()
+	var mine: Array = []
+	for c in pl.get_children():
+		if c is Node3D and c != pl.head and not c is CollisionShape3D and (c as Node3D).visible:
+			mine.append(c)
+	_body_to_layer(mine, HEAD2_L)
+	_wake_pose(t, pl)
+
+
+## Сплитскрин: тело (узлы nodes) — только на слое головы (split.gd HEAD1/HEAD2): своя камера не видит, чужая видит.
+func _body_to_layer(nodes: Array, layer: int) -> void:
+	for c in nodes:
+		if not is_instance_valid(c):
+			continue
+		(c as Node3D).visible = true
+		var ms: Array = c.find_children("*", "GeometryInstance3D", true, false)
+		if c is GeometryInstance3D:
+			ms.append(c)
+		for m in ms:
+			if m.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY or (m.layers & (HEAD1_L | HEAD2_L)) != 0:
+				continue   # голова — её слоем управляет split.gd _heads
+			if not body_layers.has(m):
+				body_layers[m] = m.layers
+			m.layers = layer
+
+
+## Вернуть слои тела игрока pl после пробуждения.
+func _restore_layers(pl) -> void:
+	if not is_instance_valid(pl):
+		return
+	for m in body_layers.keys():
+		if not is_instance_valid(m):
+			body_layers.erase(m)
+		elif pl.is_ancestor_of(m):
+			m.layers = body_layers[m]
+			body_layers.erase(m)
+
+
+## Сплитскрин: пробуждение и записка игрока 2 на его месте (своя камера, своё тело).
+func _p2_tick(delta: float) -> void:
+	if not is_instance_valid(p2):
+		p2_stage = ""
+		return
+	p2_t += delta
+	if p2_stage == "wake":
+		_wake_pose(p2_t, p2)
+		if p2_t >= WAKE_T:
+			_p2_end_wake()
+	elif p2_stage == "note":
+		_note_pose(p2_t, p2, p2_note)
+		if p2_t >= NOTE_TOSS and not p2_tossed:
+			p2_tossed = true
+			if is_instance_valid(p2_note):
+				p2_note.queue_free()
+			p2_note = null
+			_drop_note(p2)
+		if p2_t >= NOTE_T:
+			_p2_free()
+
+
+## Игрок 2 встал: в новой игре — записка в руке, иначе управление сразу.
+func _p2_end_wake() -> void:
+	_wake_pose(WAKE_T, p2)
+	if p2.has_method("end_wake"):
+		p2.end_wake()
+	_restore_layers(p2)
+	if not new_run:
+		_p2_free()
+		return
+	p2_stage = "note"
+	p2_t = 0.0
+	p2_tossed = false
+	p2.head.rotation.x = 0.0
+	p2_note = _note_mesh()
+	p2.cam.add_child(p2_note)
+	_note_pose(0.0, p2, p2_note)
+	_paper(-14.0, 1.05, p2)
+
+
+## Конец вступления игрока 2: камера в глаза, управление ему.
+func _p2_free() -> void:
+	if is_instance_valid(p2_note):
+		p2_note.queue_free()
+	p2_note = null
+	p2_stage = ""
+	if not is_instance_valid(p2):
+		return
+	_restore_layers(p2)
+	if p2.has_method("end_wake"):
+		p2.end_wake()
+	p2.cam.position = Vector3.ZERO
+	p2.cam.rotation = Vector3.ZERO
+	p2.head.rotation.x = 0.0
+	p2.set_lock("intro", false)
+	p2.cinematic_stance(false)
+
+
+## split.gd: у игрока 2 своя камера, пока он сам просыпается/читает записку (кат-сцену у проёма видят оба).
+func p2_own() -> bool:
+	return p2_stage != "" and stage != "cut" and stage != "cue"
 
 
 ## Кто может подойти к проёму и запустить кат-сцену: игрок 1 и живой игрок 2 сплитскрина.
@@ -252,6 +375,8 @@ func _process(delta: float) -> void:
 		_finish()
 		return
 	_hint_tick(delta)
+	if p2_stage != "":
+		_p2_tick(delta)
 	match stage:
 		"wake":
 			_wake_pose(t)
@@ -354,8 +479,10 @@ func _process(delta: float) -> void:
 
 
 ## Поза «просыпается»: камера у пола, голова завалена набок → садится → встаёт; веки моргают (fade).
-func _wake_pose(tt: float) -> void:
-	var p = game.player
+func _wake_pose(tt: float, p = null) -> void:
+	var own: bool = p == null
+	if own:
+		p = game.player
 	var poses := [
 		[Vector3(0, -1.08, 0.42), Vector3(-0.42, 0.28, 0.24)],   # полулёжа, голова к плечу
 		[Vector3(0, -1.04, 0.40), Vector3(-0.3, -0.18, 0.16)],   # огляделся
@@ -369,6 +496,8 @@ func _wake_pose(tt: float) -> void:
 	var rot: Vector3 = (poses[0][1] as Vector3).lerp(poses[1][1], k1).lerp(poses[2][1], k2).lerp(poses[3][1], k3)
 	p.cam.position = pos
 	p.cam.rotation = rot
+	if not own:
+		return   # веки (fade) — общие, их ведёт игрок 1
 	# веки: темно → приоткрыл → моргнул → открыл → моргнул → открыл
 	var a := 1.0
 	if tt < 0.7:
@@ -401,6 +530,7 @@ func _end_wake() -> void:
 	_wake_pose(WAKE_T)
 	if game.player.has_method("end_wake"):
 		game.player.end_wake()
+	_restore_layers(game.player)
 	for c in hidden:
 		if is_instance_valid(c):
 			(c as Node3D).visible = true
@@ -456,11 +586,14 @@ func _end_note() -> void:
 
 
 ## Поза руки с запиской в осях камеры: поднял → читает (лёгкая дрожь) → замах → бросок.
-func _note_pose(tt: float) -> void:
-	var p = game.player
+func _note_pose(tt: float, p = null, nt: Node3D = null) -> void:
+	var own: bool = p == null
+	if own:
+		p = game.player
+		nt = note
 	var up := smoothstep(0.0, 0.55, tt)            # рука быстро поднимает записку в кадр
 	var away := smoothstep(1.5, NOTE_TOSS, tt)     # отвёл в сторону перед броском
-	if note and is_instance_valid(note):
+	if nt and is_instance_valid(nt):
 		var low := Vector3(0.26, -0.44, -0.55)
 		var read := Vector3(0.015, -0.055, -0.3)
 		var side_pos := Vector3(-0.26, -0.16, -0.42)
@@ -472,12 +605,12 @@ func _note_pose(tt: float) -> void:
 		var shake := (1.0 - away) * up * 0.004
 		pos += Vector3(sin(tt * 7.3), cos(tt * 5.1), 0.0) * shake
 		rot.z += sin(tt * 4.3) * shake * 3.0
-		note.position = pos
-		note.rotation = rot
+		nt.position = pos
+		nt.rotation = rot
 	# голова чуть опущена к записке, к концу — обратно
 	var look := up * (1.0 - smoothstep(NOTE_TOSS, NOTE_T - 0.25, tt))
 	p.head.rotation.x = lerpf(0.0, -0.24, look)
-	if tt >= NOTE_TOSS and not note_tossed:
+	if own and tt >= NOTE_TOSS and not note_tossed:
 		_toss_note()
 
 
@@ -485,10 +618,14 @@ func _note_pose(tt: float) -> void:
 ## колбасило и ставило на ребро; тонкий листок обязан лежать плашмя).
 func _toss_note() -> void:
 	note_tossed = true
-	var p = game.player
 	if note and is_instance_valid(note):
 		note.queue_free()
 		note = null
+	_drop_note(game.player)
+
+
+## Бумажка из руки игрока p слетает на пол (игрок 1 или игрок 2 сплитскрина).
+func _drop_note(p) -> void:
 	var fwd: Vector3 = -p.cam.global_transform.basis.z
 	fwd.y = 0.0
 	fwd = fwd.normalized() if fwd.length() > 0.01 else Vector3.FORWARD
@@ -511,7 +648,7 @@ func _toss_note() -> void:
 	var mv := n.create_tween()
 	mv.tween_property(n, "global_position", mid, 0.38).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	mv.tween_property(n, "global_position", land, 0.44).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	_paper(-12.0, 0.9)
+	_paper(-12.0, 0.9, p)
 
 
 ## Пол под точкой падения записки (луч вниз); если не нашёл — высота ног игрока.
@@ -567,8 +704,9 @@ static func _note_font() -> SystemFont:
 
 
 ## Шорох бумаги в руке.
-func _paper(db: float, pitch: float) -> void:
-	var p = game.player
+func _paper(db: float, pitch: float, p = null) -> void:
+	if p == null:
+		p = game.player
 	var pl := AudioStreamPlayer3D.new()
 	pl.stream = _paper_snd()
 	pl.volume_db = db
@@ -825,6 +963,8 @@ func _on_crawler_died(_e) -> void:
 
 
 func _finish() -> void:
+	_p2_free()
+	_restore_layers(game.player)
 	_end_side_cam()
 	if note and is_instance_valid(note):
 		note.queue_free()
