@@ -15,6 +15,8 @@ const ST_ON := 0.55           # стик: отклонение для шага �
 const REP_DELAY := 0.32       # направление держат — повтор
 const REP_T := 0.1
 const SAME_PX := 24.0         # клетка на прежнем месте (окно перестроилось) — та же
+const MOUSE_OFF_PX := 40.0    # настоящая мышь проехала столько — рамку прячем, курсор возвращаем
+const PAD_QUIET_MS := 400     # после кнопки / стика геймпада столько мс движения мыши не считаем (Steam / драйвер дублирует стик мышью)
 const FRAME_COL := Color(1.0, 0.82, 0.3)
 const PAD_HINT := "Крестовина / правый стик — клетка  ·  %s — взять / положить (держать + стрелки — перетащить)  ·  %s — действия  ·  %s — использовать  ·  %s — крафт  ·  %s + стрелка — в слот  ·  %s — курсор"
 const Split := preload("res://scripts/network/split.gd")
@@ -29,6 +31,8 @@ var trect := Rect2()           # её прямоугольник в target (яч
 var last_pt := Vector2(-1, -1) # центр последней клетки (холст)
 var _hist: Array = []          # прежние центры клеток (новые в конце) — вернуться после закрытия подменю
 var _warp_ms := 0              # когда геймпад двигал мышь (её «настоящие» движения после warp не считаем)
+var _pad_ms := -100000         # последний ввод с геймпада / стрелок: мышь сразу после него — не «пользователь взял мышь»
+var _mouse_acc := 0.0          # сколько пикселей проехала настоящая мышь подряд (дрожание и сдвиг на 1–2 px не считаем)
 var _layer: CanvasLayer
 var _frame: Control
 var _hold := Vector2.ZERO      # направление, зажатое на геймпаде (ui_* от gamepad.gd) — повтор
@@ -76,7 +80,10 @@ func _input(e: InputEvent) -> void:
 		if e.pressed:
 			pad_used = true
 			by_kb = false
+			_pad_input()
 	elif e is InputEventJoypadMotion:
+		if absf(e.axis_value) > 0.25:
+			_pad_input()
 		if absf(e.axis_value) > 0.5:
 			pad_used = true
 			by_kb = false
@@ -87,8 +94,7 @@ func _input(e: InputEvent) -> void:
 			if e.pressed:
 				_key(e)
 		elif e is InputEventMouseMotion:
-			if Time.get_ticks_msec() - _warp_ms > 150 and e.relative.length() > 3.0:
-				_off()
+			_mouse_moved(e.relative)
 		elif e is InputEventMouseButton:
 			if e.pressed:
 				_off()
@@ -96,6 +102,24 @@ func _input(e: InputEvent) -> void:
 				_drop_mouse_focus.call_deferred()
 		elif e is InputEventScreenTouch:
 			_off()
+
+
+## Был ввод с геймпада / стрелок — недавние движения мыши не считаем.
+func _pad_input() -> void:
+	_pad_ms = Time.get_ticks_msec()
+	_mouse_acc = 0.0
+
+
+## Настоящая мышь сдвинулась: рамку убираем, только если её явно повели (не warp, не дрожание, не стик через Steam).
+func _mouse_moved(rel: Vector2) -> void:
+	var now := Time.get_ticks_msec()
+	if now - _warp_ms < 150 or now - _pad_ms < PAD_QUIET_MS:
+		_mouse_acc = 0.0
+		return
+	_mouse_acc += rel.length()
+	if _mouse_acc > MOUSE_OFF_PX:
+		_mouse_acc = 0.0
+		_off()
 
 
 ## Окно / меню открыто и не ждём клавишу в «Управлении».
@@ -154,6 +178,7 @@ func _key(e: InputEventKey) -> void:
 	get_viewport().set_input_as_handled()
 	pad_used = true
 	by_kb = true
+	_pad_input()
 	if enter:
 		cursor_mode = false
 		if not e.is_echo() and _valid(target):
@@ -192,9 +217,10 @@ func toggle_cursor(kb: bool) -> void:
 
 
 ## Открыт выпадающий список / всплывающее окно Godot (OptionButton) — у него своя навигация (ui_up / ui_accept).
+## Подсказку (tooltip) не считаем: она всплывает, когда рамка ставит мышь на кнопку, и раньше глушила стрелки.
 func popup_open() -> bool:
 	for w in get_tree().root.get_embedded_subwindows():
-		if w.visible:
+		if w.visible and not w.get_flag(Window.FLAG_NO_FOCUS) and not w.get_flag(Window.FLAG_MOUSE_PASSTHROUGH):
 			return true
 	return false
 
