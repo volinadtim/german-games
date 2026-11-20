@@ -10,13 +10,10 @@ values = {
 "BLEED_TIME": 10.0,
 "CHEST_AVOID": [[Vector3(-6, 0, 8.5), 1.9], [Vector3(-4.05, 0, 8.5), 1.7], [Vector3(-11.5, 0, 5.6), 1.4], [Vector3(-2.75, 0, 7.75), 1.2], [Vector3(-2.4, 0, -5.4), 1.2], [Vector3(-1.35, 0, 8.55), 1.2], [Vector3(-10.8, 0, -4.3), 1.8], [Vector3(-7.7, 0, -7.7), 1.5], [Vector3(-8.6, 0, -2.9), 1.4], [Vector3(-10.6, 0, -6), 1.4], [Vector3(-6.95, 0, 8.66), 1.0], [Vector3(-10.5, 0, 0), 1.5], [Vector3(-6, 0, -1.6), 1.6], [Vector3(-6, 0, 1.6), 1.6], [Vector3(6, 0, -1.6), 1.6], [Vector3(6, 0, 1.6), 1.6], [Vector3(0, 0, 5.5), 1.6], [Vector3(-8.5, 0, 5.5), 1.0], [Vector3(8.5, 0, 5.5), 1.0], [Vector3(-10, 0, -7.5), 1.4], [Vector3(-3, 0, -4), 1.4], [Vector3(2.5, 0, -7.8), 1.4], [Vector3(10, 0, -3.5), 1.4], [Vector3(-10.5, 0, 8), 1.4], [Vector3(-2.5, 0, 3.5), 1.4], [Vector3(3, 0, 8), 1.4], [Vector3(10.8, 0, 3.5), 1.4], [Vector3(11, 0, -6.8), 1.4], [Vector3(-5.5, 0, -8.3), 1.6], [Vector3(7.5, 0, 8.2), 1.5]],
 "CRASH_SAVE": 30.0,
-"ENEMY_SPOTS": [Vector3(28, 4.1, 7), Vector3(36, 4.1, -6), Vector3(40, 4.1, 4), Vector3(31, 4.1, -10)],
 "FAST_SHARE": 0.4,
 "OUT_JARS_MAX": 4,
 "OUT_JAR_EVERY": 25.0,
 "REPAIR_PART": 0.5,
 "RESPAWN": 75.0,
-"RUINS": [Vector3(26, 0, -9), Vector3(38, 0, 7), Vector3(35, 0, -12), Vector3(24, 0, 9), Vector3(42, 0, -3)],
-"STONE_BUNKER": [Vector3(-9.2, 0, -6.8), Vector3(3.3, 0, -7.1), Vector3(10.1, 0, 2.9)],
-"STONE_SURFACE": [Vector3(27.8, 0, -9.5), Vector3(36.6, 0, 8.6), Vector3(42.5, 0, -1.2)]
+"RUINS": [Vector3(26, 0, -9), Vector3(38, 0, 7), Vector3(35, 0, -12), Vector3(24, 0, 9), Vector3(42, 0, -3)]
 }

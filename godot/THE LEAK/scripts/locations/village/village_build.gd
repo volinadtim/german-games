@@ -36,8 +36,9 @@ const VZ1 := 392.0
 const V_HALF := 26.0                 # полуширина ровной площадки деревни (от ROAD_X)
 
 ## Машина глохнет здесь (car.gd): на улице деревни, водительская дверь (+X) смотрит на дом с подвалом.
-const STALL := Vector3(32.2, G, 332.0)
-const STALL_YAW := 0.0
+const Places := preload("res://scripts/world/places.gd")
+static var STALL: Vector3 = Places.pos("village", "Stall")   # метка в scenes/locations/village.tscn
+static var STALL_YAW: float = Places.yaw("village", "Stall")
 
 ## Дом с подвалом (H0): участок x 37..45, z 334..342 (по сетке земли — под ним дыра).
 const H0 := Rect2(37.0, 334.0, 8.0, 8.0)
@@ -50,9 +51,9 @@ const ST_Z0 := 335.5
 const ST_LEN := 4.8
 const ROOM := Rect2(35.5, 340.3, 11.5, 10.7)   # подвал: x 35.5..47, z 340.3..351
 ## Где стоит автомат-«бонусник» в подвале (передом на юг, к лестнице)
-const SLOT_POS := Vector3(41.2, B, 350.35)
+static var SLOT_POS: Vector3 = Places.pos("village", "CashyBox")
 ## Второй Trinkets Market — справа от автомата (как в бункере)
-const SHOP_POS := Vector3(43.25, B, 350.55)
+static var SHOP_POS: Vector3 = Places.pos("village", "VillageShop")
 
 ## Остальные дома: [центр x, центр z, ширина (X), глубина (Z), сторона двери (+1 — дверь на +X)]
 const HOUSES := [

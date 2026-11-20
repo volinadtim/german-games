@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/locations/bunker/level.gd" id="1_dj1bc"]
+
+[node name="BunkerLevel" type="Node3D" unique_id=879665606]
+script = ExtResource("1_dj1bc")

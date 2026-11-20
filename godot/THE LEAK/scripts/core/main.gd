@@ -9,9 +9,11 @@ const SlotMachine := preload("res://scripts/slot/slot_machine.gd")
 const TouchControls := preload("res://scripts/ui/touch_controls.gd")   # экранное управление (телефон)
 
 ## Меню: неподвижная камера под углом к игровому автомату KILLBOX (он стоит в юго-западной комнате).
-const SLOT_POS := Vector3(-6.0, 0.0, 8.5)
-const MENU_CAM_POS := Vector3(-5.0, 1.5, 6.3)    # с другой стороны автомата — магазин не в кадре
-const MENU_CAM_LOOK := Vector3(-7.45, 1.35, 8.2)
+## Места — метки в scenes/locations/bunker.tscn (KillBox, Shop, MenuCam, MenuCamLook, PlayerStart).
+const Places := preload("res://scripts/world/places.gd")
+static var SLOT_POS: Vector3 = Places.pos("bunker", "KillBox")
+static var MENU_CAM_POS: Vector3 = Places.pos("bunker", "MenuCam")    # с другой стороны автомата — магазин не в кадре
+static var MENU_CAM_LOOK: Vector3 = Places.pos("bunker", "MenuCamLook")
 
 var menu_cam: Camera3D
 var menu_bg: CanvasLayer          # фон главного меню (ui/menu_scene.gd), убирается при входе в игру
@@ -36,10 +38,10 @@ func _ready() -> void:
 	add_child(Ambience.new())
 
 	# игровой автомат — часть сцены меню (фон), в игре game.gd берёт его же
-	slot = SlotMachine.new()
+	slot = preload("res://scenes/props/killbox.tscn").instantiate()
 	slot.name = "SlotMachine"
 	slot.position = SLOT_POS
-	slot.rotation.y = PI
+	slot.rotation.y = Places.yaw("bunker", "KillBox")
 	add_child(slot)
 	# доска выплат в главном меню не видна — появляется, когда начинается игра
 	slot_board = _find_board()
@@ -49,10 +51,10 @@ func _ready() -> void:
 		slot_board.rotation.y = 0.0
 		slot_board.position.z = SlotMachine.BOARD_POS.z - 0.072
 	# магазин оружия — слева от автомата (если смотреть на автомат)
-	var shop := preload("res://scripts/shop/shop.gd").new()
+	var shop: Node3D = preload("res://scenes/props/shop.tscn").instantiate()
 	shop.name = "Shop"
-	shop.position = SLOT_POS + Vector3(1.95, 0.0, 0.0)
-	shop.rotation.y = PI
+	shop.position = Places.pos("bunker", "Shop")
+	shop.rotation.y = Places.yaw("bunker", "Shop")
 	add_child(shop)
 
 	menu_cam = Camera3D.new()
@@ -156,8 +158,8 @@ func _enter_game() -> void:
 		slot_board.visible = true
 	menu.in_game = true
 	player = Player.new()
-	player.position = Vector3(-10.5, 0.05, 0.0)
-	player.rotation.y = -PI / 2.0
+	player.position = Places.pos("bunker", "PlayerStart")
+	player.rotation.y = Places.yaw("bunker", "PlayerStart")
 	add_child(player)
 	player.cam.current = true
 	player.active = true

@@ -19,8 +19,9 @@ const HUT_H := 2.4                     # высота будки над земл
 ## прямоугольник будки (x0, x1, z0, z1) — враги туда не заходят
 const HUT := Rect2(14.4, -2.2, 7.0, 4.4)
 ## старая машина (car.gd): к северо-востоку от выхода из будки, между руинами; перед — по CAR_YAW
-const CAR_POS := Vector3(31.0, G, 9.5)
-const CAR_YAW := 0.35
+const Places := preload("res://scripts/world/places.gd")
+static var CAR_POS: Vector3 = Places.pos("bunker", "CarPark")   # метка в scenes/locations/bunker.tscn
+static var CAR_YAW: float = Places.yaw("bunker", "CarPark")
 const CAR_R := 3.0                     # радиус, где не ставим кувшины и арматуру
 
 var level: Node3D

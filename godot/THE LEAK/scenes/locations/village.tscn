@@ -1,0 +1,33 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/prop_spot.gd" id="1_yrs0h"]
+
+[node name="Village" type="Node3D" unique_id=98279895]
+
+[node name="Preview" type="Marker3D" parent="." unique_id=856338380]
+script = ExtResource("1_yrs0h")
+preview = "res://scenes/locations/preview/village.scn"
+note = "превью места в редакторе (в игре не создаётся)"
+
+[node name="CashyBox" type="Marker3D" parent="." unique_id=259358543]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 41.2, 0.6, 350.35)
+script = ExtResource("1_yrs0h")
+preview = "res://scenes/props/preview/cashy_box.tscn"
+note = "автомат CASHY BOX"
+
+[node name="VillageShop" type="Marker3D" parent="." unique_id=1816892278]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 43.25, 0.6, 350.55)
+script = ExtResource("1_yrs0h")
+preview = "res://scenes/props/preview/village_shop.tscn"
+note = "Trinkets Market деревни"
+
+[node name="VillageStorage" type="Marker3D" parent="." unique_id=209175177]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 38.9, 0.6, 350.6)
+script = ExtResource("1_yrs0h")
+preview = "res://scenes/props/preview/storage.tscn"
+note = "сундук-хранилище деревни"
+
+[node name="Stall" type="Marker3D" parent="." unique_id=1538927347]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.2, 4, 332)
+script = ExtResource("1_yrs0h")
+note = "место, где глохнет машина (въезд в деревню, /tp деревня)"

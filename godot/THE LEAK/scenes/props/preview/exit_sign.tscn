@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p10br"]
+albedo_color = Color(0.78, 0.62, 0.18, 1)
+metallic = 0.3
+roughness = 0.75
+
+[sub_resource type="BoxMesh" id="BoxMesh_lybx8"]
+size = Vector3(1.5, 0.56, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_3vqrp"]
+albedo_color = Color(0.12, 0.1, 0.08, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_harnw"]
+size = Vector3(1.56, 0.62, 0.012)
+
+[sub_resource type="ViewportTexture" id="ViewportTexture_80sdo"]
+
+[node name="ExitSignPreview" type="Node3D" unique_id=1080108650]
+
+[node name="_MeshInstance3D_2971" type="MeshInstance3D" parent="." unique_id=605100024]
+material_override = SubResource("StandardMaterial3D_p10br")
+mesh = SubResource("BoxMesh_lybx8")
+
+[node name="_MeshInstance3D_2972" type="MeshInstance3D" parent="." unique_id=509464746]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.006)
+material_override = SubResource("StandardMaterial3D_3vqrp")
+mesh = SubResource("BoxMesh_harnw")
+
+[node name="_Sprite3D_2973" type="Sprite3D" parent="." unique_id=443626997]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.48, 0, 0.012)
+pixel_size = 0.00328125
+shaded = true
+texture = SubResource("ViewportTexture_80sdo")
+
+[node name="_Label3D_2976" type="Label3D" parent="." unique_id=1421927174]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.24, 0, 0.013)
+pixel_size = 0.0034
+shaded = true
+double_sided = false
+modulate = Color(0.1, 0.07, 0.05, 1)
+text = "ТОЛЬКО
+В ПРОТИВОГАЗЕ"
+font_size = 56
+outline_size = 0
+width = 900.0

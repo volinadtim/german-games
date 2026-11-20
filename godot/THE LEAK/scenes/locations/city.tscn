@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/prop_spot.gd" id="1_08r37"]
+
+[node name="City" type="Node3D" unique_id=1117405232]
+
+[node name="Preview" type="Marker3D" parent="." unique_id=1939541151]
+script = ExtResource("1_08r37")
+preview = "res://scenes/locations/preview/city.scn"
+note = "превью места в редакторе (в игре не создаётся)"
+
+[node name="CityShop" type="Marker3D" parent="." unique_id=767446984]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 22, 4, 1407)
+script = ExtResource("1_08r37")
+preview = "res://scenes/props/preview/city_shop.tscn"
+note = "Trinkets Market города"
+
+[node name="Radiation" type="Marker3D" parent="." unique_id=678846499]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 51, 4, 1407)
+script = ExtResource("1_08r37")
+preview = "res://scenes/props/preview/radiation.tscn"
+note = "автомат РАДИАЦИЯ"
+
+[node name="CarPark" type="Marker3D" parent="." unique_id=900965832]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 4, 1406)
+script = ExtResource("1_08r37")
+preview = "res://scenes/props/preview/car.tscn"
+note = "где встаёт машина"

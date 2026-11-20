@@ -39,7 +39,7 @@ var mut_seq := 0
 var shop                             # village_shop.gd — второй Trinkets Market в подвале
 ## Свой сундук во втором бункере (подвале) — отдельный от сундука первого (промпт 18.11 00:47), в сейве village.storage
 var storage                          # chest.gd (kind "storage")
-const STORAGE_POS := Vector3(38.9, B, 350.6)   # у южной стены, слева от «ФОРТУНЫ»
+static var STORAGE_POS: Vector3 = Places.pos("village", "VillageStorage")   # у южной стены, слева от «ФОРТУНЫ»
 ## Деревню не видно, пока туда нельзя уехать (промпт 16.11 00:17): дома, подвал, автомат, мутанты спрятаны
 ## до ключа от машины / отъезда / подхода к деревне пешком. Земля и дорога видны всегда.
 var revealed := false
@@ -98,20 +98,21 @@ func _ready() -> void:
 		var r := Rect2(float(h[0]) - float(h[2]) / 2.0, float(h[1]) - float(h[3]) / 2.0, float(h[2]), float(h[3]))
 		loot_spots.append(_house(r, float(h[4])))
 	_props()
-	bonus_slot = BonusSlot.new()
+	bonus_slot = preload("res://scenes/props/cashy_box.tscn").instantiate()
+	bonus_slot.name = "CashyBox"
 	bonus_slot.position = SLOT_POS
-	bonus_slot.rotation.y = PI
+	bonus_slot.rotation.y = Places.yaw("village", "CashyBox")
 	add_child(bonus_slot)
-	shop = VillageShop.new()
+	shop = preload("res://scenes/props/village_shop.tscn").instantiate()
 	shop.name = "VillageShop"
 	shop.position = SHOP_POS
-	shop.rotation.y = PI
+	shop.rotation.y = Places.yaw("village", "VillageShop")
 	add_child(shop)
-	storage = ChestScript.new()
+	storage = preload("res://scenes/props/chest.tscn").instantiate()
 	storage.name = "VillageStorage"
 	storage.kind = "storage"
 	storage.position = STORAGE_POS
-	storage.rotation.y = PI
+	storage.rotation.y = Places.yaw("village", "VillageStorage")
 	add_child(storage)
 	for k in range(first, get_child_count()):
 		var n := get_child(k)

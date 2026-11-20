@@ -1,6 +1,7 @@
 extends Node3D
 # Часть game.gd: константы, состояние, звуки, клавиши.
 const _D_GAME := preload("res://data/balance/game.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const Places := preload("res://scripts/world/places.gd")   # расстановка — scenes/locations/*.tscn
 const Player := preload("res://scripts/player/player.gd")
 const Hud := preload("res://scripts/ui/hud.gd")
 const Inventory := preload("res://scripts/items/inventory.gd")
@@ -51,12 +52,12 @@ const USE_SLOTS := true
 const USE_FLASHLIGHT := true
 
 var MAX_HP := 100.0   # растёт от атрибута «Здоровье» (systems/levels.gd)
-const START := Vector3(-10.5, 0.05, 0.0)
+static var START: Vector3 = Places.pos("bunker", "PlayerStart")
 ## манекен и сундук — в комнате с KILLBOX слева от магазина (shop.gd у main.gd: x −4.05, z 8.5)
-const DUMMY_POS := Vector3(-2.75, 0.0, 7.75)
-const STORAGE_POS := Vector3(-1.35, 0.0, 8.55)
+static var DUMMY_POS: Vector3 = Places.pos("bunker", "Dummy")
+static var STORAGE_POS: Vector3 = Places.pos("bunker", "Storage")
 ## враги бродят по поляне наверху (выход из бункера — лестница в восточном торце коридора)
-static var ENEMY_SPOTS: Array = _D_GAME.v("ENEMY_SPOTS")
+static var ENEMY_SPOTS: Array = Places.points("bunker", "EnemySpots")
 static var RESPAWN: float = _D_GAME.v("RESPAWN")   # было 40 (промпт 20.11 14:31)
 static var FAST_SHARE: float = _D_GAME.v("FAST_SHARE")   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
 
@@ -214,8 +215,8 @@ static var REPAIR_PART: float = _D_GAME.v("REPAIR_PART")   # один заряд
 # ---------- каменные кучки (промпт 14.11 19:22) ----------
 
 ## Где лежат кучки: в бункере у завалов (level.gd: _debris) и наверху у руин (surface.gd: _ruins).
-static var STONE_BUNKER: Array = _D_GAME.v("STONE_BUNKER")
-static var STONE_SURFACE: Array = _D_GAME.v("STONE_SURFACE")
+static var STONE_BUNKER: Array = Places.points("bunker", "StoneBunker")
+static var STONE_SURFACE: Array = Places.points("bunker", "StoneSurface")
 var stone_piles: Array = []
 
 

@@ -7,7 +7,8 @@ const Spot := preload("res://scripts/locations/lake/lake_spot.gd")
 const Kit := preload("res://scripts/world/build_kit.gd")
 const Items := preload("res://scripts/items/items.gd")
 const G := 4.0
-const FIRE := Vector3(20.0, G, 1210.0)
+const Places := preload("res://scripts/world/places.gd")
+static var FIRE: Vector3 = Places.pos("lake", "Fire")   # метка в scenes/locations/lake.tscn
 const STAKE_R := 11.0
 ## [id, название, что даёт, материалы ({} — из build_kit.gd), место, поворот]
 const BUILDS := [

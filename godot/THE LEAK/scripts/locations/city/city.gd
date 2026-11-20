@@ -17,8 +17,9 @@ const OFF := Vector3(-260.0, 0.0, -800.0)
 const MASK := "snyuhatel5088"
 const MASK_NAME := "Снюхатель5088"
 ## Где встаёт машина после поездки (носом на север, в проспект)
-const CAR_POS := Vector3(40.0, G, 1406.0)
-const CAR_YAW := 0.0
+const Places := preload("res://scripts/world/places.gd")
+static var CAR_POS: Vector3 = Places.pos("city", "CarPark")   # метки в scenes/locations/city.tscn (без смещения OFF)
+static var CAR_YAW: float = Places.yaw("city", "CarPark")
 ## Что положить в багажник в лагере для поездки (плюс полный бак и Снюхатель у водителя)
 const NEED := {"filter": 6, "fuel": 2}
 ## Улицы [x0, x1, z0, z1]: по ним находки и мутанты, дома — между ними
@@ -45,14 +46,15 @@ func _ready() -> void:
 	_skyline()
 	_smog()
 	# Trinkets Market #4 (тир 3) и автомат «РАДИАЦИЯ» у въезда (промпт 20.11 18:44)
-	var shop: Node3D = preload("res://scripts/shop/city_shop.gd").new()
+	var shop: Node3D = preload("res://scenes/props/city_shop.tscn").instantiate()
 	shop.name = "CityShop"
-	shop.position = Vector3(22.0, G, 1407.0)
-	shop.rotation.y = PI / 2.0
+	shop.position = Places.pos("city", "CityShop")
+	shop.rotation.y = Places.yaw("city", "CityShop")
 	add_child(shop)
-	var slot: Node3D = preload("res://scripts/slot/city_slot.gd").new()
-	slot.position = Vector3(51.0, G, 1407.0)
-	slot.rotation.y = -PI / 2.0
+	var slot: Node3D = preload("res://scenes/props/radiation.tscn").instantiate()
+	slot.name = "Radiation"
+	slot.position = Places.pos("city", "Radiation")
+	slot.rotation.y = Places.yaw("city", "Radiation")
 	add_child(slot)
 
 

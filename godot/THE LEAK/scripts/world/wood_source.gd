@@ -9,8 +9,9 @@ const HITS_TREE := 3
 const HITS_BOARDS := 2
 const REGROW := 240.0
 ## места на поляне (у руин и по краям; game._free_spot_near сдвигает от препятствий)
-const TREES := [Vector3(26.5, 0, 14.0), Vector3(44.5, 0, 8.0), Vector3(22.5, 0, -5.5), Vector3(40.0, 0, -14.0), Vector3(47.0, 0, -6.5)]
-const BOARDS := [Vector3(27.0, 0, -7.0), Vector3(37.5, 0, 9.5), Vector3(43.0, 0, -1.0)]
+const Places := preload("res://scripts/world/places.gd")
+static var TREES: Array = Places.points("bunker", "Trees")   # метки в scenes/locations/bunker.tscn (высота — по земле)
+static var BOARDS: Array = Places.points("bunker", "Boards")
 
 var game
 var kind := "tree"         # tree | boards

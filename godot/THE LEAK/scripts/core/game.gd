@@ -73,7 +73,8 @@ func setup(p: Player) -> void:
 	if USE_DUMMY:
 		# манекен — в комнате с KILLBOX (юго-западная), слева от магазина, рядом с сундуком (промпт 16.11 03:13)
 		# в боку торчит стеклянный нож (промпт 18.11 01:07/01:38 — второй манекен убран, нож в этом же)
-		var d := Dummy.new()
+		var d: Dummy = preload("res://scenes/props/dummy.tscn").instantiate()
+		d.name = "Dummy"
 		d.game = self
 		d.knife = true
 		d.position = DUMMY_POS
@@ -85,15 +86,16 @@ func setup(p: Player) -> void:
 	if USE_CHESTS:
 		# лутбоксы — кувшины и колбы, случайно каждую новую игру — ниже, после стекла (_random_jars)
 		# сейф открывается только тремя семёрками на автомате KILLBOX (open_safe)
-		safe = Chest.new()
+		safe = preload("res://scenes/props/chest.tscn").instantiate()
+		safe.name = "Safe"
 		safe.kind = "safe"
 		safe.locked = true
 		safe.random_loot = false
 		# пистолет без патронов, полный магазин и россыпь патронов (промпт 14.11 19:49)
 		safe.extra = [["pistol", 1, 0.0], ["mag", 1, 8.0], ["ammo", randi_range(12, 16)], ["car_key", 1], ["knuckles", 1], ["coin", 80], ["medkit", 1], ["wallet", 2]]   # без батарейки и тушёнки (промпт 16.11 02:47)
 		# в комнате с KILLBOX (юго-западная), у западной стены (промпт 18.11 00:46); задняя стенка вплотную к стене
-		safe.position = Vector3(-11.54, 0.0, 5.6)
-		safe.rotation.y = PI / 2.0
+		safe.position = Places.pos("bunker", "Safe")
+		safe.rotation.y = Places.yaw("bunker", "Safe")
 		add_child(safe)
 	# противогаз и отравленный воздух наверху (G)
 	gun = Gun.new()
@@ -112,9 +114,9 @@ func setup(p: Player) -> void:
 		# автомат создаёт main.gd (он же фон меню); если его нет — ставим свой
 		slot = get_parent().get_node_or_null("SlotMachine") as SlotMachine
 		if slot == null:
-			slot = SlotMachine.new()
-			slot.position = Vector3(-6.0, 0.0, 8.5)
-			slot.rotation.y = PI
+			slot = preload("res://scenes/props/killbox.tscn").instantiate()
+			slot.position = Places.pos("bunker", "KillBox")
+			slot.rotation.y = Places.yaw("bunker", "KillBox")
 			add_child(slot)
 		slot.game = self
 		# новая игра в той же сессии: автомат общий с меню — сбрасываем (загрузка сейва выставит своё)
@@ -132,11 +134,12 @@ func setup(p: Player) -> void:
 	# изолента, приклеенная к доске выплат у автомата (берётся на E, со временем появляется снова)
 	_spawn_stone_piles()
 	preload("res://scripts/world/wood_source.gd").spawn_all(self)   # деревья и доски на поляне — топорик (промпт 16.11 02:42)
-	tape = TapeSpot.new()
+	tape = preload("res://scenes/props/tape.tscn").instantiate()
+	tape.name = "Tape"
 	tape.game = self
-	tape.position = Vector3(-7.05, 0.95, 8.813)   # на самой доске выплат (main.gd прижимает её к стене)
+	tape.position = Places.pos("bunker", "Tape")   # на самой доске выплат (main.gd прижимает её к стене)
 	add_child(tape)
-	add_child(preload("res://scripts/world/exit_sign.gd").new())   # табличка «только в противогазе» над выходом к лестнице
+	add_child(preload("res://scenes/props/exit_sign.tscn").instantiate())   # табличка «только в противогазе» над выходом к лестнице
 	# осколки стекла на полу (там, где битое стекло) — материал для ножика
 	loot_window = LootWindow.new()
 	loot_window.game = self
@@ -147,11 +150,12 @@ func setup(p: Player) -> void:
 	preload("res://scripts/systems/perks.gd").register(skills)   # пассивные ветки (удача, стамина, скидка, мотор)
 	preload("res://scripts/systems/levels.gd").register(skills)  # уровни, опыт, атрибуты (промпт 20.11 18:48)
 	# сундук-хранилище: складывать вещи (промпт 00:08) — у южной стены слева от магазина, рядом с манекеном (16.11 03:13)
-	storage = Chest.new()
+	storage = preload("res://scenes/props/chest.tscn").instantiate()
+	storage.name = "Storage"
 	storage.game = self
 	storage.kind = "storage"
 	storage.position = STORAGE_POS   # вплотную к стене
-	storage.rotation.y = PI
+	storage.rotation.y = Places.yaw("bunker", "Storage")
 	add_child(storage)
 	home = preload("res://scripts/locations/bunker/bunker_home.gd").new()
 	home.game = self

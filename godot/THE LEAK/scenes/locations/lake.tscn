@@ -1,0 +1,33 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/prop_spot.gd" id="1_7w0w2"]
+
+[node name="Lake" type="Node3D" unique_id=1297677910]
+
+[node name="Preview" type="Marker3D" parent="." unique_id=1511323046]
+script = ExtResource("1_7w0w2")
+preview = "res://scenes/locations/preview/lake.scn"
+note = "превью места в редакторе (в игре не создаётся)"
+
+[node name="LakeShop" type="Marker3D" parent="." unique_id=1456474009]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 44, 4, 1198)
+script = ExtResource("1_7w0w2")
+preview = "res://scenes/props/preview/lake_shop.tscn"
+note = "Trinkets Market у озера"
+
+[node name="Klev" type="Marker3D" parent="." unique_id=379448447]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 25, 4, 1196)
+script = ExtResource("1_7w0w2")
+preview = "res://scenes/props/preview/klev.tscn"
+note = "автомат КЛЁВ"
+
+[node name="CarPark" type="Marker3D" parent="." unique_id=350376022]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 4, 1182)
+script = ExtResource("1_7w0w2")
+preview = "res://scenes/props/preview/car.tscn"
+note = "где встаёт машина"
+
+[node name="Fire" type="Marker3D" parent="." unique_id=1638341561]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 4, 1210)
+script = ExtResource("1_7w0w2")
+note = "костёр лагеря"

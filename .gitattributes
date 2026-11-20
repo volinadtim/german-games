@@ -17,3 +17,4 @@
 
 # ANSWER.md пишут несколько агентов разом — склеиваем без конфликтов
 ANSWER.md merge=union
+*.scn binary

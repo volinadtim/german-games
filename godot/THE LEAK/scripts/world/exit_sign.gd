@@ -4,14 +4,15 @@ extends Node3D
 ## Создаётся из game.gd.
 const Items := preload("res://scripts/items/items.gd")
 
-const POS := Vector3(11.83, 2.76, 0.0)
+const Places := preload("res://scripts/world/places.gd")
+static var POS: Vector3 = Places.pos("bunker", "ExitSign")   # метка в scenes/locations/bunker.tscn
 const W := 1.5
 const H := 0.56
 
 
 func _ready() -> void:
 	position = POS
-	rotation.y = -PI / 2.0   # передняя сторона (+Z) смотрит на −X, в коридор
+	rotation.y = Places.yaw("bunker", "ExitSign")   # передняя сторона (+Z) смотрит на −X, в коридор
 	# жестяная плашка с рамкой
 	var plate := MeshInstance3D.new()
 	var bm := BoxMesh.new()

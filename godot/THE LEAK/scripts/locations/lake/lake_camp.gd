@@ -12,16 +12,17 @@ const X1 := 111.0
 const Z0 := 1170.0
 const Z1 := 1330.0
 ## Где встаёт машина после поездки (носом к озеру)
-const CAR_POS := Vector3(31.0, G, 1182.0)
-const CAR_YAW := 0.0
+const Places := preload("res://scripts/world/places.gd")
+static var CAR_POS: Vector3 = Places.pos("lake", "CarPark")   # метки в scenes/locations/lake.tscn (без смещения OFF)
+static var CAR_YAW: float = Places.yaw("lake", "CarPark")
 const LAKE_C := Vector3(31.0, G, 1240.0)
 const LAKE_R := 15.0
 const HOLE := 17.0   # полуширина дыры в земле под озером (lake_dive.gd: стенки чаши закрывают до 25 м от центра)
-const FIRE := Vector3(20.0, G, 1210.0)
+static var FIRE: Vector3 = Places.pos("lake", "Fire")
 const LakeDive := preload("res://scripts/locations/lake/lake_dive.gd")
 const LakeShop := preload("res://scripts/shop/lake_shop.gd")
 ## Trinkets Market #3 (тир 2, промпт 20.11 18:33) — у тропинки, витриной к костру
-const SHOP_POS := Vector3(44.0, G, 1198.0)
+static var SHOP_POS: Vector3 = Places.pos("lake", "LakeShop")
 ## Сдвиг лагеря в мире (промпт 20.11 18:50): всё выше — в своих координатах, в мире прибавляется OFF
 ## (лагерь x 211..371, z 300..460 — на восток от деревни). Площадка в мире — village_build.gd: LAKE_PAD.
 const OFF := Vector3(260.0, 0.0, -870.0)
@@ -44,18 +45,19 @@ func _ready() -> void:
 		_tent(t[0], t[1], t[2])
 	_boat(Vector3(47.5, G, 1229.0), 0.9)
 	_sign(Vector3(35.5, G, 1185.0))
-	var shop := LakeShop.new()
+	var shop: Node3D = preload("res://scenes/props/lake_shop.tscn").instantiate()
 	shop.name = "LakeShop"
 	shop.position = SHOP_POS
-	shop.rotation.y = -PI / 2.0
+	shop.rotation.y = Places.yaw("lake", "LakeShop")
 	add_child(shop)
 	_stashes()
 	base = Base.new()
 	base.village = get_parent()
 	add_child(base)
-	var slot: Node3D = preload("res://scripts/slot/lake_slot.gd").new()   # автомат «КЛЁВ» (промпт 20.11 18:34)
-	slot.position = Vector3(25.0, G, 1196.0)
-	slot.rotation.y = PI
+	var slot: Node3D = preload("res://scenes/props/klev.tscn").instantiate()   # автомат «КЛЁВ» (промпт 20.11 18:34)
+	slot.name = "Klev"
+	slot.position = Places.pos("lake", "Klev")
+	slot.rotation.y = Places.yaw("lake", "Klev")
 	add_child(slot)
 
 	_trees()

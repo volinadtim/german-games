@@ -1,0 +1,187 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/world/prop_spot.gd" id="1_wtvyj"]
+
+[node name="Bunker" type="Node3D" unique_id=2141587928]
+
+[node name="Preview" type="Marker3D" parent="." unique_id=1587518318]
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/locations/preview/bunker.tscn"
+note = "превью места в редакторе (в игре не создаётся)"
+
+[node name="KillBox" type="Marker3D" parent="." unique_id=1756720693]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -6, 0, 8.5)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/killbox.tscn"
+note = "автомат KILLBOX (фон главного меню)"
+
+[node name="Shop" type="Marker3D" parent="." unique_id=1012280432]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -4.05, 0, 8.5)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/shop.tscn"
+note = "Trinkets Market бункера"
+
+[node name="MenuCam" type="Marker3D" parent="." unique_id=1786597396]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 1.5, 6.3)
+script = ExtResource("1_wtvyj")
+note = "камера главного меню"
+
+[node name="MenuCamLook" type="Marker3D" parent="." unique_id=869034891]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.45, 1.35, 8.2)
+script = ExtResource("1_wtvyj")
+note = "куда смотрит камера меню"
+
+[node name="PlayerStart" type="Marker3D" parent="." unique_id=319320480]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -10.5, 0.05, 0)
+script = ExtResource("1_wtvyj")
+note = "старт игрока (новая игра и «Начать заново»)"
+
+[node name="Dummy" type="Marker3D" parent="." unique_id=1960250073]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.75, 0, 7.75)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/dummy.tscn"
+note = "манекен с ножом"
+
+[node name="Safe" type="Marker3D" parent="." unique_id=507851717]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -11.54, 0, 5.6)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/safe.tscn"
+note = "сейф (открывается тремя семёрками)"
+
+[node name="Storage" type="Marker3D" parent="." unique_id=451560294]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -1.35, 0, 8.55)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/storage.tscn"
+note = "сундук-хранилище"
+
+[node name="Tape" type="Marker3D" parent="." unique_id=1521912608]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.05, 0.95, 8.813)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/tape.tscn"
+note = "изолента на доске выплат"
+
+[node name="ExitSign" type="Marker3D" parent="." unique_id=1234749923]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, 11.83, 2.76, 0)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/exit_sign.tscn"
+note = "табличка над выходом к лестнице"
+
+[node name="CarPark" type="Marker3D" parent="." unique_id=1435409189]
+transform = Transform3D(0.9393727, 0, 0.3428978, 0, 1, 0, -0.3428978, 0, 0.9393727, 31, 4, 9.5)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/car.tscn"
+note = "старая машина на поляне"
+
+[node name="EnemySpots" type="Node3D" parent="." unique_id=2004976466]
+
+[node name="1" type="Marker3D" parent="EnemySpots" unique_id=924285876]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 4.1, 7)
+script = ExtResource("1_wtvyj")
+note = "точки появления врагов на поляне"
+
+[node name="2" type="Marker3D" parent="EnemySpots" unique_id=1832086717]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36, 4.1, -6)
+script = ExtResource("1_wtvyj")
+note = "точки появления врагов на поляне"
+
+[node name="3" type="Marker3D" parent="EnemySpots" unique_id=1659555692]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 4.1, 4)
+script = ExtResource("1_wtvyj")
+note = "точки появления врагов на поляне"
+
+[node name="4" type="Marker3D" parent="EnemySpots" unique_id=755815689]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 31, 4.1, -10)
+script = ExtResource("1_wtvyj")
+note = "точки появления врагов на поляне"
+
+[node name="StoneBunker" type="Node3D" parent="." unique_id=1933037259]
+
+[node name="1" type="Marker3D" parent="StoneBunker" unique_id=1877269794]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.2, 0, -6.8)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/stone_pile.tscn"
+note = "кучки камней в бункере (кандидаты)"
+
+[node name="2" type="Marker3D" parent="StoneBunker" unique_id=1610746243]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3, 0, -7.1)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/stone_pile.tscn"
+note = "кучки камней в бункере (кандидаты)"
+
+[node name="3" type="Marker3D" parent="StoneBunker" unique_id=1045797808]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.1, 0, 2.9)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/stone_pile.tscn"
+note = "кучки камней в бункере (кандидаты)"
+
+[node name="StoneSurface" type="Node3D" parent="." unique_id=1172739057]
+
+[node name="1" type="Marker3D" parent="StoneSurface" unique_id=742527629]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27.8, 0, -9.5)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/stone_pile.tscn"
+note = "кучки камней на поляне"
+
+[node name="2" type="Marker3D" parent="StoneSurface" unique_id=1274659561]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36.6, 0, 8.6)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/stone_pile.tscn"
+note = "кучки камней на поляне"
+
+[node name="3" type="Marker3D" parent="StoneSurface" unique_id=742991453]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42.5, 0, -1.2)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/stone_pile.tscn"
+note = "кучки камней на поляне"
+
+[node name="Trees" type="Node3D" parent="." unique_id=1652978892]
+
+[node name="1" type="Marker3D" parent="Trees" unique_id=914742280]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26.5, 0, 14)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/tree.tscn"
+note = "деревья (топорик); высота — по земле"
+
+[node name="2" type="Marker3D" parent="Trees" unique_id=1733920578]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44.5, 0, 8)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/tree.tscn"
+note = "деревья (топорик); высота — по земле"
+
+[node name="3" type="Marker3D" parent="Trees" unique_id=2128499985]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22.5, 0, -5.5)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/tree.tscn"
+note = "деревья (топорик); высота — по земле"
+
+[node name="4" type="Marker3D" parent="Trees" unique_id=2075984065]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 0, -14)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/tree.tscn"
+note = "деревья (топорик); высота — по земле"
+
+[node name="5" type="Marker3D" parent="Trees" unique_id=2102013141]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 47, 0, -6.5)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/tree.tscn"
+note = "деревья (топорик); высота — по земле"
+
+[node name="Boards" type="Node3D" parent="." unique_id=180172322]
+
+[node name="1" type="Marker3D" parent="Boards" unique_id=1263213069]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 0, -7)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/boards.tscn"
+note = "кучи досок; высота — по земле"
+
+[node name="2" type="Marker3D" parent="Boards" unique_id=2092708283]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 37.5, 0, 9.5)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/boards.tscn"
+note = "кучи досок; высота — по земле"
+
+[node name="3" type="Marker3D" parent="Boards" unique_id=908951336]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43, 0, -1)
+script = ExtResource("1_wtvyj")
+preview = "res://scenes/props/preview/boards.tscn"
+note = "кучи досок; высота — по земле"
