@@ -10,8 +10,8 @@ extends Node
 const DRAIN := 1.0 / 7.0        # полная полоска — ~7 с бега
 const JUMP_COST := 0.15      # 18.11 02:18: прыжки тратят больше
 const DASH_COST := 0.2     # рывок (dash.gd)
-const REGEN_WALK := 1.0 / 10.0  # на ходу — ~10 с до полной
-const REGEN_IDLE := 1.0 / 5.0   # стоя — ~5 с
+const REGEN_WALK := 1.25 / 10.0 # на ходу — ~8 с до полной (+25%, 14:36)
+const REGEN_IDLE := 1.25 / 5.0  # стоя — ~4 с (+25%)
 const REGEN_DELAY := 0.9        # пауза перед восстановлением
 const UNLOCK := 0.25            # после истощения бег снова можно с 25%
 
