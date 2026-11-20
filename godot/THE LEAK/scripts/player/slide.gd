@@ -29,7 +29,7 @@ func _ready() -> void:
 	player = get_parent()
 	snd = AudioStreamPlayer.new()
 	snd.stream = _scrape()
-	snd.volume_db = -8.0
+	snd.volume_db = -24.0
 	add_child(snd)
 
 
