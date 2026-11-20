@@ -1,16 +1,16 @@
 extends Node
 ## Клетки в меню с геймпада (промпты 20.11 14:40–14:48). Создаёт ui/gamepad.gd (pad.nav), работает и на паузе.
-## В меню и окнах (курсор не захвачен) курсора по умолчанию нет: крестовина переключает активную клетку
+## В меню и окнах (курсор не захвачен) курсора по умолчанию нет: ↑ ← → и правый стик переключают активную клетку
 ## (кнопка, ползунок, поле, слот, ячейка сетки), она обведена рамкой; A — клик по ней, X — правый клик.
 ## Мышь всё равно ставим в центр клетки (warp) — подсказки и перетаскивание (A держать + стрелки) работают как от мыши.
-## Удержать ↓ — свободный курсор (правым стиком; левый — ходьба); любая стрелка — обратно к клеткам.
-## Вне меню ↓ показывает курсор (summon), ещё раз ↓ или B — прячет (мышь снова захвачена).
+## ↓ — переключить «клетки ↔ свободный курсор» (курсор — правым стиком; левый — ходьба); ↑ ← → — тоже обратно к клеткам.
+## В игре (мышь захвачена) курсора с геймпада нет (промпт 20.11 15:03–15:04).
 ## Геймпад подключён при запуске — клетки сразу, и в главном меню (промпт 14:55).
 ## LB / RB — соседний раздел окна (крафт / снаряжение / лут — крупные панели слева направо).
 ## Клетки ищем по всему интерфейсу; закрытое другой панелью (выше по отрисовке, ловит мышь) — пропускаем.
 ## Мышь, клавиатура или касание выключают клетки до следующего нажатия на геймпаде.
 
-const HOLD_T := 0.35          # ↓ держать — свободный курсор
+const ST_ON := 0.55           # правый стик: отклонение для шага по клеткам
 const REP_DELAY := 0.32       # стрелку держат — повтор
 const REP_T := 0.1
 const SEC_MIN := Vector2(200, 150)   # панель от такого размера — отдельный раздел для LB/RB
@@ -19,8 +19,7 @@ const PAD_HINT := "Стрелки — клетка  ·  %s — взять / по
 
 var pad                        # ui/gamepad.gd
 var pad_used := false          # последний ввод — с геймпада
-var cursor_mode := false       # свободный курсор (удержание ↓)
-var summoned := false          # курсор вызван ↓ в игре (окна нет) — ↓ / B его прячут
+var cursor_mode := false       # свободный курсор (↓ переключает)
 var target: Control            # активная клетка
 var trect := Rect2()           # её прямоугольник в target (ячейка сетки или весь контрол)
 var last_pt := Vector2(-1, -1) # центр последней клетки (холст) — после закрытия окна берём ближайшую
@@ -30,7 +29,8 @@ var _frame: Control
 var _dir_b := -1
 var _dir_t := 0.0
 var _rep := 0.0
-var _down_hold := false
+var _st_dir := Vector2.ZERO    # правый стик: куда шагаем
+var _st_t := 0.0
 var _ui_t := 0.0
 var _check_t := 0.0
 var _warp_wait := 0            # кадров до warp после прокрутки ScrollContainer
@@ -49,27 +49,6 @@ func _ready() -> void:
 	_frame.draw.connect(_draw_frame)
 	_layer.add_child(_frame)
 	pad_used = not Input.get_connected_joypads().is_empty()
-
-
-## ↓ в игре: показать свободный курсор.
-func summon() -> void:
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		return
-	pad_used = true
-	summoned = true
-	cursor_mode = true
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-
-
-## Спрятать курсор, вызванный ↓ (мышь снова захвачена). false — курсор не вызывали.
-func unsummon() -> bool:
-	if not summoned:
-		return false
-	summoned = false
-	cursor_mode = false
-	_restore_mouse()
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	return true
 
 
 func _input(e: InputEvent) -> void:
@@ -109,18 +88,12 @@ func _process(delta: float) -> void:
 		_ui_t = 0.0
 		target = null
 		cursor_mode = false
-		summoned = false
 		last_pt = Vector2(-1, -1)
 		_dir_b = -1
 		_show(false)
 		_restore_mouse()
 		return
 	_ui_t += delta
-	if summoned:
-		var g = _game()
-		if get_tree().paused or (g != null and g.has_method("window_open") and g.window_open()):
-			summoned = false   # поверх вызванного курсора открылось окно / пауза — дальше обычные клетки
-			cursor_mode = false
 	_inv_hint()
 	if not pad_used:
 		_show(false)
@@ -151,11 +124,7 @@ func _process(delta: float) -> void:
 			_restore_mouse()   # клеток нет (например, 3D-экран автомата) — нужен обычный курсор
 	if _dir_b >= 0:
 		_dir_t += delta
-		if _dir_b == JOY_BUTTON_DPAD_DOWN:
-			if _down_hold and _dir_t >= HOLD_T:
-				_down_hold = false
-				cursor_mode = true
-		elif _dir_t >= REP_DELAY:
+		if _dir_t >= REP_DELAY:
 			_rep -= delta
 			if _rep <= 0.0:
 				_rep = REP_T
@@ -169,24 +138,50 @@ func dpad(b: int, pressed: bool) -> void:
 	if not pressed:
 		if b == _dir_b:
 			_dir_b = -1
-			_down_hold = false
 		return
 	pad_used = true
-	if b == JOY_BUTTON_DPAD_DOWN and unsummon():
+	if b == JOY_BUTTON_DPAD_DOWN:
+		_dir_b = -1
+		if cursor_mode:
+			cursor_mode = false
+			_pick_near(_mouse_canvas())   # из курсора — к ближайшей клетке
+		else:
+			cursor_mode = true   # клетки -> свободный курсор (мышь там, где была рамка)
 		return
 	_dir_b = b
 	_dir_t = 0.0
 	_rep = 0.0
-	_down_hold = false
 	if cursor_mode:
 		cursor_mode = false
 		_pick_near(_mouse_canvas())   # из курсора — к ближайшей клетке
 		return
-	_down_hold = b == JOY_BUTTON_DPAD_DOWN
 	if not _valid(target):
 		_pick_near(last_pt)
 		return
 	_step(_dir_vec(b))
+
+
+## Правый стик в режиме клеток (зовёт gamepad.gd): шаг по клеткам, держат — повтор.
+func stick(v: Vector2, delta: float) -> void:
+	var d := Vector2.ZERO
+	if v.length() >= ST_ON:
+		d = Vector2(signf(v.x), 0.0) if absf(v.x) > absf(v.y) else Vector2(0.0, signf(v.y))
+	if d == Vector2.ZERO:
+		_st_dir = Vector2.ZERO
+		return
+	pad_used = true
+	if d != _st_dir:
+		_st_dir = d
+		_st_t = REP_DELAY
+	else:
+		_st_t -= delta
+		if _st_t > 0.0:
+			return
+		_st_t = REP_T
+	if not _valid(target):
+		_pick_near(last_pt)
+	else:
+		_step(d)
 
 
 ## Перед кликом A/X — мышь точно в центр активной клетки (окно могло перестроиться).

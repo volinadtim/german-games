@@ -6,7 +6,7 @@ extends Node
 ## чтобы не мешать антизалипанию клавиш (player.gd: _unstick_moves).
 ## Когда курсор виден (меню, инвентарь, магазин…): клетки (ui/pad_nav.gd) — крестовина переключает активную,
 ## A — ЛКМ по ней, X — ПКМ, B — назад (ui_cancel), LB/RB — раздел окна (при перетаскивании LB — повернуть предмет),
-## правый стик — прокрутка; удержать ↓ — свободный курсор (правым стиком), левый стик — ходьба. Start — пауза всегда.
+## правый стик — тоже по клеткам; ↓ — клетки / свободный курсор (правым стиком), левый стик — ходьба. В игре курсора нет. Start — пауза всегда.
 ## Back + стрелка в инвентаре — привязать предмет под рамкой к слоту (как раньше просто стрелка).
 ## Руки (промпт 20.11 11:43): кнопка слота (крестовина) — нажать: в левую руку, задержать: в правую.
 ## Сброс: Back (просто нажать) — режим сброса, потом LT — из левой, RT — из правой (задержать — кинуть дальше).
@@ -26,8 +26,8 @@ const DEFAULT := {
 	"sprint": "b:7",                                   # L3 — бег (до остановки или повторного L3)
 	"fists": "b:8", "inv_use": "b:8",                  # R3 — стойка; в инвентаре — использовать
 	# крестовина (промпты 20.11 14:51/14:54): ← держать — круговое меню хотбара (ui/pad_wheel.gd),
-	# ↓ — показать/спрятать курсор (ui/pad_nav.gd); ↑ и → свободны. Это не действия InputMap — их ловит _button.
-	"hot_wheel": "b:13", "pad_cursor": "b:12",
+	# ↑ ↓ → в игре свободны (в окнах ↓ — клетки / курсор, ui/pad_nav.gd; промпт 20.11 15:03). hot_wheel ловит _button.
+	"hot_wheel": "b:13",
 	"hot_5": "c:11", "gasmask": "c:12", "carry": "c:13", "swap_hands": "c:14",
 	"mag_eject": "c:10", "crouch": "c:1", "toggle_ping": "c:3", "hide_ui": "c:9",
 	"seat_switch": "c:2",                               # Back + X — пересесть в машине
@@ -158,7 +158,8 @@ func load_cfg() -> void:
 	custom = c if c is Dictionary else {}
 	# новые действия (сброс) — в старый «Свой» пресет, если их кнопка там свободна
 	if not custom.is_empty():
-		for a in ["drop_mode", "hot_wheel", "pad_cursor"]:
+		custom.erase("pad_cursor")   # курсор в игре убран (промпт 20.11 15:04)
+		for a in ["drop_mode", "hot_wheel"]:
 			if not custom.has(a) and not str(DEFAULT[a]) in custom.values():
 				custom[a] = DEFAULT[a]
 	swap_sticks = bool(cf.get_value(section, "swap_sticks", false))
@@ -399,9 +400,6 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 	if acts.has("hot_wheel"):
 		acts.erase("hot_wheel")
 		wheel.open(key, dev)
-	if acts.has("pad_cursor"):
-		acts.erase("pad_cursor")
-		nav.summon()   # вне меню — показать курсор (ещё раз ↓ — спрятать)
 	# слоты hot_N — на отпускании (коротко — левая) или по задержке (правая, _hot_tick)
 	var hots: Array = acts.filter(func(a): return str(a).begins_with("hot_"))
 	if not hots.is_empty() and not _ui_mode():
@@ -442,7 +440,7 @@ func _ui_button(b: int, pressed: bool) -> bool:
 				nav.section(1)
 			return true
 		JOY_BUTTON_B:
-			if pressed and not nav.unsummon():   # курсор, вызванный ↓ в игре, — просто спрятать
+			if pressed:
 				_tap("ui_cancel", last_dev)
 			return true
 		JOY_BUTTON_LEFT_SHOULDER:
@@ -581,13 +579,7 @@ func _process(delta: float) -> void:
 		if nav.free_cursor():
 			_cursor(_stick(false), delta)   # свободный курсор — правым стиком (левый — ходьба)
 			return
-		wheel_t -= delta
-		var r := _stick(false)
-		if absf(r.y) > 0.3 and wheel_t <= 0.0:
-			wheel_t = 0.09 / absf(r.y)
-			var wb := MOUSE_BUTTON_WHEEL_DOWN if r.y > 0.0 else MOUSE_BUTTON_WHEEL_UP
-			_mouse_btn(wb, true)
-			_mouse_btn(wb, false)
+		nav.stick(_stick(false), delta)   # клетки — и правым стиком (↓ крестовины занята переключателем)
 		return
 	if wheel.is_open:
 		wheel.aim(look)   # круговое меню: правый стик выбирает слот, обзор стоит
