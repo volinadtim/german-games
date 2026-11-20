@@ -15,6 +15,8 @@ var mic: AudioStreamPlayer
 var capture: AudioEffectCapture
 var talking := false
 var src_pos := 0.0            # дробная позиция пересэмплирования (между кадрами)
+const VOICE_CHUNK := 640      # байт = 20 мс при RATE 16 кГц, 16 бит
+var vbuf := PackedByteArray() # накопленный звук до отправки
 var layer: CanvasLayer
 var badge: Label
 var heard := {}               # peer_id -> сколько ещё подсвечивать ник (с)
@@ -70,6 +72,9 @@ func _process(delta: float) -> void:
 		mic.play()
 		capture.clear_buffer()
 	if want != talking:
+		if talking and vbuf.size() > 0 and net != null and net.peer:
+			rpc("voice_pkt", vbuf)   # дослать хвост фразы
+		vbuf = PackedByteArray()
 		talking = want
 		badge.visible = want
 		capture.clear_buffer()
@@ -98,8 +103,11 @@ func _process(delta: float) -> void:
 		p += step
 	src_pos = p - float(n)
 	out.resize(k)
-	if k > 0:
-		rpc("voice_pkt", out)
+	# копим ~20 мс звука и шлём одним пакетом, а не пакет на каждый кадр (на 144 Гц — втрое меньше пакетов)
+	vbuf.append_array(out)
+	if vbuf.size() >= VOICE_CHUNK:
+		rpc("voice_pkt", vbuf)
+		vbuf = PackedByteArray()
 
 
 @rpc("any_peer", "unreliable_ordered", "call_remote")

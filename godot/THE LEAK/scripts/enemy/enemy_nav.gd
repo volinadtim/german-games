@@ -444,10 +444,23 @@ func _clear(a: Vector3, b: Vector3) -> bool:
 	if car != null:
 		ex.append(car.get_rid())   # игрока в машине видно (стёкла выбиты) и достать можно
 	if is_inside_tree():
-		for e in get_tree().get_nodes_in_group("enemies"):
-			ex.append(e.get_rid())
+		ex.append_array(_enemy_rids())
 	q.exclude = ex
 	return game.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+
+static var _rids_frame := -1
+static var _rids: Array[RID] = []
+
+## RID всех врагов — собираем один раз за физический кадр (раньше каждый враг обходил группу в каждом _clear).
+func _enemy_rids() -> Array[RID]:
+	var f := Engine.get_physics_frames()
+	if f != _rids_frame:
+		_rids_frame = f
+		_rids.clear()
+		for e in get_tree().get_nodes_in_group("enemies"):
+			_rids.append(e.get_rid())
+	return _rids
 
 
 func _face(dir: Vector3, delta: float) -> void:

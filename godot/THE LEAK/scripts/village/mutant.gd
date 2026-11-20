@@ -411,10 +411,23 @@ func _clear(to: Vector3) -> bool:
 		ex.append(car.get_rid())   # игрока в машине видно и достать можно
 	if tg != null and tg.player != null:
 		ex.append(tg.player.get_rid())
-	for m in get_tree().get_nodes_in_group("mutants"):
-		ex.append(m.get_rid())
+	ex.append_array(_mutant_rids())
 	q.exclude = ex
 	return get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+
+static var _rids_frame := -1
+static var _rids: Array[RID] = []
+
+## RID всех мутантов — собираем один раз за физический кадр, а не в каждом _clear каждого мутанта.
+func _mutant_rids() -> Array[RID]:
+	var f := Engine.get_physics_frames()
+	if f != _rids_frame:
+		_rids_frame = f
+		_rids.clear()
+		for m in get_tree().get_nodes_in_group("mutants"):
+			_rids.append(m.get_rid())
+	return _rids
 
 
 func _animate(delta: float, spd: float) -> void:

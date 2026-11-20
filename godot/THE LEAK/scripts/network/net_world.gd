@@ -58,8 +58,20 @@ func png_r(t: int) -> void:
 	rtt[id] = w
 
 
+const GEAR_SLOTS := ["head", "body", "legs", "feet", "hands", "back"]
+const GEAR_HB := 4.0        # одежда/монеты без изменений — раз в столько секунд
+const PS_IDLE_DT := 0.25    # позиция без изменений — раз в столько секунд (обычно SEND_DT)
+var gear_hb := 0.0
+var gear_last := {}
+var cash_last := []
+var ps_last := []
+var ps_idle_t := 0.0
+
+
+## Новый игрок: сразу отправить ему одежду, монеты и позицию, не дожидаясь пульса.
 func _peer_joined(_id: int) -> void:
-	pass
+	gear_hb = 0.0
+	ps_idle_t = 0.0
 
 
 func _peer_left(id: int, nm: String, lost := false) -> void:
@@ -285,16 +297,30 @@ func _game_tick(delta: float) -> void:
 		send_t = SEND_DT
 		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0) \
 				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0) | (64 if p.dying else 0) | (128 if p.waking else 0)   # 128 — просыпается во вступлении; позы с пистолетом; 64 — лежит (player_death.gd)
-		rpc("ps", p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1])
+		var st := [p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1]]
+		ps_idle_t -= SEND_DT
+		if st != ps_last or ps_idle_t <= 0.0:   # стоим на месте — шлём не 20, а 4 раза в секунду
+			ps_last = st
+			ps_idle_t = PS_IDLE_DT
+			rpc("ps", st[0], st[1], st[2], st[3], st[4], st[5], st[6])
 	gear_t -= delta
 	if gear_t <= 0.0 and p and peer and online and game.get("inv") != null:
 		gear_t = 1.0
+		gear_hb -= 1.0
 		var eq := {}
-		for k in ["head", "body", "legs", "feet", "hands", "back"]:
+		for k in GEAR_SLOTS:
 			eq[k] = String(game.inv.equip.get(k, ""))
-		rpc("pgear", eq)
 		var lc = game.get("last_chance")
-		rpc("pcash", int(game.inv.coins), lc != null and bool(lc.used))
+		var cash := [int(game.inv.coins), lc != null and bool(lc.used)]
+		# одежду и монеты — сразу при изменении, без изменений — раз в GEAR_HB с (для новых игроков и потерь пакетов)
+		if eq != gear_last or gear_hb <= 0.0:
+			rpc("pgear", eq)
+		if cash != cash_last or gear_hb <= 0.0:
+			rpc("pcash", cash[0], cash[1])
+		if gear_hb <= 0.0:
+			gear_hb = GEAR_HB
+		gear_last = eq
+		cash_last = cash
 	if p and p.punching and not was_punching and peer and online:
 		rpc("pev", p.last_arm)
 	was_punching = p != null and p.punching
