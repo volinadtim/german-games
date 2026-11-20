@@ -403,6 +403,7 @@ func _check_hit(arm: int, _kind := "straight") -> void:
 		_play(hit_player, impacts, -11.0)
 		# урон врагам/манекену (тестовые механики, см. game.gd): у цели должен быть take_hit(урон, направление)
 		if hit.collider.has_method("take_hit"):
+			Fx.by = self   # цифры урона и надписи — тому, кто ударил (Split-Screen)
 			var mult: float = Weapons.stats(wid)["mult"] if armed else dmg_mult
 			# без случайности (промпт 19:06): вид удара и криты на урон не влияют, растёт только от заряда
 			var dmg: float = PUNCH_BASE * mult * HAND_DMG[arm] * charge_mult(strike_charge)
@@ -418,6 +419,7 @@ func _check_hit(arm: int, _kind := "straight") -> void:
 			if strike_charge >= 0.999 and _breakable(hit.collider):
 				Fx.popup_text(get_parent(), hit.position + Vector3(0, 0.25, 0), "МОЩНО!", Color(1.0, 0.9, 0.7), 0.5)
 			hit.collider.take_hit(dmg, -cam.global_transform.basis.z)
+			Fx.by = null
 		# лёгкая отдача в камеру
 		# короткий «дёрг» камеры: крен в сторону руки и кивок, оружием — сильнее
 		var k := 1.6 if armed else 1.0

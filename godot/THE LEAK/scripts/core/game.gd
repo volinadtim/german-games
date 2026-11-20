@@ -284,11 +284,17 @@ func _physics_process(delta: float) -> void:
 		save_crash()
 	if player == null:
 		return
-	focus = null
-	var text := ""
 	_glass(delta)
 	_tick_buffs(delta)
-	if alive:
+	hud.prompt(update_focus(alive))
+
+
+## Цель «Взаимодействия» под прицелом игрока (focus) и текст подсказки. Split-Screen (network/split.gd) зовёт
+## и для игрока 2, подменив player на время вызова.
+func update_focus(live: bool) -> String:
+	focus = null
+	var text := ""
+	if live:
 		var from := player.cam.global_position
 		var q := PhysicsRayQueryParameters3D.create(from, from - player.cam.global_transform.basis.z * 2.3)
 		q.collision_mask = 1 | StonePile.LAYER   # кучки камней — на своём слое (сквозь них проходят, промпт 03:34)
@@ -308,13 +314,13 @@ func _physics_process(delta: float) -> void:
 		if takedown and takedown.candidate() != null:
 			focus = takedown
 			text = takedown.get_prompt(self)
-	if carry and alive:
+	if carry and live:
 		# манекен и т.п. без interact() не попадают в focus — для B берём цель луча переноски (05:04)
 		var ct: Object = focus if focus != null else carry._aim()
 		var ch: String = carry.hint(ct)
 		if ch != "":
 			text = ch if text == "" or carry.held else text + "   " + ch
-	hud.prompt(text)
+	return text
 
 
 ## Предмет на полу, на который смотрит игрок: в пределах Pickup.REACH, в узком конусе взгляда

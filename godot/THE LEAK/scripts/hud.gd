@@ -241,6 +241,9 @@ func set_coins(n: int) -> void:
 	coins = n
 
 
+var redirect: Callable   # Split-Screen (network/split.gd): HUD, куда отдать сообщение (или null — себе)
+
+
 func prompt(text: String) -> void:
 	text = preload("res://scripts/ui/gamepad.gd").pad_text(text)   # с геймпада — кнопки геймпада
 	if prompt_l.text != text:
@@ -254,6 +257,11 @@ func hurt_flash(amount := 0.75) -> void:
 
 
 func toast(text: String, col := Color(0.88, 0.86, 0.8), important = null) -> void:
+	if redirect.is_valid():
+		var h = redirect.call()
+		if h != null and h != self:
+			h.toast(text, col, important)   # Split-Screen: сообщение — в HUD того, кто действует
+			return
 	var imp: bool = _is_important(text) if important == null else bool(important)
 	if imp:
 		_big_toast(text, col)

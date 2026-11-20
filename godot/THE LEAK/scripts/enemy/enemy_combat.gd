@@ -256,7 +256,8 @@ func _sneak_dmg(dmg: float, dir: Vector3) -> float:
 	var behind := fwd.length() > 0.01 and fl.length() > 0.01 and fwd.normalized().dot(fl.normalized()) > 0.3
 	if not behind:
 		return dmg * 1.5
-	if bool(game.player.get("crouched")):
+	var who = Fx.by if Fx.by != null and is_instance_valid(Fx.by) else game.player   # Split-Screen: бил игрок 2
+	if bool(who.get("crouched")):
 		game.hud.toast("Скрытное убийство")
 		return maxf(dmg * BACKSTAB, hp + 1.0)
 	game.hud.toast("Удар в спину")

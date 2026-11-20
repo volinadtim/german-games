@@ -1,11 +1,29 @@
 extends RefCounted
 ## Мелкие эффекты для тестовых механик: всплывающие цифры урона и облачко бетонной крошки.
 
+## Кто сейчас бьёт (player_combat.gd: _check_hit) — цифры и надписи видит он: в Split-Screen у игрока мета
+## fx_cam (камера его половины) и fx_layer (слой, который видит только его камера; network/split.gd).
+static var by: Node = null
+
+
+static func _who() -> Node:
+	return by if by != null and is_instance_valid(by) and by.has_meta("fx_cam") else null
+
+
+## Слой надписи — только для того, кто бьёт.
+static func _own(l: VisualInstance3D) -> void:
+	var w := _who()
+	if w:
+		l.layers = int(w.get_meta("fx_layer", 1))
+
 
 ## Точка для всплывающей надписи — так, чтобы игрок её точно видел (промпт 16.11 03:43): чуть ближе к камере
 ## и к центру экрана, не за спиной у камеры и не за краем экрана.
 static func _to_view(parent: Node, pos: Vector3) -> Vector3:
 	var cam := parent.get_viewport().get_camera_3d() if parent.is_inside_tree() else null
+	var w := _who()
+	if w and is_instance_valid(w.get_meta("fx_cam")):
+		cam = w.get_meta("fx_cam")
 	if cam == null:
 		return pos
 	var cp := cam.global_position
@@ -18,7 +36,7 @@ static func _to_view(parent: Node, pos: Vector3) -> Vector3:
 	var p := pos.lerp(axis, 0.3)                 # к центру экрана
 	p = cp + (p - cp) * 0.85                    # и к камере
 	# за краем экрана — подтягиваем к оси взгляда, пока не войдёт в кадр (с полями 10%)
-	var vp := parent.get_viewport().get_visible_rect().size
+	var vp := cam.get_viewport().get_visible_rect().size
 	for i in 4:
 		var sp := cam.unproject_position(p)
 		if sp.x > vp.x * 0.1 and sp.x < vp.x * 0.9 and sp.y > vp.y * 0.1 and sp.y < vp.y * 0.9:
@@ -41,6 +59,7 @@ static func damage_number(parent: Node, pos: Vector3, value: float, col := Color
 	l.modulate = col
 	l.outline_modulate = Color(0, 0, 0, 0.85)
 	l.position = _to_view(parent, pos) + Vector3(randf_range(-0.17, 0.17), 0.0, randf_range(-0.17, 0.17)) * 0.6
+	_own(l)
 	parent.add_child(l)
 	var tw := l.create_tween().set_parallel()
 	tw.tween_property(l, "position:y", l.position.y + 0.42, 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
@@ -63,6 +82,7 @@ static func popup_text(parent: Node, pos: Vector3, text: String, col: Color, k :
 	l.outline_modulate = Color(0, 0, 0, 0.9)
 	var at := _to_view(parent, pos)
 	l.position = at
+	_own(l)
 	parent.add_child(l)
 	var tw := l.create_tween().set_parallel()
 	tw.tween_property(l, "position:y", at.y + 0.38, 0.8).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)

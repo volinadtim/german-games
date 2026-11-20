@@ -9,15 +9,20 @@ extends Node
 ## Свой HUD у игрока 1 (все слои интерфейса игры переносятся в левую половину), у игрока 2 — такой же hud.gd
 ## (здоровье, прицел, миникарта; промпт 20.11 14:59). Миникарты меньше и ближе, хотбар игрока 1 — только в Tab.
 ## Кат-сцену видят оба (камера игрока 1 у обоих), пропуск — когда удержали оба (ui/cutscene_skip.gd).
-## Инвентаря и предметов у игрока 2 пока нет: кулаки, бег, прыжок, присед.
+## Взаимодействие и инвентарь у игрока 2 — тем же кодом игры, что у игрока 1 (промпт 20.11 15:27): на время вызова
+## game.player — он (_as_p2), окно, которое он открыл, — в его половине и водится его геймпадом (_own_ui).
+## Сумка и монеты пока общие. Цифры урона и сообщения — тому, кто ударил / действует (core/fx.gd: by, hud.gd: redirect).
 ## Создаёт main.gd (_enter_game), если в меню выбран «Split-Screen» (pending). Узел — ребёнок main.
 
 const PlayerScript := preload("res://scripts/player/player.gd")
 const HudScript := preload("res://scripts/hud.gd")
+const Fx := preload("res://scripts/core/fx.gd")
 const MM_K := 0.8            # миникарта в половинке: на 20% меньше и на 20% ближе
 const PUPPET_LAYER := 512
 const HEAD1 := 1 << 19       # голова игрока 1: видна игроку 2, не видна себе
 const HEAD2 := 1 << 18       # голова игрока 2: видна игроку 1
+const FX1 := 1 << 17         # цифры урона игрока 1 — только в его половине
+const FX2 := 1 << 15         # цифры урона игрока 2
 const MAX_HP := 100.0
 const RESPAWN_T := 10.0
 
@@ -50,6 +55,10 @@ var posts: Array = []        # [левая, правая] постобработ
 var main_post: CanvasItem    # общая постобработка main.gd — в Split-Screen спрятана
 const POST_SHARED := ["levels", "brightness", "gamma", "distort", "aberration", "vignette"]   # настройки меню — общие
 var jump_down := false       # игрок 2 держит прыжок — голос за пропуск кат-сцены
+var focus2: Object           # цель «Взаимодействия» игрока 2 (game.update_focus от его лица)
+var prompt2 := ""
+var acting := false          # идёт код игры от лица игрока 2 (_as_p2)
+var ui_p2 := false           # открытое окно (магазин, лут, инвентарь…) — игрока 2: в его половине, водит его геймпад
 
 
 ## Ввод игрока 2 для player.gd вместо Input: те же методы (is_action_pressed, is_action_just_pressed, get_vector),
@@ -158,6 +167,7 @@ func _exit_tree() -> void:
 		game.remove_meta("split")
 		var g1 = game.get("hud")
 		if g1:
+			g1.redirect = Callable()
 			g1.hot_tab_only = false
 			g1.mm_size = 180.0
 			g1.mm_range = 50.0
@@ -322,12 +332,102 @@ func _sweep_layers() -> void:
 		n.set_meta("split_moved", true)
 		n.set_meta("split_owner", n.get_parent())
 		# слои игрока 2 (заряд удара, выносливость) — в его половину
-		n.reparent(svs[1] if is_instance_valid(pp) and pp.is_ancestor_of(n) else svs[0], false)
+		n.reparent(svs[1] if is_instance_valid(pp) and pp.is_ancestor_of(n) or (ui_p2 and _is_window(n)) else svs[0], false)
 	# хозяин слоя удалён (машина, окно…) — удаляем и слой, раньше он ушёл бы вместе с хозяином
 	for sv in svs:
 		for n in sv.get_children():
 			if n.has_meta("split_owner") and not is_instance_valid(n.get_meta("split_owner")):
 				n.queue_free()
+
+
+## Окно игры (инвентарь, лут, продажа, магазин, наборы автомата): его половина — того, кто открыл.
+func _is_window(n: Node) -> bool:
+	var sc = n.get_script()
+	if sc:
+		var path: String = sc.resource_path
+		if path.ends_with("inventory.gd") or path.ends_with("loot_window.gd") or path.ends_with("sell_window.gd"):
+			return true
+	var o = n.get_meta("split_owner", n.get_parent())
+	return is_instance_valid(o) and (o.get("ui") == n or o.get("pack_ui") == n) 		and (o.get("opened") != null or o.get("pack_open") != null)
+
+
+## Окна — в половину игрока 2, пока окно его (ui_p2), иначе — к игроку 1.
+func _route_windows() -> void:
+	_sweep_layers()
+	var want: Node = svs[1] if ui_p2 else svs[0]
+	for sv in svs:
+		for n in sv.get_children():
+			if n is CanvasLayer and n.has_meta("split_moved") and n.get_parent() != want and _is_window(n):
+				n.reparent(want, false)
+
+
+## Окно игрока 2 открылось / закрылось: меню водит его геймпад (gamepad.gd: ui_owner), сам он стоит.
+func _own_ui(on: bool) -> void:
+	ui_p2 = on
+	var pad = main.menu.pad if main.get("menu") else null
+	if pad:
+		pad.set_deferred("ui_owner", _dev() if on else -1)   # после этого нажатия — иначе gamepad.gd съест его в окне
+	pi.release_all()
+	pp.charging = -1
+	if not on:
+		pp.active = true   # окна при закрытии включают game.player — то есть игрока 1
+	_route_windows()
+
+
+## Код игры от лица игрока 2: на время вызова game.player и game.focus — его, сообщения — в его HUD.
+func _as_p2(f: Callable) -> void:
+	var p0 = game.player
+	var f0 = game.focus
+	game.player = pp
+	game.focus = focus2
+	acting = true
+	f.call()
+	acting = false
+	focus2 = game.focus
+	game.player = p0
+	game.focus = f0
+
+
+## hud.gd: redirect — сообщения игрока 2 (его действие, его окно, его удар) — в его HUD.
+func _toast_to():
+	if acting or ui_p2 or (Fx.by != null and Fx.by == pp):
+		return hud_p2
+	return null
+
+
+func _p2_focus() -> void:
+	var c = game.carry
+	var td = game.get("takedown")
+	game.carry = null      # переносить (B) игрок 2 пока не умеет — без подсказки
+	game.takedown = null   # удар в спину помнит одну цель (world/takedown.gd) — пока только у игрока 1
+	prompt2 = game.update_focus(true)
+	game.carry = c
+	game.takedown = td
+	var sc = focus2.get_script() if focus2 != null and is_instance_valid(focus2) else null
+	if sc and sc.resource_path.ends_with("car.gd"):
+		focus2 = null   # машина — пока только игрок 1 (места и руль завязаны на него)
+		prompt2 = ""
+
+
+## «Взаимодействие» / «Инвентарь» игрока 2 — как у игрока 1 (game.gd: _unhandled_input, inventory.gd: _input).
+func _p2_do(a: String) -> void:
+	if a == "inventory":
+		var ev := InputEventAction.new()
+		ev.action = "inventory"
+		ev.pressed = true
+		game.inv._input(ev)
+	elif focus2 != null and is_instance_valid(focus2):
+		focus2.interact(game)
+	elif game.revive:
+		game.revive.try_revive_with("")
+
+
+func _p2_action(a: String) -> void:
+	if game.window_open():
+		return
+	_as_p2(_p2_do.bind(a))
+	if game.window_open():
+		_own_ui(true)
 
 
 func _keep_full(n: Node) -> bool:
@@ -377,6 +477,13 @@ func _spawn_p2() -> void:
 	pp.collision_mask = p1.collision_mask
 	pp.active = true
 	hud_p2.mm_player = pp
+	p1.set_meta("fx_cam", cams[0])
+	p1.set_meta("fx_layer", FX1)
+	pp.set_meta("fx_cam", cams[1])
+	pp.set_meta("fx_layer", FX2)
+	var g1 = game.get("hud")
+	if g1:
+		g1.redirect = _toast_to
 	pp.add_to_group("allies")
 	p1.add_to_group("allies")
 	tgt = Target2.new()
@@ -490,7 +597,10 @@ func _act2(a: String, pressed: bool) -> void:
 		if a == "attack_left" or a == "attack_right":
 			pp.charge_release(0 if a == "attack_left" else 1)
 		return
-	if not alive or mirrored or get_tree().paused:
+	if not alive or mirrored or get_tree().paused or ui_p2:
+		return
+	if a == "interact" or a == "inventory":
+		_p2_action(a)
 		return
 	pi.press(a, true)
 	match a:
@@ -517,7 +627,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var dev := _dev()
 	var pad = main.menu.pad.p2 if main.get("menu") and main.menu.pad else null   # настройки игрока 2
-	var can := dev >= 0 and alive and not mirrored
+	var can := dev >= 0 and alive and not mirrored and not ui_p2
 	pp.set_lock("split", not can)
 	if can != can_was:
 		can_was = can
@@ -556,7 +666,7 @@ func _process(delta: float) -> void:
 	var src := root.get_camera_3d()
 	if src == null or not is_instance_valid(src):
 		return
-	_copy_cam(cams[0], src, HEAD1)
+	_copy_cam(cams[0], src, HEAD1 | FX2)
 	# кат-сцена, машина и т.п. (камера не игрока 1) — у обоих одно и то же
 	var was := mirrored
 	# кат-сцена на камере игрока 1 (пробуждение, монстрик, магазин) — тоже у обоих
@@ -566,7 +676,7 @@ func _process(delta: float) -> void:
 	else:
 		if was and pp.global_position.distance_to(p1.global_position) > 6.0:
 			_to_p1()
-		_copy_cam(cams[1], pp.cam, HEAD2)
+		_copy_cam(cams[1], pp.cam, HEAD2 | FX1)
 	# HUD игрока 2 — как у игрока 1
 	var g1 = game.get("hud")
 	if g1:
@@ -574,6 +684,14 @@ func _process(delta: float) -> void:
 		hud_p2.minimal = g1.minimal
 	if mirrored != was:
 		hud_p2.set_cinematic(mirrored)
+	if ui_p2 and not game.window_open():
+		_own_ui(false)
+	if alive and not mirrored and not ui_p2 and _dev() >= 0:
+		_as_p2(_p2_focus)
+	else:
+		focus2 = null
+		prompt2 = ""
+	hud_p2.prompt(prompt2)
 	if not alive:
 		dead_t -= delta
 		info_l.text = "Игрок 2 погиб. Возрождение через %d с" % int(ceil(dead_t))
