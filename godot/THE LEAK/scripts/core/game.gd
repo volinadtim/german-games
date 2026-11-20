@@ -653,7 +653,7 @@ func _drop_ui_draw() -> void:
 	var cx := vp.x * 0.5
 	var y0 := vp.y * 0.74
 	var f := ThemeDB.fallback_font
-	_drop_ui.draw_string(f, Vector2(cx - 320.0, y0 - 12.0), preload("res://scripts/ui/key_hint.gd").fmt("Сброс [H]: ЛКМ — из левой, ПКМ — из правой (держать — кинуть дальше) | [H] / Esc — отмена", "Сброс {drop_mode}: {attack_left} — из левой, {attack_right} — из правой (держать — кинуть дальше) | {drop_mode} — отмена"), HORIZONTAL_ALIGNMENT_CENTER, 640.0, 14, Color(0.95, 0.9, 0.8, 0.85))
+	_drop_ui.draw_string(f, Vector2(cx - 320.0, y0 - 12.0), preload("res://scripts/ui/key_hint.gd").fmt("Сброс [G]: ЛКМ — из левой, ПКМ — из правой (держать — кинуть дальше) | [G] / Esc — отмена", "Сброс {drop_mode}: {attack_left} — из левой, {attack_right} — из правой (держать — кинуть дальше) | {drop_mode} — отмена"), HORIZONTAL_ALIGNMENT_CENTER, 640.0, 14, Color(0.95, 0.9, 0.8, 0.85))
 	for side_info in [["left", Rect2(cx - 98.0, y0, 92.0, 64.0), "Левая"], ["right", Rect2(cx + 6.0, y0, 92.0, 64.0), "Правая"]]:
 		var s_key: String = side_info.get(0)
 		var rect: Rect2 = side_info.get(1)

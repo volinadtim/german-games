@@ -112,7 +112,7 @@ const CONTROLS := [
 	["reload", "Перезарядка", ["k:82"]],           # R — в мире (в окне лута R — «забрать всё»)
 	["mag_eject", "Извлечь магазин (держать)", ["k:4194309"]],   # Enter (gun.gd)
 	["swap_hands", "Поменять руки (левая ↔ правая)", ["m:4", "m:5"]],   # колесо вверх/вниз (game_items.gd)
-	["drop_mode", "Режим сброса (потом кнопка руки)", ["k:72", "k:71"]],   # H и G (game.gd; была G — совпадала с Нюхичем, 20.11 11:43)
+	["drop_mode", "Режим сброса (потом кнопка руки)", ["k:71"]],   # только G (H убрана)
 	["hand_right", "Слот — в правую руку (держать)", ["k:4194325"]],   # Shift + 1–5 (game.gd)
 	["lean_left", "Наклон влево (держать)", ["k:81"]],    # Q
 	["lean_right", "Наклон вправо (держать)", ["k:69"]],  # E
@@ -1082,8 +1082,8 @@ func _load() -> void:
 	# противогаз перенесён с G на V, сброс — H и G (промпт 18:13): старые сохранённые значения сбрасываем
 	if binds.get("gasmask", []) == ["k:71"]:
 		binds.erase("gasmask")
-	if binds.get("drop_mode", []) == ["k:72"]:
-		binds.erase("drop_mode")
+	if binds.has("drop_mode") and "k:72" in binds["drop_mode"]:
+		binds.erase("drop_mode")   # старый бинд с H -> дефолт G
 	binds.erase("throw_stone")
 	for a in binds.keys():
 		if _default_binds(a).is_empty():
