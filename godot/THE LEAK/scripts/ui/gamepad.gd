@@ -69,6 +69,7 @@ var wheel_t := 0.0
 var hot_hold := {}           # кнопка слота -> [слоты hot_N, время нажатия, устройство, уже сработало]
 var last_dev := 0
 var only_device := -1        # сплитскрин (network/split.gd): -1 любой геймпад, -2 никакой, N — только этот
+var ui_owner := -1           # сплитскрин: паузу открыл геймпад игрока 2 — меню водит только он (до возврата в игру)
 var virtual_cursor := false  # курсор свой, настоящую мышь не двигаем (сейчас не используется)
 var vpos := Vector2(200, 200)
 var cursor_layer: CanvasLayer
@@ -329,8 +330,14 @@ func apply_map() -> void:
 
 # ---------- ввод ----------
 
+## Чей геймпад сейчас слушаем: в меню, открытом игроком 2, — его (промпт 20.11 15:15), иначе only_device.
+func dev_now() -> int:
+	return ui_owner if ui_owner >= 0 and _ui_mode() else only_device
+
+
 func _mine(e: InputEvent) -> bool:
-	return only_device == -1 or e.device == only_device
+	var d := dev_now()
+	return d == -1 or e.device == d
 
 
 func _input(e: InputEvent) -> void:
@@ -559,10 +566,11 @@ func _win_mouse() -> Vector2:
 
 func _stick(left: bool) -> Vector2:
 	var v := Vector2.ZERO
-	if only_device == -2:
+	var od := dev_now()
+	if od == -2:
 		return v
 	for d in Input.get_connected_joypads():
-		if only_device >= 0 and d != only_device:
+		if od >= 0 and d != od:
 			continue
 		var w := Vector2(Input.get_joy_axis(d, JOY_AXIS_LEFT_X if left else JOY_AXIS_RIGHT_X),
 			Input.get_joy_axis(d, JOY_AXIS_LEFT_Y if left else JOY_AXIS_RIGHT_Y))
@@ -585,7 +593,9 @@ func _process(delta: float) -> void:
 	if cursor_dot:
 		cursor_dot.visible = _ui_mode()
 		cursor_dot.position = get_tree().root.get_final_transform().affine_inverse() * vpos
-	if Input.get_connected_joypads().is_empty() or capturing or only_device == -2:
+	if ui_owner >= 0 and not _ui_mode():
+		ui_owner = -1   # вернулись в игру — меню снова у игрока 1
+	if Input.get_connected_joypads().is_empty() or capturing or dev_now() == -2:
 		return
 	var move := _stick(not swapped())
 	var look := _stick(swapped())

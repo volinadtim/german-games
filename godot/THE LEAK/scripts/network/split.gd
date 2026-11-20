@@ -452,8 +452,11 @@ func _input(e: InputEvent) -> void:
 		return
 	if e is InputEventJoypadButton:
 		if e.button_index == JOY_BUTTON_START:
-			if e.pressed and pad.only_device != dev:
+			if e.pressed and pad.only_device != dev and pad.ui_owner != dev:
+				var in_game := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 				pad._tap("ui_cancel", dev)   # пауза с геймпада игрока 2
+				if in_game:
+					pad.set_deferred("ui_owner", dev)   # открыл паузу — меню водит его геймпад (после этого события)
 			return
 		spec = "b:%d" % e.button_index
 		if Input.is_joy_button_pressed(dev, pad.MOD) and e.button_index != pad.MOD:
