@@ -42,6 +42,19 @@ func v_lake() -> void:
 func v_city() -> void:
 	if game and is_instance_valid(game) and game.village:
 		game.village.city_sequence()
+## Обыскали тайник в лагере у озера (lake_camp.gd): у всех он пустеет, лут бросает хост.
+@rpc("any_peer", "call_local", "reliable")
+func v_lake_spot(i: int) -> void:
+	if game and is_instance_valid(game) and game.village and game.village.lake:
+		game.village.lake.stash_open(i)
+
+
+## Построили что-то в лагере у озера (lake_base.gd): у всех появляется постройка.
+@rpc("any_peer", "call_local", "reliable")
+func v_lake_build(id: String) -> void:
+	if game and is_instance_valid(game) and game.village and game.village.lake and game.village.lake.base:
+		game.village.lake.base.build(id, true)
+
 
 
 ## Машину открыли ключом (промпт 20.11 11:58): у всех она стоит открытая на поляне.

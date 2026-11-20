@@ -4,11 +4,12 @@ extends Node3D
 ## круглое озеро с песчаным берегом, костёр с огнём и брёвнами, палатки, лодка, ели по краям.
 ## Высота земли для машины — village_build.gd: height (за LAKE_Z0 — ровно G).
 
+## Карта расширена (промпт 20.11 18:33): лес вокруг лагеря 160×160 м — есть что поизучать (тайники ниже).
 const G := 4.0
-const X0 := -9.0
-const X1 := 71.0
+const X0 := -49.0
+const X1 := 111.0
 const Z0 := 1170.0
-const Z1 := 1270.0
+const Z1 := 1330.0
 ## Где встаёт машина после поездки (носом к озеру)
 const CAR_POS := Vector3(31.0, G, 1182.0)
 const CAR_YAW := 0.0
@@ -42,8 +43,206 @@ func _ready() -> void:
 	shop.position = SHOP_POS
 	shop.rotation.y = -PI / 2.0
 	add_child(shop)
+	_stashes()
+	base = Base.new()
+	base.village = get_parent()
+	add_child(base)
+
 	_trees()
 	_hidden_safe()
+
+
+## Тайники (промпт 20.11 18:33): пни, кусты, брошенные палатки, клады — [F] обыскать.
+## [название, обычный лут [[id, мин, макс]], редкий лут, шанс редкого, шанс «пусто», обновление, с (0 — один раз)]
+const Spot := preload("res://scripts/village/lake_spot.gd")
+const Base := preload("res://scripts/village/lake_base.gd")
+const STASH := {
+	"stump": ["Трухлявый пень", [["wallet", 1, 1], ["photo", 1, 1], ["coin", 3, 8], ["nut", 2, 4], ["battery", 1, 1], ["choco", 1, 1], ["ammo", 3, 6]],
+		[["knuckles", 1, 1], ["ammo_box", 1, 1], ["energy", 1, 1], ["repair_weapon", 1, 1]], 0.2, 0.15, 300.0],
+	"bush": ["Густой куст", [["rot_apple", 1, 2], ["twine", 1, 2], ["coin", 2, 5], ["glass", 1, 1], ["bandage", 1, 1], ["pills", 1, 1]],
+		[["choco", 1, 1], ["tea", 1, 1], ["flashlight", 1, 1]], 0.15, 0.3, 240.0],
+	"tent": ["Брошенная палатка", [["canned", 1, 2], ["ration", 1, 1], ["tea", 1, 1], ["bandage", 1, 2], ["battery", 1, 2], ["sweater", 1, 1],
+		["ushanka", 1, 1], ["filter2", 1, 1], ["ammo", 5, 10]],
+		[["gasmask2", 1, 1], ["vest", 1, 1], ["tac_gloves", 1, 1], ["moto_helmet", 1, 1], ["machete", 1, 1], ["repair_gun", 1, 1], ["medkit", 1, 1]], 0.45, 0.0, 0.0],
+	"cache": ["Камни крестом", [["coin", 25, 50]], [["ammo_box", 1, 1], ["gasmask2", 1, 1], ["machete", 1, 1], ["medkit", 1, 1], ["vest", 1, 1]], 1.0, 0.0, 0.0],
+}
+const STASH_N := [["tent", 4], ["cache", 2], ["stump", 12], ["bush", 18]]
+var spots: Array = []
+var searched := {}       # номер тайника -> секунд до нового наполнения (-1 — пуст навсегда)
+var base                 # lake_base.gd — стройплощадки лагеря
+
+
+## Тайники по всему лесу: подальше от лагеря, озера и друг от друга (свой seed — одинаково у всех игроков).
+func _stashes() -> void:
+	var r := RandomNumberGenerator.new()
+	r.seed = 1833
+	for e in STASH_N:
+		var n := 0
+		var tries := 0
+		while n < int(e[1]) and tries < 500:
+			tries += 1
+			var p := Vector3(r.randf_range(X0 + 3.0, X1 - 3.0), G, r.randf_range(Z0 + 5.0, Z1 - 3.0))
+			if not _free_spot(p, 8.0 if e[0] in ["tent", "cache"] else 3.5):
+				continue
+			_stash(String(e[0]), p, r.randf() * TAU, r)
+			n += 1
+
+
+func _free_spot(p: Vector3, gap: float) -> bool:
+	if Vector2(p.x - LAKE_C.x, p.z - LAKE_C.z).length() < LAKE_R + 5.0:
+		return false
+	if p.x > 2.0 and p.x < 46.0 and p.z < 1232.0:
+		return false   # сам лагерь, тропа и машина
+	for s in spots:
+		if (s.position as Vector3).distance_to(p) < gap:
+			return false
+	return true
+
+
+## Меш внутри узла (локальные координаты).
+func _pm(parent: Node3D, m: Mesh, mat: Material, p: Vector3) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = m
+	mi.material_override = mat
+	mi.position = p
+	parent.add_child(mi)
+	return mi
+
+
+func _sph(r: float, h := -1.0) -> SphereMesh:
+	var sm := SphereMesh.new()
+	sm.radius = r
+	sm.height = r * 2.0 if h < 0.0 else h
+	return sm
+
+
+## Один тайник: модель и тело под прицел.
+func _stash(kind: String, p: Vector3, yaw: float, r: RandomNumberGenerator) -> void:
+	var b := Spot.new()
+	b.host = self
+	b.idx = spots.size()
+	b.set_meta("kind", kind)
+	b.position = p
+	b.rotation.y = yaw
+	var cs := CollisionShape3D.new()
+	match kind:
+		"stump":
+			var cm := CylinderMesh.new()
+			cm.top_radius = 0.42
+			cm.bottom_radius = 0.52
+			cm.height = 0.6
+			_pm(b, cm, _mat(Color(0.3, 0.21, 0.13)), Vector3(0, 0.3, 0))
+			var top := CylinderMesh.new()
+			top.top_radius = 0.33
+			top.bottom_radius = 0.33
+			top.height = 0.02
+			_pm(b, top, _mat(Color(0.07, 0.05, 0.03)), Vector3(0, 0.61, 0))   # дупло
+			_pm(b, _sph(0.12, 0.08), _mat(Color(0.7, 0.2, 0.12)), Vector3(0.45, 0.12, 0.2))   # гриб
+			_pm(b, _sph(0.09, 0.06), _mat(Color(0.75, 0.6, 0.35)), Vector3(-0.3, 0.1, 0.45))
+			var cy := CylinderShape3D.new()
+			cy.radius = 0.5
+			cy.height = 0.6
+			cs.shape = cy
+			cs.position.y = 0.3
+		"bush":
+			var leaf := _mat(Color(0.12 + r.randf() * 0.05, 0.27, 0.12))
+			for k in 4:
+				var rr := r.randf_range(0.45, 0.75)
+				_pm(b, _sph(rr, rr * 1.6), leaf, Vector3(r.randf_range(-0.5, 0.5), rr * 0.7, r.randf_range(-0.5, 0.5)))
+			var berry := _mat(Color(0.6, 0.08, 0.15))
+			for k in 6:
+				_pm(b, _sph(0.05), berry, Vector3(r.randf_range(-0.7, 0.7), r.randf_range(0.4, 1.0), r.randf_range(-0.7, 0.7)))
+			var sp := SphereShape3D.new()
+			sp.radius = 0.65
+			cs.shape = sp
+			cs.position.y = 0.55
+		"tent":
+			var pr := PrismMesh.new()
+			pr.size = Vector3(2.4, 1.4, 2.8)
+			var t := _pm(b, pr, _mat(Color(0.42, 0.4, 0.33)), Vector3(0, 0.7, 0))
+			t.rotation.z = 0.08   # покосилась
+			var door := PrismMesh.new()
+			door.size = Vector3(0.9, 0.9, 0.02)
+			_pm(b, door, _mat(Color(0.04, 0.04, 0.04)), Vector3(0, 0.45, 1.41))
+			var flap := BoxMesh.new()
+			flap.size = Vector3(0.6, 0.7, 0.02)
+			var f := _pm(b, flap, _mat(Color(0.5, 0.47, 0.38)), Vector3(0.55, 0.35, 1.5))
+			f.rotation.y = 0.7   # оторванный клапан
+			var bx := BoxShape3D.new()
+			bx.size = Vector3(2.2, 1.4, 2.8)
+			cs.shape = bx
+			cs.position.y = 0.7
+		"cache":
+			var st := _mat(Color(0.45, 0.44, 0.42))
+			for o in [Vector3.ZERO, Vector3(0.5, 0, 0), Vector3(-0.5, 0, 0), Vector3(0, 0, 0.5), Vector3(0, 0, -0.5)]:
+				_pm(b, _sph(0.18, 0.22), st, o + Vector3(0, 0.08, 0))
+			var bx := BoxShape3D.new()
+			bx.size = Vector3(1.3, 0.25, 1.3)
+			cs.shape = bx
+			cs.position.y = 0.12
+	b.add_child(cs)
+	add_child(b)
+	spots.append(b)
+
+
+func spot_prompt(s, _g) -> String:
+	var st: Array = STASH[s.get_meta("kind")]
+	if searched.has(s.idx):
+		return "%s — уже обыскано" % st[0]
+	return "[F] Обыскать: %s" % st[0]
+
+
+func spot_use(s, g) -> void:
+	if searched.has(s.idx):
+		return
+	if g.net:
+		preload("res://scripts/village/village_net.gd").ensure(g).rpc("v_lake_spot", int(s.idx))
+	else:
+		stash_open(s.idx)
+
+
+## Обыскали тайник (у всех игроков): помечаем пустым; лут выпадает у хоста (или без сети).
+func stash_open(i: int) -> void:
+	if i < 0 or i >= spots.size() or searched.has(i):
+		return
+	var s = spots[i]
+	var st: Array = STASH[s.get_meta("kind")]
+	searched[i] = float(st[5]) if float(st[5]) > 0.0 else -1.0
+	var g = get_parent().get("game")
+	if g == null:
+		return
+	g.play_at("creak", s.global_position, -8.0, 1.5)
+	if g.net and not g.net.is_host():
+		return
+	var at: Vector3 = s.global_position + Vector3(0, 1.0, 0)
+	if randf() < float(st[4]):
+		if g.net == null:
+			g.hud.toast("Пусто — только труха и ветки", Color(0.8, 0.75, 0.6))
+		return
+	var cnt := (2 + randi() % 2) if s.get_meta("kind") == "tent" else 1
+	for k in cnt:
+		var e: Array = (st[1] as Array).pick_random()
+		g.spawn_loot(String(e[0]), randi_range(int(e[1]), int(e[2])), at, Vector3(0, 2.2, 0), 1.2)
+	if randf() < float(st[3]):
+		var e2: Array = (st[2] as Array).pick_random()
+		g.spawn_loot(String(e2[0]), randi_range(int(e2[1]), int(e2[2])), at, Vector3(0, 2.6, 0), 1.2)
+		if g.net == null:
+			g.hud.toast("Редкая находка!", Color(1.0, 0.85, 0.4))
+
+
+## Сейв лагеря (village.gd: lake_d): обысканные тайники и постройки.
+func to_save() -> Dictionary:
+	return {"searched": searched.duplicate(), "built": base.built.keys() if base else []}
+
+
+func from_save(d: Dictionary) -> void:
+	searched = {}
+	var sd: Dictionary = d.get("searched", {})
+	for k in sd:
+		searched[int(k)] = float(sd[k])
+	if base:
+		for id in d.get("built", []):
+			base.build(String(id), false)
 
 
 ## Воздух у озера чистый (промпт 20.11 18:31): здесь можно ходить без противогаза.
@@ -56,7 +255,7 @@ static func clean_air(p: Vector3) -> bool:
 const FORAGE := [["wood", 2, 3, 30], ["stone", 1, 3, 22], ["twine", 1, 2, 12], ["water", 1, 1, 8], ["rot_apple", 1, 2, 8],
 	["canned", 1, 1, 4], ["bandage", 1, 1, 5], ["scrap", 1, 2, 9], ["nut", 2, 4, 7], ["tape", 1, 1, 4], ["ammo", 2, 5, 5],
 	["filter", 1, 1, 2], ["pills", 1, 1, 3], ["glass", 1, 1, 4], ["coin", 2, 6, 8], ["fuel", 1, 1, 4]]   # канистры — на дорогу в город
-const FORAGE_MAX := 18
+const FORAGE_MAX := 30
 const FORAGE_T := 25.0
 var forage: Array = []
 var forage_t := 2.0
@@ -73,7 +272,7 @@ func _forage_tick(delta: float) -> void:
 		return
 	forage_t = FORAGE_T
 	forage = forage.filter(func(p): return is_instance_valid(p))
-	var n := 14 if forage_first else mini(2, FORAGE_MAX - forage.size())
+	var n := 24 if forage_first else mini(3, FORAGE_MAX - forage.size())
 	var pp: Vector3 = g.player.global_position
 	for i in n:
 		var at := _forage_spot(pp, not forage_first)
@@ -116,6 +315,12 @@ func _forage_spot(pp: Vector3, far: bool) -> Vector3:
 
 func _process(delta: float) -> void:
 	_forage_tick(delta)
+	# пни и кусты со временем снова чем-то наполняются
+	for k in searched.keys():
+		if float(searched[k]) > 0.0:
+			searched[k] = float(searched[k]) - delta
+			if float(searched[k]) <= 0.0:
+				searched.erase(k)
 	fire_t += delta
 	if fire_light:
 		fire_light.light_energy = 2.4 + 0.5 * sin(fire_t * 11.0) + 0.35 * sin(fire_t * 23.7 + 1.3)
@@ -156,7 +361,7 @@ func _solid(center: Vector3, size: Vector3, yaw := 0.0) -> void:
 ## Трава, по которой ходят, и холмы за краем лагеря.
 func _ground() -> void:
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(200.0, 200.0)
+	pm.size = Vector2(X1 - X0 + 140.0, Z1 - Z0 + 140.0)
 	_mesh(pm, _mat(Color(0.24, 0.3, 0.16)), Vector3((X0 + X1) / 2.0, G, (Z0 + Z1) / 2.0))
 	_solid(Vector3((X0 + X1) / 2.0, G - 1.0, (Z0 + Z1) / 2.0), Vector3(X1 - X0 + 4.0, 2.0, Z1 - Z0 + 4.0))
 	# тропинка от машины к костру
@@ -164,12 +369,12 @@ func _ground() -> void:
 	path.size = Vector2(2.2, 26.0)
 	_mesh(path, _mat(Color(0.36, 0.3, 0.2)), Vector3(26.0, G + 0.01, 1196.0), Vector3(0, 0.4, 0))
 	var hill_m := _mat(Color(0.14, 0.2, 0.12))
-	for i in 14:
-		var a := TAU * float(i) / 14.0
+	for i in 22:
+		var a := TAU * float(i) / 22.0
 		var sm := SphereMesh.new()
 		sm.radius = rng.randf_range(22.0, 34.0)
 		sm.height = sm.radius * 0.9
-		_mesh(sm, hill_m, Vector3(31.0 + cos(a) * 82.0, G - 4.0, 1220.0 + sin(a) * 92.0))
+		_mesh(sm, hill_m, Vector3((X0 + X1) / 2.0 + cos(a) * ((X1 - X0) / 2.0 + 22.0), G - 4.0, (Z0 + Z1) / 2.0 + sin(a) * ((Z1 - Z0) / 2.0 + 22.0)))
 
 
 ## Круглое озеро: песок, вода, невидимая стенка по кромке воды.
@@ -337,10 +542,16 @@ func _trees() -> void:
 	var crown_m := _mat(Color(0.1, 0.2, 0.12))
 	var n := 0
 	var tries := 0
-	while n < 70 and tries < 900:
+	while n < 190 and tries < 3000:
 		tries += 1
 		var p := Vector3(rng.randf_range(X0 + 1.0, X1 - 1.0), G, rng.randf_range(Z0 + 1.0, Z1 - 1.0))
 		if Vector2(p.x - LAKE_C.x, p.z - LAKE_C.z).length() < LAKE_R + 5.0:
+			continue
+		var by_spot := false
+		for s in spots:
+			if (s.position as Vector3).distance_to(p) < 2.5:
+				by_spot = true
+		if by_spot:
 			continue
 		if p.x > 6.0 and p.x < 42.0 and p.z < 1228.0:
 			continue   # лагерь, тропа и машина

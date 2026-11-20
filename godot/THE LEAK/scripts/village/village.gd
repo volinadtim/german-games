@@ -141,7 +141,11 @@ func _city_mobs() -> void:
 ## Мутанты у озера (промпт 20.11 18:31): умнее и непредсказуемее деревенских (mutant.gd: smart), но не крепче.
 const LAKE_MUT := [[Vector3(2.0, G, 1200.0), "stalker"], [Vector3(62.0, G, 1204.0), "spitter"], [Vector3(6.0, G, 1252.0), "charger"],
 	[Vector3(58.0, G, 1258.0), "stalker"], [Vector3(46.0, G, 1214.0), "spitter"], [Vector3(10.0, G, 1228.0), "spitter"],
-	[Vector3(36.0, G, 1262.0), "charger"]]
+	[Vector3(36.0, G, 1262.0), "charger"],
+	# дальний лес (карта расширена, промпт 18:33)
+	[Vector3(-32.0, G, 1205.0), "stalker"], [Vector3(95.0, G, 1215.0), "charger"], [Vector3(-30.0, G, 1300.0), "spitter"],
+	[Vector3(92.0, G, 1305.0), "stalker"], [Vector3(30.0, G, 1318.0), "spitter"], [Vector3(-10.0, G, 1275.0), "charger"],
+	[Vector3(75.0, G, 1270.0), "spitter"]]
 var lake_mobs := false
 
 
@@ -367,7 +371,7 @@ func _lake_relocate(seat: int) -> void:
 
 
 func _lake_after() -> void:
-	hint("Лагерь у озера. Бак почти пуст — дорога съела бензин.\nВоздух здесь чистый — противогаз можно снять [G].\nПо лагерю — хворост и припасы, но мутанты тут хитрее.\nПосмотри на дверь и нажми [F] — выйти.", 10.0)
+	hint("Лагерь у озера. Бак почти пуст — дорога съела бензин.\nВоздух здесь чистый — противогаз можно снять [G].\nПо лесу — хворост и припасы, обыскивай пни, кусты и брошенные палатки [F].\nУ костра — стройплощадки: строй лагерь из найденного. Мутанты тут хитрее.\nПосмотри на дверь и нажми [F] — выйти.", 10.0)
 
 
 ## Сколько нужного для города лежит в багажнике (большие фильтры — тоже фильтры).
@@ -838,6 +842,9 @@ func net_mutants(arr: Array, full := true) -> void:
 
 func to_save() -> Dictionary:
 	var d := {"stage": stage, "loot": loot_done, "lake": at_lake, "city": at_city}
+	if lake:
+		d["lake_d"] = lake.to_save()   # тайники и постройки лагеря
+
 	if car:
 		d["car"] = car.to_save()
 	if bonus_slot:
@@ -864,11 +871,13 @@ func from_save(d: Dictionary) -> void:
 		_ensure_lake()
 		_quest("")
 		_lake_mobs()
+		lake.from_save(d.get("lake_d", {}))
 	at_city = bool(d.get("city", false))
 	if at_city:
 		_ensure_city()
 		_quest("")
 		_city_mobs()
+
 	if car and d.has("car"):
 		car.from_save(d["car"])
 	if storage:
