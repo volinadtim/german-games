@@ -11,6 +11,11 @@ extends Marker3D
 @export var note := ""   ## что это за место (для людей)
 @export var tag := ""    ## доп. значение для кода (вид мутанта, сторона двери дома…)
 @export var size := Vector3.ZERO   ## размер (дома деревни: ширина x, глубина z)
+## Только редактор: светлое окружение без тумана и «солнце», чтобы место было видно (в игре не действует, в сцену не сохраняется).
+@export var editor_light := false:
+	set(v):
+		editor_light = v
+		_show()
 
 
 func _ready() -> void:
@@ -31,3 +36,28 @@ func _show() -> void:
 	var n := ps.instantiate()
 	n.set_meta("_preview", true)
 	add_child(n)   # без owner — в сцену не сохраняется
+	if editor_light:
+		_light_up(n)
+
+
+## Редактор: заменить тёмное игровое окружение превью на светлое и добавить свет сверху.
+func _light_up(n: Node) -> void:
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.32, 0.34, 0.38)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(1, 1, 1)
+	env.ambient_light_energy = 1.2
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	var found := false
+	for we in n.find_children("*", "WorldEnvironment", true, false):
+		(we as WorldEnvironment).environment = env   # игровой Environment с туманом и тьмой отцепляется
+		found = true
+	if not found:
+		var we := WorldEnvironment.new()
+		we.environment = env
+		n.add_child(we)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-55, 35, 0)
+	sun.light_energy = 1.0
+	n.add_child(sun)

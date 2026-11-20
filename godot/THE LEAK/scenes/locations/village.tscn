@@ -6,6 +6,7 @@
 
 [node name="Preview" type="Marker3D" parent="." unique_id=856338380]
 script = ExtResource("1_yrs0h")
+editor_light = true
 preview = "res://scenes/locations/preview/village.scn"
 note = "превью места в редакторе (в игре не создаётся)"
 
