@@ -157,11 +157,11 @@ class Slot extends Control:
 		var mx := Items.max_dur(id)
 		if mx > 0.0:
 			var fr := clampf(float(inv.get_dur(key)) / mx, 0.0, 1.0)
-			if id == "pistol":
-				fr = float(Gun.mag_rounds(inv.get_dur(key))) / Gun.CAP
+			if id in ["pistol", "sawnoff", "rifle", "smg"]:
+				fr = float(Gun.mag_rounds(inv.get_dur(key))) / Gun.cap_of(id)
 			draw_rect(Rect2(6, size.y - 9, size.x - 12, 4), Color(0, 0, 0, 0.6))
 			draw_rect(Rect2(6, size.y - 9, (size.x - 12) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
-			if id == "pistol":
+			if id in ["pistol", "sawnoff", "rifle", "smg"]:
 				# у пистолета верхняя полоска — патроны, нижняя (синяя) — прочность (промпт 18.11 01:52)
 				var gf := clampf(Gun.gun_dur(inv.get_dur(key)) / Gun.DUR_MAX, 0.0, 1.0)
 				draw_rect(Rect2(6, size.y - 14, size.x - 12, 3), Color(0, 0, 0, 0.6))
@@ -169,9 +169,9 @@ class Slot extends Control:
 		if Items.ITEMS[id].has("rounds"):
 			# пистолет / магазин: патронов внутри
 			var rt := "%d/%d" % [int(round(inv.get_dur(key))), int(mx)]
-			if id == "pistol":
+			if id in ["pistol", "sawnoff", "rifle", "smg"]:
 				var pd: float = inv.get_dur(key)
-				rt = "%d/%d" % [Gun.mag_rounds(pd), Gun.CAP] if Gun.has_mag(pd) else "без маг."
+				rt = "%d/%d" % [Gun.mag_rounds(pd), Gun.cap_of(id)] if Gun.has_mag(pd) else "без маг."
 			draw_string_outline(f, Vector2(4, size.y - 12), rt, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 15, 4, Color(0, 0, 0, 0.8))
 			draw_string(f, Vector2(4, size.y - 12), rt, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 15, Color(0.95, 0.85, 0.55))
 		elif Items.charged(id):
@@ -392,20 +392,20 @@ class BagGrid extends Control:
 			var mx := Items.max_dur(id)
 			if mx > 0.0:
 				var fr := clampf(float(inv.get_dur(i)) / mx, 0.0, 1.0)
-				if id == "pistol":
-					fr = float(Gun.mag_rounds(inv.get_dur(i))) / Gun.CAP
+				if id in ["pistol", "sawnoff", "rifle", "smg"]:
+					fr = float(Gun.mag_rounds(inv.get_dur(i))) / Gun.cap_of(id)
 				draw_rect(Rect2(r.position.x + 5, r.end.y - 8, r.size.x - 10, 4), Color(0, 0, 0, 0.6))
 				draw_rect(Rect2(r.position.x + 5, r.end.y - 8, (r.size.x - 10) * fr, 4), Color(0.85, 0.25, 0.15).lerp(Color(0.45, 0.85, 0.35), fr))
-				if id == "pistol":
+				if id in ["pistol", "sawnoff", "rifle", "smg"]:
 					var gf := clampf(Gun.gun_dur(inv.get_dur(i)) / Gun.DUR_MAX, 0.0, 1.0)
 					draw_rect(Rect2(r.position.x + 5, r.end.y - 13, r.size.x - 10, 3), Color(0, 0, 0, 0.6))
 					draw_rect(Rect2(r.position.x + 5, r.end.y - 13, (r.size.x - 10) * gf, 3), Color(0.8, 0.3, 0.25).lerp(Color(0.45, 0.7, 0.95), gf))
 			var txt := ""
 			if Items.ITEMS[id].has("rounds"):
 				txt = "%d/%d" % [int(round(inv.get_dur(i))), int(mx)]
-				if id == "pistol":
+				if id in ["pistol", "sawnoff", "rifle", "smg"]:
 					var pd: float = inv.get_dur(i)
-					txt = "%d/%d" % [Gun.mag_rounds(pd), Gun.CAP] if Gun.has_mag(pd) else "без маг."
+					txt = "%d/%d" % [Gun.mag_rounds(pd), Gun.cap_of(id)] if Gun.has_mag(pd) else "без маг."
 			elif Items.charged(id):
 				txt = "×%d" % int(ceil(inv.get_dur(i)))
 			elif int(s["n"]) > 1:
@@ -1220,7 +1220,7 @@ func _special_target(from: int, t: int) -> bool:
 	var tid: String = b["id"]
 	if Items.ITEMS[fid].has("repair") and Items.repairable(tid) != "":
 		return true
-	if (fid == "mag" and tid == "pistol") or (fid == "ammo" and tid == "mag") or (Items.ITEMS[fid].has("mod") and tid == "pistol"):
+	if (fid == "mag" and tid == "pistol") or (fid == "ammo" and tid == "mag") or (Items.ITEMS[fid].has("mod") and tid in ["pistol", "sawnoff", "rifle", "smg"]):
 		return true
 	return fid == tid and int(Items.ITEMS[fid]["stack"]) > 1 and int(b["n"]) < int(Items.ITEMS[fid]["stack"])
 
@@ -1374,9 +1374,9 @@ func open_menu(key, at: Vector2) -> void:
 		var ul_eq := _use_label(eq_id)
 		if ul_eq != "" and not (ul_eq in ["Взять в руку", "Надеть"]):
 			acts.append([ul_eq, "use_eq"])
-		if eq_id == "pistol" and Gun.has_mag(get_dur(key)):
+		if eq_id in ["pistol", "sawnoff", "rifle", "smg"] and Gun.has_mag(get_dur(key)):
 			acts.append(["Извлечь магазин", "eject"])
-		if eq_id == "pistol":
+		if eq_id in ["pistol", "sawnoff", "rifle", "smg"]:
 			_mod_acts(acts, get_dur(key))
 		acts.append(["Снять", "unequip"])
 		acts.append(["Выбросить", "drop_eq"])
@@ -1392,11 +1392,11 @@ func open_menu(key, at: Vector2) -> void:
 			acts.append(["Л|П", "hands"])   # «Взять в руку» — две кнопки в строку: левая / правая (промпт 05:54)
 		elif ul != "":
 			acts.append([ul, "use"])
-		if id == "pistol" and Gun.has_mag(get_dur(key)):
+		if id in ["pistol", "sawnoff", "rifle", "smg"] and Gun.has_mag(get_dur(key)):
 			acts.append(["Извлечь магазин", "eject"])
-		if id == "pistol":
+		if id in ["pistol", "sawnoff", "rifle", "smg"]:
 			_mod_acts(acts, get_dur(key))
-		if Items.ITEMS[id].has("mod") and (equip["right"] == "pistol" or equip["left"] == "pistol"):
+		if Items.ITEMS[id].has("mod") and (equip["right"] in ["pistol", "sawnoff", "rifle", "smg"] or equip["left"] in ["pistol", "sawnoff", "rifle", "smg"]):
 			acts.append(["Поставить на пистолет", "install_mod"])
 		if id == "mag" and (equip["right"] == "pistol" or equip["left"] == "pistol"):
 			acts.append(["Вставить в пистолет", "insert_mag"])
@@ -1474,7 +1474,7 @@ func _menu_pick(key, act: String) -> void:
 	match act:
 		"install_mod":
 			if game and game.gun and key is int:
-				game.gun.install_mod(key, "right" if equip["right"] == "pistol" else "left")
+				game.gun.install_mod(key, "right" if equip["right"] in ["pistol", "sawnoff", "rifle", "smg"] else "left")
 		"use":
 			if key is int and slots[key] != null:
 				use_requested.emit(key)
@@ -1754,7 +1754,7 @@ func set_hover(k) -> void:
 		# при наведении — только название (промпт 03:50: без «×количество» и «[F — использовать]»)
 		info_name.text = Items.item_name(id)
 		var desc: String = preload("res://scripts/ui/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]) + _size_note(id)   # с геймпада — кнопки геймпада
-		if id == "pistol":
+		if id in ["pistol", "sawnoff", "rifle", "smg"]:
 			desc += Gun.mods_text(get_dur(k))   # слоты модулей (промпт 20.11 18:43)
 		info_desc.text = desc
 		# ширина окошка подстраивается под длину текста: короче описание — уже окно (промпт 18.11 02:33)
@@ -1862,7 +1862,7 @@ func move(from, to) -> void:
 		if fid == "mag" and tid2 == "pistol":
 			game.gun.insert_mag(from, to)
 			return
-		if Items.ITEMS[fid].has("mod") and tid2 == "pistol":   # модуль на пистолет (промпт 20.11 18:43)
+		if Items.ITEMS[fid].has("mod") and tid2 in ["pistol", "sawnoff", "rifle", "smg"]:   # модуль на пистолет (промпт 20.11 18:43)
 			game.gun.install_mod(from, to)
 			return
 		if fid == "ammo" and tid2 == "mag" and to is int:

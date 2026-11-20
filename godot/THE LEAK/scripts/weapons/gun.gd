@@ -47,6 +47,32 @@ const IRON_H := 0.137           # линия механического приц
 const MOD_SLOTS := [["sight", "Прицел", ["mod_reddot", "mod_scope"]], ["muzzle", "Дуло", ["mod_silencer", "mod_comp"]],
 	["stock", "Приклад", ["mod_stock"]], ["grip", "Цевьё", ["mod_grip", "mod_laser"]]]
 const MODW := 100.0
+## Стволы (промпт 20.11 19:15): статы по id предмета. mag — предмет-магазин ("" — встроенный: [R] заряжает
+## патронами ammo из сумки, [Enter] — разрядить), cap — патронов, dmg — урон пули/дробины, pel — дробин за выстрел,
+## cone — разлёт дроби (рад), cd — пауза между выстрелами, spr — множитель разброса, rng — дальность, far — доля урона
+## вдали, rel — перезарядка (с), auto — очередь при зажатой ЛКМ, wear — износ за выстрел, kick — отдача,
+## pitch — тон выстрела, mx — дуло по +X модели (weapons.gd). Модули (MOD_SLOTS) ставятся на любой ствол.
+const GUNS := {
+	"pistol": {"name": "Пистолет", "mag": "mag", "ammo": "ammo", "cap": CAP, "dmg": DMG, "pel": 1, "cone": 0.0, "cd": FIRE_CD,
+		"spr": 1.0, "rng": RANGE, "far": DMG_FAR_MULT, "rel": RELOAD_T, "auto": false, "wear": 1.0, "kick": 1.0, "pitch": 1.0, "mx": 0.145},
+	"sawnoff": {"name": "Обрез", "mag": "", "ammo": "shells", "cap": 2, "dmg": 14.0, "pel": 8, "cone": 0.055, "cd": 0.3,
+		"spr": 1.6, "rng": 45.0, "far": 0.25, "rel": 2.2, "auto": false, "wear": 1.0, "kick": 2.4, "pitch": 0.7, "mx": 0.36},
+	"rifle": {"name": "Охотничье ружьё", "mag": "", "ammo": "rifle_ammo", "cap": 5, "dmg": 100.0, "pel": 1, "cone": 0.0, "cd": 1.0,
+		"spr": 0.4, "rng": 220.0, "far": 0.9, "rel": 2.6, "auto": false, "wear": 1.0, "kick": 2.0, "pitch": 0.8, "mx": 0.63},
+	"smg": {"name": "ПП", "mag": "", "ammo": "ammo", "cap": 25, "dmg": 19.0, "pel": 1, "cone": 0.0, "cd": 0.09,
+		"spr": 1.5, "rng": 90.0, "far": 0.45, "rel": 2.0, "auto": true, "wear": 0.4, "kick": 0.4, "pitch": 1.25, "mx": 0.29},
+}
+
+
+## Статы ствола id (GUNS; не огнестрел — как у пистолета).
+static func spec(id) -> Dictionary:
+	return GUNS.get(String(id), GUNS["pistol"])
+
+
+## Сколько патронов влезает в ствол id (у пистолета — в его магазин).
+static func cap_of(id) -> int:
+	return int(spec(id)["cap"])
+
 const TAP_T := 0.22             # ПКМ короче — клик (переключить прицел), дольше — держать (от бедра)
 const RATE := 22050
 
@@ -87,6 +113,8 @@ var _lag_init := false
 const SLOTS := ["left", "right"]
 var next_hand := 1
 var _dmg_k := 1.0               # множитель урона текущего выстрела (модули, _shoot)
+var _gs: Dictionary = GUNS["pistol"]   # статы ствола текущего выстрела (_shoot → _deal, _bullet_hit, _muzzle)
+var _rel_len := RELOAD_T         # длина текущей перезарядки (GUNS: rel)
 var _hand := 1                  # из какого стреляли последним (вспышка, гильза)
 var _reload_h := 1               # какой перезаряжается
 ## Перезарядка (промпт 16.11 02:37): фаза 0..1 → player.gun_rel_k; звуки по фазе: защёлка и выход магазина,
@@ -194,7 +222,7 @@ static func mods_text(d: float) -> String:
 
 ## Множитель стата key у пистолета в руке h.
 func hand_mult(h: int, key: String) -> float:
-	if game == null or game.inv.equip[SLOTS[h]] != "pistol":
+	if game == null or game.inv.equip[SLOTS[h]] not in GUNS:
 		return 1.0
 	return mod_mult(game.inv.get_dur(SLOTS[h]), key)
 
@@ -207,7 +235,7 @@ func first_mult(key: String) -> float:
 
 ## Высота линии прицеливания над началом модели: оптика/коллиматор — OPTIC_H, без них — мушка IRON_H.
 func sight_y(h: int) -> float:
-	if game.inv.equip[SLOTS[h]] == "pistol" and mods_of(game.inv.get_dur(SLOTS[h]))[0] != "":
+	if game.inv.equip[SLOTS[h]] in GUNS and mods_of(game.inv.get_dur(SLOTS[h]))[0] != "":
 		return OPTIC_H
 	return IRON_H
 
@@ -217,7 +245,7 @@ func _sync_mods(p) -> void:
 	if p == null:
 		return
 	for h in 2:
-		var code := mods_code(game.inv.get_dur(SLOTS[h])) if game.inv.equip[SLOTS[h]] == "pistol" else 0
+		var code := mods_code(game.inv.get_dur(SLOTS[h])) if game.inv.equip[SLOTS[h]] in GUNS else 0
 		for n in [p.weapon_nodes[h], car_vm[h]]:
 			if n != null and is_instance_valid(n) and int((n as Node3D).get_meta("mods", 0)) != code:
 				Weapons.set_mods(n, mods_list(code))
@@ -274,7 +302,7 @@ func hands() -> Array[int]:
 	if game == null:
 		return r
 	for h in [1, 0]:
-		if game.inv.equip[SLOTS[h]] == "pistol" and game.hand_live(SLOTS[h]):
+		if game.inv.equip[SLOTS[h]] in GUNS and game.hand_live(SLOTS[h]):
 			r.append(h)
 	return r
 
@@ -283,12 +311,21 @@ func dual() -> bool:
 	return hands().size() == 2
 
 
+## В руках автоматический ствол (ПП) — очередь при зажатой ЛКМ.
+func _auto() -> bool:
+	for h in hands():
+		if spec(game.inv.equip[SLOTS[h]])["auto"]:
+			return true
+	return false
+
+
 func rounds_in(h: int) -> int:
-	return mag_rounds(game.inv.get_dur(SLOTS[h])) if game.inv.equip[SLOTS[h]] == "pistol" else 0
+	return mag_rounds(game.inv.get_dur(SLOTS[h])) if game.inv.equip[SLOTS[h]] in GUNS else 0
 
 
 func loaded_in(h: int) -> bool:
-	return game.inv.equip[SLOTS[h]] == "pistol" and has_mag(game.inv.get_dur(SLOTS[h]))
+	var id = game.inv.equip[SLOTS[h]]
+	return id in GUNS and (spec(id)["mag"] == "" or has_mag(game.inv.get_dur(SLOTS[h])))
 
 
 func rounds() -> int:
@@ -342,6 +379,10 @@ func _process(delta: float) -> void:
 		p.gun_mode = (2 if ads else (1 if hip else 0)) if can else 0   # поза рук (player_anim.gd: _gun_pose), уходит в сеть
 	_update_sway(delta)
 	_update_lag(delta)
+	# очередь (промпт 20.11 19:15): у автоматического ствола зажатая ЛКМ стреляет сама
+	if can and not reloading and cd <= 0.0 and InputMap.has_action("attack_left") and Input.is_action_pressed("attack_left") \
+			and rounds() > 0 and _auto() and ready_to_fire():
+		fire()
 	# зажать Enter — извлечь магазин (с двумя — сначала из правого)
 	var ej: bool = InputMap.has_action("mag_eject") and Input.is_action_pressed("mag_eject")
 	if can and loaded() and not reloading and ej and not _eject_lock:
@@ -365,7 +406,7 @@ func _process(delta: float) -> void:
 			var pr := func(h: int) -> String: return str(rounds_in(h)) if loaded_in(h) else "—"
 			count_l.text = "%s  Л %s · П %s" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", pr.call(0), pr.call(1)]
 		else:
-			count_l.text = "%s  %d / %d" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", r, CAP]
+			count_l.text = "%s  %d / %d" % ["ПЕРЕЗАРЯДКА" if reloading else "ПАТРОНЫ", r, cap_of(game.inv.equip[SLOTS[hands()[0]]])]
 		count_l.add_theme_color_override("font_color", Color(1.0, 0.45, 0.35) if r == 0 else Color(0.95, 0.88, 0.7))
 	_reload_tick(delta)
 	_aim()
@@ -566,8 +607,13 @@ func _car_view(delta: float) -> void:
 				n.visible = false
 			continue
 		var side := -1.0 if h == 0 else 1.0
+		var gid: String = game.inv.equip[SLOTS[h]]
+		if n != null and is_instance_valid(n) and String(n.get_meta("gid", "")) != gid:
+			n.queue_free()   # сменили ствол — модель заново
+			n = null
 		if n == null or not is_instance_valid(n):
-			n = Weapons.make("pistol")
+			n = Weapons.make(gid)
+			n.set_meta("gid", gid)
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			p.cam.add_child(n)
@@ -577,7 +623,7 @@ func _car_view(delta: float) -> void:
 		var two := hs.size() == 2
 		var want := Vector3(0.2 * side, -0.27, -0.4).lerp(Vector3(0.07 * side if two else 0.0, -0.145, -0.32), aim_k)
 		if reloading and h == _reload_h:
-			want += Vector3(-0.06 * side, -0.12, 0.06) * sin(clampf(_rel_t / RELOAD_T, 0.0, 1.0) * PI)
+			want += Vector3(-0.06 * side, -0.12, 0.06) * sin(clampf(_rel_t / _rel_len, 0.0, 1.0) * PI)
 		n.position = n.position.lerp(want, 1.0 - exp(-12.0 * delta))
 		# +X модели — вперёд (к -Z камеры), +Y — вверх; качание — как у пули (aim_dir)
 		n.basis = Basis(Vector3(0, 0, -1), Vector3.UP, Vector3(1, 0, 0)) \
@@ -594,16 +640,15 @@ func fire() -> void:
 			_ready_told = true
 			game.hud.toast("Стрелять: ПКМ держать — от бедра, ПКМ клик — прицел", Color(0.9, 0.85, 0.7))
 		return
-	cd = FIRE_CD
-	# два пистолета — по очереди (пустой пропускаем)
+	# два ствола — по очереди (пустой пропускаем); пауза — от ствола (GUNS: cd)
 	var hs := hands()
 	var h: int = hs[0]
 	if hs.size() == 2:
-		cd = FIRE_CD * 0.6
 		h = next_hand
 		if rounds_in(h) <= 0 and rounds_in(1 - h) > 0:
 			h = 1 - h
 		next_hand = 1 - h
+	cd = float(spec(game.inv.equip[SLOTS[h]])["cd"]) * (0.6 if hs.size() == 2 else 1.0)
 	var r := rounds_in(h)
 	if r <= 0:
 		_play(snd_click, -6.0, 1.0)
@@ -612,7 +657,7 @@ func fire() -> void:
 			game.hud.toast("Нет магазина — [R]" if not loaded() else "Пусто — [R], сменить магазин; [Enter] (держать) — вынуть")
 		return
 	_empty_told = false
-	_shoot(h, lerpf(SPREAD_HIP * hand_mult(h, "hip"), SPREAD_AIM * hand_mult(h, "aim"), aim_k))
+	_shoot(h, lerpf(SPREAD_HIP * hand_mult(h, "hip"), SPREAD_AIM * hand_mult(h, "aim"), aim_k) * float(spec(game.inv.equip[SLOTS[h]])["spr"]))
 
 
 ## Боевая стойка (промпт 05:34): клик — выстрел рукой h примерно в центр экрана, без прицеливания.
@@ -623,8 +668,9 @@ func stance_fire(h: int) -> bool:
 		return false
 	if reloading or hand_cd.get(h) > 0.0 or not _is_arm_ready_to_shoot(h):
 		return true   # выстрел не готов (или анимация ещё идёт) — клик съеден, рукоятью не бьём
-	hand_cd[h] = FIRE_CD
-	_shoot(h, SPREAD_STANCE * hand_mult(h, "stance"))
+	var gs := spec(game.inv.equip[SLOTS[h]])
+	hand_cd[h] = float(gs["cd"])
+	_shoot(h, SPREAD_STANCE * hand_mult(h, "stance") * float(gs["spr"]))
 	return true
 
 
@@ -655,18 +701,24 @@ func _shoot(h: int, spread: float) -> void:
 	var r := rounds_in(h)
 	_hand = h
 	var sl: String = SLOTS[h]
+	var gs := spec(game.inv.equip[sl])
+	_gs = gs
 	var pd: float = game.inv.get_dur(sl)
 	game.inv.equip_dur[sl] = pistol_dur(true, r - 1, pd)
 	_wear_shot(sl)
-	_play(snd_shot, -1.0 if q > 0.9 else -15.0, randf_range(0.95, 1.05) * (1.0 if q > 0.9 else 1.35))
+	_play(snd_shot, -1.0 if q > 0.9 else -15.0, randf_range(0.95, 1.05) * (1.0 if q > 0.9 else 1.35) * float(gs["pitch"]))
 	var cam: Camera3D = p.cam
 	var from := cam.global_position
-	var dir := (-cam.global_transform.basis.z).rotated(cam.global_transform.basis.x, randf_range(-spread, spread)) \
-			.rotated(cam.global_transform.basis.y, randf_range(-spread, spread))
-	_bullet_hit(from, dir)
+	var bx := cam.global_transform.basis.x
+	var by := cam.global_transform.basis.y
+	var dir := (-cam.global_transform.basis.z).rotated(bx, randf_range(-spread, spread)).rotated(by, randf_range(-spread, spread))
+	var cone := float(gs["cone"])
+	for i in int(gs["pel"]):   # дробь (обрез) — несколько дробин конусом
+		var d := dir if cone <= 0.0 else dir.rotated(bx, randf_range(-cone, cone)).rotated(by, randf_range(-cone, cone)).normalized()
+		_bullet_hit(from, d)
 	if fl > 0.5:
 		_flash()
-	_recoil(rk)
+	_recoil(rk * float(gs["kick"]))
 	_eject()
 	_alert(p.global_position, HEAR_R * q)
 	if game.net:
@@ -678,18 +730,19 @@ func _shoot(h: int, spread: float) -> void:
 ## Износ от выстрела: −1 прочности пистолета в руке sl; на нуле ломается и пропадает (промпт 18.11 01:52).
 func _wear_shot(sl: String) -> void:
 	var inv = game.inv
-	if inv.equip[sl] != "pistol":
+	if inv.equip[sl] not in GUNS:
 		return
+	var gname: String = spec(inv.equip[sl])["name"]
 	var d: float = inv.get_dur(sl)
-	var left := gun_dur(d) - 1.0
-	if left <= 0.0:
+	var left := gun_dur(d) - float(spec(inv.equip[sl])["wear"])
+	if left < 0.5:   # дробный износ (ПП): меньше 0.5 не записать — 0 в дробной части значит «целый»
 		inv.equip[sl] = ""
 		inv.equip_dur.erase(sl)
 		for m in mods_of(d):   # модули с развалившегося пистолета — в сумку
 			if m != "":
 				_give(m)
 		game._apply_equip(sl)
-		game.hud.toast("Пистолет развалился", Color(1.0, 0.5, 0.35))
+		game.hud.toast("Сломался: " + gname, Color(1.0, 0.5, 0.35))
 		game.play_ui("thud", -10.0, 1.6)
 		inv.notify()
 		return
@@ -713,11 +766,11 @@ func _bullet_hit(from: Vector3, dir: Vector3) -> void:
 				ex.append((e as CollisionObject3D).get_rid())
 				if (e as CollisionObject3D).collision_layer & 1 and String(e.get("state")) != "dead":
 					cands.append(e)
-	var q := PhysicsRayQueryParameters3D.create(from, from + dir * RANGE)
+	var q := PhysicsRayQueryParameters3D.create(from, from + dir * float(_gs["rng"]))
 	q.exclude = ex
 	q.collision_mask = 1 | 512   # 512 — другие игроки в сети (огонь по своим)
 	var hit: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q)
-	var wall_d: float = from.distance_to(hit.position) if not hit.is_empty() else RANGE
+	var wall_d: float = from.distance_to(hit.position) if not hit.is_empty() else float(_gs["rng"])
 	# ближайшая часть модели врага до стены
 	var best_t := wall_d
 	var best_e: Node3D = null
@@ -761,8 +814,8 @@ static func dist_mult(d: float) -> float:
 
 ## Урон цели; хэдшот — ×HEAD_MULT, свой звук и вспышка «В ГОЛОВУ», дальний выстрел — слабее (dist_mult).
 func _deal(target: Object, pos: Vector3, dir: Vector3, head: bool, from: Vector3 = Vector3.INF) -> void:
-	var dm := 1.0 if from == Vector3.INF else dist_mult(from.distance_to(pos))
-	var amount := DMG * dm * (HEAD_MULT if head else 1.0) * _dmg_k
+	var dm := 1.0 if from == Vector3.INF else 1.0 - (1.0 - dist_mult(from.distance_to(pos))) / (1.0 - DMG_FAR_MULT) * (1.0 - float(_gs["far"]))
+	var amount := float(_gs["dmg"]) * dm * (HEAD_MULT if head else 1.0) * _dmg_k
 	target.take_hit(amount, dir)
 	if not head:
 		return   # число урона рисует сама цель (Fx.damage_number), второй раз не показываем (промпт 18.11 01:52)
@@ -856,10 +909,10 @@ func _muzzle() -> Vector3:
 	var p = game.player
 	var vm = car_vm[_hand]
 	if car_seat() >= 0 and vm != null and is_instance_valid(vm) and (vm as Node3D).visible:
-		return (vm as Node3D).global_transform * Vector3(0.14, 0.11, 0.0)
+		return (vm as Node3D).global_transform * Vector3(float(_gs["mx"]), 0.11, 0.0)
 	var n = p.weapon_nodes[_hand]
 	if n and is_instance_valid(n):
-		return (n as Node3D).global_transform * Vector3(0.15, 0.11, 0.0)
+		return (n as Node3D).global_transform * Vector3(float(_gs["mx"]) + 0.005, 0.11, 0.0)
 	return p.cam.global_position - p.cam.global_transform.basis.z * 0.6 - p.cam.global_transform.basis.y * 0.15
 
 
@@ -990,8 +1043,20 @@ func reload() -> void:
 	var slot: String = SLOTS[rh]
 	var cur := rounds_in(rh)
 	var had := loaded_in(rh)
+	var gs := spec(game.inv.equip[slot])
+	_rel_len = float(gs["rel"])
+	# встроенный магазин (обрез, ружьё, ПП — промпт 20.11 19:15): патроны из сумки прямо в ствол
+	if gs["mag"] == "":
+		if cur >= int(gs["cap"]):
+			game.hud.toast("Заряжено полностью")
+		elif game.inv.count(gs["ammo"]) <= 0:
+			_play(snd_click, -8.0, 0.8)
+			game.hud.toast("Нет патронов: " + Items.item_name(gs["ammo"]))
+		else:
+			_casual_reload(rh, slot, cur)
+		return
 	# казуальный режим (промпт 18.11 00:52): магазины не нужны — патроны из сумки сразу в пистолет
-	if game.casual() and game.inv.count("ammo") > 0 and cur < CAP:
+	if game.casual() and game.inv.count(gs["ammo"]) > 0 and cur < int(gs["cap"]):
 		_casual_reload(rh, slot, cur)
 		return
 	var best := -1
@@ -1019,10 +1084,10 @@ func reload() -> void:
 	_rel_had = had
 	game.player.gun_rel_h = rh
 	game.player.gun_rel_k = 0.0
-	await get_tree().create_timer(RELOAD_T).timeout
+	await get_tree().create_timer(_rel_len).timeout
 	reloading = false
 	_reload_end()
-	if game.inv.equip[slot] != "pistol":
+	if game.inv.equip[slot] not in GUNS:
 		return
 	if best >= game.inv.slots.size():
 		return
@@ -1037,18 +1102,19 @@ func _casual_reload(rh: int, slot: String, _cur: int) -> void:
 	_rel_had = false   # старый магазин не выпадает
 	game.player.gun_rel_h = rh
 	game.player.gun_rel_k = 0.0
-	await get_tree().create_timer(RELOAD_T).timeout
+	await get_tree().create_timer(_rel_len).timeout
 	reloading = false
 	_reload_end()
-	if game.inv.equip[slot] != "pistol":
+	if game.inv.equip[slot] not in GUNS:
 		return
+	var gs := spec(game.inv.equip[slot])
 	var now := rounds_in(rh) if loaded_in(rh) else 0
-	var take := mini(CAP - now, game.inv.count("ammo"))
+	var take := mini(int(gs["cap"]) - now, game.inv.count(gs["ammo"]))
 	if take <= 0:
 		return
-	game.inv.remove("ammo", take)
+	game.inv.remove(gs["ammo"], take)
 	game.inv.equip_dur[slot] = pistol_dur(true, now + take, game.inv.get_dur(slot))
-	game.hud.toast("Заряжено: %d / %d" % [now + take, CAP], Color(0.9, 0.85, 0.7))
+	game.hud.toast("Заряжено: %d / %d" % [now + take, int(gs["cap"])], Color(0.9, 0.85, 0.7))
 	game.inv.notify()
 
 
@@ -1060,12 +1126,14 @@ func insert_mag(mag_idx: int, target, sound := true) -> bool:
 	if ms == null or ms["id"] != "mag":
 		return false
 	if target is String:
-		if inv.equip[target] != "pistol":
+		if inv.equip[target] not in GUNS:
 			return false
 	else:
 		var ps = inv.slots[target]
-		if ps == null or ps["id"] != "pistol":
+		if ps == null or ps["id"] not in GUNS:
 			return false
+	if spec(inv.equip[target] if target is String else inv.slots[target]["id"])["mag"] != "mag":
+		return false   # обрез, ружьё, ПП — без съёмного магазина
 	var pd: float = inv.get_dur(target)
 	var n := int(round(float(ms.get("dur", CAP))))
 	if has_mag(pd):
@@ -1088,14 +1156,24 @@ func eject(target) -> void:
 	var inv = game.inv
 	var pd: float = inv.get_dur(target)
 	if target is String:
-		if inv.equip[target] != "pistol" or not has_mag(pd):
+		if inv.equip[target] not in GUNS or not has_mag(pd):
 			return
 		inv.equip_dur[target] = pistol_dur(false, 0, pd)
 	else:
-		if inv.slots[target] == null or inv.slots[target]["id"] != "pistol" or not has_mag(pd):
+		if inv.slots[target] == null or inv.slots[target]["id"] not in GUNS or not has_mag(pd):
 			return
 		inv.slots[target]["dur"] = pistol_dur(false, 0, pd)
 	var n := mag_rounds(pd)
+	var gs := spec(inv.equip[target] if target is String else inv.slots[target]["id"])
+	if gs["mag"] == "":
+		# встроенный магазин (промпт 20.11 19:15): патроны — в сумку (не влезли — на пол), ствол пустой
+		_set_pd(target, pistol_dur(true, 0, pd))
+		var left: int = inv.add(gs["ammo"], n) if n > 0 else 0
+		if left > 0:
+			game.drop_spilled([{"id": gs["ammo"], "n": left}])
+		game.hud.toast(("Разряжено: %d" % n) if n > 0 else "Пусто", Color(0.9, 0.85, 0.7))
+		inv.notify()
+		return
 	_play(snd_mag, -6.0, 0.9)
 	if inv.add("mag", 1, float(n)) > 0:
 		var p = game.player
@@ -1117,9 +1195,9 @@ func install_mod(idx: int, target) -> bool:
 	if ms == null or not Items.ITEMS[ms["id"]].has("mod"):
 		return false
 	if target is String:
-		if inv.equip[target] != "pistol":
+		if inv.equip[target] not in GUNS:
 			return false
-	elif inv.slots[target] == null or inv.slots[target]["id"] != "pistol":
+	elif inv.slots[target] == null or inv.slots[target]["id"] not in GUNS:
 		return false
 	var mid: String = ms["id"]
 	var k := mod_slot(mid)
@@ -1141,9 +1219,9 @@ func install_mod(idx: int, target) -> bool:
 func remove_mod(target, k: int) -> void:
 	var inv = game.inv
 	if target is String:
-		if inv.equip[target] != "pistol":
+		if inv.equip[target] not in GUNS:
 			return
-	elif inv.slots[target] == null or inv.slots[target]["id"] != "pistol":
+	elif inv.slots[target] == null or inv.slots[target]["id"] not in GUNS:
 		return
 	var pd: float = inv.get_dur(target)
 	var mods := mods_of(pd)
@@ -1182,7 +1260,7 @@ func _reload_tick(delta: float) -> void:
 		_reload_end()
 		return
 	_rel_t += delta
-	var k := clampf(_rel_t / RELOAD_T, 0.0, 1.0)
+	var k := clampf(_rel_t / _rel_len, 0.0, 1.0)
 	p.gun_rel_k = k
 	while _rel_ev < REL_EVENTS.size() and k >= float(REL_EVENTS[_rel_ev][0]):
 		var ev: String = REL_EVENTS[_rel_ev][1]

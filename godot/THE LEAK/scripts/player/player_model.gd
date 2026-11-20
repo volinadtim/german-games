@@ -474,8 +474,8 @@ func _apply_bones() -> void:
 		_set_global_rot(c, rr * Basis(Vector3.UP, torso_off + side * (reach[i] + 0.06 * gun_ads_w) * 2.5 + twist + idle_tw - side * back)
 				* Basis(Vector3.BACK, side * up) * rest_p.call(c))
 	var st_arr = get("gun_st_w")
-	var gp_l: bool = weapon_ids.get(0) == "pistol" and st_arr != null and float(st_arr.get(0)) > 0.01
-	var gp_r: bool = weapon_ids.get(1) == "pistol" and st_arr != null and float(st_arr.get(1)) > 0.01
+	var gp_l: bool = weapon_ids.get(0) in ["pistol", "sawnoff", "rifle", "smg"] and st_arr != null and float(st_arr.get(0)) > 0.01
+	var gp_r: bool = weapon_ids.get(1) in ["pistol", "sawnoff", "rifle", "smg"] and st_arr != null and float(st_arr.get(1)) > 0.01
 	var gp_any: bool = gp_l or gp_r
 
 	if gp_any:
@@ -500,7 +500,7 @@ func _apply_bones() -> void:
 		var bas := (leg_rot if is_leg else torso_rot) * inv * d.global_basis.orthonormalized()
 		var arm: int = e.get(3)
 		if arm >= 0:
-			if weapon_ids.get(arm) == "pistol" and e.get(4):
+			if weapon_ids.get(arm) in ["pistol", "sawnoff", "rifle", "smg"] and e.get(4):
 				continue
 			var side := -1.0 if arm == 0 else 1.0
 			# с оружием (кроме щита) кисть остаётся большим пальцем вверх — молотковый хват, оружие стоит вертикально
@@ -516,7 +516,7 @@ func _apply_bones() -> void:
 	var wig := fk * idle_amt * (1.0 - fist_blend) if fidget == "fingers" else 0.0
 	for n in finger_bones.size():
 		var f: Array = finger_bones.get(n)
-		if n < finger_arm.size() and weapon_ids.get(finger_arm.get(n)) == "pistol":
+		if n < finger_arm.size() and weapon_ids.get(finger_arm.get(n)) in ["pistol", "sawnoff", "rifle", "smg"]:
 			continue
 		# шевелит пальцами — каждый палец сгибается в своём ритме
 		var b := clampf(fist_blend + wig * (0.22 + 0.22 * sin(idle_time * 13.0 + float(n) * 1.7)), 0.0, 1.0)
@@ -531,7 +531,7 @@ func _apply_bones() -> void:
 		if n < finger_arm.size() and weapon_ids[finger_arm[n]] != "":
 			var gk: float = GRIP_CURL.get(weapon_ids[finger_arm[n]], 0.7)
 			b = minf(gk + 0.1, 1.0) if finger_thumb[n] else gk
-			if weapon_ids[finger_arm[n]] == "pistol" and n < finger_index.size() and finger_index[n]:
+			if weapon_ids[finger_arm[n]] in ["pistol", "sawnoff", "rifle", "smg"] and n < finger_index.size() and finger_index[n]:
 				b = 0.42   # указательный — вдоль спуска, не в кулаке
 		skel.set_bone_pose_rotation(f[0], (f[1] as Quaternion).slerp(f[2], b))
 	_flex_weapons()
@@ -544,7 +544,7 @@ func _flex_weapons() -> void:
 		var n = weapon_nodes[i]
 		if n == null or not is_instance_valid(n) or not n.is_inside_tree():
 			continue
-		if weapon_ids[i] == "pistol" and weapon_att[i] != null:
+		if weapon_ids[i] in ["pistol", "sawnoff", "rifle", "smg"] and weapon_att[i] != null:
 			if n.has_meta("grip"):
 				n.transform = n.get_meta("grip")
 			continue
@@ -632,8 +632,8 @@ func set_weapon(id: String, arm := 1) -> void:
 	if anim:
 		anim.stop(true)
 		skel.reset_bone_poses()
-		var has_l := weapon_ids[0] == "pistol"
-		var has_r := weapon_ids[1] == "pistol"
+		var has_l := weapon_ids[0] in ["pistol", "sawnoff", "rifle", "smg"]
+		var has_r := weapon_ids[1] in ["pistol", "sawnoff", "rifle", "smg"]
 		var anim_name := ""
 		if has_l and has_r and anim.has_animation("grip_pistol_both"):
 			anim_name = "grip_pistol_both"
@@ -659,7 +659,7 @@ func set_weapon(id: String, arm := 1) -> void:
 		mm.position = Vector3(0, 0.05, 0)
 		n.add_child(mm)
 
-	if id == "pistol" and weapon_att[arm] != null:
+	if id in ["pistol", "sawnoff", "rifle", "smg"] and weapon_att[arm] != null:
 		weapon_att[arm].add_child(n)
 		var inv_sc := 1.0 / maxf(skel_m, 0.0001)
 		n.transform = Transform3D(Basis.from_scale(Vector3.ONE * inv_sc), Vector3.ZERO)
@@ -738,7 +738,7 @@ func _grip(arm: int, id: String) -> Transform3D:
 		# нож сдвинут по оси рукояти на 2.5 см в сторону клинка — торец не торчит из кулака с другой стороны
 		d2 = (-across * 1.0 - knuck * 0.25 + n * 0.35).normalized()
 		c += d2 * 0.025
-	if id == "pistol":
+	if id in ["pistol", "sawnoff", "rifle", "smg"]:
 		c -= d2 * 0.042   # 05:41: в кулаке середина рукояти (её низ — начало модели), а не её низ; спуск — у указательного
 	var xw := (knuck - d2 * knuck.dot(d2)).normalized()   # лезвие ребром к костяшкам — по направлению удара
 	var zw := xw.cross(d2).normalized()

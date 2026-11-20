@@ -40,12 +40,12 @@ const REST := Vector4(0, 0, 0, 10)
 const GUARDS: Array[Vector4] = [Vector4(46, 45, 56, 76), Vector4(44, 33, 46, 88)]   # 05:36 — кулаки на ~3,5 см шире
 # доля сгиба кулака, когда пальцы обхватывают рукоять (толще рукоять — меньше): промпт 04:49
 const GRIP_CURL := {"bat": 0.6, "spiked_club": 0.58, "pipe": 0.68, "crowbar": 0.72, "machete": 0.74, "hammer": 0.68,
-		"knife": 0.7, "shiv": 0.76, "pistol": 0.78, "stone": 0.5}
+		"knife": 0.7, "shiv": 0.76, "pistol": 0.78, "sawnoff": 0.78, "rifle": 0.78, "smg": 0.78, "stone": 0.5}
 const KNIFE_REV_ADD := Vector4(28, -19, -36, -10)   # добавка к стойке левой с ножом (обратный хват); 04:58 — на ~3–4 см левее и ниже; 05:02 — пересчитана под новую стойку, итоговая поза ножа прежняя (74, 26, 20, 66)
 var knife_rev_w := 0.0
 # 05:50: оружие ближнего боя в стойке — рука чуть ниже, оружие по диагонали вперёд к цели (не вертикально), кромкой вперёд
 const MELEE_ST_ADD := Vector4(-18, 0, 0, -2)
-const MELEE_ST_SKIP := ["", "pistol", "stone", "flashlight"]
+const MELEE_ST_SKIP := ["", "pistol", "sawnoff", "rifle", "smg", "stone", "flashlight"]
 var melee_st_w: Array[float] = [0.0, 0.0]
 const PUNCHES := {
 	"straight": [Vector4(55, 14, 2, 80), Vector4(100, 6, 0, 4)],
@@ -97,7 +97,7 @@ const SWINGS := {
 }
 var WRIST_HIT := 1.1   # сгиб кисти в момент удара (рад)
 # конец оружия (по длинной оси +Y модели) — по нему тянется след
-const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "pistol": 0.12, "stone": 0.05}
+const WEAPON_TIP := {"bat": 0.67, "pipe": 0.63, "crowbar": 0.62, "machete": 0.52, "knife": 0.25, "pistol": 0.12, "sawnoff": 0.12, "rifle": 0.12, "smg": 0.12, "stone": 0.05}
 const Fx := preload("res://scripts/core/fx.gd")
 
 ## Управление (промпт 16.11 04:51): окна (магазин, лут, автомат…) пишут active как раньше, а консоль, чат,

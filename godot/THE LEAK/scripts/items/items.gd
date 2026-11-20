@@ -113,6 +113,17 @@ const ITEMS := {
 		"icon": "mag", "color": Color(0.2, 0.2, 0.2), "rounds": true, "dur": 8},
 	"ammo": {"name": "Патроны", "desc": "Пистолетные патроны. Перетащи на магазин — зарядить его.", "stack": 40,
 		"icon": "ammo", "color": Color(0.78, 0.6, 0.25)},
+	# огнестрел из лагеря у озера (промпт 20.11 19:15, gun.gd: GUNS): магазин встроенный — [R] заряжает патронами из сумки
+	"sawnoff": {"name": "Обрез", "desc": "Двустволка с отпиленными стволами: 2 патрона 12 калибра, дробь — 8 дробин конусом. Страшен вблизи, вдали почти бесполезен. ПКМ держать — от бедра, ПКМ клик — прицел, с ПКМ ЛКМ — выстрел, без — удар. [R] — зарядить патронами 12 к. из сумки, [Enter] (держать) — разрядить. Слоты модулей: прицел, дуло, приклад, цевьё. Прочность — 60 выстрелов, чинится ремкомплектом огнестрела.", "stack": 1,
+		"icon": "sawnoff", "color": Color(0.3, 0.28, 0.26), "weapon": true, "gun": true, "rounds": true, "dur": 1},
+	"rifle": {"name": "Охотничье ружьё", "desc": "Болтовое, на 5 винтовочных патронов: бьёт сильно и далеко, в прицеле почти без разброса, но стреляет медленно. Управление — как у пистолета. [R] — зарядить винтовочными патронами из сумки, [Enter] (держать) — разрядить. Слоты модулей: прицел, дуло, приклад, цевьё. Прочность — 60 выстрелов, чинится ремкомплектом огнестрела.", "stack": 1,
+		"icon": "rifle", "color": Color(0.32, 0.31, 0.3), "weapon": true, "gun": true, "rounds": true, "dur": 1},
+	"smg": {"name": "ПП", "desc": "Пистолет-пулемёт на 25 пистолетных патронов: зажми ЛКМ (в прицеле или от бедра) — очередь. Урон пули меньше, разброс больше. [R] — зарядить пистолетными патронами из сумки, [Enter] (держать) — разрядить. Слоты модулей: прицел, дуло, приклад, цевьё. Прочность — 150 выстрелов, чинится ремкомплектом огнестрела.", "stack": 1,
+		"icon": "smg", "color": Color(0.2, 0.2, 0.21), "weapon": true, "gun": true, "rounds": true, "dur": 1},
+	"shells": {"name": "Патроны 12 к.", "desc": "Дробовые патроны для обреза. С обрезом в руке [R] — зарядить.", "stack": 30,
+		"icon": "ammo", "color": Color(0.72, 0.18, 0.14)},
+	"rifle_ammo": {"name": "Винтовочные патроны", "desc": "Длинные патроны для охотничьего ружья. С ружьём в руке [R] — зарядить.", "stack": 30,
+		"icon": "ammo", "color": Color(0.82, 0.68, 0.3)},
 	# модули огнестрела (промпт 20.11 18:43, gun.gd: MOD_SLOTS): "mod" — слот, "ms" — множители статов
 	"mod_reddot": {"name": "Коллиматор", "desc": "Модуль, слот «Прицел». Красная точка: в прицеле разброс −45%." + MOD_HINT, "stack": 1,
 		"icon": "mod_reddot", "color": Color(0.22, 0.22, 0.24), "mod": "sight", "ms": {"aim": 0.55}},
@@ -256,7 +267,7 @@ const RECIPES := [
 ## Размер предмета в ячейках сумки [ширина, высота] (промпт 16.11 02:42); нет в списке — 1×1.
 ## Пробел при перетаскивании поворачивает (inventory.gd).
 const SIZES := {
-	"pistol": [2, 2], "medkit": [2, 2], "fuel": [2, 2], "backpack": [2, 2], "sack": [2, 2], "tshirt": [2, 1],
+	"pistol": [2, 2], "sawnoff": [1, 3], "rifle": [1, 3], "smg": [2, 2], "medkit": [2, 2], "fuel": [2, 2], "backpack": [2, 2], "sack": [2, 2], "tshirt": [2, 1],
 	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
 	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
 	"flashlight": [1, 2], "water": [1, 2], "wood": [1, 2], "gasmask": [2, 2], "gasmask2": [2, 2], "snyuhatel5088": [2, 2], "lockpick": [1, 1],
@@ -402,7 +413,7 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var s := minf(r.size.x, r.size.y)
 	var col: Color = ITEMS[id]["color"]
 	var dark := col.darkened(0.45)
-	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
+	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol", "sawnoff", "rifle", "smg"]:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	if ITEMS[id].has("mod"):
@@ -855,11 +866,11 @@ static func make_mesh(id: String) -> Node3D:
 		id = "gasmask"
 	elif id == "filter2":
 		id = "filter"
-	if id in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
+	if id in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol", "sawnoff", "rifle", "smg"]:
 		var w := Weapons.make(id)
 		if id in ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club"]:
 			w.rotation.z = PI / 2   # на полу оружие лежит
-		elif id == "pistol":
+		elif id in ["pistol", "sawnoff", "rifle", "smg"]:
 			# пистолет лежит на боку (модель — в плоскости XY): плоская сторона вниз, по центру коробки
 			w.rotation.x = -PI / 2
 			w.position = Vector3(-0.065, 0.014, 0.065)

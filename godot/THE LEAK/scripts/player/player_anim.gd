@@ -258,7 +258,7 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 ## (с двумя — обе); прицел (клик ПКМ) — один пистолет двумя руками у глаза (мушка по центру), два — обе руки вытянуты вперёд.
 ## Двухзвенный IK на узлах-драйверах плеча и локтя поверх обычной позы, с плавным весом. У чужих игроков — gun_mode из сети.
 func _gun_pose(delta: float) -> void:
-	var has := [weapon_ids[0] == "pistol", weapon_ids[1] == "pistol"]
+	var has := [weapon_ids[0] in ["pistol", "sawnoff", "rifle", "smg"], weapon_ids[1] in ["pistol", "sawnoff", "rifle", "smg"]]
 	var any: bool = has[0] or has[1]
 	gun_hip_w = move_toward(gun_hip_w, 1.0 if any and gun_mode == 1 else 0.0, delta * 6.0)
 	gun_ads_w = move_toward(gun_ads_w, 1.0 if any and gun_mode == 2 else 0.0, delta * 6.0)
@@ -343,8 +343,8 @@ func _stance_gun_wrist() -> void:
 	var anim := model_root.get_node_or_null("AnimationPlayer") as AnimationPlayer if model_root else null
 	if anim == null:
 		return
-	var has_l: bool = weapon_ids.get(0) == "pistol"
-	var has_r: bool = weapon_ids.get(1) == "pistol"
+	var has_l: bool = weapon_ids.get(0) in ["pistol", "sawnoff", "rifle", "smg"]
+	var has_r: bool = weapon_ids.get(1) in ["pistol", "sawnoff", "rifle", "smg"]
 	var st_l: bool = has_l and float(gun_st_w.get(0)) > 0.01
 	var st_r: bool = has_r and float(gun_st_w.get(1)) > 0.01
 	var want_anim := ""
@@ -499,7 +499,7 @@ func _puppet_gun_aim() -> void:
 	var b := Basis(-cb.z, cb.y, cb.x)
 	for i in 2:
 		var n = weapon_nodes[i]
-		if weapon_ids[i] != "pistol" or n == null or not is_instance_valid(n) or not (n as Node3D).is_inside_tree():
+		if weapon_ids[i] not in ["pistol", "sawnoff", "rifle", "smg"] or n == null or not is_instance_valid(n) or not (n as Node3D).is_inside_tree():
 			continue
 		var gt: Transform3D = (n as Node3D).global_transform
 		var sc := gt.basis.get_scale()

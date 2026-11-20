@@ -81,7 +81,7 @@ func charge_begin(arm: int) -> void:
 	var whip := false
 	# в боевой стойке (промпт 05:34): кнопка руки с пистолетом — выстрел в центр (ЛКМ — левый, ПКМ — правый,
 	# независимо); патронов нет — дальше обычный удар этой рукой с зарядом (рукоятью)
-	if gun and fists and active and weapon_ids[arm] == "pistol" and fist_blend >= 0.9:
+	if gun and fists and active and weapon_ids[arm] in ["pistol", "sawnoff", "rifle", "smg"] and fist_blend >= 0.9:
 		if gun.stance_fire(arm):
 			return
 	if gun and _has_pistol() and active and not fists:
@@ -92,8 +92,8 @@ func charge_begin(arm: int) -> void:
 			gun.fire()   # ЛКМ с ПКМ — выстрел
 			return
 		# ЛКМ без ПКМ — удар рукоятью рукой с пистолетом (с двумя — по очереди)
-		arm = 1 if weapon_ids[1] == "pistol" else 0
-		if weapon_ids[0] == "pistol" and weapon_ids[1] == "pistol" and last_arm == 1:
+		arm = 1 if weapon_ids[1] in ["pistol", "sawnoff", "rifle", "smg"] else 0
+		if weapon_ids[0] in ["pistol", "sawnoff", "rifle", "smg"] and weapon_ids[1] in ["pistol", "sawnoff", "rifle", "smg"] and last_arm == 1:
 			arm = 0
 		whip = true
 	elif stone_throw and _has_stone() and active:
@@ -117,7 +117,7 @@ func charge_begin(arm: int) -> void:
 
 
 func _has_pistol() -> bool:
-	return weapon_ids[0] == "pistol" or weapon_ids[1] == "pistol"
+	return weapon_ids[0] in ["pistol", "sawnoff", "rifle", "smg"] or weapon_ids[1] in ["pistol", "sawnoff", "rifle", "smg"]
 
 
 func _has_stone() -> bool:
@@ -288,7 +288,7 @@ func _weapon_swing(i: int, wid: String) -> void:
 			group = "knife_rev"   # левая — обратный хват, свой мах
 	elif wid == "shiv":
 		group = "knife_rev" if i == 0 else "knife"   # заточка — как нож (промпт 04:49), в левой — обратный хват
-	elif wid == "pistol":
+	elif wid in ["pistol", "sawnoff", "rifle", "smg"]:
 		group = "pistol"
 	elif wid == "stone":
 		group = "knife"   # камнем — короткий тычок

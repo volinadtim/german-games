@@ -15,6 +15,9 @@ const WEAPONS := {
 	"shiv": {"mult": 2.7, "reach": 1.25, "price": 0},      # молоток + металлолом ×2
 	"spiked_club": {"mult": 3.2, "reach": 1.5, "price": 0}, # молоток + деревяшка ×2 + гайки ×3
 	"pistol": {"mult": 1.6, "reach": 1.15, "price": 0},     # стреляет gun.gd; это — удар рукоятью
+	"sawnoff": {"mult": 2.0, "reach": 1.2, "price": 0},     # огнестрел у озера (gun.gd: GUNS, промпт 20.11 19:15); удар прикладом
+	"rifle": {"mult": 2.3, "reach": 1.4, "price": 0},
+	"smg": {"mult": 1.7, "reach": 1.15, "price": 0},
 	"knuckles": {"mult": 1.9, "reach": 1.05, "price": 0},   # кастет — оружие, а не перчатки (промпт 20.11 14:27)
 	"stone": {"mult": 1.4, "reach": 1.05, "price": 0},      # камень в руке: бросок — stone_throw.gd, это — удар
 	# новые предметы по тирам (промпт 20.11 17:59): тир 0 — бункер
@@ -172,6 +175,8 @@ static func add_mod(root: Node3D, id: String) -> Node3D:
 		"mod_laser":
 			_box(g, Vector3(0.045, 0.02, 0.02), Vector3(0.105, 0.068, 0), frame)
 			_box(g, Vector3(0.003, 0.006, 0.006), Vector3(0.129, 0.068, 0), dot)
+	if id in ["mod_silencer", "mod_comp"]:   # дульные — к дулу этого ствола (make: meta "mx", у пистолета 0.145)
+		g.position.x = float(root.get_meta("mx", 0.145)) - 0.145
 	return g
 
 
@@ -221,6 +226,64 @@ static func make(id: String) -> Node3D:
 			for sz in [-1.0, 1.0]:
 				_box(root, Vector3(0.006, 0.008, 0.005), Vector3(0.006, 0.134, 0.0065 * sz), blk)
 			_box(root, Vector3(0.005, 0.008, 0.004), Vector3(0.126, 0.133, 0), blk)
+		"sawnoff":
+			# обрез (промпт 20.11 19:15): деревянная пистолетная рукоять, колодка, два коротких ствола по +X на высоте дула пистолета
+			var wood := _m(Color(0.42, 0.27, 0.15), 0.0, 0.75)
+			var blk := _m(Color(0.22, 0.22, 0.22), 0.7, 0.5)
+			var sg := _box(root, Vector3(0.035, 0.12, 0.03), Vector3(-0.015, 0.045, 0), wood)
+			sg.rotation.z = -0.35
+			_box(root, Vector3(0.1, 0.045, 0.034), Vector3(0.03, 0.105, 0), blk)          # колодка
+			for sz in [-1.0, 1.0]:
+				var br := _cyl(root, 0.0105, 0.0105, 0.28, 0.0, blk)
+				br.rotation.z = PI / 2
+				br.position = Vector3(0.22, 0.112, 0.0105 * sz)
+			_box(root, Vector3(0.13, 0.022, 0.03), Vector3(0.15, 0.09, 0), wood)          # цевьё
+			var stg := _box(root, Vector3(0.04, 0.006, 0.01), Vector3(0.03, 0.062, 0), blk)
+			stg.rotation.z = 0.2
+			for sz in [-1.0, 1.0]:
+				_box(root, Vector3(0.006, 0.008, 0.005), Vector3(0.006, 0.134, 0.0065 * sz), blk)
+			_box(root, Vector3(0.006, 0.01, 0.006), Vector3(0.35, 0.132, 0), _m(Color(0.75, 0.72, 0.6), 0.8, 0.3))   # мушка-бусина
+			root.set_meta("mx", 0.36)
+		"rifle":
+			# охотничье ружьё: приклад назад от рукояти, коробка с затвором, длинный ствол на цевье
+			var wood := _m(Color(0.45, 0.29, 0.16), 0.0, 0.7)
+			var blk := _m(Color(0.2, 0.2, 0.21), 0.75, 0.45)
+			var rg := _box(root, Vector3(0.032, 0.1, 0.028), Vector3(-0.01, 0.05, 0), wood)
+			rg.rotation.z = -0.4
+			var stk := _box(root, Vector3(0.3, 0.05, 0.03), Vector3(-0.17, 0.08, 0), wood)
+			stk.rotation.z = 0.12
+			_box(root, Vector3(0.022, 0.085, 0.034), Vector3(-0.32, 0.06, 0), _m(Color(0.1, 0.09, 0.08), 0.0, 0.9))   # затыльник
+			_box(root, Vector3(0.18, 0.035, 0.03), Vector3(0.07, 0.108, 0), blk)         # ствольная коробка
+			_box(root, Vector3(0.3, 0.028, 0.032), Vector3(0.28, 0.094, 0), wood)        # цевьё
+			var rb := _cyl(root, 0.009, 0.008, 0.5, 0.0, blk)
+			rb.rotation.z = PI / 2
+			rb.position = Vector3(0.38, 0.115, 0)
+			_box(root, Vector3(0.008, 0.008, 0.045), Vector3(0.02, 0.115, 0.03), blk)     # рукоять затвора
+			var rtg := _box(root, Vector3(0.04, 0.006, 0.01), Vector3(0.03, 0.065, 0), blk)
+			rtg.rotation.z = 0.2
+			for sz in [-1.0, 1.0]:
+				_box(root, Vector3(0.006, 0.01, 0.005), Vector3(0.006, 0.133, 0.0065 * sz), blk)
+			_box(root, Vector3(0.005, 0.016, 0.004), Vector3(0.6, 0.129, 0), blk)          # мушка
+			root.set_meta("mx", 0.63)
+		"smg":
+			# ПП: рукоять, длинная коробка, кожух ствола, прямой магазин вниз, складной приклад из прутков
+			var blk := _m(Color(0.16, 0.16, 0.17), 0.7, 0.5)
+			var mg := _box(root, Vector3(0.03, 0.1, 0.026), Vector3(-0.005, 0.045, 0), _m(Color(0.1, 0.1, 0.1), 0.0, 0.8))
+			mg.rotation.z = -0.2
+			_box(root, Vector3(0.26, 0.042, 0.032), Vector3(0.08, 0.108, 0), blk)
+			var sh := _cyl(root, 0.012, 0.012, 0.08, 0.0, _m(Color(0.25, 0.25, 0.25), 0.6, 0.5))
+			sh.rotation.z = PI / 2
+			sh.position = Vector3(0.25, 0.11, 0)
+			_box(root, Vector3(0.026, 0.12, 0.018), Vector3(0.11, 0.03, 0), blk)          # магазин
+			for y in [0.1, 0.06]:
+				_box(root, Vector3(0.16, 0.007, 0.007), Vector3(-0.13, y, 0), blk)
+			_box(root, Vector3(0.01, 0.06, 0.03), Vector3(-0.21, 0.08, 0), blk)
+			var mtg := _box(root, Vector3(0.04, 0.006, 0.01), Vector3(0.035, 0.062, 0), blk)
+			mtg.rotation.z = 0.2
+			for sz in [-1.0, 1.0]:
+				_box(root, Vector3(0.006, 0.012, 0.005), Vector3(0.006, 0.133, 0.0065 * sz), blk)
+			_box(root, Vector3(0.005, 0.012, 0.004), Vector3(0.2, 0.133, 0), blk)
+			root.set_meta("mx", 0.29)
 		"hammer":
 			# палка, на конце камень, примотанный бечёвкой
 			_cyl(root, 0.016, 0.014, 0.42, 0.13, _m(Color(0.5, 0.36, 0.2)))
@@ -383,6 +446,22 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2, col: Color) -> void:
 			ci.draw_colored_polygon(gp, Color(0.3, 0.22, 0.15))
 			ci.draw_arc(c + Vector2(s * 0.03, -s * 0.03), s * 0.08, 0.0, PI, 10, col.lightened(0.15), maxf(1.5, s * 0.03))
 			ci.draw_circle(c + Vector2(s * 0.34, -s * 0.16), s * 0.025, Color(0.05, 0.05, 0.05))
+		"sawnoff":
+			ci.draw_line(c + Vector2(-s * 0.05, -s * 0.1), c + Vector2(s * 0.42, -s * 0.1), col.lightened(0.25), w * 1.2)
+			ci.draw_line(c + Vector2(-s * 0.05, -s * 0.02), c + Vector2(s * 0.42, -s * 0.02), col.lightened(0.05), w * 1.2)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.42, s * 0.08), c + Vector2(-s * 0.02, -s * 0.14),
+				c + Vector2(s * 0.02, s * 0.04), c + Vector2(-s * 0.28, s * 0.34)]), Color(0.45, 0.3, 0.17))
+		"rifle":
+			ci.draw_line(a, a.lerp(b, 0.42), Color(0.5, 0.33, 0.18), w * 2.2)
+			ci.draw_line(a.lerp(b, 0.35), b, col.lightened(0.15), w * 0.8)
+			ci.draw_line(a.lerp(b, 0.42), a.lerp(b, 0.75), Color(0.5, 0.33, 0.18), w * 1.3)
+		"smg":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.3, -s * 0.2), Vector2(s * 0.55, s * 0.16)), col.lightened(0.15))
+			ci.draw_line(c + Vector2(s * 0.25, -s * 0.12), c + Vector2(s * 0.42, -s * 0.12), col.lightened(0.3), w)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.02, -s * 0.04), Vector2(s * 0.09, s * 0.36)), col)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.26, -s * 0.04), c + Vector2(-s * 0.12, -s * 0.04),
+				c + Vector2(-s * 0.1, s * 0.26), c + Vector2(-s * 0.22, s * 0.26)]), Color(0.12, 0.12, 0.12))
+			ci.draw_line(c + Vector2(-s * 0.3, -s * 0.14), c + Vector2(-s * 0.44, -s * 0.06), col.lightened(0.2), maxf(1.0, w * 0.5))
 		"hammer":
 			ci.draw_line(a, a.lerp(b, 0.78), Color(0.5, 0.36, 0.2), w)
 			var hd := a.lerp(b, 0.8)

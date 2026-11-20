@@ -14,7 +14,7 @@ const Items := preload("res://scripts/items/items.gd")
 const Weapons := preload("res://scripts/weapons/weapons.gd")
 ## рыночные цены вещей, которых нет в магазине и которые не хлам
 const EXTRA_MARKET := {"wallet": 10, "knuckles": 30, "twine": 4,
-	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20, "pistol": 120, "mag": 20, "ammo": 3,
+	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20, "pistol": 120, "mag": 20, "ammo": 3, "sawnoff": 160, "rifle": 300, "smg": 400, "shells": 4, "rifle_ammo": 6,
 	"mod_reddot": 70, "mod_scope": 130, "mod_silencer": 110, "mod_comp": 60, "mod_stock": 80, "mod_grip": 56, "mod_laser": 90}
 const NO_SELL := ["coin", "car_key"]   # монеты — это деньги, ключ — сюжетный
 ## мусор раньше не брали; теперь продаётся всё (промпт 20.11 11:57) — список пуст

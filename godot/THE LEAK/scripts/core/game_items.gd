@@ -260,9 +260,9 @@ func use_item(key, no_channel := false) -> void:
 		play_ui("click", -12.0)
 	elif in_hand and Items.equip_slot(id) != "":
 		pass   # оружие/снаряжение уже в руке — применять нечего
-	elif id == "pistol":
+	elif id in ["pistol", "sawnoff", "rifle", "smg"]:
 		# второй пистолет — в свободную левую (стреляют по очереди, gun.gd)
-		equip(idx, "left" if inv.equip["right"] == "pistol" and inv.equip["left"] == "" else "right")
+		equip(idx, "left" if inv.equip["right"] in ["pistol", "sawnoff", "rifle", "smg"] and inv.equip["left"] == "" else "right")
 	elif id == "mag":
 		gun.fill_mag(idx)
 	elif Items.equip_slot(id) == "hand":
@@ -619,7 +619,7 @@ func hb_item(arm: int) -> String:
 	if id == "" or not Items.hand_use(id):
 		return ""
 	# пистолет в руках забирает ЛКМ под выстрел (gun.gd) — предмет левой рукой в это время не применить
-	if arm == 0 and player and not player.fists and (player.weapon_ids[0] == "pistol" or player.weapon_ids[1] == "pistol"):
+	if arm == 0 and player and not player.fists and (player.weapon_ids[0] in ["pistol", "sawnoff", "rifle", "smg"] or player.weapon_ids[1] in ["pistol", "sawnoff", "rifle", "smg"]):
 		return ""
 	return id
 

@@ -337,7 +337,7 @@ func _item_cell(grid: GridContainer, id: String, price: int) -> void:
 	if not _can_pay(price):
 		reason = "Не хватает монет."
 	_cell(grid, func(ci: Control, r: Rect2): Items.draw_icon(ci, id, r), price,
-		Items.item_name(id) + (" ×%d" % AMMO_PACK if id == "ammo" else ""), preload("res://scripts/ui/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]), reason, func(): _buy(id, price))
+		Items.item_name(id) + (" ×%d" % AMMO_PACK if id in ["ammo", "shells", "rifle_ammo"] else ""), preload("res://scripts/ui/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]), reason, func(): _buy(id, price))
 
 
 ## Замочек на закрытом товаре.
@@ -742,7 +742,7 @@ func _buy(id: String, price: int) -> void:
 		game.play_ui("coin", -10.0)
 		_refresh()
 		return
-	var qty: int = AMMO_PACK if id == "ammo" else 1   # патроны — набором (05:11)
+	var qty: int = AMMO_PACK if id in ["ammo", "shells", "rifle_ammo"] else 1   # патроны — набором (05:11)
 	# магазин продаётся пустым (05:11), пистолет — без магазина и целый (dur 0; прочность — gun.gd)
 	var left: int = game.inv.add(id, qty, 0.0 if id in ["mag", "pistol"] else -1.0)
 	info_l.text = "Куплено: %s" % Items.item_name(id)

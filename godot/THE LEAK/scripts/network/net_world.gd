@@ -467,7 +467,7 @@ func _mods_code() -> int:
 	var c := 0
 	for h in 2:
 		var sl: String = game.gun.SLOTS[h]
-		if game.inv.equip[sl] == "pistol":
+		if game.inv.equip[sl] in ["pistol", "sawnoff", "rifle", "smg"]:
 			c |= game.gun.mods_code(game.inv.get_dur(sl)) << (8 * h)
 	return c
 
@@ -478,7 +478,7 @@ func _puppet_mods(pp, mods: int) -> void:
 		return
 	for h in 2:
 		var n = pp.weapon_nodes[h]
-		var code := (mods >> (8 * h)) & 255 if pp.weapon_ids[h] == "pistol" else 0
+		var code := (mods >> (8 * h)) & 255 if pp.weapon_ids[h] in ["pistol", "sawnoff", "rifle", "smg"] else 0
 		if n != null and is_instance_valid(n) and int((n as Node3D).get_meta("mods", 0)) != code:
 			Weapons.set_mods(n, game.gun.mods_list(code))
 			(n as Node3D).set_meta("mods", code)

@@ -23,16 +23,16 @@ const CONS_SUBS := [
 	["Пропитание", ["water", "tea", "soda", "energy", "choco", "canned", "ration", "mre"]],
 	["Медицина", ["pills", "bandage", "medkit", "medkit_army", "stim", "trauma_kit"]],
 	["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]],
-	["Патроны", ["ammo", "ammo_box", "mag"]],   # только в деревне (TIER1_HIDE), промпт 20.11 14:27
+	["Патроны", ["ammo", "ammo_box", "mag", "shells", "rifle_ammo"]],   # только в деревне (TIER1_HIDE), промпт 20.11 14:27
 ]
 var sub_c := 0                # открытая подвкладка «Расходников»
 ## вкладка «Оружие» (промпт 20.11 14:27): огнестрел (только в деревне) и холодное оружие из Weapons.SHOP
-const GUN_IDS := ["pistol"]
+const GUN_IDS := ["pistol", "sawnoff", "rifle", "smg"]   # обрез, ружьё, ПП — с лагеря у озера (тир 2, промпт 20.11 19:15)
 var sub_g := 0                # открытая подвкладка «Оружия»
-const AMMO_SHOP := [["ammo", 50]]   # набор из AMMO_PACK патронов за 50 (промпт 20.11 14:27)
+const AMMO_SHOP := [["ammo", 50], ["shells", 70], ["rifle_ammo", 110]]   # набор из AMMO_PACK патронов за 50 (промпт 20.11 14:27)
 const AMMO_PACK := 10
 const MAG_SHOP := [["mag", 55]]   # магазин с 8 патронами (было 30; дороже — промпт 18.11 00:56)
-const GUN_SHOP := [["pistol", 320]]   # пистолет без магазина (промпт 18.11 01:52)
+const GUN_SHOP := [["pistol", 320], ["sawnoff", 450], ["rifle", 900], ["smg", 1200]]   # пистолет без магазина (промпт 18.11 01:52)
 ## модули огнестрела (промпт 20.11 18:43, gun.gd: MOD_SLOTS) — подвкладка «Модули» во «Вкладке оружия»
 const MOD_IDS := ["mod_reddot", "mod_scope", "mod_silencer", "mod_comp", "mod_stock", "mod_grip", "mod_laser"]
 const MOD_SHOP := [["mod_reddot", 140], ["mod_scope", 260], ["mod_silencer", 220], ["mod_comp", 120],
@@ -62,6 +62,7 @@ var sub := 0                  # открытая подвкладка «Одеж
 ## Нет в списке — тир 0. Тир 1 — аптечки, тушёнка, газировка, лучшая одежда, монтировка, мачете, огнестрел (промпты 16.11 03:13, 04:35).
 const TIER := {"medkit": 1, "canned": 1, "soda": 1, "moto_helmet": 1, "vest": 1, "wpants": 1, "tac_gloves": 1,
 	"crowbar": 1, "machete": 1, "pistol": 1, "ammo": 1, "mag": 1,
+	"sawnoff": 2, "rifle": 2, "smg": 2, "shells": 2, "rifle_ammo": 2,   # огнестрел у озера (промпт 20.11 19:15)
 	# новые (промпт 20.11 17:59)
 	"energy": 1, "ration": 1, "ammo_box": 1, "bushlat": 1, "berets": 1, "sapper": 1, "sledge": 1,
 	"gps": 1, "holster": 1, "bag_hooks": 1,   # промпт 20.11 18:38
