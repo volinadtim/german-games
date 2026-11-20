@@ -100,6 +100,7 @@ func save_state() -> Dictionary:
 		"slot_level": slot.level if slot else 1,
 		"slot_level_v3": true,   # окно 2×3 снова есть (промпт 18.11 00:39)
 		"shop_bought": shop_bought.duplicate(),
+		"apple_bought": apple_bought,
 		"blueprints": home.to_save() if home else {},
 		"moved": carry.to_save() if carry else {},
 		"slot_tray": slot.tray_coins if slot else 0,
@@ -297,6 +298,7 @@ func load_state(d: Dictionary) -> void:
 			safe.contents.append(["car_key", 1])
 	if d.has("glass"):
 		glass_floor.from_save(d["glass"])
+	apple_bought = bool(d.get("apple_bought", false))
 	shop_bought = Array(d.get("shop_bought", [])).map(func(x): return String(x))
 	if home:
 		home.from_save(d.get("blueprints", {}))

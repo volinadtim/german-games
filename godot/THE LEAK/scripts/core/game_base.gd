@@ -233,6 +233,7 @@ var stone_piles: Array = []
 var chests: Array = []
 ## что куплено в Trinkets Market (id, по штуке) — «666» забирает одну такую экипировку (slot_machine.gd)
 var shop_bought: Array = []
+var apple_bought := false   # гнилое яблоко куплено (можно одно за игру)
 
 
 # ---------- сохранения (промпт 23:39) ----------

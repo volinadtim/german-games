@@ -460,7 +460,11 @@ func _build_slot_tab() -> void:
 	else:
 		_cell(ga, func(ci: Control, r: Rect2): Items.draw_icon(ci, "rot_apple", r), ap,
 			"Гнилое яблоко", "Защищает от шестёрок. Его надо скормить KILLBOX.",
-			"" if _can_pay(ap) else "Не хватает монет.", func(): _buy("rot_apple", ap))
+			"Уже куплено." if game.apple_bought else ("" if _can_pay(ap) else "Не хватает монет."),
+			func():
+				if not game.apple_bought and _can_pay(ap):
+					game.apple_bought = true
+					_buy("rot_apple", ap))
 	var gmax: int = SM.GUAR_MAX[lv - 1]
 	_section("ГАРАНТИРОВАННЫЙ СИМВОЛ ×1 / ×2 / ×3")
 	var g2 := _grid()
