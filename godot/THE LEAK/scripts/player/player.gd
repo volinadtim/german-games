@@ -94,6 +94,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	# Пока открыт выбор выброса на G — не бьём, не стреляем и не заряжаем удар
 	if game != null and game.get("_drop_mode"):
+		# камера при этом крутится как обычно
+		if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \
+				and event.device != InputEvent.DEVICE_ID_EMULATION:
+			look(event.relative)
 		return
 	# мышь, эмулированная из касаний (телефон), — обзор и удары там делает touch_controls.gd
 	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION:
