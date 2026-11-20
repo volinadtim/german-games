@@ -194,6 +194,7 @@ func _solid(center_: Vector3, size: Vector3, yaw := 0.0) -> void:
 func _build_bottom() -> void:
 	bottom = Node3D.new()
 	bottom.name = "LakeBottom"
+	bottom.top_level = true   # center — в мировых координатах (лагерь сдвинут, lake_camp.gd: OFF)
 	get_parent().add_child(bottom)
 	var c := bottom_c()
 	var h := 8.0

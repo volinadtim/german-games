@@ -50,8 +50,9 @@ var card_seat := -1
 var card_moved := false
 var card_after := false
 var card_fast := false
-## Третья локация — лагерь у озера (промпт 20.11 18:00). С 20.11 18:40 — без телепорта: лагерь и город стоят
-## всегда, из деревни на север ведёт дорога (village_build.gd: _link), дошёл — at_lake (_arrive). В сейве village.lake.
+## Третья локация — лагерь у озера (промпт 20.11 18:00). С 20.11 18:40–18:50 — без телепорта: лагерь (на восток
+## от деревни) и город (на северо-запад) стоят всегда, к ним ведут дороги (village_build.gd: _world);
+## дошёл — at_lake / at_city (_arrive). В сейве village.lake / village.city.
 const LakeCamp := preload("res://scripts/village/lake_camp.gd")
 const LAKE_NEED := {"filter": 5, "fuel": 3, "steel_hammer": 2}
 var lake                             # lake_camp.gd (строится при поездке / загрузке)
@@ -142,7 +143,7 @@ func _city_mobs() -> void:
 		return
 	city_mobs = true
 	for s in City.MUT:
-		_spawn_mutant(s[0], s[1], true)
+		_spawn_mutant(s[0] + City.OFF, s[1], true)
 
 
 ## Мутанты у озера (промпт 20.11 18:31): умнее и непредсказуемее деревенских (mutant.gd: smart), но не крепче.
@@ -162,7 +163,7 @@ func _lake_mobs() -> void:
 		return
 	lake_mobs = true
 	for s in LAKE_MUT:
-		_spawn_mutant(s[0], s[1], true)
+		_spawn_mutant(s[0] + LakeCamp.OFF, s[1], true)
 
 
 # ---------- лут ----------
@@ -368,12 +369,12 @@ func _lake_relocate(seat: int) -> void:
 	at_lake = true
 	_quest("")
 	_lake_mobs()
-	car.park_at(LakeCamp.CAR_POS, LakeCamp.CAR_YAW)
+	car.park_at((LakeCamp.CAR_POS + LakeCamp.OFF), LakeCamp.CAR_YAW)
 	car.fuel = 0.3   # дорога съела почти весь бак
 	if seat >= 0 and seat < 4:
 		car.seat_local(seat, true)
 	else:
-		game.player.global_position = LakeCamp.CAR_POS + Vector3(2.5, 0.3, -1.5 - 0.8 * randf())
+		game.player.global_position = (LakeCamp.CAR_POS + LakeCamp.OFF) + Vector3(2.5, 0.3, -1.5 - 0.8 * randf())
 		game.player.velocity = Vector3.ZERO
 
 
@@ -454,12 +455,12 @@ func _city_relocate(seat: int) -> void:
 	at_city = true
 	_quest("")
 	_city_mobs()
-	car.park_at(City.CAR_POS, City.CAR_YAW)
+	car.park_at((City.CAR_POS + City.OFF), City.CAR_YAW)
 	car.fuel = 0.25   # дорога съела почти весь бак
 	if seat >= 0 and seat < 4:
 		car.seat_local(seat, true)
 	else:
-		game.player.global_position = City.CAR_POS + Vector3(2.5, 0.3, -1.5 - 0.8 * randf())
+		game.player.global_position = (City.CAR_POS + City.OFF) + Vector3(2.5, 0.3, -1.5 - 0.8 * randf())
 		game.player.velocity = Vector3.ZERO
 
 
@@ -469,13 +470,13 @@ func _city_after() -> void:
 
 ## Задание справа в лагере: что нужно для поездки в город.
 func _city_quest() -> void:
-	var t := "Город — дальше по дороге на север, за озером (~150 м).\nДышать там можно только в " + City.MASK_NAME
+	var t := "Город — от северного края деревни дорога на северо-запад (~360 м),\nот лагеря — лесная дорога (~550 м). Дышать там можно только в " + City.MASK_NAME
 	_quest_update(t)
 
 
 ## Задание справа (после подвала): что положить в багажник для поездки к озеру.
 func _lake_quest() -> void:
-	var t := "Лагерь у озера — по дороге на север, ~800 м за деревней.\nПешком нужны фильтры, на машине — бензин."
+	var t := "Лагерь у озера — от южного края деревни дорога на восток (~270 м).\nПешком нужны фильтры, на машине — бензин."
 	_quest_update(t)
 
 
@@ -539,7 +540,17 @@ func _force_gasmask() -> void:
 
 
 static func near_village(p: Vector3) -> bool:
-	return p.z > VZ0 - 40.0 and p.z < VZ1 + 40.0
+	return p.z > VZ0 - 40.0 and p.z < VZ1 + 40.0 and absf(p.x - ROAD_X) < 70.0
+
+
+## Старые сейвы (до 20.11 18:50 лагерь и город стояли далеко на севере, на одной линии с деревней):
+## точку оттуда переносим в сдвинутый лагерь / город (lake_camp.gd / city.gd: OFF).
+static func migrate_pos(p: Vector3) -> Vector3:
+	if p.z > 1365.0:
+		return p + City.OFF
+	if p.z > 1100.0:
+		return p + LakeCamp.OFF
+	return p
 
 
 # ---------- задание и подсказки ----------
@@ -706,33 +717,35 @@ func _poll() -> void:
 ## Дорога сквозная (промпт 20.11 18:40): дошёл/доехал до лагеря или города — отметка (в сейве) и подсказка;
 ## хост расселяет мутантов, когда туда подходит любой игрок; далёкие лагерь и город не рисуем.
 func _arrive(pp: Vector3) -> void:
-	if not at_lake and pp.z > LakeCamp.Z0 - 30.0:
+	var p2 := Vector2(pp.x, pp.z)
+	if not at_lake and LAKE_PAD.grow(10.0).has_point(p2):
 		at_lake = true
 		_quest("")
 		_lake_after()
-	if not at_city and pp.z > City.Z0 - 30.0:
+	if not at_city and CITY_PAD.grow(10.0).has_point(p2):
 		at_city = true
 		_quest("")
 		_city_after()
 	if lake:
-		lake.visible = pp.z > LakeCamp.Z0 - 450.0
+		lake.visible = LAKE_PAD.grow(400.0).has_point(p2)
 	if city:
-		city.visible = pp.z > City.Z0 - 400.0
-	if someone_past(LakeCamp.Z0 - 150.0):
+		city.visible = CITY_PAD.grow(400.0).has_point(p2)
+	if someone_near(LAKE_PAD.grow(150.0)):
 		_lake_mobs()
-	if someone_past(City.Z0 - 100.0):
+	if someone_near(CITY_PAD.grow(100.0)):
 		_city_mobs()
 
 
-## Хост: есть ли игрок (свой или чужой) севернее z0.
-func someone_past(z0: float) -> bool:
+## Хост: есть ли игрок (свой или чужой) в прямоугольнике r (x, z).
+func someone_near(r: Rect2) -> bool:
 	if game == null or game.player == null:
 		return false
-	if game.player.global_position.z > z0:
+	var pp: Vector3 = game.player.global_position
+	if r.has_point(Vector2(pp.x, pp.z)):
 		return true
 	if game.net:
 		for p in game.net.puppets.values():
-			if is_instance_valid(p) and p.global_position.z > z0:
+			if is_instance_valid(p) and r.has_point(Vector2(p.global_position.x, p.global_position.z)):
 				return true
 	return false
 

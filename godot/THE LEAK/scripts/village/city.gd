@@ -1,15 +1,18 @@
 extends Node3D
 ## Четвёртая локация — город (промпт 20.11 18:35): самая загрязнённая. Стоит далеко к северу от лагеря у озера
-## (z ~1400..1540), стоит всегда, с юга въезд по перешейку от лагеря (village_build.gd: _link).
+## Стоит всегда, на северо-запад от деревни (промпт 20.11 18:50): координаты ниже — свои, узел сдвинут на OFF;
+## с юга въезд по дороге из деревни, с востока — лесная дорога от озера (village_build.gd: _world).
 ## Проспект от машины на север, две поперечные улицы, кварталы коробок-домов, разбитые машины, фонари,
 ## жёлто-зелёный смог. Дышать можно только в противогазе MASK (gasmask.gd: city).
-## Высота земли для машины — village_build.gd: height (за LAKE_Z0 — ровно G).
+## Высота земли для машины — village_build.gd: height (на площадке города — ровно G).
 
 const G := 4.0
 const X0 := -20.0
 const X1 := 100.0
 const Z0 := 1400.0
 const Z1 := 1540.0
+## Сдвиг города в мире (промпт 20.11 18:50): город x -280..-160, z 600..740. Площадка — village_build.gd: CITY_PAD.
+const OFF := Vector3(-260.0, 0.0, -800.0)
 ## Противогаз, в котором в городе можно дышать (предмет делает другой агент — сверяемся по id)
 const MASK := "snyuhatel5088"
 const MASK_NAME := "Снюхатель5088"
@@ -31,13 +34,14 @@ var rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
 	name = "City"
+	position = OFF
 	rng.seed = 1835
 	_ground()
 	_bounds()
 	_blocks()
 	_wrecks()
 	_lamps()
-	_sign(Vector3(26.0, G, 1403.0))
+	_sign(Vector3(32.0, G, 1411.0))
 	_skyline()
 	_smog()
 	# Trinkets Market #4 (тир 3) и автомат «РАДИАЦИЯ» у въезда (промпт 20.11 18:44)
@@ -54,7 +58,7 @@ func _ready() -> void:
 
 ## Точка в городе (тут воздух хуже всего).
 static func in_city(p: Vector3) -> bool:
-	return p.z > Z0 - 30.0
+	return Rect2(X0 + OFF.x, Z0 + OFF.z, X1 - X0, Z1 - Z0).grow(30.0).has_point(Vector2(p.x, p.z))
 
 
 ## Собирательство в развалинах: [id, мин, макс, вес]. Хост раскладывает при приезде, потом подкладывает.
@@ -73,7 +77,7 @@ func _forage_tick(delta: float) -> void:
 	var g = get_parent().get("game")
 	if g == null or g.player == null or (g.net and not g.net.is_host()):
 		return
-	if get_parent().has_method("someone_past") and not get_parent().someone_past(Z0 - 120.0):
+	if get_parent().has_method("someone_near") and not get_parent().someone_near(Rect2(X0 + OFF.x, Z0 + OFF.z, X1 - X0, Z1 - Z0).grow(120.0)):
 		return   # город стоит всегда — раскладываем, только когда кто-то подходит (village.gd)
 	forage_t -= delta
 	if forage_t > 0.0:
@@ -81,13 +85,13 @@ func _forage_tick(delta: float) -> void:
 	forage_t = FORAGE_T
 	forage = forage.filter(func(p): return is_instance_valid(p))
 	var n := 16 if forage_first else mini(2, FORAGE_MAX - forage.size())
-	var pp: Vector3 = g.player.global_position
+	var pp: Vector3 = g.player.global_position - OFF   # в координатах города
 	for i in n:
 		var at := _forage_spot(pp, not forage_first)
 		if at == Vector3.INF:
 			continue
 		var e: Array = _forage_pick()
-		var p = g._make_pickup(String(e[0]), randi_range(int(e[1]), int(e[2])), at, Vector3.ZERO)
+		var p = g._make_pickup(String(e[0]), randi_range(int(e[1]), int(e[2])), at + OFF, Vector3.ZERO)
 		p.angular_velocity = Vector3.ZERO
 		p.life = 1.0e9
 		forage.append(p)
@@ -169,7 +173,7 @@ func _ground() -> void:
 	var cx := (X0 + X1) / 2.0
 	var cz := (Z0 + Z1) / 2.0
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(X1 - X0 + 120.0, Z1 - Z0 + 120.0)
+	pm.size = Vector2(X1 - X0 + 8.0, Z1 - Z0 + 8.0)   # дальше — общая земля мира (village_build.gd: _world)
 	_mesh(pm, _mat(Color(0.2, 0.2, 0.19)), Vector3(cx, G, cz))
 	_solid(Vector3(cx, G - 1.0, cz), Vector3(X1 - X0 + 4.0, 2.0, Z1 - Z0 + 4.0))
 	var line_m := _mat(Color(0.6, 0.55, 0.3))
@@ -185,10 +189,11 @@ func _ground() -> void:
 func _bounds() -> void:
 	var yc := G + 30.0
 	_solid(Vector3(X0 - 0.5, yc, (Z0 + Z1) / 2.0), Vector3(1.0, 60.0, Z1 - Z0 + 2.0))
-	_solid(Vector3(X1 + 0.5, yc, (Z0 + Z1) / 2.0), Vector3(1.0, 60.0, Z1 - Z0 + 2.0))
-	# юг — с въездом с перешейка от озера (x 18.5..43.5, village_build.gd: _link)
-	_solid(Vector3((X0 - 1.0 + 18.5) / 2.0, yc, Z0 - 0.5), Vector3(18.5 - X0 + 1.0, 60.0, 1.0))
-	_solid(Vector3((43.5 + X1 + 1.0) / 2.0, yc, Z0 - 0.5), Vector3(X1 + 1.0 - 43.5, 60.0, 1.0))
+	# восток — с въездом лесной дороги от озера (z 1448..1472), юг — с въездом на проспект (x 28..52), village_build.gd: ROADS
+	_solid(Vector3(X1 + 0.5, yc, (Z0 - 1.0 + 1448.0) / 2.0), Vector3(1.0, 60.0, 1448.0 - Z0 + 1.0))
+	_solid(Vector3(X1 + 0.5, yc, (1472.0 + Z1 + 1.0) / 2.0), Vector3(1.0, 60.0, Z1 + 1.0 - 1472.0))
+	_solid(Vector3((X0 - 1.0 + 28.0) / 2.0, yc, Z0 - 0.5), Vector3(28.0 - X0 + 1.0, 60.0, 1.0))
+	_solid(Vector3((52.0 + X1 + 1.0) / 2.0, yc, Z0 - 0.5), Vector3(X1 + 1.0 - 52.0, 60.0, 1.0))
 	_solid(Vector3((X0 + X1) / 2.0, yc, Z1 + 0.5), Vector3(X1 - X0 + 2.0, 60.0, 1.0))
 	# завалы по краям — видно, что дальше не пройти
 	var rub_m := _mat(Color(0.33, 0.31, 0.28))
@@ -199,10 +204,12 @@ func _bounds() -> void:
 			p = Vector3(X0 + 0.5, G, rng.randf_range(Z0, Z1))
 		elif side == 1:
 			p = Vector3(X1 - 0.5, G, rng.randf_range(Z0, Z1))
+			if p.z > 1446.0 and p.z < 1474.0:   # въезд с востока не заваливаем
+				p.z = (2892.0 - p.z) if p.z < 1460.0 else (2948.0 - p.z)
 		elif side == 2:
 			p = Vector3(rng.randf_range(X0, X1), G, Z0 + 0.5)
-			if p.x > 15.0 and p.x < 47.0:   # въезд не заваливаем
-				p.x = (30.0 - p.x) if p.x < 31.0 else (94.0 - p.x)
+			if p.x > 26.0 and p.x < 54.0:   # въезд с юга не заваливаем
+				p.x = (52.0 - p.x) if p.x < 40.0 else (108.0 - p.x)
 		else:
 			p = Vector3(rng.randf_range(X0, X1), G, Z1 - 0.5)
 		var bm := BoxMesh.new()
@@ -316,8 +323,9 @@ func _skyline() -> void:
 		bm.size = Vector3(rng.randf_range(10.0, 22.0), rng.randf_range(20.0, 55.0), rng.randf_range(10.0, 22.0))
 		var p := Vector3(40.0 + cos(a) * 110.0, G + bm.size.y / 2.0 - 1.0, 1470.0 + sin(a) * 120.0)
 		var yaw := rng.randf() * TAU
-		if p.z < Z0 and absf(p.x - 31.0) < 26.0:
-			continue   # над перешейком от озера высоток нет
+		var vb = get_parent()
+		if vb and vb.has_method("roads_d") and vb.roads_d(p.x + OFF.x, p.z + OFF.z) < 24.0:
+			continue   # на дорогах к городу высоток нет
 		_mesh(bm, m, p, Vector3(0, yaw, 0))
 
 
@@ -330,6 +338,6 @@ func _smog() -> void:
 		sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		sm.cull_mode = BaseMaterial3D.CULL_DISABLED
 		var pm := PlaneMesh.new()
-		pm.size = Vector2(X1 - X0 + 200.0, Z1 - Z0 + 200.0)
+		pm.size = Vector2(X1 - X0 + 60.0, Z1 - Z0 + 60.0)
 		var mi := _mesh(pm, sm, Vector3((X0 + X1) / 2.0, G + 0.6 + k * 1.6, (Z0 + Z1) / 2.0))
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

@@ -1138,7 +1138,10 @@ func from_save(d: Dictionary) -> void:
 	var pz := float(a[2])
 	if pz > 430.0 and pz < 900.0:   # старые сейвы: деревня была на 360 м дальше (дальше 900 — лагерь у озера)
 		pz -= 360.0
-	park_at(Vector3(float(a[0]), float(a[1]), pz), float(d.get("yaw", 0.0)))
+	var cp := Vector3(float(a[0]), float(a[1]), pz)
+	if village:
+		cp = village.migrate_pos(cp)   # лагерь и город переехали (промпт 20.11 18:50)
+	park_at(cp, float(d.get("yaw", 0.0)))
 	# ключ остался в зажигании (старые сейвы: ключ ещё в рюкзаке — убираем)
 	if game and game.inv.count("car_key") > 0:
 		game.inv.remove("car_key", game.inv.count("car_key"))

@@ -202,6 +202,8 @@ func load_state(d: Dictionary) -> void:
 	for k in bf:
 		buffs[k] = {"power": float(bf[k]["power"]), "time": float(bf[k]["time"]), "icon": String(bf[k]["icon"])}
 	player.global_position = _to_v3(d.get("pos", [START.x, START.y, START.z]))
+	if village:
+		player.global_position = village.migrate_pos(player.global_position)   # лагерь и город переехали (20.11 18:50)
 	player.rotation.y = float(d.get("yaw", -PI / 2.0))
 	player.head.rotation.x = float(d.get("pitch", 0.0))
 	player.velocity = Vector3.ZERO
@@ -254,7 +256,10 @@ func load_state(d: Dictionary) -> void:
 		var id: String = String(it.get("id", ""))
 		if not Items.ITEMS.has(id):
 			continue
-		var p := _make_pickup(id, int(it.get("n", 1)), _to_v3(it.get("pos")) + Vector3(0, 0.05, 0), Vector3.ZERO)
+		var ip := _to_v3(it.get("pos"))
+		if village:
+			ip = village.migrate_pos(ip)
+		var p := _make_pickup(id, int(it.get("n", 1)), ip + Vector3(0, 0.05, 0), Vector3.ZERO)
 		p.angular_velocity = Vector3.ZERO
 		if float(it.get("dur", -1.0)) >= 0.0:
 			p.set_meta("dur", float(it["dur"]))

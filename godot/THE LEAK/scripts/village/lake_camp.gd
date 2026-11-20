@@ -1,8 +1,9 @@
 extends Node3D
-## Третья локация — лагерь у озера (промпт 20.11 18:00). Стоит далеко к северу от деревни (z ~1170..1270),
-## стоит всегда, из деревни сюда ведёт дорога, дальше на север — перешеек в город (village_build.gd: _link). Ровная поляна в лесу:
+## Третья локация — лагерь у озера (промпт 20.11 18:00). Стоит всегда, на восток от деревни (промпт 20.11 18:50):
+## координаты ниже — свои, узел сдвинут на OFF; с юга — дорога из деревни, с севера — лесная дорога в город
+## (village_build.gd: _world). Ровная поляна в лесу:
 ## круглое озеро с песчаным берегом, костёр с огнём и брёвнами, палатки, лодка, ели по краям.
-## Высота земли для машины — village_build.gd: height (за LAKE_Z0 — ровно G).
+## Высота земли для машины — village_build.gd: height (на площадке лагеря — ровно G).
 
 ## Карта расширена (промпт 20.11 18:33): лес вокруг лагеря 160×160 м — есть что поизучать (тайники ниже).
 const G := 4.0
@@ -20,6 +21,9 @@ const LakeDive := preload("res://scripts/village/lake_dive.gd")
 const LakeShop := preload("res://scripts/village/lake_shop.gd")
 ## Trinkets Market #3 (тир 2, промпт 20.11 18:33) — у тропинки, витриной к костру
 const SHOP_POS := Vector3(44.0, G, 1198.0)
+## Сдвиг лагеря в мире (промпт 20.11 18:50): всё выше — в своих координатах, в мире прибавляется OFF
+## (лагерь x 211..371, z 300..460 — на восток от деревни). Площадка в мире — village_build.gd: LAKE_PAD.
+const OFF := Vector3(260.0, 0.0, -870.0)
 
 var rng := RandomNumberGenerator.new()
 var fire_light: OmniLight3D
@@ -28,6 +32,7 @@ var fire_t := 0.0
 
 func _ready() -> void:
 	name = "LakeCamp"
+	position = OFF
 	rng.seed = 1800
 	_ground()
 	_lake()
@@ -282,7 +287,7 @@ func from_save(d: Dictionary) -> void:
 
 ## Воздух у озера чистый (промпт 20.11 18:31): здесь можно ходить без противогаза.
 static func clean_air(p: Vector3) -> bool:
-	return p.z > Z0 - 25.0
+	return Rect2(X0 + OFF.x, Z0 + OFF.z, X1 - X0, Z1 - Z0).grow(25.0).has_point(Vector2(p.x, p.z))
 
 
 ## Собирательство (промпт 20.11 18:31): [id, мин, макс, вес]. Хост раскладывает находки при приезде,
@@ -302,7 +307,7 @@ func _forage_tick(delta: float) -> void:
 	var g = get_parent().get("game")
 	if g == null or g.player == null or (g.net and not g.net.is_host()):
 		return
-	if get_parent().has_method("someone_past") and not get_parent().someone_past(Z0 - 150.0):
+	if get_parent().has_method("someone_near") and not get_parent().someone_near(Rect2(X0 + OFF.x, Z0 + OFF.z, X1 - X0, Z1 - Z0).grow(150.0)):
 		return   # лагерь стоит всегда — раскладываем, только когда кто-то подходит (village.gd)
 	forage_t -= delta
 	if forage_t > 0.0:
@@ -310,13 +315,13 @@ func _forage_tick(delta: float) -> void:
 	forage_t = FORAGE_T
 	forage = forage.filter(func(p): return is_instance_valid(p))
 	var n := 24 if forage_first else mini(3, FORAGE_MAX - forage.size())
-	var pp: Vector3 = g.player.global_position
+	var pp: Vector3 = g.player.global_position - OFF   # в координатах лагеря
 	for i in n:
 		var at := _forage_spot(pp, not forage_first)
 		if at == Vector3.INF:
 			continue
 		var e: Array = _forage_pick()
-		var p = g._make_pickup(String(e[0]), randi_range(int(e[1]), int(e[2])), at, Vector3.ZERO)
+		var p = g._make_pickup(String(e[0]), randi_range(int(e[1]), int(e[2])), at + OFF, Vector3.ZERO)
 		p.angular_velocity = Vector3.ZERO
 		p.life = 1.0e9
 		forage.append(p)
@@ -398,22 +403,16 @@ func _solid(center: Vector3, size: Vector3, yaw := 0.0) -> void:
 ## Трава, по которой ходят, и холмы за краем лагеря.
 func _ground() -> void:
 	var pm := PlaneMesh.new()
-	pm.size = Vector2(X1 - X0 + 140.0, Z1 - Z0 + 140.0)
+	pm.size = Vector2(X1 - X0 + 8.0, Z1 - Z0 + 8.0)   # дальше — общая земля мира (village_build.gd: _world)
 	_mesh(pm, _mat(Color(0.24, 0.3, 0.16)), Vector3((X0 + X1) / 2.0, G, (Z0 + Z1) / 2.0))
 	_solid(Vector3((X0 + X1) / 2.0, G - 1.0, (Z0 + Z1) / 2.0), Vector3(X1 - X0 + 4.0, 2.0, Z1 - Z0 + 4.0))
 	# тропинка от машины к костру
 	var path := PlaneMesh.new()
 	path.size = Vector2(2.2, 26.0)
 	_mesh(path, _mat(Color(0.36, 0.3, 0.2)), Vector3(26.0, G + 0.01, 1196.0), Vector3(0, 0.4, 0))
-	var hill_m := _mat(Color(0.14, 0.2, 0.12))
+	# холмы вокруг теперь общие (village_build.gd: _world); случайности тянем как раньше — ели и камыши не сдвигаются
 	for i in 22:
-		var a := TAU * float(i) / 22.0
-		var sm := SphereMesh.new()
-		sm.radius = rng.randf_range(22.0, 34.0)
-		if sin(a) < -0.5 or (sin(a) > 0.5 and absf(cos(a)) < 0.3):
-			continue   # не загораживать дорогу из деревни (юг) и перешеек в город (север) — village_build.gd: _link
-		sm.height = sm.radius * 0.9
-		_mesh(sm, hill_m, Vector3((X0 + X1) / 2.0 + cos(a) * ((X1 - X0) / 2.0 + 22.0), G - 4.0, (Z0 + Z1) / 2.0 + sin(a) * ((Z1 - Z0) / 2.0 + 22.0)))
+		rng.randf_range(22.0, 34.0)
 
 
 ## Круглое озеро: песок, вода, невидимая стенка по кромке воды.
@@ -432,7 +431,7 @@ func _lake() -> void:
 	wm.metallic = 0.35
 	_mesh(water, wm, LAKE_C + Vector3(0, 0.04, 0))
 	var body := LakeDive.new()   # [F] у воды — нырнуть с аквалангом (lake_dive.gd)
-	body.center = LAKE_C
+	body.center = LAKE_C + OFF   # в мировых координатах (дно — top_level, lake_dive.gd)
 	body.position = LAKE_C + Vector3(0, 1.5, 0)
 	var cs := CollisionShape3D.new()
 	var cy := CylinderShape3D.new()
@@ -453,18 +452,9 @@ func _lake() -> void:
 		_mesh(cm, reed_m, LAKE_C + Vector3(cos(a) * r, cm.height / 2.0, sin(a) * r), Vector3(rng.randf_range(-0.2, 0.2), 0, rng.randf_range(-0.2, 0.2)))
 
 
-## Стены по краю лагеря — дальше лес.
+## Стен вокруг лагеря нет (промпт 20.11 18:50): мир общий, кругом холмы и дороги (village_build.gd: _world, _bounds).
 func _bounds() -> void:
-	var yc := G + 30.0
-	_solid(Vector3(X0 - 0.5, yc, (Z0 + Z1) / 2.0), Vector3(1.0, 60.0, Z1 - Z0 + 2.0))
-	_solid(Vector3(X1 + 0.5, yc, (Z0 + Z1) / 2.0), Vector3(1.0, 60.0, Z1 - Z0 + 2.0))
-	# юг и север — с проходами (промпт 20.11 18:40): на юг долина в деревню, на север перешеек в город (village_build.gd: _link)
-	for w in [[Z0 - 0.5, -4.5, 68.5], [Z1 + 0.5, 18.5, 43.5]]:
-		var wz: float = w[0]
-		var g0: float = w[1]
-		var g1: float = w[2]
-		_solid(Vector3((X0 - 1.0 + g0) / 2.0, yc, wz), Vector3(g0 - X0 + 1.0, 60.0, 1.0))
-		_solid(Vector3((g1 + X1 + 1.0) / 2.0, yc, wz), Vector3(X1 + 1.0 - g1, 60.0, 1.0))
+	pass
 
 
 ## Костёр: камни кругом, брёвна шалашом, огонь (частицы) и мерцающий свет; брёвна-скамейки вокруг.
