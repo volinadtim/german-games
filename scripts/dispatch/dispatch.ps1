@@ -316,6 +316,7 @@ function Fix-Route($r, [string]$text) {
         $r.zone = $live.zone; $r.agent = Norm-Agent $live.agent; $r.mode = "continue"
         # ещё не началась — склейка с ней (у неё тот же cont_of); работает — продолжение её сессии после неё
         $r | Add-Member -Force cont_of $(if ($live.status -eq "очередь") { $live.cont_of } else { $live.id })
+        if ("$($r.redo)" -match '\d') { $r | Add-Member -Force complaint $live.id }   # жалоба на ещё не сданную задачу — учёт по цепочке
         $r.redo = $null
     }
     $r
@@ -673,6 +674,18 @@ function Check-Zone([string]$zone) {
     if ($qd -gt 3 -and $qd -gt [int]$ZoneWarn[$zone]) { Status "⚠ зона $zone`: в очереди $qd задач — дальше будут ждать долго" }
     $ZoneWarn[$zone] = $qd
 }
+# Первая задача цепочки: идём по fix_of / cont_of / smoke_of назад (задачи из jobs.json и history.jsonl).
+function Root-Of([int]$id) {
+    for ($k = 0; $k -lt 30; $k++) {
+        $x = $Jobs | Where-Object { $_.id -eq $id } | Select-Object -Last 1
+        if (-not $x) { $x = $Hist | Where-Object { $_.t -eq "done" -and $_.id -eq $id } | Select-Object -Last 1 }
+        if (-not $x) { break }
+        $n = 0; foreach ($v in $x.fix_of, $x.cont_of, $x.smoke_of) { if (-not $n -and "$v" -match '^\d+$') { $n = [int]$v } }
+        if (-not $n -or $n -eq $id) { break }
+        $id = $n
+    }
+    $id
+}
 function Merge-Into($m, $r, [string]$t, [string]$at) {
     $m.text = "$($m.text)`n`n--- Герман дописал в $at (это главнее: при противоречии делай по этому) ---`n$t"
     if ($r.agent -eq "opus") { $m.agent = "opus" }
@@ -710,7 +723,10 @@ function Handle([string]$raw, [string]$defAt = "?") {
         $rid = 0; if ("$($r.redo)" -match '^\s*#?(\d+)\s*$') { $rid = [int]$matches[1] }
         $done = if ($rid) { $Hist | Where-Object { $_.t -eq "done" -and $_.id -eq $rid } | Select-Object -Last 1 }
         if (-not $done) { $rid = 0 }
-        $again = $rid -and (@($Hist | Where-Object { $_.t -eq "redo" -and $_.id -eq $rid }).Count -or $done.fix_of)
+        if (-not $rid -and $r.PSObject.Properties.Name -contains "complaint") { $rid = [int]$r.complaint }
+        # повторная: по этой же цепочке задач (переделки, уточнения, починки) жалоба уже была
+        $root = if ($rid) { Root-Of $rid } else { 0 }
+        $again = $rid -and @($Hist | Where-Object { $_.t -eq "redo" -and ($(if ($_.root) { [int]$_.root } else { Root-Of ([int]$_.id) }) -eq $root) }).Count
         # Склейка: задача этой зоны, которая ещё не началась (не возобновление и не починка smoke).
         $m = $Jobs | Where-Object { $_.status -eq "очередь" -and $_.zone -eq $r.zone -and -not $_.resume -and -not $_.smoke_of -and -not $_.conflict_of -and
             "$($_.cont_of)" -eq "$co" -and [int]$_.merged -lt 6 } | Select-Object -Last 1
@@ -726,7 +742,7 @@ function Handle([string]$raw, [string]$defAt = "?") {
         }
         if ($rid -and $rid -ne $q.id) {
             if (-not $q.fix_of) { $q.fix_of = $rid }
-            Hist-Add @{ t = "redo"; id = $rid; by = $q.id; at = $at; again = [bool]$again }
+            Hist-Add @{ t = "redo"; id = $rid; by = $q.id; at = $at; again = [bool]$again; root = $root }
             if ($again) { $q.shot = $true }
             Log ("переделка: #{0} — жалоба на #{1}{2}" -f $q.id, $rid, $(if ($again) { " (повторная — разрешён скриншот)" } else { "" }))
         }
