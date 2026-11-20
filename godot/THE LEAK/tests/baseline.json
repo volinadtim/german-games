@@ -1,0 +1,33 @@
+{
+ "items": 106,
+ "locations": {
+  "bunker": {
+   "collisions": 130,
+   "nodes": 2519
+  },
+  "city": {
+   "collisions": 34,
+   "nodes": 449
+  },
+  "lake": {
+   "collisions": 79,
+   "nodes": 830
+  },
+  "village": {
+   "collisions": 238,
+   "nodes": 2168
+  }
+ },
+ "shops": {
+  "CityShop": 105,
+  "LakeShop": 98,
+  "Shop": 56,
+  "VillageShop": 83
+ },
+ "slot_symbols": {
+  "cashy": 7,
+  "city": 6,
+  "killbox": 7,
+  "lake": 7
+ }
+}

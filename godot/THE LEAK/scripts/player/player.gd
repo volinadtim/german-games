@@ -155,6 +155,8 @@ func _stand_request() -> void:
 func _key_look(delta: float) -> void:
 	if not active:
 		return
+	if not InputMap.has_action("look_left"):   # поворот стрелками убран (main.gd больше не создаёт look_*)
+		return
 	var v: Vector2 = ia.get_vector("look_left", "look_right", "look_up", "look_down")
 	if v == Vector2.ZERO:
 		return
