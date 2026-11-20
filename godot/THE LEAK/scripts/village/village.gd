@@ -398,7 +398,7 @@ func _force_gasmask() -> void:
 	var GasMask := preload("res://scripts/player/gasmask.gd")
 	if GasMask.is_mask(game.inv.equip["face"]):
 		return
-	if game.inv.count("gasmask") + game.inv.count("gasmask2") == 0:
+	if game.inv.count("gasmask") + game.inv.count("gasmask2") + game.inv.count("snyuhatel5088") == 0:
 		if game.inv.add("gasmask", 1) > 0:
 			game.drop_spilled([{"id": "gasmask", "n": 1}])
 		game.hud.toast("В бардачке нашёлся Нюхич", Color(0.7, 0.85, 0.6))

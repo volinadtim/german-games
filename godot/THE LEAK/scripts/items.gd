@@ -142,6 +142,11 @@ const ITEMS := {
 	# армейский противогаз и большие фильтры к нему — находки второй локации (деревня)
 	"gasmask2": {"name": "Шлемыч", "desc": "Армейский противогаз из деревни: панорамное стекло, чистая резина — обзор куда шире, чем у Нюхича. Лицо (вместе с каской). [V] — надеть/снять.", "stack": 1, "price": 45,
 		"icon": "gasmask", "color": Color(0.3, 0.34, 0.22), "equip": "face"},
+	# лучший противогаз — для города (самая грязная локация); лежит только в спрятанном сейфе у озера (промпт 20.11 18:35)
+	"snyuhatel5088": {"name": "Снюхатель5088", "desc": "Противогаз «Снюхатель5088»: герметичная маска с панорамным стеклом и двойным клапаном. Только в нём можно выжить в городе. Лицо (вместе с каской). [V] — надеть/снять.", "stack": 1, "price": 120,
+		"icon": "gasmask", "color": Color(0.16, 0.2, 0.26), "equip": "face"},
+	"lockpick": {"name": "Отмычка", "desc": "Набор тонких стальных отмычек. Вскрывает запертый сейф (одноразовая).", "stack": 5,
+		"icon": "car_key", "color": Color(0.6, 0.62, 0.66)},
 	"filter2": {"name": "Большой фильтр", "desc": "Армейский фильтр из деревни: 200 секунд наверху. Ставится в любой противогаз.", "stack": 10, "price": 15,
 		"icon": "filter", "color": Color(0.5, 0.45, 0.22)},
 	# ключ от ржавой машины на поляне (car.gd) — лежит в сейфе; завести машину и уехать = победа
@@ -205,7 +210,7 @@ const SIZES := {
 	"pistol": [2, 2], "medkit": [2, 2], "fuel": [2, 2], "backpack": [2, 2], "sack": [2, 2], "tshirt": [2, 1],
 	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
 	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
-	"flashlight": [1, 2], "water": [1, 2], "wood": [1, 2], "gasmask": [2, 2], "gasmask2": [2, 2],
+	"flashlight": [1, 2], "water": [1, 2], "wood": [1, 2], "gasmask": [2, 2], "gasmask2": [2, 2], "snyuhatel5088": [2, 2], "lockpick": [1, 1],
 	"repair_weapon": [2, 1], "repair_gear": [2, 1], "repair_gun": [2, 1], "canned": [1, 1],
 	"helmet": [2, 2], "moto_helmet": [2, 2], "ushanka": [2, 1],
 	"jacket": [2, 2], "kurtka": [2, 2], "vest": [2, 2],
@@ -700,7 +705,7 @@ static func make_mesh(id: String) -> Node3D:
 	var own_col: Color = ITEMS[id]["color"] if ITEMS.has(id) else Color.WHITE
 	id = model_of(id)
 	# армейские версии (деревня) — те же модели, что у обычных
-	if id == "gasmask2":
+	if id == "gasmask2" or id == "snyuhatel5088":
 		id = "gasmask"
 	elif id == "filter2":
 		id = "filter"

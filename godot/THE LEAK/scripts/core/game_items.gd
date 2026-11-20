@@ -518,8 +518,10 @@ func toggle_gasmask() -> void:
 	if GasMask.is_mask(inv.equip["face"]):
 		unequip("face")
 		return
-	# сначала армейский «Шлемыч» (обзор лучше), потом «Нюхич»
-	var i := inv.bag_index("gasmask2")
+	# сначала Снюхатель5088, потом армейский «Шлемыч» (обзор лучше), потом «Нюхич»
+	var i := inv.bag_index("snyuhatel5088")
+	if i < 0:
+		i = inv.bag_index("gasmask2")
 	if i < 0:
 		i = inv.bag_index("gasmask")
 	if i < 0:

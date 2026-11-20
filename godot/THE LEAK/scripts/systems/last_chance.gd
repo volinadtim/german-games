@@ -71,7 +71,7 @@ func _total_coins() -> int:
 
 
 func _has_gasmask() -> bool:
-	return game.inv.count("gasmask") + game.inv.count("gasmask2") > 0
+	return game.inv.count("gasmask") + game.inv.count("gasmask2") + game.inv.count("snyuhatel5088") > 0
 
 
 ## Оружие в сумке или в руках (камень не считается — их полная куча).

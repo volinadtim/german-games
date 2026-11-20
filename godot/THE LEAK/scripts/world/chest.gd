@@ -29,6 +29,7 @@ const LOOT := [
 var kind := "crate"            # crate | safe | storage (сундук-хранилище, промпт 00:08)
 var extra: Array = []          # гарантированный лут: [[id, n], ...]
 var locked := false            # сейф: открывается только тремя семёрками на автомате (force_open)
+var pickable := false         # сейф вскрывается отмычкой (lockpick) — сейф у озера (промпт 20.11 18:35)
 var random_loot := true
 var opened := false
 var contents: Array = []       # что лежит внутри: [[id, n], ...] (окно лута, промпт 00:07)
@@ -152,6 +153,8 @@ func get_prompt(_g) -> String:
 		return ""
 	if opened:
 		return "[F] Обыскать (%d)" % contents.size() if not contents.is_empty() else ""
+	if locked and pickable:
+		return "[F] Вскрыть сейф отмычкой" if _g != null and _g.inv.count("lockpick") > 0 else "Сейф заперт — нужна отмычка"
 	if locked:
 		return "Сейф заперт  ???"
 	if kind == "safe":
@@ -173,8 +176,12 @@ func interact(g) -> void:
 		if not contents.is_empty() and g.has_method("open_loot"):
 			g.open_loot(self)
 		return
+	if locked and pickable and g.inv.count("lockpick") > 0:
+		g.inv.remove("lockpick", 1)
+		g.hud.toast("Отмычка сломалась, но сейф открыт", Color(0.8, 0.9, 0.6))
+		locked = false
 	if locked:
-		g.hud.toast("Заперто. ???")
+		g.hud.toast("Заперто. Нужна отмычка (магазин)" if pickable else "Заперто. ???")
 		g.play_at("buzz", global_position, -14.0)
 		var shake := create_tween()
 		shake.tween_property(hinge, "rotation:y", -0.03, 0.05)

@@ -206,14 +206,15 @@ void fragment() {
 	return s
 
 
-## Противогазы: "gasmask" — самодельный Нюхич, "gasmask2" — армейский Шлемыч (лучше обзор), оба в слот «Лицо».
+## Противогазы: "gasmask" — самодельный Нюхич, "gasmask2" — армейский Шлемыч (лучше обзор),
+## "snyuhatel5088" — Снюхатель5088 для города (сейф у озера); все в слот «Лицо».
 static func is_mask(id: String) -> bool:
-	return id == "gasmask" or id == "gasmask2"
+	return id == "gasmask" or id == "gasmask2" or id == "snyuhatel5088"
 
 
 ## Есть ли у игрока хоть какой-то противогаз.
 func has_mask() -> bool:
-	return game != null and game.inv != null and game.inv.count("gasmask") + game.inv.count("gasmask2") > 0
+	return game != null and game.inv != null and game.inv.count("gasmask") + game.inv.count("gasmask2") + game.inv.count("snyuhatel5088") > 0
 
 
 ## Какой противогаз надет ("" — никакой).
@@ -379,7 +380,7 @@ func _process(delta: float) -> void:
 	mat.set_shader_parameter("breath", breath)
 	mat.set_shader_parameter("put", put)
 	mat.set_shader_parameter("fog", fog)
-	mat.set_shader_parameter("wide", 1.0 if mask_id() == "gasmask2" else 0.0)
+	mat.set_shader_parameter("wide", 1.0 if mask_id() in ["gasmask2", "snyuhatel5088"] else 0.0)
 	_status(out, protected)
 
 

@@ -34,6 +34,7 @@ func _ready() -> void:
 	_boat(Vector3(47.5, G, 1229.0), 0.9)
 	_sign(Vector3(35.5, G, 1185.0))
 	_trees()
+	_hidden_safe()
 
 
 ## Воздух у озера чистый (промпт 20.11 18:31): здесь можно ходить без противогаза.
@@ -355,3 +356,23 @@ func _trees() -> void:
 		body.add_child(cs)
 		add_child(body)
 		n += 1
+
+
+## Спрятанный сейф (промпт 20.11 18:35): в кустах у дальнего края лагеря, за озером. Вскрывается отмычкой
+## из магазина (Chest.pickable), внутри — противогаз Снюхатель5088 для города.
+func _hidden_safe() -> void:
+	var sf := preload("res://scripts/world/chest.gd").new()
+	sf.kind = "safe"
+	sf.locked = true
+	sf.pickable = true
+	sf.random_loot = false
+	sf.extra = [["snyuhatel5088", 1], ["filter2", 2]]
+	sf.position = Vector3(66.5, G, 1264.5)
+	sf.rotation.y = PI * 0.75
+	add_child(sf)
+	var bush := SphereMesh.new()
+	bush.radius = 0.9
+	bush.height = 1.3
+	var bm := _mat(Color(0.18, 0.3, 0.14))
+	for o in [Vector3(-0.9, 0.5, -0.6), Vector3(0.8, 0.5, -0.8), Vector3(-0.2, 0.55, 1.0)]:
+		_mesh(bush, bm, sf.position + o)

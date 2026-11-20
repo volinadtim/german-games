@@ -34,7 +34,7 @@ const AMMO_PACK := 10
 const MAG_SHOP := [["mag", 55]]   # магазин с 8 патронами (было 30; дороже — промпт 18.11 00:56)
 const GUN_SHOP := [["pistol", 320]]   # пистолет без магазина (промпт 18.11 01:52)
 ## «Инструменты» (промпт 16.11 02:42): фонарик, метла, нормальный молоток, топорик (рубит деревья на поляне — surface.gd)
-const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55]]
+const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55], ["lockpick", 20000]]   # отмычка — вскрыть сейф у озера (промпт 20.11 18:35)
 ## расходники: [id, цена] (промпты 20.11 14:22, 14:27; аптечка — 4 применения, вода/газировка/тушёнка — по нескольку)
 const CONSUMABLES := [["battery", 3], ["water", 10], ["soda", 30], ["choco", 15], ["canned", 50],
 	["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80],
