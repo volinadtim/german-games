@@ -361,7 +361,7 @@ func _aimed_pickup(from: Vector3, fwd: Vector3) -> Node:
 func window_open() -> bool:
 	return invs.any(func(i): return is_instance_valid(i) and i.open) or (shop != null and shop.opened) or (slot != null and slot.pack_open) \
 		or (loot_window != null and loot_window.open) or (skills != null and skills.open) \
-		or (sketch_map != null and sketch_map.open)
+		or (sketch_map != null and sketch_map.open) or bool(get_meta("lake_win", false))
 
 
 ## Закрыть все окна (инвентарь, магазин с продажей, наборы KILLBOX, лут) — перед кат-сценой (промпт 16.11 21:40).

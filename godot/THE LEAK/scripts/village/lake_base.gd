@@ -1,5 +1,5 @@
 extends Node3D
-## Развитие лагеря у озера (промпт 20.11 18:32): стройплощадки вокруг костра — подойди, [F] построить из материалов
+## Развитие лагеря у озера (промпт 20.11 18:32): стройплощадки вокруг костра — подойди, [F] открывает окно стройки (материалы есть/не хватает, «Построить»)
 ## (без чертежей и верстака). Свои постройки лагеря + общие из world/build_kit.gd (турель, мешки, лампа на столбе).
 ## Состояние — в сейве village.lake_d.built. В сети стройка рассылается всем (village_net.gd: v_lake_build),
 ## выдачу припасов и урон кольев считает хост.
@@ -29,6 +29,10 @@ var sites := {}              # id -> стройплощадка (lake_spot.gd)
 var prod_t := {}             # id -> секунд до выдачи
 var prod := {}               # id -> выданная вещь (пока лежит — новую не даём)
 var stake_t := 0.0
+var win: CanvasLayer         # окно строительства
+var win_b: Array
+var win_open := false
+var win_t := 0
 
 
 func _ready() -> void:
@@ -93,11 +97,18 @@ func _need_text(b: Array, g) -> String:
 
 func spot_prompt(s, g) -> String:
 	var b: Array = BUILDS[s.idx]
-	return "[F] Построить: %s — %s  (%s)" % [b[1], b[2], _need_text(b, g)]
+	return "[F] Строить: %s — %s  (%s)" % [b[1], b[2], _need_text(b, g)]
 
 
 func spot_use(s, g) -> void:
 	var b: Array = BUILDS[s.idx]
+	if built.has(b[0]) or win_open or g.window_open():
+		return
+	_open_win(b, g)
+
+
+## Строим: списать материалы и поставить (в сети — рассылкой).
+func _do_build(b: Array, g) -> void:
 	if built.has(b[0]):
 		return
 	var c := cost(b)
@@ -112,6 +123,98 @@ func spot_use(s, g) -> void:
 		preload("res://scripts/village/village_net.gd").ensure(g).rpc("v_lake_build", String(b[0]))
 	else:
 		build(String(b[0]), true)
+
+
+## Окно строительства: что нужно (есть/не хватает) и кнопка «Построить».
+func _open_win(b: Array, g) -> void:
+	_close_win(false)
+	win_b = b
+	win_open = true
+	win_t = Time.get_ticks_msec()
+	g.set_meta("lake_win", true)
+	g.player.active = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	win = CanvasLayer.new()
+	win.layer = 20
+	add_child(win)
+	var dim := ColorRect.new()
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.45)
+	win.add_child(dim)
+	var pc := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.09, 0.075, 0.06, 0.96)
+	sb.border_color = Color(0.85, 0.55, 0.25)
+	sb.set_border_width_all(3)
+	sb.set_content_margin_all(18)
+	pc.add_theme_stylebox_override("panel", sb)
+	pc.set_anchors_preset(Control.PRESET_CENTER)
+	pc.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	pc.grow_vertical = Control.GROW_DIRECTION_BOTH
+	pc.custom_minimum_size = Vector2(440, 0)
+	dim.add_child(pc)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 8)
+	pc.add_child(vb)
+	vb.add_child(_lbl("СТРОЙКА: " + String(b[1]).to_upper(), 24, Color(1.0, 0.85, 0.5)))
+	vb.add_child(_lbl(String(b[2]), 17, Color(0.85, 0.82, 0.75)))
+	vb.add_child(_lbl("Нужны материалы:", 18, Color(0.95, 0.9, 0.78)))
+	var ok := true
+	var c := cost(b)
+	for id in c:
+		var have: int = g.inv.count(String(id))
+		var enough := have >= int(c[id])
+		ok = ok and enough
+		vb.add_child(_lbl("%s %s: %d / %d%s" % ["✔" if enough else "✘", Items.item_name(String(id)), have, int(c[id]), "" if enough else "  (не хватает %d)" % (int(c[id]) - have)], 19, Color(0.6, 0.95, 0.5) if enough else Color(1.0, 0.5, 0.4)))
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 12)
+	hb.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(hb)
+	var bb := Button.new()
+	bb.text = "Построить"
+	bb.custom_minimum_size = Vector2(170, 44)
+	bb.disabled = not ok
+	bb.pressed.connect(func():
+		_do_build(b, g)
+		_close_win())
+	hb.add_child(bb)
+	var cb := Button.new()
+	cb.text = "Закрыть"
+	cb.custom_minimum_size = Vector2(130, 44)
+	cb.pressed.connect(_close_win)
+	hb.add_child(cb)
+
+
+func _lbl(t: String, sz: int, col: Color) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", sz)
+	l.add_theme_color_override("font_color", col)
+	return l
+
+
+func _close_win(restore := true) -> void:
+	if win and is_instance_valid(win):
+		win.queue_free()
+	win = null
+	var was := win_open
+	win_open = false
+	var g = _g()
+	if g:
+		g.set_meta("lake_win", false)
+		if was and restore and g.player and g.alive:
+			g.player.active = true
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _input(e: InputEvent) -> void:
+	if not win_open:
+		return
+	if e.is_pressed() and not e.is_echo() and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory")):
+		get_viewport().set_input_as_handled()
+		if Time.get_ticks_msec() - win_t > 300:
+			_close_win()
 
 
 ## Поставить постройку (у всех игроков; fx — со звуком и надписью, без — загрузка сейва).
