@@ -1,6 +1,6 @@
 extends Node3D
 ## Четвёртая локация — город (промпт 20.11 18:35): самая загрязнённая. Стоит далеко к северу от лагеря у озера
-## (z ~1400..1540), строится, только когда туда приехали (village.gd: city_sequence / сейв).
+## (z ~1400..1540), стоит всегда, с юга въезд по перешейку от лагеря (village_build.gd: _link).
 ## Проспект от машины на север, две поперечные улицы, кварталы коробок-домов, разбитые машины, фонари,
 ## жёлто-зелёный смог. Дышать можно только в противогазе MASK (gasmask.gd: city).
 ## Высота земли для машины — village_build.gd: height (за LAKE_Z0 — ровно G).
@@ -37,7 +37,7 @@ func _ready() -> void:
 	_blocks()
 	_wrecks()
 	_lamps()
-	_sign(Vector3(32.0, G, 1411.0))
+	_sign(Vector3(26.0, G, 1403.0))
 	_skyline()
 	_smog()
 	# Trinkets Market #4 (тир 3) и автомат «РАДИАЦИЯ» у въезда (промпт 20.11 18:44)
@@ -73,6 +73,8 @@ func _forage_tick(delta: float) -> void:
 	var g = get_parent().get("game")
 	if g == null or g.player == null or (g.net and not g.net.is_host()):
 		return
+	if get_parent().has_method("someone_past") and not get_parent().someone_past(Z0 - 120.0):
+		return   # город стоит всегда — раскладываем, только когда кто-то подходит (village.gd)
 	forage_t -= delta
 	if forage_t > 0.0:
 		return
@@ -184,7 +186,9 @@ func _bounds() -> void:
 	var yc := G + 30.0
 	_solid(Vector3(X0 - 0.5, yc, (Z0 + Z1) / 2.0), Vector3(1.0, 60.0, Z1 - Z0 + 2.0))
 	_solid(Vector3(X1 + 0.5, yc, (Z0 + Z1) / 2.0), Vector3(1.0, 60.0, Z1 - Z0 + 2.0))
-	_solid(Vector3((X0 + X1) / 2.0, yc, Z0 - 0.5), Vector3(X1 - X0 + 2.0, 60.0, 1.0))
+	# юг — с въездом с перешейка от озера (x 18.5..43.5, village_build.gd: _link)
+	_solid(Vector3((X0 - 1.0 + 18.5) / 2.0, yc, Z0 - 0.5), Vector3(18.5 - X0 + 1.0, 60.0, 1.0))
+	_solid(Vector3((43.5 + X1 + 1.0) / 2.0, yc, Z0 - 0.5), Vector3(X1 + 1.0 - 43.5, 60.0, 1.0))
 	_solid(Vector3((X0 + X1) / 2.0, yc, Z1 + 0.5), Vector3(X1 - X0 + 2.0, 60.0, 1.0))
 	# завалы по краям — видно, что дальше не пройти
 	var rub_m := _mat(Color(0.33, 0.31, 0.28))
@@ -197,6 +201,8 @@ func _bounds() -> void:
 			p = Vector3(X1 - 0.5, G, rng.randf_range(Z0, Z1))
 		elif side == 2:
 			p = Vector3(rng.randf_range(X0, X1), G, Z0 + 0.5)
+			if p.x > 15.0 and p.x < 47.0:   # въезд не заваливаем
+				p.x = (30.0 - p.x) if p.x < 31.0 else (94.0 - p.x)
 		else:
 			p = Vector3(rng.randf_range(X0, X1), G, Z1 - 0.5)
 		var bm := BoxMesh.new()
@@ -309,7 +315,10 @@ func _skyline() -> void:
 		var bm := BoxMesh.new()
 		bm.size = Vector3(rng.randf_range(10.0, 22.0), rng.randf_range(20.0, 55.0), rng.randf_range(10.0, 22.0))
 		var p := Vector3(40.0 + cos(a) * 110.0, G + bm.size.y / 2.0 - 1.0, 1470.0 + sin(a) * 120.0)
-		_mesh(bm, m, p, Vector3(0, rng.randf() * TAU, 0))
+		var yaw := rng.randf() * TAU
+		if p.z < Z0 and absf(p.x - 31.0) < 26.0:
+			continue   # над перешейком от озера высоток нет
+		_mesh(bm, m, p, Vector3(0, yaw, 0))
 
 
 ## Жёлто-зелёный смог: полупрозрачные слои над улицами.

@@ -9,8 +9,14 @@ const ROAD_X := 31.0                 # дорога прямая вдоль Z
 const ROAD_Z0 := 11.0                # начало дороги — у машины на поляне
 const ROAD_W := 2.6                  # полуширина полотна
 const Z_SEAM := 38.0                 # где кончается сетка поляны
-const Z_END := 422.0
-const LAKE_Z0 := 1150.0              # третья локация — лагерь у озера (lake_camp.gd), z дальше этого
+const Z_END := 1120.0                # сетка земли идёт по долине до лагеря у озера (промпт 20.11 18:40)
+const LAKE_Z0 := 1120.0              # третья локация — лагерь у озера (lake_camp.gd), z дальше этого — ровно G
+## Сквозная дорога (промпт 20.11 18:40): деревня → лагерь у озера (z 1170..1270) → перешеек → город (z от 1400)
+const LINK_Z1 := 1170.0              # южный край лагеря (lake_camp.gd: Z0)
+const LINK_Z2 := 1270.0              # северный край лагеря (lake_camp.gd: Z1)
+const CITY_Z0 := 1400.0              # южный край города (city.gd: Z0)
+const LINK_W0 := 18.5                # перешеек лагерь→город: x от LINK_W0 до LINK_W1
+const LINK_W1 := 43.5
 const GX0 := -15.0                   # сетка земли: x от GX0, шаг GSTEP
 const GNX := 46
 const GSTEP := 2.0
@@ -77,14 +83,15 @@ func _vh(x: float, z: float) -> float:
 	var dx := absf(x - ROAD_X)
 	var vk := smoothstep(VZ0 - 30.0, VZ0, z) * (1.0 - smoothstep(VZ1, VZ1 + 12.0, z))   # 1 — в деревне
 	var half := lerpf(8.5, V_HALF, vk)
+	# за деревней долина не упирается в холм, а идёт дальше на север — к озеру (промпт 20.11 18:40)
 	var hill := smoothstep(half, half + 14.0, dx) * (6.5 + 4.0 * hn.get_noise_2d(x, z))
-	hill += smoothstep(VZ1 + 4.0, Z_END - 6.0, z) * (8.0 + 3.0 * hn.get_noise_2d(x * 1.3, z))
 	var bump := hn2.get_noise_2d(x, z) * 0.3 + hn.get_noise_2d(x * 2.0, z * 2.0) * 0.25
 	bump *= lerpf(1.0, 0.35, vk) * smoothstep(ROAD_W + 0.4, ROAD_W + 4.0, dx)
 	# у дома с подвалом — ровно (потолок подвала под землёй)
 	var dh := _rect_d(x, z, Rect2(ROOM.position.x - 1.0, H0.position.y - 1.0, ROOM.size.x + 2.0, ROOM.end.y - H0.position.y + 2.0))
 	bump *= smoothstep(0.0, 3.0, dh)
-	return G + hill + bump
+	# у лагеря холмы сходят на нет — дальше ровная поляна lake_camp.gd
+	return G + (hill + bump) * (1.0 - smoothstep(LAKE_Z0 - 70.0, LAKE_Z0 - 6.0, z))
 
 
 static func _rect_d(x: float, z: float, r: Rect2) -> float:
@@ -226,15 +233,15 @@ func _bounds() -> void:
 	const X_LO := -4.5
 	const X_HI := 68.5
 	const Z_LO := -36.5
-	var z_hi := Z_END - 1.5
+	# север открыт: стены идут до южного края лагеря у озера, там их продолжают стены лагеря (lake_camp.gd: _bounds)
+	var z_hi := LINK_Z1 - 0.5
 	var body := StaticBody3D.new()
 	body.name = "MapBounds"
 	add_child(body)
 	var yc := G - 0.2 + 30.0
 	for w in [[Vector3(X_LO - 0.5, yc, (Z_LO + z_hi) / 2.0), Vector3(1.0, 60.0, z_hi - Z_LO + 2.0)],
 			[Vector3(X_HI + 0.5, yc, (Z_LO + z_hi) / 2.0), Vector3(1.0, 60.0, z_hi - Z_LO + 2.0)],
-			[Vector3((X_LO + X_HI) / 2.0, yc, Z_LO - 0.5), Vector3(X_HI - X_LO + 2.0, 60.0, 1.0)],
-			[Vector3((X_LO + X_HI) / 2.0, yc, z_hi + 0.5), Vector3(X_HI - X_LO + 2.0, 60.0, 1.0)]]:
+			[Vector3((X_LO + X_HI) / 2.0, yc, Z_LO - 0.5), Vector3(X_HI - X_LO + 2.0, 60.0, 1.0)]]:
 		var cs := CollisionShape3D.new()
 		var bs := BoxShape3D.new()
 		bs.size = w[1]
@@ -248,7 +255,7 @@ func _road() -> void:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var z := ROAD_Z0
 	const DZ := 2.0
-	while z < VZ1:
+	while z < LINK_Z1:
 		var row: Array = []
 		for zz in [z, z + DZ]:
 			var pts: Array = []
@@ -273,7 +280,7 @@ func _road() -> void:
 	# столбы вдоль дороги (провода давно оборваны), сухие деревья и указатель
 	var z2 := 30.0
 	var k2 := 0
-	while z2 < VZ1:
+	while z2 < LAKE_Z0 - 10.0:
 		var px := ROAD_X + 4.2
 		var y := height(px, z2)
 		_box(Vector3(px - 0.11, y - 0.3, z2 - 0.11), Vector3(px + 0.11, y + 6.0, z2 + 0.11), wood_dark, true)
@@ -290,6 +297,83 @@ func _road() -> void:
 		if tz > VZ0 - 5.0 and absf(tx - ROAD_X) < 16.0:
 			continue
 		_dead_tree(Vector3(tx, height(tx, tz), tz))
+	_link()
+
+
+## Дорога дальше на север (промпт 20.11 18:40): деревня → лагерь у озера → город пешком и на машине, без телепортов.
+## Сухие деревья по долине, земля под южным краем лагеря, перешеек лагерь→город (земля, дорога, стены, холмы), указатели.
+func _link() -> void:
+	var keep := rng.state   # свои случайности — дома и мелочи деревни не сдвигаются
+	for n in 60:
+		var tz := rng.randf_range(VZ1 + 25.0, LAKE_Z0 - 20.0)
+		var tx := ROAD_X + rng.randf_range(6.0, 26.0) * (1.0 if rng.randf() < 0.5 else -1.0)
+		_dead_tree(Vector3(tx, height(tx, tz), tz))
+	rng.state = keep
+	var body := StaticBody3D.new()
+	body.name = "LinkGround"
+	body.set_meta("ground", "grass")
+	add_child(body)
+	var mid := (LINK_Z2 + CITY_Z0) / 2.0
+	for b in [[Vector3(32.0, G - 1.0, (LAKE_Z0 + LINK_Z1) / 2.0), Vector3(76.0, 2.0, LINK_Z1 - LAKE_Z0 + 6.0)],
+			[Vector3(ROAD_X, G - 1.0, mid), Vector3(LINK_W1 - LINK_W0 + 4.0, 2.0, CITY_Z0 - LINK_Z2 + 6.0)],
+			[Vector3(LINK_W0 - 0.5, G + 30.0, mid), Vector3(1.0, 60.0, CITY_Z0 - LINK_Z2 + 2.0)],
+			[Vector3(LINK_W1 + 0.5, G + 30.0, mid), Vector3(1.0, 60.0, CITY_Z0 - LINK_Z2 + 2.0)]]:
+		var cs := CollisionShape3D.new()
+		var bs := BoxShape3D.new()
+		bs.size = b[1]
+		cs.shape = bs
+		cs.position = b[0]
+		body.add_child(cs)
+	# трава между поляной лагеря (до z 1320) и асфальтом города (от z 1340)
+	var gm := StandardMaterial3D.new()
+	gm.albedo_color = Color(0.23, 0.28, 0.16)
+	gm.roughness = 0.95
+	var strip := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(200.0, 20.0)
+	strip.mesh = pm
+	strip.material_override = gm
+	strip.position = Vector3(ROAD_X, G, 1330.0)
+	add_child(strip)
+	var road := MeshInstance3D.new()
+	var rm := PlaneMesh.new()
+	rm.size = Vector2(ROAD_W * 2.0, CITY_Z0 + 2.0 - 1262.0)
+	road.mesh = rm
+	road.material_override = road_mat
+	road.position = Vector3(ROAD_X, G + 0.035, (CITY_Z0 + 2.0 + 1262.0) / 2.0)
+	road.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(road)
+	var hm := StandardMaterial3D.new()
+	hm.albedo_color = Color(0.14, 0.2, 0.12)
+	for i in 5:
+		for s in [-1.0, 1.0]:
+			var sm := SphereMesh.new()
+			sm.radius = 16.0
+			sm.height = 14.4
+			var mi := MeshInstance3D.new()
+			mi.mesh = sm
+			mi.material_override = hm
+			mi.position = Vector3(ROAD_X + s * 26.5, G - 4.0, LINK_Z2 + 18.0 + i * 24.0)
+			add_child(mi)
+	_road_sign(VZ1 + 10.0, "ОЗЕРО  ↑")
+	_road_sign(LINK_Z2 - 6.0, "ГОРОД  ↑")
+
+
+## Указатель у дороги: столбик с табличкой, надпись видна тем, кто идёт на север.
+func _road_sign(z: float, text: String) -> void:
+	var sx := ROAD_X - 3.6
+	var sy := height(sx, z)
+	_box(Vector3(sx - 0.05, sy - 0.2, z - 0.05), Vector3(sx + 0.05, sy + 2.0, z + 0.05), wood_dark, true)
+	_box(Vector3(sx - 0.7, sy + 1.55, z - 0.02), Vector3(sx + 0.7, sy + 1.95, z + 0.02), wood_mat, false)
+	var lb := Label3D.new()
+	lb.text = text
+	lb.font_size = 40
+	lb.pixel_size = 0.006
+	lb.modulate = Color(0.85, 0.82, 0.72)
+	lb.outline_size = 0
+	lb.position = Vector3(sx, sy + 1.75, z - 0.05)
+	lb.rotation.y = PI
+	add_child(lb)
 
 
 ## Указатель у выезда с поляны — ставится только при открытии деревни (village.gd reveal, промпт 16.11 02:18).

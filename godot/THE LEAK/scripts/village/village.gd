@@ -50,8 +50,8 @@ var card_seat := -1
 var card_moved := false
 var card_after := false
 var card_fast := false
-## Третья локация — лагерь у озера (промпт 20.11 18:00): уехать из деревни, когда в багажнике
-## LAKE_NEED и полный бак (ключ зажигания, car.gd). В сейве village.lake.
+## Третья локация — лагерь у озера (промпт 20.11 18:00). С 20.11 18:40 — без телепорта: лагерь и город стоят
+## всегда, из деревни на север ведёт дорога (village_build.gd: _link), дошёл — at_lake (_arrive). В сейве village.lake.
 const LakeCamp := preload("res://scripts/village/lake_camp.gd")
 const LAKE_NEED := {"filter": 5, "fuel": 3, "steel_hammer": 2}
 var lake                             # lake_camp.gd (строится при поездке / загрузке)
@@ -125,6 +125,8 @@ func setup_game(g) -> void:
 	bonus_slot.game = g
 	shop.game = g
 	storage.game = g
+	_ensure_lake()   # дорога сквозная (промпт 20.11 18:40) — лагерь и город стоят с начала игры (им нужен game)
+	_ensure_city()
 	if g.net == null or g.net.is_host():
 		for s in MUT_SPOTS:
 			_spawn_mutant(s[0], s[1])
@@ -376,7 +378,7 @@ func _lake_relocate(seat: int) -> void:
 
 
 func _lake_after() -> void:
-	hint("Лагерь у озера. Бак почти пуст — дорога съела бензин.\nВоздух здесь чистый — противогаз можно снять [G].\nПо лесу — хворост и припасы, обыскивай пни, кусты и брошенные палатки [F].\nУ костра — стройплощадки: строй лагерь из найденного. Мутанты тут хитрее.\nПосмотри на дверь и нажми [F] — выйти.", 10.0)
+	hint("Лагерь у озера. Воздух здесь чистый — противогаз можно снять [G].\nПо лесу — хворост и припасы, обыскивай пни, кусты и брошенные палатки [F].\nУ костра — стройплощадки: строй лагерь из найденного. Мутанты тут хитрее.\nОт северного края лагеря — лесная дорога в город.", 10.0)
 
 
 ## Сколько нужного для города лежит в багажнике (большие фильтры — тоже фильтры).
@@ -462,18 +464,18 @@ func _city_relocate(seat: int) -> void:
 
 
 func _city_after() -> void:
-	hint("Город — самое грязное место. Дышать можно только в " + City.MASK_NAME + " [V],\nв другом противогазе — травишься. Фильтры горят быстрее.\nВ развалинах — лом и припасы, мутанты хитрые.\nПосмотри на дверь и нажми [F] — выйти.", 10.0)
+	hint("Город — самое грязное место. Дышать можно только в " + City.MASK_NAME + " [V],\nв другом противогазе — травишься. Фильтры горят быстрее.\nВ развалинах — лом и припасы, мутанты хитрые.", 10.0)
 
 
 ## Задание справа в лагере: что нужно для поездки в город.
 func _city_quest() -> void:
-	var t := "Город: в багажник %d фильтров, %d канистры, полный бак, на себе — %s\n" % [int(City.NEED["filter"]), int(City.NEED["fuel"]), City.MASK_NAME] + city_status()
+	var t := "Город — дальше по дороге на север, за озером (~150 м).\nДышать там можно только в " + City.MASK_NAME
 	_quest_update(t)
 
 
 ## Задание справа (после подвала): что положить в багажник для поездки к озеру.
 func _lake_quest() -> void:
-	var t := "Следующая поездка: в багажник 5 фильтров, 3 канистры, 2 слесарных молотка, полный бак\n" + lake_status()
+	var t := "Лагерь у озера — по дороге на север, ~800 м за деревней.\nПешком нужны фильтры, на машине — бензин."
 	_quest_update(t)
 
 
@@ -537,7 +539,7 @@ func _force_gasmask() -> void:
 
 
 static func near_village(p: Vector3) -> bool:
-	return p.z > VZ0 - 40.0
+	return p.z > VZ0 - 40.0 and p.z < VZ1 + 40.0
 
 
 # ---------- задание и подсказки ----------
@@ -698,6 +700,41 @@ func _poll() -> void:
 		_lake_quest()
 	elif at_lake and not at_city and not card_bg.visible:
 		_city_quest()
+	_arrive(pp)
+
+
+## Дорога сквозная (промпт 20.11 18:40): дошёл/доехал до лагеря или города — отметка (в сейве) и подсказка;
+## хост расселяет мутантов, когда туда подходит любой игрок; далёкие лагерь и город не рисуем.
+func _arrive(pp: Vector3) -> void:
+	if not at_lake and pp.z > LakeCamp.Z0 - 30.0:
+		at_lake = true
+		_quest("")
+		_lake_after()
+	if not at_city and pp.z > City.Z0 - 30.0:
+		at_city = true
+		_quest("")
+		_city_after()
+	if lake:
+		lake.visible = pp.z > LakeCamp.Z0 - 450.0
+	if city:
+		city.visible = pp.z > City.Z0 - 400.0
+	if someone_past(LakeCamp.Z0 - 150.0):
+		_lake_mobs()
+	if someone_past(City.Z0 - 100.0):
+		_city_mobs()
+
+
+## Хост: есть ли игрок (свой или чужой) севернее z0.
+func someone_past(z0: float) -> bool:
+	if game == null or game.player == null:
+		return false
+	if game.player.global_position.z > z0:
+		return true
+	if game.net:
+		for p in game.net.puppets.values():
+			if is_instance_valid(p) and p.global_position.z > z0:
+				return true
+	return false
 
 
 func _make_ui() -> void:

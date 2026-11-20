@@ -1,6 +1,6 @@
 extends Node3D
 ## Третья локация — лагерь у озера (промпт 20.11 18:00). Стоит далеко к северу от деревни (z ~1170..1270),
-## строится, только когда туда приехали (village.gd: lake_sequence / сейв). Ровная поляна в лесу:
+## стоит всегда, из деревни сюда ведёт дорога, дальше на север — перешеек в город (village_build.gd: _link). Ровная поляна в лесу:
 ## круглое озеро с песчаным берегом, костёр с огнём и брёвнами, палатки, лодка, ели по краям.
 ## Высота земли для машины — village_build.gd: height (за LAKE_Z0 — ровно G).
 
@@ -302,6 +302,8 @@ func _forage_tick(delta: float) -> void:
 	var g = get_parent().get("game")
 	if g == null or g.player == null or (g.net and not g.net.is_host()):
 		return
+	if get_parent().has_method("someone_past") and not get_parent().someone_past(Z0 - 150.0):
+		return   # лагерь стоит всегда — раскладываем, только когда кто-то подходит (village.gd)
 	forage_t -= delta
 	if forage_t > 0.0:
 		return
@@ -408,6 +410,8 @@ func _ground() -> void:
 		var a := TAU * float(i) / 22.0
 		var sm := SphereMesh.new()
 		sm.radius = rng.randf_range(22.0, 34.0)
+		if sin(a) < -0.5 or (sin(a) > 0.5 and absf(cos(a)) < 0.3):
+			continue   # не загораживать дорогу из деревни (юг) и перешеек в город (север) — village_build.gd: _link
 		sm.height = sm.radius * 0.9
 		_mesh(sm, hill_m, Vector3((X0 + X1) / 2.0 + cos(a) * ((X1 - X0) / 2.0 + 22.0), G - 4.0, (Z0 + Z1) / 2.0 + sin(a) * ((Z1 - Z0) / 2.0 + 22.0)))
 
@@ -454,8 +458,13 @@ func _bounds() -> void:
 	var yc := G + 30.0
 	_solid(Vector3(X0 - 0.5, yc, (Z0 + Z1) / 2.0), Vector3(1.0, 60.0, Z1 - Z0 + 2.0))
 	_solid(Vector3(X1 + 0.5, yc, (Z0 + Z1) / 2.0), Vector3(1.0, 60.0, Z1 - Z0 + 2.0))
-	_solid(Vector3((X0 + X1) / 2.0, yc, Z0 - 0.5), Vector3(X1 - X0 + 2.0, 60.0, 1.0))
-	_solid(Vector3((X0 + X1) / 2.0, yc, Z1 + 0.5), Vector3(X1 - X0 + 2.0, 60.0, 1.0))
+	# юг и север — с проходами (промпт 20.11 18:40): на юг долина в деревню, на север перешеек в город (village_build.gd: _link)
+	for w in [[Z0 - 0.5, -4.5, 68.5], [Z1 + 0.5, 18.5, 43.5]]:
+		var wz: float = w[0]
+		var g0: float = w[1]
+		var g1: float = w[2]
+		_solid(Vector3((X0 - 1.0 + g0) / 2.0, yc, wz), Vector3(g0 - X0 + 1.0, 60.0, 1.0))
+		_solid(Vector3((g1 + X1 + 1.0) / 2.0, yc, wz), Vector3(X1 + 1.0 - g1, 60.0, 1.0))
 
 
 ## Костёр: камни кругом, брёвна шалашом, огонь (частицы) и мерцающий свет; брёвна-скамейки вокруг.

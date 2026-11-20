@@ -380,10 +380,9 @@ func can_depart() -> bool:
 	return state == "parked" and not escaped and my_seat == 0 and seat_dir == 0 and game != null and game.alive
 
 
-## Водитель в деревне (машина уже уезжала с поляны): ключ зажигания — поездка в лагерь у озера (village.gd: go_lake).
+## Поездка-телепорт к озеру по ключу зажигания отключена (промпт 20.11 18:40): туда ведёт дорога (village_build.gd: _link).
 func can_go_lake() -> bool:
-	return state == "parked" and escaped and my_seat == 0 and seat_dir == 0 and game != null and game.alive \
-			and village != null and not village.at_lake
+	return false
 
 
 ## Подсказка у ключа зажигания в деревне: готово ли к поездке к озеру.
@@ -391,10 +390,9 @@ func lake_prompt() -> String:
 	return "[F] Повернуть ключ — ехать к озеру" if village.lake_ready() else "К озеру: " + village.lake_status()
 
 
-## Водитель в лагере у озера: ключ зажигания — поездка в город (village.gd: go_city).
+## Поездка-телепорт в город отключена (промпт 20.11 18:40): из лагеря на север идёт перешеек (village_build.gd: _link).
 func can_go_city() -> bool:
-	return state == "parked" and escaped and my_seat == 0 and seat_dir == 0 and game != null and game.alive \
-			and village != null and village.at_lake and not village.at_city
+	return false
 
 
 ## Подсказка у ключа зажигания в лагере: готово ли к поездке в город.
