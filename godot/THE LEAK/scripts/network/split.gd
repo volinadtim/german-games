@@ -182,6 +182,25 @@ func _build_screens() -> void:
 	hud2.add_child(info_l)
 
 
+## Интерфейс в половинке экрана (промпт 20.11 14:53): мельче, чем на весь экран, чтобы HUD и окна
+## помещались в узкую высокую половину. 2D рисуется в увеличенной логической области (size_2d_override)
+## и ужимается в SubViewport; ползунок «Интерфейс в Split-Screen» (menu.gd: ui_scale_split) — поправка.
+func _fit_ui() -> void:
+	var menu = main.get("menu")
+	var pct: float = float(menu.values.get("ui_scale_split", 100.0)) / 100.0 if menu and menu.get("values") != null else 1.0
+	for sv in svs:
+		var s := Vector2(sv.size)
+		if s.x < 2.0 or s.y < 2.0:
+			continue
+		var k := clampf(minf(s.x / 1100.0, s.y / 620.0), 0.6, 1.0) * pct
+		var want := Vector2i((s / maxf(k, 0.3)).round())
+		if want == Vector2i(s):
+			want = Vector2i.ZERO   # масштаб 1 — без подмены
+		if sv.size_2d_override != want:
+			sv.size_2d_override = want
+			sv.size_2d_override_stretch = true
+
+
 func _lbl(t: String, fs: int) -> Label:
 	var l := Label.new()
 	l.text = t
@@ -464,6 +483,7 @@ func _process(delta: float) -> void:
 		sweep_t = 0.3
 		_sweep_layers()
 		_heads()
+		_fit_ui()
 	var root := get_tree().root
 	var src := root.get_camera_3d()
 	if src == null or not is_instance_valid(src):

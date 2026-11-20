@@ -20,7 +20,8 @@ const SETTINGS := {
 	"posterize": ["Постеризация", 0.0, 1.0, 1.0, 1.0],   # галочка: вкл — 50%, выкл — 0 (промпт 00:30 16.11)
 	"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
 	"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],   # градусы; 75 — прежний FOV камеры игрока
-	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
+	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],   # 100% — под монитор (_auto_ui_scale)
+	"ui_scale_split": ["Интерфейс в Split-Screen", 60.0, 130.0, 1.0, 100.0],   # 100% — авто под половину экрана (split.gd: _fit_ui)
 	"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],      # галочка: 0 — выкл, 1 — вкл
 	"resolution": ["Разрешение", 0.0, 6.0, 1.0, 0.0],   # индекс в RESOLUTIONS, 0 — авто (промпт 01:33 18.11)
 	"window_mode": ["Режим экрана", 0.0, 2.0, 1.0, 2.0],   # 0 оконный, 1 оконный без рамок, 2 полноэкранный (промпт 22:53)
@@ -64,7 +65,7 @@ var cat_btns := {}                # категория -> кнопка слев�
 var ctl_tabs: Array = []          # кнопки-вкладки разделов «Управления»
 var ctl_groups: Array = []        # бинды каждого раздела (виден только активный)
 ## Категория «Основное»; всё остальное из SETTINGS — в «Экран и графика».
-const GENERAL_KEYS := ["volume", "voice_volume", "sensitivity", "fov", "ui_scale", "crosshair"]
+const GENERAL_KEYS := ["volume", "voice_volume", "sensitivity", "fov", "ui_scale", "ui_scale_split", "crosshair"]
 
 ## Разрешение окна: индекс 0 — авто (под экран), остальные — фиксированный размер (промпт 01:33 18.11)
 const RESOLUTIONS := [
@@ -837,7 +838,7 @@ func _fmt(key: String, v: float) -> String:
 		return "вкл" if v > 0.5 else "выкл"
 	if key == "g_scale" or key == "g_grass" or key == "g_particles":
 		return "%d%%" % int(v)
-	if key == "volume" or key == "voice_volume" or key == "ui_scale":
+	if key == "volume" or key == "voice_volume" or key == "ui_scale" or key == "ui_scale_split":
 		return "%d%%" % int(v)
 	return "%.2f" % v
 
@@ -911,7 +912,7 @@ func _apply_preset(q: int) -> void:
 ## (на телефоне 20:9 по высоте остаётся мало места — считаем по 660).
 func _apply_ui_scale() -> void:
 	var win := get_tree().root
-	var want := 1.25 * float(values.get("ui_scale", 100.0)) / 100.0
+	var want := _auto_ui_scale() * float(values.get("ui_scale", 100.0)) / 100.0
 	var sz := Vector2(win.size)
 	if sz.x > 0 and sz.y > 0:
 		if win.content_scale_mode != Window.CONTENT_SCALE_MODE_DISABLED:
@@ -922,6 +923,16 @@ func _apply_ui_scale() -> void:
 			sz = Vector2(base.y * ratio, base.y) if ratio >= base.x / base.y else Vector2(base.x, base.x / ratio)
 		want = minf(want, maxf(minf(sz.x / 1240.0, sz.y / 660.0), 0.8))
 	win.content_scale_factor = want
+
+
+## Базовый масштаб интерфейса под монитор (промпт 20.11 14:53): 1.25 на 1080p, крупнее на 1440p/4K
+## (по высоте экрана); меньшие экраны дожимает ограничение по размеру окон в _apply_ui_scale. Телефон — 1.25.
+func _auto_ui_scale() -> float:
+	var win := get_tree().root
+	if win.content_scale_mode != Window.CONTENT_SCALE_MODE_DISABLED:
+		return 1.25
+	var h := float(DisplayServer.screen_get_size(DisplayServer.window_get_current_screen()).y)
+	return 1.25 * clampf(h / 1080.0, 1.0, 3.0)
 
 
 func apply_settings() -> void:
