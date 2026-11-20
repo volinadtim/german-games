@@ -4,6 +4,7 @@ extends Node3D
 ## Всё, кроме верстака и уборки, требует верстак. Состояние — в сейве (game_save.gd: "blueprints"):
 ## id -> 1 чертёж куплен, 2 построено. Постройки стоят на своих местах в комнате.
 const Items := preload("res://scripts/items.gd")
+const Kit := preload("res://scripts/world/build_kit.gd")   # общие постройки (турель, мешки, стеллаж, лампа)
 
 ## внутренние грани стен комнаты (level_geometry.gd: X0 -12, ZN -9, CW 1.6, T 0.3)
 const RX0 := -11.85
@@ -15,7 +16,7 @@ const DOOR_X := -6.0     # проём в коридор на южной стен
 const DOOR_W := 1.7
 const DOOR_H := 2.3
 ## [id, название, описание, цена чертежа, материалы {id: штук}, нужен верстак, нужен инструмент (не тратится)]
-const BLUEPRINTS := [
+const OWN := [
 	["workbench", "Верстак", "Крепкий стол с тисками у стены дома. На нём строится всё остальное; F у верстака — открыть чертежи.",
 		25, {"wood": 4, "nut": 2}, false, ""],
 	["clean", "Уборка бункера", "Вымести весь бункер: обломки, пыль, мусор и паутина во всех комнатах и коридоре пропадут.",
@@ -28,13 +29,15 @@ const BLUEPRINTS := [
 		35, {"wood": 3, "scrap": 2}, true, ""],
 ]
 
+## Все чертежи: свои (только для дома) + общие из build_kit.gd (их же строит лагерь у озера)
+var BLUEPRINTS: Array = OWN + Kit.BLUEPRINTS
 var game
 var state := {}          # id -> 1 куплен / 2 построен
 var nodes := {}          # id -> построенный узел
 var hidden_junk: Array = []
 
 
-static func info(id: String) -> Array:
+func info(id: String) -> Array:
 	for b in BLUEPRINTS:
 		if b[0] == id:
 			return b
@@ -70,7 +73,7 @@ func build_reason(id: String) -> String:
 
 
 ## Материалы строкой: «Деревяшка ×4, Гайка ×2».
-static func materials_text(id: String) -> String:
+func materials_text(id: String) -> String:
 	var b := info(id)
 	var parts: PackedStringArray = []
 	for m in b[4]:
@@ -102,6 +105,9 @@ func build(id: String) -> bool:
 
 
 func to_save() -> Dictionary:
+	var t = nodes.get("turret")
+	if t != null and is_instance_valid(t) and t.has_method("to_save"):
+		state["turret_ammo"] = t.to_save()   # патроны турели — в том же словаре (не чертёж: _apply его пропускает)
 	return state.duplicate()
 
 
@@ -112,6 +118,8 @@ func from_save(d: Dictionary) -> void:
 	for k in state:
 		if int(state[k]) == 2:
 			_apply(String(k))
+	if nodes.get("turret") != null and state.has("turret_ammo"):
+		nodes["turret"].ammo = int(state["turret_ammo"])
 
 
 func _apply(id: String) -> void:
@@ -129,6 +137,27 @@ func _apply(id: String) -> void:
 			nodes[id] = _rug()
 		"cot":
 			nodes[id] = _cot()
+		_:
+			_kit(id)
+
+
+## Общая постройка из build_kit.gd на своём месте в комнате (промпт 20.11 18:32).
+func _kit(id: String) -> void:
+	var spots := {   # id -> [позиция, поворот Y]
+		"turret": [Vector3(-4.3, 0.0, -2.7), PI],
+		"sandbags": [Vector3(-8.2, 0.0, -2.6), 0.0],
+		"rack": [Vector3(RX0 + 0.27, 0.0, -4.4), PI / 2],
+		"lamp": [Vector3(-6.0, H, -5.3), 0.0],
+	}
+	if not spots.has(id):
+		return
+	var n := Kit.make(id, game)
+	if n == null:
+		return
+	n.position = spots[id][0]
+	n.rotation.y = spots[id][1]
+	add_child(n)
+	nodes[id] = n
 
 
 # ---------- постройки ----------

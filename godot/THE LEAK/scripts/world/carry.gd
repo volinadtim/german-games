@@ -47,7 +47,7 @@ func key_of(n: Object) -> String:
 		return "storage"
 	if game.home:
 		for id in game.home.nodes:
-			if game.home.nodes[id] == n and n != game.home and String(id) in ["workbench", "rug", "cot"]:
+			if game.home.nodes[id] == n and n != game.home and String(id) in ["workbench", "rug", "cot", "turret", "sandbags", "rack"]:
 				return "home_" + String(id)
 	return ""
 

@@ -598,6 +598,25 @@ func _draw_blueprint(ci: Control, r: Rect2, id: String, st: int) -> void:
 			ci.draw_line(c + Vector2(-s * 0.3, 0), c + Vector2(-s * 0.15, s * 0.25), w, 2.0)
 			ci.draw_line(c + Vector2(s * 0.3, 0), c + Vector2(s * 0.15, s * 0.25), w, 2.0)
 			ci.draw_rect(Rect2(c + Vector2(-s * 0.34, -s * 0.1), Vector2(s * 0.16, s * 0.08)), w, false, 2.0)
+		"turret":
+			ci.draw_line(c + Vector2(0, -s * 0.02), c + Vector2(-s * 0.25, s * 0.32), w, 2.0)
+			ci.draw_line(c + Vector2(0, -s * 0.02), c + Vector2(s * 0.25, s * 0.32), w, 2.0)
+			ci.draw_line(c + Vector2(0, -s * 0.02), c + Vector2(0, s * 0.32), w, 2.0)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.12, -s * 0.16), Vector2(s * 0.22, s * 0.14)), w, false, 2.0)
+			ci.draw_line(c + Vector2(s * 0.1, -s * 0.1), c + Vector2(s * 0.38, -s * 0.2), w, 3.0)
+		"sandbags":
+			for k in 3:
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.33 + k * s * 0.22, s * 0.1), Vector2(s * 0.2, s * 0.12)), w, false, 2.0)
+			for k in 2:
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.22 + k * s * 0.22, -s * 0.04), Vector2(s * 0.2, s * 0.12)), w, false, 2.0)
+		"rack":
+			ci.draw_rect(Rect2(c - Vector2(s * 0.25, s * 0.33), Vector2(s * 0.5, s * 0.66)), w, false, 2.0)
+			for k in 2:
+				ci.draw_line(c + Vector2(-s * 0.25, -s * 0.11 + k * s * 0.22), c + Vector2(s * 0.25, -s * 0.11 + k * s * 0.22), w, 2.0)
+		"lamp":
+			ci.draw_line(c + Vector2(0, -s * 0.36), c + Vector2(0, -s * 0.05), w, 2.0)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-s * 0.06, -s * 0.05), c + Vector2(s * 0.06, -s * 0.05), c + Vector2(s * 0.2, s * 0.08), c + Vector2(-s * 0.2, s * 0.08)]), Color(w, 0.8))
+			ci.draw_circle(c + Vector2(0, s * 0.13), s * 0.05, Color(1.0, 0.9, 0.5))
 	if st == 2:
 		ci.draw_polyline(PackedVector2Array([p.end - Vector2(s * 0.3, s * 0.18), p.end - Vector2(s * 0.2, s * 0.08), p.end - Vector2(s * 0.04, s * 0.3)]), Color(0.5, 1.0, 0.5), 3.0)
 
