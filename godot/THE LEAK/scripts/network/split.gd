@@ -18,9 +18,9 @@ extends Node
 ## Создаёт main.gd (_enter_game), если в меню выбран «Split-Screen» (pending). Узел — ребёнок main.
 
 const PlayerScript := preload("res://scripts/player/player.gd")
-const HudScript := preload("res://scripts/hud.gd")
-const InvScript := preload("res://scripts/inventory.gd")
-const Items := preload("res://scripts/items.gd")
+const HudScript := preload("res://scripts/ui/hud.gd")
+const InvScript := preload("res://scripts/items/inventory.gd")
+const Items := preload("res://scripts/items/items.gd")
 const Fx := preload("res://scripts/core/fx.gd")
 const MM_K := 0.8            # миникарта в половинке: на 20% меньше и на 20% ближе
 const PUPPET_LAYER := 512

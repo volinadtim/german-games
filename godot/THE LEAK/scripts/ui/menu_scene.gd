@@ -3,7 +3,7 @@ extends CanvasLayer
 ## игрока) в эпичной позе целится из пистолета с глушителем, коллиматором и ЛЦУ — красный луч и точка на мёртвом
 ## дереве. Отдельный мир в SubViewport (своё небо и свет); main.gd кладёт слой под меню и убирает при входе в игру.
 
-const Weapons := preload("res://scripts/weapons.gd")
+const Weapons := preload("res://scripts/weapons/weapons.gd")
 const MODEL := preload("res://assets/models/Player1.glb")
 const CHAR_POS := Vector3.ZERO
 const AIM := Vector3(-0.8, 0.03, -0.6)          # куда целится (мир)

@@ -69,7 +69,7 @@ func _ready() -> void:
 
 	if knife:
 		# ножик воткнут в бок мешка лезвием внутрь, рукоять наружу и чуть вниз
-		knife_node = preload("res://scripts/weapons.gd").make("knife")
+		knife_node = preload("res://scripts/weapons/weapons.gd").make("knife")
 		sway.add_child(knife_node)
 		knife_node.position = Vector3(-0.36, 1.3, 0.04)
 		knife_node.rotation = Vector3(0.15, 0.25, -PI / 2 - 0.25)
@@ -93,7 +93,7 @@ func get_prompt(_g) -> String:
 func interact(g) -> void:
 	if not knife:
 		return
-	set_meta("dur", preload("res://scripts/items.gd").max_dur("knife") * 0.5)   # нож в манекене — 50% прочности (промпт 20.11 11:57)
+	set_meta("dur", preload("res://scripts/items/items.gd").max_dur("knife") * 0.5)   # нож в манекене — 50% прочности (промпт 20.11 11:57)
 	if g.collect("knife", 1, self) > 0:
 		return   # некуда взять — нож остаётся в манекене
 	remove_knife()

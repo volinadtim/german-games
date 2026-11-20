@@ -11,7 +11,7 @@ extends Node
 ##      в сторону комнаты с KILLBOX, потом управление полностью возвращается.
 const Enemy := preload("res://scripts/enemy/enemy.gd")
 const PickupScript := preload("res://scripts/world/pickup.gd")
-const Items := preload("res://scripts/items.gd")
+const Items := preload("res://scripts/items/items.gd")
 const Sfx := preload("res://scripts/core/sfx.gd")
 const SlotM := preload("res://scripts/slot/slot_machine.gd")
 const WAKE_POS := Vector3(-11.25, 0.05, -4.3)   # у западной стены; game_base.gd CHEST_AVOID и glass_floor.gd AVOID обходят это место

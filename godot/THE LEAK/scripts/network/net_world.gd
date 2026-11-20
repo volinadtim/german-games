@@ -586,7 +586,7 @@ func _send_enemies() -> void:
 	rpc("es", buf, xs, full)
 
 
-const Weapons := preload("res://scripts/weapons.gd")
+const Weapons := preload("res://scripts/weapons/weapons.gd")
 const MobPack := preload("res://scripts/network/mob_pack.gd")
 
 

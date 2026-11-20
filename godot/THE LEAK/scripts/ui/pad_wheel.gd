@@ -5,7 +5,7 @@ extends CanvasLayer
 ## Отпустить ← — выбранное в левую руку; LT — в левую, RT — в правую (сразу, меню закрывается).
 ## Ничего не выбрано — просто закрыть.
 
-const Items := preload("res://scripts/items.gd")
+const Items := preload("res://scripts/items/items.gd")
 const R := 150.0            # радиус круга слотов
 const CELL := 70.0
 

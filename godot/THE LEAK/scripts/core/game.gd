@@ -153,7 +153,7 @@ func setup(p: Player) -> void:
 	storage.position = STORAGE_POS   # вплотную к стене
 	storage.rotation.y = PI
 	add_child(storage)
-	home = preload("res://scripts/world/bunker_home.gd").new()
+	home = preload("res://scripts/locations/bunker/bunker_home.gd").new()
 	home.game = self
 	add_child(home)
 	carry = preload("res://scripts/world/carry.gd").new()
@@ -653,7 +653,7 @@ func _drop_execute(side: String, hold_t: float) -> void:
 	var pk = _make_pickup(id, 1, player.cam.global_position + fwd * 0.45 + right * 0.15 - Vector3(0, 0.1, 0), fwd * lerpf(4.0, 14.0, power) + Vector3.UP * lerpf(1.5, 4.5, power))
 	if pk != null and dur >= 0.0: pk.set_meta("dur", dur)
 	# брошенное холодное оружие ранит того, в кого попадёт (промпт 20.11 18:31): урон удара оружием, сильнее с зарядом
-	var W := preload("res://scripts/weapons.gd")
+	var W := preload("res://scripts/weapons/weapons.gd")
 	if pk != null and W.WEAPONS.has(id):
 		pk.throw_dmg = player.PUNCH_BASE * float(W.stats(id)["mult"]) * lerpf(0.7, 1.3, power)
 		pk.thrower = player

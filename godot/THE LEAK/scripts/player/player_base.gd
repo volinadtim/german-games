@@ -54,8 +54,8 @@ const PUNCHES := {
 }
 # кулаки сильно ослаблены (было 18/24/30): без оружия враг падает с ~9 ударов
 const PUNCH_DMG := {"straight": 6.0, "hook": 8.0, "upper": 10.0}
-const Weapons := preload("res://scripts/weapons.gd")
-const Items := preload("res://scripts/items.gd")
+const Weapons := preload("res://scripts/weapons/weapons.gd")
+const Items := preload("res://scripts/items/items.gd")
 # удары оружием — отдельный набор. Каждый мах: замах (wind) -> удар (hit, тут проверка попадания) ->
 # проводка по инерции (thru) -> возврат в стойку. tw — поворот корпуса в этих точках (рад, для правой руки),
 # t — длительности [замах, удар, проводка, возврат], rc — выпад плеча [замах, удар].

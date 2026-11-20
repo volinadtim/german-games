@@ -1,6 +1,6 @@
 extends "res://scripts/player/player_model.gd"
 # Часть player.gd: анимация тела и ног, повороты, idle, IK, следы ударов, копия игрока в сети.
-const GunS := preload("res://scripts/gun.gd")
+const GunS := preload("res://scripts/weapons/gun.gd")
 var fall_k := 0.0              # 0 на земле .. 1 падение/полёт: руки разведены и машут, ноги раскинуты (промпт 18:46)
 var nc_vel := Vector3.ZERO     # скорость полёта в ноуклипе (для анимации; в обычном режиме не используется)
 

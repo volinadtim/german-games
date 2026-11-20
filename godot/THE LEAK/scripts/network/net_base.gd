@@ -174,7 +174,7 @@ static func lan_ips() -> Array:
 
 const PlayerScript := preload("res://scripts/player/player.gd")
 const EnemyScript := preload("res://scripts//enemy/enemy.gd")
-const Items := preload("res://scripts/items.gd")
+const Items := preload("res://scripts/items/items.gd")
 const PickupScript := preload("res://scripts/world/pickup.gd")
 const SEND_DT := 1.0 / 20.0
 const ENEMY_DT := 1.0 / 15.0

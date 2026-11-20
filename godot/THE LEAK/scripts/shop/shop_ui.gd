@@ -41,7 +41,7 @@ func _build_ui() -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.55)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.gui_input.connect(func(e: InputEvent): preload("res://scripts/loot_window.gd")._click_away(dim, e, _close))   # клик мимо — закрыть (промпт 02:15)
+	dim.gui_input.connect(func(e: InputEvent): preload("res://scripts/ui/loot_window.gd")._click_away(dim, e, _close))   # клик мимо — закрыть (промпт 02:15)
 	ui.add_child(dim)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -675,7 +675,7 @@ func _buy_upgrade() -> void:
 ## Окно продажи поверх магазина.
 func _open_sell() -> void:
 	if sell_win == null:
-		sell_win = load("res://scripts/sell_window.gd").new()
+		sell_win = load("res://scripts/ui/sell_window.gd").new()
 		sell_win.game = game
 		sell_win.shop = self
 		add_child(sell_win)

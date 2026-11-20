@@ -4,7 +4,7 @@ extends StaticBody3D
 ## Доски: HITS_BOARDS ударов, запас 3, разобранная куча исчезает и тоже возвращается через REGROW.
 ## Без топорика — подсказка. Ставит spawn_all (game.gd), в сейв не пишется (запас восстанавливается).
 
-const Items := preload("res://scripts/items.gd")
+const Items := preload("res://scripts/items/items.gd")
 const HITS_TREE := 3
 const HITS_BOARDS := 2
 const REGROW := 240.0

@@ -7,7 +7,7 @@ extends CanvasLayer
 ## Промпт 14.11 18:03 / 18:30: панорамная маска (широкий обзор, линзы слиты без шва), царапины, разводы,
 ## конденсат от дыхания, плавное надевание/снятие и плавные эффекты.
 
-const Items := preload("res://scripts/items.gd")
+const Items := preload("res://scripts/items/items.gd")
 
 const FILTER_TIME := 100.0
 const FILTER_TIME2 := 200.0    # большой армейский фильтр (деревня, промпт 18.11 01:28)
@@ -322,13 +322,13 @@ func _process(delta: float) -> void:
 	overlay.visible = put > 0.0
 	# у озера воздух чистый — можно без противогаза (промпт 20.11 18:31)
 	# город — самый грязный (промпт 20.11 18:35): дышать только в Снюхателе5088, фильтр горит быстрее, травит сильнее
-	const CityL := preload("res://scripts/village/city.gd")
+	const CityL := preload("res://scripts/locations/city/city.gd")
 	var city: bool = CityL.in_city(game.player.global_position)
-	var out: bool = _outside() > 0.5 and game.alive and (city or not preload("res://scripts/village/lake_camp.gd").clean_air(game.player.global_position))
+	var out: bool = _outside() > 0.5 and game.alive and (city or not preload("res://scripts/locations/lake/lake_camp.gd").clean_air(game.player.global_position))
 	# фильтр тратится только наверху и в маске
 	if worn and out:
 		# деревня — зона менее заражённая: фильтр тратится на 40% медленнее (промпт 20.11 11:57)
-		var village_k := 0.6 if preload("res://scripts/village/village.gd").near_village(game.player.global_position) else 1.0
+		var village_k := 0.6 if preload("res://scripts/locations/village/village.gd").near_village(game.player.global_position) else 1.0
 		if city:
 			village_k = 1.5
 		filter_left -= delta * village_k

@@ -133,7 +133,7 @@ const CONTROLS := [
 	["handbrake", "Ручник (машина)", ["k:32"]],            # Пробел (car_drive.gd)
 	["seat_switch", "Пересесть на соседнее место", ["k:90"]],   # Z (car_drive.gd, промпт 18.11 01:00)
 	["car_lean", "Высунуться из окна (держать)", ["k:86"]],     # V (car_drive.gd, промпт 18.11 01:20)
-	["journal", "Журнал заданий", ["k:74"]],   # J (village/village.gd)
+	["journal", "Журнал заданий", ["k:74"]],   # J (locations/village/village.gd)
 	["world_map", "Карта (зарисовывалка)", ["k:77"]],   # M (ui/sketch_map.gd, промпт 20.11 18:42)
 ]
 
@@ -975,7 +975,7 @@ func apply_settings() -> void:
 		for c in get_parent().get_children():
 			if c is PlayerScript and c.cam:
 				c.cam.fov = PlayerScript.fov_base   # сразу, без ожидания плавного перехода
-	var hud_s := preload("res://scripts/hud.gd")
+	var hud_s := preload("res://scripts/ui/hud.gd")
 	hud_s.show_crosshair = values.get("crosshair", 1.0) > 0.5
 	hud_s.cross_style = int(round(float(values.get("cross_style", 0.0))))
 	hud_s.cross_color = int(round(float(values.get("cross_color", 0.0))))

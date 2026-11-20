@@ -361,7 +361,7 @@ func _payout() -> void:
 		# наказание — личное: вещь пропадает только у того, кто дёрнул рычаг
 		var took := _take_bought() if spin_mine else ""
 		if took != "":
-			var nm: String = preload("res://scripts/items.gd").item_name(took)
+			var nm: String = preload("res://scripts/items/items.gd").item_name(took)
 			_set_screen("666 — KILLBOX ЗАБРАЛ: %s" % nm.to_upper())
 			game.hud.toast("Три шестёрки! Автомат забрал: %s" % nm, Color(1.0, 0.35, 0.25))
 		elif spin_mine:
@@ -456,7 +456,7 @@ func _six_halve() -> void:
 ## Наказание 666: забрать одну случайную экипировку, купленную в Trinkets Market (game.shop_bought).
 ## Сначала ищем в сумке, потом — надетое (кроме рюкзака). Возвращает id или "".
 func _take_bought() -> String:
-	var Items := preload("res://scripts/items.gd")
+	var Items := preload("res://scripts/items/items.gd")
 	var bought: Array = game.get("shop_bought") if game.get("shop_bought") != null else []
 	var cand: Array = []
 	for id in bought:

@@ -1,31 +1,31 @@
 extends Node3D
 # Часть game.gd: константы, состояние, звуки, клавиши.
 const Player := preload("res://scripts/player/player.gd")
-const Hud := preload("res://scripts/hud.gd")
-const Inventory := preload("res://scripts/inventory.gd")
-const Items := preload("res://scripts/items.gd")
-const LootWindow := preload("res://scripts/loot_window.gd")
+const Hud := preload("res://scripts/ui/hud.gd")
+const Inventory := preload("res://scripts/items/inventory.gd")
+const Items := preload("res://scripts/items/items.gd")
+const LootWindow := preload("res://scripts/ui/loot_window.gd")
 var skills   # systems/skills.gd — древо прокачки (окно на K)
 var sketch_map   # ui/sketch_map.gd — карта-зарисовывалка (окно на M, промпт 20.11 18:42)
-const GlassFloor := preload("res://scripts/level/glass_floor.gd")
+const GlassFloor := preload("res://scripts/locations/bunker/glass_floor.gd")
 const Save := preload("res://scripts/systems/save.gd")
 const Fx := preload("res://scripts/core/fx.gd")
 const Pickup := preload("res://scripts/world/pickup.gd")
 const Flashlight := preload("res://scripts/player/flashlight.gd")
-const TapeSpot := preload("res://scripts/level/tape_spot.gd")
-const StonePile := preload("res://scripts/stone_pile.gd")
+const TapeSpot := preload("res://scripts/locations/bunker/tape_spot.gd")
+const StonePile := preload("res://scripts/world/stone_pile.gd")
 var tape  # моток изоленты у доски выплат — один на игру
 const Enemy := preload("res://scripts/enemy/enemy.gd")
 const Dummy := preload("res://scripts/world/dummy.gd")
 const Chest := preload("res://scripts/world/chest.gd")
 const Jar := preload("res://scripts/world/jar.gd")
-const Surface := preload("res://scripts/level/surface.gd")
+const Surface := preload("res://scripts/locations/bunker/surface.gd")
 const SlotMachine := preload("res://scripts/slot/slot_machine.gd")
 const Shop := preload("res://scripts/shop/shop.gd")
 const GasMask := preload("res://scripts/player/gasmask.gd")
-const Gun := preload("res://scripts/gun.gd")
+const Gun := preload("res://scripts/weapons/gun.gd")
 var gun   # gun.gd — пистолет
-const StoneThrow := preload("res://scripts/stone_throw.gd")
+const StoneThrow := preload("res://scripts/weapons/stone_throw.gd")
 var stone_throw   # stone_throw.gd — бросок камня (камень в руке: ПКМ держать — прицел, ЛКМ — бросок)
 var chat   # ui/chat.gd — чат (T)
 var last_chance   # systems/last_chance.gd — 23 монеты, когда застрял (один раз)
@@ -36,8 +36,8 @@ var audio   # core/audio.gd — пул голосов и лимитер (зву�
 const Sfx2 := preload("res://scripts/core/sfx_extra.gd")
 const Car := preload("res://scripts/car/car.gd")
 var car   # старая машина (car.gd): ключ в сейфе; уехать — в деревню, дальше на ней можно ездить
-const Village := preload("res://scripts/village/village.gd")
-const VillageNet := preload("res://scripts/village/village_net.gd")
+const Village := preload("res://scripts/locations/village/village.gd")
+const VillageNet := preload("res://scripts/locations/village/village_net.gd")
 var village   # вторая локация — деревня (village.gd)
 var play_time := 0.0   # сколько играл (для экрана победы, в сейве)
 var won := false
@@ -81,7 +81,7 @@ var intro_wake_done := false   # пробуждение (лежит → вста
 var intro_done := true   # вступление пройдено (world/intro.gd); автомат включён — в сейве "intro_done"
 var takedown   # world/takedown.gd — стелс-добивание мелких врагов сзади на E
 var hud: Hud
-var lake_safe_node: Node = null   # сейф у озера (village/lake_camp.gd); сейв "lake_safe" = [открыт, содержимое]
+var lake_safe_node: Node = null   # сейф у озера (locations/lake/lake_camp.gd); сейв "lake_safe" = [открыт, содержимое]
 var lake_safe_open := false
 var lake_safe_items: Array = []
 var net = null   # net.gd в сетевой игре (выставляет main.gd до setup), иначе null
@@ -198,7 +198,7 @@ func _add_keys(action: String, keys: Array) -> void:
 ## и кровотечение 10 с по 3 в секунду. Повторный наступ обновляет таймер. Снимает бинт или аптечка.
 var loot_window: LootWindow   # окно лута ящиков и сейфа
 var storage: Chest            # сундук-хранилище
-var home                      # world/bunker_home.gd — постройки по чертежам
+var home                      # locations/bunker/bunker_home.gd — постройки по чертежам
 var carry                     # world/carry.gd — перенос объектов в руках (B)
 var glass_floor: GlassFloor   # кучки стекла (glass_floor.gd), случайные каждую новую игру
 const BLEED_TIME := 10.0

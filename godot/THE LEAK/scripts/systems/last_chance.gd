@@ -9,8 +9,8 @@ extends Node
 ## автомата (slot_machine.gd: pity). Создаётся в game.gd (game.last_chance); used — в сейве "last_chance".
 ## Сеть: монеты и флаг used каждого игрока приходят по net_world.gd: pcash (net.peer_cash).
 
-const Weapons := preload("res://scripts/weapons.gd")
-const SellWindow := preload("res://scripts/sell_window.gd")
+const Weapons := preload("res://scripts/weapons/weapons.gd")
+const SellWindow := preload("res://scripts/ui/sell_window.gd")
 const COINS := 23
 const LIMIT := 8                 # дешевле пачки круток (slot_machine_base.gd: PACKS[0][1])
 const CHECK_DT := 2.0

@@ -6,7 +6,7 @@ extends RigidBody3D
 ## Лежит 3.5 минуты, последние 5 с мигает и исчезает; ключ от машины не исчезает (промпт 19:04).
 ## Сумка полна — сообщение не чаще раза в 3 с (game.collect).
 
-const Items := preload("res://scripts/items.gd")
+const Items := preload("res://scripts/items/items.gd")
 const PickupMesh := preload("res://scripts/world/pickup_mesh.gd")
 const REACH := 3.0   # дальность подбора на E, м
 

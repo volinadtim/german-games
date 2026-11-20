@@ -6,8 +6,8 @@ extends Node
 ##   Если лежат все — обычная смерть и возрождение (net_world.gd, dead_t).
 ## - Лечение и подъём не мгновенные: полоска прогресса, прерывается движением или уроном.
 
-const Items := preload("res://scripts/items.gd")
-const Gun := preload("res://scripts/gun.gd")
+const Items := preload("res://scripts/items/items.gd")
+const Gun := preload("res://scripts/weapons/gun.gd")
 const REVIVE_R := 2.6       # м, с какого расстояния можно поднять
 const REVIVE_MULT := 1.2    # здоровье поднятого = лечение предмета × это
 const DEATH_SCREEN := 1.6   # с, через сколько после падения показывать экран смерти

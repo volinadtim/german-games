@@ -5,10 +5,10 @@ extends CanvasLayer
 ## Новая команда: register("имя", "описание", func(args: PackedStringArray) -> void).
 ## Читерская команда (money/get/noclip/god и т.п.): register_cheat(...) — работает только после /cheats on.
 
-const Items := preload("res://scripts/items.gd")
-const VillageBuild := preload("res://scripts/village/village_build.gd")
-const LakeCampS := preload("res://scripts/village/lake_camp.gd")
-const CityS := preload("res://scripts/village/city.gd")
+const Items := preload("res://scripts/items/items.gd")
+const VillageBuild := preload("res://scripts/locations/village/village_build.gd")
+const LakeCampS := preload("res://scripts/locations/lake/lake_camp.gd")
+const CityS := preload("res://scripts/locations/city/city.gd")
 const SUGG_ROWS := 8      # сколько строк подсказок /get видно сразу
 
 var game   # core/game.gd
@@ -288,7 +288,7 @@ func _cmd_god(_a: PackedStringArray) -> void:
 	print_line("[color=#9e9]Godmode: %s[/color]" % ("вкл" if game.god else "выкл"))
 
 
-const SurfaceBuild := preload("res://scripts/level/surface_build.gd")
+const SurfaceBuild := preload("res://scripts/locations/bunker/surface_build.gd")
 const STAT_KEYS := {"dmg": "cheat_dmg", "damage": "cheat_dmg", "урон": "cheat_dmg", "speed": "cheat_spd", "скорость": "cheat_spd",
 	"jump": "cheat_jump", "прыжок": "cheat_jump", "taken": "cheat_taken", "armor": "cheat_taken"}
 

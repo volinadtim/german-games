@@ -1,7 +1,7 @@
 extends StaticBody3D
 # Часть shop.gd: константы, состояние, 3D-модель торгового автомата, витрина, шрифты.
-const Weapons := preload("res://scripts/weapons.gd")
-const Items := preload("res://scripts/items.gd")
+const Weapons := preload("res://scripts/weapons/weapons.gd")
+const Items := preload("res://scripts/items/items.gd")
 
 var game
 var ui: CanvasLayer

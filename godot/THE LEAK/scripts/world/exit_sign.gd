@@ -2,7 +2,7 @@ extends Node3D
 ## Табличка над проёмом к лестнице на поверхность (промпт 18.11 01:02): иконка Нюхича и «ТОЛЬКО В ПРОТИВОГАЗЕ».
 ## Висит на торцевой стене коридора (level_geometry.gd: X1 12, T 0.3; проём DOOR_W 1.7 × DOOR_H 2.3), лицом в бункер (−X).
 ## Создаётся из game.gd.
-const Items := preload("res://scripts/items.gd")
+const Items := preload("res://scripts/items/items.gd")
 
 const POS := Vector3(11.83, 2.76, 0.0)
 const W := 1.5

@@ -1,6 +1,6 @@
 extends RefCounted
 ## Общие постройки по чертежам (промпт 20.11 18:32): модели без привязки к месту — их ставят бункер (bunker_home.gd)
-## и лагерь у озера (village/lake_camp.gd). make(id, game) возвращает узел в начале координат, родитель ставит
+## и лагерь у озера (locations/lake/lake_camp.gd). make(id, game) возвращает узел в начале координат, родитель ставит
 ## position/rotation и add_child. Описания/цены чертежей — BLUEPRINTS ниже (bunker_home.gd берёт их к себе).
 const Turret := preload("res://scripts/world/scrap_turret.gd")
 

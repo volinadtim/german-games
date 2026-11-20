@@ -26,7 +26,7 @@ var voice: AudioStreamPlayer3D
 func _ready() -> void:
 	_build()
 	if _shot == null:
-		_shot = preload("res://scripts/gun.gd")._shot_sound()
+		_shot = preload("res://scripts/weapons/gun.gd")._shot_sound()
 	voice = AudioStreamPlayer3D.new()
 	voice.max_distance = 40.0
 	voice.position = Vector3(0, 0.9, 0)
