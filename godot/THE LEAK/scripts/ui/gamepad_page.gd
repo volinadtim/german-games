@@ -124,7 +124,7 @@ func refresh() -> void:
 	for id in preset_btns:
 		menu._mark_btn(preset_btns[id], id == pad.preset)
 	hint.text = ("Свой пресет: нажмите на ячейку, затем кнопку геймпада (Back + кнопка — сочетание). Delete — убрать, Esc — отмена."
-		if custom else "Стандартная раскладка — только просмотр. Выберите «Свой», чтобы настроить под себя.")
+		if custom else "Стандартная раскладка — только просмотр. Выберите «Свой», чтобы настроить под себя.") + "\nСлот: нажать — в левую руку, задержать — в правую. Back — режим сброса, затем RT — из левой, LT — из правой (задержать — дальше)."
 	var names: Array = []
 	for d in Input.get_connected_joypads():
 		names.append(Input.get_joy_name(d))

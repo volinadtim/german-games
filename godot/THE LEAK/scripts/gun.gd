@@ -160,16 +160,16 @@ func _ready() -> void:
 
 
 func armed() -> bool:
-	return game != null and (game.inv.equip["right"] == "pistol" or game.inv.equip["left"] == "pistol")
+	return not hands().is_empty()
 
 
-## Руки с пистолетом (правая первой).
+## Руки с пистолетом (правая первой). За рулём — только рука с предметом (вторая на руле, промпт 20.11 11:40).
 func hands() -> Array[int]:
 	var r: Array[int] = []
 	if game == null:
 		return r
 	for h in [1, 0]:
-		if game.inv.equip[SLOTS[h]] == "pistol":
+		if game.inv.equip[SLOTS[h]] == "pistol" and game.hand_live(SLOTS[h]):
 			r.append(h)
 	return r
 
@@ -407,7 +407,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("reload") and not e.is_echo() and armed() and (game.player.active or car_can()) and game.alive:
 		reload()
 	# в машине игрок выключен (car_drive.gd) — ЛКМ/ПКМ ловим сами: стрельба из окна
-	if car_seat() < 0 or not armed() or not game.alive or game.window_open() or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if game.get("_drop_mode") or car_seat() < 0 or not armed() or not game.alive or game.window_open() or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
 	if e.is_action_released("attack_right"):
 		rmb_input(false)

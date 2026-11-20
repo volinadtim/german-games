@@ -6,6 +6,8 @@ extends Node
 ## чтобы не мешать антизалипанию клавиш (player.gd: _unstick_moves).
 ## Когда курсор виден (меню, инвентарь, магазин…): левый стик — курсор, A — ЛКМ, X — ПКМ,
 ## B — назад (ui_cancel), LB — повернуть предмет (пробел), правый стик — прокрутка. Start — пауза всегда.
+## Руки (промпт 20.11 11:43): кнопка слота (крестовина) — нажать: в левую руку, задержать: в правую.
+## Сброс: Back (просто нажать) — режим сброса, потом RT — из левой, LT — из правой (задержать — кинуть дальше).
 
 const CFG := "user://settings.cfg"
 const MOD := JOY_BUTTON_BACK     # модификатор сочетаний «Back + кнопка»
@@ -25,7 +27,9 @@ const DEFAULT := {
 	"hot_5": "c:11", "gasmask": "c:12", "carry": "c:13", "swap_hands": "c:14",
 	"mag_eject": "c:10", "crouch": "c:1", "toggle_ping": "c:3", "hide_ui": "c:9",
 	"seat_switch": "c:2",                               # Back + X — пересесть в машине
+	"drop_mode": "b:4",                                 # Back (без второй кнопки) — режим сброса
 }
+const HOLD_T := 0.35         # кнопку слота держат дольше — предмет в правую руку
 
 const DZ := 0.18             # мёртвая зона стиков
 const LOOK_PX := 1500.0      # обзор: «пикселей мыши» в секунду при полном отклонении
@@ -50,6 +54,7 @@ var mouse_mask := 0
 var sprint_latch := false
 var pending := []            # [действие, время отпускания, устройство]
 var wheel_t := 0.0
+var hot_hold := {}           # кнопка слота -> [слоты hot_N, время нажатия, устройство, уже сработало]
 var last_dev := 0
 var only_device := -1        # сплитскрин (network/split.gd): -1 любой геймпад, -2 никакой, N — только этот
 var virtual_cursor := false  # курсор свой, настоящую мышь не двигаем (сейчас не используется)
@@ -108,6 +113,11 @@ func load_cfg() -> void:
 	preset = str(cf.get_value("pad", "preset", "default"))
 	var c = cf.get_value("pad", "custom", {})
 	custom = c if c is Dictionary else {}
+	# новые действия (сброс) — в старый «Свой» пресет, если их кнопка там свободна
+	if not custom.is_empty():
+		for a in ["drop_mode"]:
+			if not custom.has(a) and not str(DEFAULT[a]) in custom.values():
+				custom[a] = DEFAULT[a]
 	swap_sticks = bool(cf.get_value("pad", "swap_sticks", false))
 	invert_y = bool(cf.get_value("pad", "invert_y", false))
 	sens = float(cf.get_value("pad", "sens", 1.0))
@@ -231,6 +241,12 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 		for a in held.get(key, []):
 			_act(a, false, dev)
 		held.erase(key)
+		if hot_hold.has(key):
+			var hh: Array = hot_hold[key]
+			hot_hold.erase(key)
+			if not hh[3]:
+				for a in hh[0]:
+					_tap(a, dev)   # коротко — в левую руку
 		return
 	if _ui_mode() and _ui_button(b, true):
 		ui_held[key] = true
@@ -240,6 +256,11 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 		spec = "c:%d" % b
 		mod_used = true
 	var acts := _actions(spec)
+	# слоты hot_N — на отпускании (коротко — левая) или по задержке (правая, _hot_tick)
+	var hots: Array = acts.filter(func(a): return str(a).begins_with("hot_"))
+	if not hots.is_empty() and not _ui_mode():
+		acts = acts.filter(func(a): return not str(a).begins_with("hot_"))
+		hot_hold[key] = [hots, Time.get_ticks_msec(), dev, false]
 	held[key] = acts
 	for a in acts:
 		_act(a, true, dev)
@@ -298,7 +319,21 @@ func _tap(a: String, dev: int) -> void:
 	pending.append([a, Time.get_ticks_msec() + 90, dev])
 
 
+## Кнопку слота держат HOLD_T — слот в правую руку: hand_right зажат, пока жмём hot_N (game.gd).
+func _hot_tick() -> void:
+	var now := Time.get_ticks_msec()
+	for k in hot_hold:
+		var hh: Array = hot_hold[k]
+		if hh[3] or now - int(hh[1]) < int(HOLD_T * 1000.0):
+			continue
+		hh[3] = true
+		_tap("hand_right", int(hh[2]))
+		for a in hh[0]:
+			_tap(a, int(hh[2]))
+
+
 func release_all() -> void:
+	hot_hold.clear()
 	for k in held:
 		for a in held[k]:
 			_act(a, false, last_dev)
@@ -350,6 +385,7 @@ func _process(delta: float) -> void:
 		if now >= int(pending[i][1]):
 			_act(pending[i][0], false, int(pending[i][2]))
 			pending.remove_at(i)
+	_hot_tick()
 	if cursor_dot:
 		cursor_dot.visible = _ui_mode()
 		cursor_dot.position = get_tree().root.get_final_transform().affine_inverse() * vpos

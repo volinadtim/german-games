@@ -297,6 +297,8 @@ func equip(idx: int, slot_: String) -> void:
 	var s = inv.slots[idx]
 	if s == null or not Items.fits(s["id"], slot_):
 		return
+	if not can_take_hand(slot_):
+		return
 	var id: String = s["id"]
 	var prev: String = inv.equip[slot_]
 	var prev_d: float = inv.equip_dur.get(slot_, Items.max_dur(prev))
@@ -332,6 +334,15 @@ func equip(idx: int, slot_: String) -> void:
 ## Колесо мыши (промпт 04:53): левая ↔ правая. Обе руки уходят вниз, в нижней точке оружие меняется местами
 ## (прочность и магазин пистолета — вместе с ним), руки поднимаются. Кулдаун — пока идёт анимация.
 func swap_hands() -> void:
+	if player != null and alive and car != null and is_instance_valid(car) and int(car.my_seat) >= 0 and int(car.seat_dir) == 0:
+		# в машине игрок выключен — анимации рук нет, меняем сразу (за рулём так переключаются между
+		# предметом в руке и тем, что «на коленях», промпт 20.11 11:40)
+		if inv.equip["left"] == "" and inv.equip["right"] == "":
+			return
+		if gun and gun.armed() and (gun.reloading or gun.rmb or gun.ads or gun.hip):
+			return
+		_do_swap_hands()
+		return
 	if player == null or not alive or not player.active or player.swap_t > 0.0 or player.carrying 			or player.punching or player.charging >= 0:
 		return
 	if inv.equip["left"] == "" and inv.equip["right"] == "":
@@ -361,6 +372,42 @@ func _do_swap_hands() -> void:
 	player.set_weapon(l, 1)
 	inv.notify()
 	play_ui("click", -19.0, 0.75)   # свап колесом тише (04:57)
+
+
+## Водитель за рулём (промпт 20.11 11:40): одна рука на руле — в руках работает максимум один предмет
+## (оружие, еда, бинты — любой). Второй, если был, лежит «на коленях»; колесо мыши меняет их местами.
+func driving() -> bool:
+	return car != null and is_instance_valid(car) and int(car.my_seat) == 0
+
+
+## Рука, которой водитель держит предмет: правая, если в ней что-то есть, иначе левая. Не за рулём — "".
+func drive_hand() -> String:
+	if not driving():
+		return ""
+	return "right" if inv.equip["right"] != "" else "left"
+
+
+## Работает ли предмет в руке sl (за рулём — только в drive_hand, вторая рука на руле).
+func hand_live(sl: String) -> bool:
+	var dh := drive_hand()
+	return dh == "" or dh == sl
+
+
+## Можно ли взять предмет в руку sl: за рулём — только если вторая рука пуста. false — с подсказкой.
+func can_take_hand(sl: String) -> bool:
+	if not sl in ["left", "right"] or not driving():
+		return true
+	if inv.equip["left" if sl == "right" else "right"] == "":
+		return true
+	hud.toast("За рулём занята только одна рука — сменить предмет: колесо мыши", Color(0.95, 0.7, 0.45))
+	play_ui("buzz", -14.0)
+	return false
+
+
+## Сел за руль с двумя предметами в руках — подсказка (car_drive.gd: _driver_in).
+func drive_hands_hint() -> void:
+	if inv.equip["left"] != "" and inv.equip["right"] != "":
+		hud.toast("За рулём одна рука: %s — на коленях, колесо мыши — сменить" % Items.item_name(inv.equip["left"]), Color(0.9, 0.85, 0.7))
 
 
 ## Снять в ячейку to (или в первую свободную). false — некуда.
@@ -495,6 +542,10 @@ func hotbar_use(k: int) -> void:
 ## Взять предмет из ячейки idx в свободную руку (сначала правая; обе заняты — меняется правая).
 ## Применяется кнопкой этой руки: ЛКМ — левая, ПКМ — правая (hb_press).
 func take_in_hand(idx: int) -> void:
+	var dh := drive_hand()
+	if dh != "":   # за рулём — меняем предмет в занятой руке, вторую не берём
+		equip(idx, dh)
+		return
 	equip(idx, "right" if inv.equip["right"] == "" or inv.equip["left"] != "" else "left")
 
 

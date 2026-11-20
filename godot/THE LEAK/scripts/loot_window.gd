@@ -717,6 +717,8 @@ func drop_on_equip(slot: String) -> void:
 	if not Items.fits(id, slot):
 		game.hud.toast("%s сюда не надеть" % Items.item_name(id), Color(0.9, 0.5, 0.4))
 		return
+	if not game.can_take_hand(slot):   # за рулём — одна рука (game_items.gd)
+		return
 	if game.inv.equip[slot] != "":
 		var old_id: String = game.inv.equip[slot]
 		var old_dur: float = game.inv.get_dur(slot)

@@ -384,13 +384,18 @@ func open_loot_items(items: Array, pos: Vector3, title := "ЛУТ") -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if _drop_mode:
-		if e is InputEventKey and e.pressed and not e.echo and (e.keycode == KEY_G or e.is_action_pressed("ui_cancel")):
+		if not e.is_echo() and (e.is_action_pressed("drop_mode") or e.is_action_pressed("ui_cancel")):
 			_drop_cancel()
 			get_viewport().set_input_as_handled()
 			return
-		if e is InputEventMouseButton and (e.button_index == MOUSE_BUTTON_LEFT or e.button_index == MOUSE_BUTTON_RIGHT):
-			var side := "left" if e.button_index == MOUSE_BUTTON_LEFT else "right"
-			if e.pressed and _drop_side == "":
+		# кнопки рук — действия (ЛКМ/ПКМ, на геймпаде RT/LT, переназначаются в настройках)
+		var side := ""
+		if e.is_action("attack_left"):
+			side = "left"
+		elif e.is_action("attack_right"):
+			side = "right"
+		if side != "" and not e.is_echo():
+			if e.is_pressed() and _drop_side == "":
 				if inv.equip.get(side, "") == "":
 					hud.toast("В %s руке пусто" % ("левой" if side == "left" else "правой"), Color(0.9, 0.5, 0.4))
 					_drop_cancel()
@@ -398,7 +403,7 @@ func _unhandled_input(e: InputEvent) -> void:
 					_drop_side = side
 					_drop_charge = 0.0
 					if _drop_ui: _drop_ui.queue_redraw()
-			elif not e.pressed and _drop_side == side:
+			elif not e.is_pressed() and _drop_side == side:
 				_drop_execute(side, _drop_charge)
 			get_viewport().set_input_as_handled()
 			return
@@ -412,13 +417,14 @@ func _unhandled_input(e: InputEvent) -> void:
 		_quick_heal()
 	elif e.is_action_pressed("swap_hands") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		swap_hands()
-	elif e is InputEventKey and e.keycode == KEY_G and e.pressed and not e.is_echo():
+	elif e.is_action_pressed("drop_mode") and not e.is_echo():   # H (была G — совпадала с противогазом)
 		_drop_menu_open()
 		get_viewport().set_input_as_handled()
 	else:
 		for k in 5:
 			if e.is_action_pressed("hot_%d" % (k + 1)):
-				var to_right: bool = (e is InputEventWithModifiers and (e as InputEventWithModifiers).shift_pressed) or Input.is_key_pressed(KEY_SHIFT)
+				# в правую — с «hand_right» (Shift; геймпад — задержать кнопку слота, ui/gamepad.gd)
+				var to_right: bool = InputMap.has_action("hand_right") and Input.is_action_pressed("hand_right")
 				hotbar_use_hand(k, "right" if to_right else "left")
 				break
 
@@ -514,6 +520,10 @@ func hotbar_use_hand(k: int, hand_slot: String) -> void:
 	var hb_val: Variant = inv.hotbar[k] if k < inv.hotbar.size() else null
 	if hb_val == null:
 		return
+	# за рулём вторую руку не занимаем: слот берётся в ту руку, что уже держит предмет (промпт 20.11 11:40)
+	var dh := drive_hand()
+	if dh != "" and inv.equip.get("left" if hand_slot == "right" else "right", "") != "":
+		hand_slot = dh
 
 	var src_idx := -1
 	var target_id := ""
@@ -630,8 +640,8 @@ func _drop_ui_draw() -> void:
 	var cx := vp.x * 0.5
 	var y0 := vp.y * 0.74
 	var f := ThemeDB.fallback_font
-	_drop_ui.draw_string(f, Vector2(cx - 200.0, y0 - 12.0), "ЛКМ / ПКМ — выбросить (держать — кинуть дальше) | G — отмена", HORIZONTAL_ALIGNMENT_CENTER, 400.0, 14, Color(0.95, 0.9, 0.8, 0.85))
-	for side_info in [["left", Rect2(cx - 98.0, y0, 92.0, 64.0), "ЛКМ (Левая)"], ["right", Rect2(cx + 6.0, y0, 92.0, 64.0), "ПКМ (Правая)"]]:
+	_drop_ui.draw_string(f, Vector2(cx - 200.0, y0 - 12.0), "ЛКМ / ПКМ (RT / LT) — выбросить (держать — кинуть дальше) | ещё раз — отмена", HORIZONTAL_ALIGNMENT_CENTER, 400.0, 14, Color(0.95, 0.9, 0.8, 0.85))
+	for side_info in [["left", Rect2(cx - 98.0, y0, 92.0, 64.0), "Левая"], ["right", Rect2(cx + 6.0, y0, 92.0, 64.0), "Правая"]]:
 		var s_key: String = side_info.get(0)
 		var rect: Rect2 = side_info.get(1)
 		var has_item: bool = inv.equip.get(s_key, "") != ""

@@ -147,6 +147,8 @@ func seat_local(i: int, instant := false) -> void:
 
 
 func _driver_in() -> void:
+	if game:
+		game.drive_hands_hint()   # за рулём занята максимум одна рука (game_items.gd: driving)
 	if broken:
 		if game:
 			game.hud.toast("Машина сломана — почини молотком", Color(1.0, 0.6, 0.4))
@@ -334,13 +336,13 @@ func _wheel_vis(delta: float) -> void:
 		return
 	wheel_rim.rotation.y = steer * 2.1
 	var driver_in: bool = seats[0] != 0
-	# занята ли рука пистолетом: [0] — левая, [1] — правая (как слоты в inventory/gun.gd)
+	# занята ли рука предметом: [0] — левая, [1] — правая (как слоты в inventory/gun.gd);
+	# за рулём держат максимум один (game_items.gd: drive_hand), второй — на коленях
 	var gun_hand: Array[bool] = [false, false]
 	if my_seat == 0 and game != null and not game.inv.open:
-		var g = game.get("gun")
-		if g != null and is_instance_valid(g) and g.armed():
-			for h in g.hands():
-				gun_hand[int(h)] = true
+		var dh: String = game.drive_hand()
+		if dh != "" and String(game.inv.equip[dh]) != "":
+			gun_hand[0 if dh == "left" else 1] = true
 	hands_k = move_toward(hands_k, 1.0 if driver_in else 0.0, delta * 6.0)
 	for i in wheel_hands.size():
 		var n: Node3D = wheel_hands[i]
