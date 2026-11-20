@@ -335,7 +335,7 @@ func _process(delta: float) -> void:
 			else:
 				filter_left = 0.0
 	var protected := worn and filter_left > 0.0
-	if out and not protected:
+	if out and not protected and not game.god:   # godmode — без загрязнения воздуха
 		tox = minf(tox + TOX_UP * delta, 1.0)
 	else:
 		tox = maxf(tox - TOX_DOWN * delta, 0.0)

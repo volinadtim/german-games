@@ -171,7 +171,9 @@ func _toggle_ui() -> void:
 	var stack: Array[Node] = [get_tree().root]
 	while not stack.is_empty():
 		var n: Node = stack.pop_back()
-		if n is CanvasLayer and n != menu:
+		if n is CanvasLayer and (n == menu or n.layer < 0):   # меню и эффекты графики (постобработка, маска, split-экраны) не прячем
+			continue
+		if n is CanvasLayer:
 			if ui_hidden:
 				n.set_meta("f10_vis", n.visible)
 				n.visible = false
