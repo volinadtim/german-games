@@ -54,6 +54,7 @@ var tgt: Target2
 
 var hp := MAX_HP
 var alive := true
+var fresh2 := false          # вещей игрока 2 нет в сейве — новый игрок (стартовый набор, intro.gd place_p2)
 var dead_t := 0.0
 var can_was := false
 var mirrored := true
@@ -567,6 +568,9 @@ func _spawn_p2() -> void:
 	tgt.player = pp
 	tgt.split = self
 	_make_inv2()
+	var intro = game.get_node_or_null("Intro")
+	if intro and intro.has_method("place_p2"):
+		intro.place_p2(pp, fresh2)   # новая игра: своё место в комнате пробуждения и свой стартовый набор
 	carry2 = preload("res://scripts/world/carry.gd").new()
 	carry2.game = game
 	carry2.who = pp
@@ -607,7 +611,8 @@ func _make_inv2() -> void:
 	inv2.spilled.connect(func(items): _as_p2(g.drop_spilled.bind(items)))
 	hud_p2.inv = inv2
 	inv2.update_blocks()
-	if not _load_p2(game.p2_save):
+	fresh2 = not _load_p2(game.p2_save)
+	if fresh2:
 		inv2.add("coin", 25)   # как у игрока 1 в начале
 
 
@@ -855,15 +860,19 @@ func _process(delta: float) -> void:
 	var src := root.get_camera_3d()
 	if src == null or not is_instance_valid(src):
 		return
-	_copy_cam(cams[0], src, HEAD1 | FX2)
+	# кат-сцену запустил игрок 2 (shop_cue.gd pl) — его камера в обеих половинах
+	if src == p1.cam and _cut_who() == pp:
+		src = pp.cam
+	var own2: bool = src == pp.cam
+	_copy_cam(cams[0], src, (HEAD2 | FX1) if own2 else (HEAD1 | FX2))
 	# кат-сцена, машина и т.п. (камера не игрока 1) — у обоих одно и то же
 	var was := mirrored
 	# кат-сцена на камере игрока 1 (пробуждение, монстрик, магазин) — тоже у обоих
 	mirrored = src != p1.cam or _in_cut()
 	if mirrored:
-		_copy_cam(cams[1], src, HEAD1)
+		_copy_cam(cams[1], src, HEAD2 if own2 else HEAD1)
 	else:
-		if was and pp.global_position.distance_to(p1.global_position) > 6.0:
+		if was and not game.has_node("Intro") and pp.global_position.distance_to(p1.global_position) > 6.0:
 			_to_p1()
 		_copy_cam(cams[1], pp.cam, HEAD2 | FX1)
 	# HUD игрока 2 — как у игрока 1
@@ -897,6 +906,16 @@ func _in_cut() -> bool:
 		if is_instance_valid(n) and n.is_inside_tree() and n.can_skip():
 			return true
 	return false
+
+
+## Чей персонаж в идущей кат-сцене (свойство pl у кат-сцены, напр. shop_cue.gd); null — игрока 1.
+func _cut_who():
+	for n in get_tree().get_nodes_in_group("cutscene"):
+		if is_instance_valid(n) and n.is_inside_tree() and n.can_skip():
+			var w = n.get("pl")
+			if is_instance_valid(w):
+				return w
+	return null
 
 
 ## ui/cutscene_skip.gd: игрок 2 держит пропуск (прыжок на своём геймпаде). -1 — геймпада нет, голос не нужен.

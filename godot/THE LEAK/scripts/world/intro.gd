@@ -77,6 +77,8 @@ var note: Node3D         # записка в руке (ребёнок камер
 var note_tossed := false
 var done := false
 var keep_t := 0.0
+var actor                # кто выглядывает в кат-сцене у проёма (сплитскрин: любой из двух игроков)
+var new_run := false     # новая игра (стартовые наборы на полу)
 
 
 func _net():
@@ -120,6 +122,7 @@ func start(new_game := true, skip_wake := false) -> void:
 		var ids: Array = n.players.keys()
 		ids.sort()
 		spot = clampi(maxi(ids.find(multiplayer.get_unique_id()), 0), 0, SPOTS.size() - 1)
+	new_run = new_game
 	if new_game:
 		_starter_kit()
 		want_note = true   # записку находит в руке только в новой игре
@@ -164,12 +167,13 @@ func start(new_game := true, skip_wake := false) -> void:
 ## Новая игра (промпт 16.11 21:46): персонаж без одежды — футболка, штаны, вещмешок и бинты лежат рядом
 ## на полу (подбираются на E, не исчезают). Повтор вступления после загрузки — без них: вещи уже в сейве.
 ## В сети каждый кладёт такой же набор у своего места сам — остальным его рассылает net (pickup_made).
-func _starter_kit() -> void:
-	var base: Vector3 = SPOTS[spot][0]
-	var yaw := float(SPOTS[spot][1])
+func _starter_kit(sp := -1) -> void:
+	var s := spot if sp < 0 else sp
+	var base: Vector3 = SPOTS[s][0]
+	var yaw := float(SPOTS[s][1])
 	var fwd := Vector3(-sin(yaw), 0, -cos(yaw))
 	var right := Vector3(cos(yaw), 0, -sin(yaw))
-	var offs: Array = SPOTS[spot][2]
+	var offs: Array = SPOTS[s][2]
 	for i in KIT.size():
 		var id: String = KIT[i]
 		var o: Vector2 = offs[i]
@@ -183,6 +187,31 @@ func _starter_kit() -> void:
 		pk.life = 1.0e9        # не исчезает
 		if Items.max_dur(id) > 0.0:
 			pk.set_meta("dur", Items.max_dur(id))
+
+
+## Сплитскрин (network/split.gd _spawn_p2): игрок 2 в новой игре встаёт на второе место этой же комнаты, рядом — его набор.
+func place_p2(pl, fresh: bool) -> void:
+	if not new_run:
+		return
+	pl.global_position = SPOTS[1][0]
+	pl.rotation.y = float(SPOTS[1][1])
+	pl.velocity = Vector3.ZERO
+	if fresh:
+		_starter_kit(1)
+
+
+## Кто может подойти к проёму и запустить кат-сцену: игрок 1 и живой игрок 2 сплитскрина.
+func _cut_players() -> Array:
+	var a: Array = [game.player]
+	var sp = game.get_meta("split") if game.has_meta("split") else null
+	if sp and is_instance_valid(sp.get("pp")) and sp.get("alive"):
+		a.append(sp.pp)
+	return a
+
+
+## Персонаж кат-сцены у проёма: тот, кто её запустил (по умолчанию игрок 1).
+func _actor():
+	return actor if is_instance_valid(actor) else game.player
 
 
 ## Сеть: копии чужих стартовых наборов приходят с обычным сроком (3.5 мин) — тоже делаем вечными.
@@ -243,13 +272,17 @@ func _process(delta: float) -> void:
 			if t >= NOTE_T:
 				_end_note()
 		"free":
-			var pp: Vector3 = p.global_position
-			# Срабатывает только если игрок реально находится в районе северо-западной комнаты бункера
-			# (по высоте под землёй y < 2.0 и в пределах квадрата комнаты/коридора вокруг DOOR)
-			var in_room := pp.y > -2.0 and pp.y < 2.5 and pp.x > -14.0 and pp.x < -1.0 and pp.z > -10.5 and pp.z < 3.5
-			if in_room and (Vector2(pp.x - DOOR.x, pp.z - DOOR.z).length() < TRIGGER_R or pp.z > DOOR.z or pp.x > TRIGGER_X):
-				_request_cut()
+			for who in _cut_players():
+				var pp: Vector3 = who.global_position
+				# Срабатывает только если игрок реально находится в районе северо-западной комнаты бункера
+				# (по высоте под землёй y < 2.0 и в пределах квадрата комнаты/коридора вокруг DOOR)
+				var in_room := pp.y > -2.0 and pp.y < 2.5 and pp.x > -14.0 and pp.x < -1.0 and pp.z > -10.5 and pp.z < 3.5
+				if in_room and (Vector2(pp.x - DOOR.x, pp.z - DOOR.z).length() < TRIGGER_R or pp.z > DOOR.z or pp.x > TRIGGER_X):
+					actor = who
+					_request_cut()
+					break
 		"cut":
+			p = _actor()
 			if not is_instance_valid(crawler) and not _owner():
 				crawler = _find_crawler()
 			if is_instance_valid(crawler):
@@ -666,7 +699,8 @@ func _find_crawler() -> Node3D:
 
 func _begin_cut() -> void:
 	stage = "cut"
-	var px: float = game.player.global_position.x
+	var a = _actor()
+	var px: float = a.global_position.x
 	side = -1.0 if px < DOOR.x else 1.0   # к ближнему косяку, проём не пересекает
 	peek_at = Vector3(DOOR.x + side * (PEEK_DX + 0.6 * spot), 0.0, PEEK_Z)   # в сети — каждый на своём месте у стены
 	t = 0.0
@@ -679,10 +713,10 @@ func _begin_cut() -> void:
 		crawler = _find_crawler()
 	var e = crawler
 	cut_cam = Camera3D.new()
-	cut_cam.fov = game.player.cam.fov
+	cut_cam.fov = a.cam.fov
 	cut_cam.near = 0.05
 	game.add_child(cut_cam)
-	cut_cam.global_transform = game.player.cam.global_transform
+	cut_cam.global_transform = a.cam.global_transform
 	cut_cam.current = true
 	if is_instance_valid(e):
 		_cut_sounds(e)
@@ -748,7 +782,7 @@ func _on_takedown(k) -> void:
 
 ## Дыхание персонажа (звуки выдоха из player.gd), тихо и с заданной высотой.
 func _breath(i: int, db: float, pitch: float) -> void:
-	var p = game.player
+	var p = _actor()
 	if p.exhales.is_empty():
 		return
 	p.voice_player.stream = p.exhales[mini(i, p.exhales.size() - 1)]
@@ -766,6 +800,10 @@ func _end_side_cam() -> void:
 		game.player.set_head_visible(false)
 		game.player.peek = 0.0
 		game.player.force_crouch = false
+	if is_instance_valid(actor) and game and actor != game.player:
+		actor.set_head_visible(false)
+		actor.peek = 0.0
+		actor.force_crouch = false
 
 
 ## Монстрика добили (любой игрок, промпт 18.11 02:10): конец вступления и включение автомата — у всех.

@@ -12,15 +12,19 @@ var t := 0.0
 var snd: AudioStreamPlayer3D
 var cues := [[0.15, "step"], [0.45, "growl"], [0.9, "step"], [1.2, "step"], [1.6, "screech"], [2.0, "step"]]
 var next := 0
+var pl                    # кто закрыл магазин (сплитскрин: может быть игрок 2 — у обоих его камера)
+var hd                    # его HUD
 
 
 func start() -> void:
-	var p = game.player
+	pl = game.player
+	hd = game.hud
+	var p = pl
 	add_to_group("cutscene")   # пропуск (ui/cutscene_skip.gd)
 	game.close_windows()
 	p.set_lock("shop_cue", true)
-	if game.hud and game.hud.has_method("set_cinematic"):
-		game.hud.set_cinematic(true)
+	if hd and hd.has_method("set_cinematic"):
+		hd.set_cinematic(true)
 	snd = AudioStreamPlayer3D.new()
 	snd.unit_size = 4.0
 	snd.max_distance = 40.0
@@ -30,11 +34,11 @@ func start() -> void:
 
 
 func _process(delta: float) -> void:
-	if game == null or not is_instance_valid(game.player) or not game.alive:
+	if game == null or not is_instance_valid(pl) or not game.alive:
 		_finish()
 		return
 	t += delta
-	var p = game.player
+	var p = pl
 	var k := 1.0 - exp(-2.6 * delta)
 	if t < DUR - 0.4:
 		var v: Vector3 = EXIT - p.cam.global_position
@@ -81,11 +85,11 @@ func _sound(kind: String) -> void:
 
 
 func _finish() -> void:
-	if game and is_instance_valid(game.player):
-		game.player.set_lock("shop_cue", false)
-		if game.hud and game.hud.has_method("set_cinematic"):
-			game.hud.set_cinematic(false)
-		if game.player.input_locks.is_empty() and not game.window_open():
+	if game and is_instance_valid(pl):
+		pl.set_lock("shop_cue", false)
+		if is_instance_valid(hd) and hd.has_method("set_cinematic"):
+			hd.set_cinematic(false)
+		if pl == game.player and pl.input_locks.is_empty() and not game.window_open():
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if is_instance_valid(snd):
 		var s := snd
