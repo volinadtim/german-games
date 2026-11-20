@@ -321,7 +321,7 @@ func _fuel_ui_tick() -> void:
 ## Высунуться из окна (держать V): голова за бортом, видно дорогу и можно стрелять назад.
 ## Водитель при этом держит руль одной рукой — машину ведёт и может занести (промпт 18.11 01:20).
 func _lean_tick(delta: float) -> void:
-	var can: bool = my_seat >= 0 and seat_dir == 0 and game != null and game.alive 			and not game.window_open() and not game.inv.open
+	var can: bool = my_seat >= 0 and seat_dir == 0 and game != null and game.alive 			and not game.window_open() and not game.inv.open and not ctl_locked()
 	lean_on = can and InputMap.has_action("car_lean") and Input.is_action_pressed("car_lean")
 	lean = move_toward(lean, 1.0 if lean_on else 0.0, delta / LEAN_T)
 
@@ -466,7 +466,7 @@ func _free_seat_near(pos: Vector3) -> int:
 
 ## Мышь в салоне: игрок «выключен», обзор крутим сами.
 func _unhandled_input(e: InputEvent) -> void:
-	if my_seat < 0 or game == null:
+	if my_seat < 0 or game == null or ctl_locked():
 		return
 	# пересесть за руль — E, когда не смотришь на дверь (если луч попал в машину, это делает interact)
 	if e.is_action_pressed("interact") and not e.is_echo() and game.focus != self and can_take_wheel() 			and not _looking_at_door() and not game.window_open():
@@ -501,6 +501,10 @@ func _drive_tick(delta: float) -> void:
 		var thr := Input.get_axis("move_back", "move_forward")
 		var st_in := Input.get_axis("move_right", "move_left")
 		hand = Input.is_action_pressed("handbrake" if InputMap.has_action("handbrake") else "jump")
+		if ctl_locked():   # freecam/консоль: WASD летает камерой, машина катится сама
+			thr = 0.0
+			st_in = 0.0
+			hand = false
 		if fuel <= 0.0 or broken:
 			thr = 0.0
 			if engine_on:

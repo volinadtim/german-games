@@ -161,6 +161,11 @@ var tyre_smoke: Array[CPUParticles3D] = []   # дым из-под задних �
 
 ## Положение машины на неровной земле: высота — средняя по колёсам, наклон — по разнице спереди/сзади
 ## и слева/справа; угол со спущенным колесом ниже (sag).
+## Ввод игрока заблокирован (freecam, консоль, чат, кат-сцена — player.set_lock): машина его не слушает.
+func ctl_locked() -> bool:
+	return game != null and game.player != null and not game.player.input_locks.is_empty()
+
+
 func _fit(p: Vector3, a: float, sag: bool) -> Transform3D:
 	var yb := Basis(Vector3.UP, a)
 	var h: Array[float] = []
