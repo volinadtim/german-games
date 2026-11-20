@@ -154,8 +154,16 @@ func k_state(d: Dictionary) -> void:
 @rpc("any_peer", "call_remote", "reliable")
 func f_spin(res: Array, free_used: bool) -> void:
 	var f = _fortune()
-	if f and res.size() == 3:
+	if f and res.size() == 9:   # CASHY BOX — поле 3×3 (промпт 20.11 11:51)
 		f.net_spin(res, free_used)
+
+
+## Бонус-игру CASHY BOX купили в красном магазине (промпт 20.11 11:53).
+@rpc("any_peer", "call_remote", "reliable")
+func f_buy() -> void:
+	var f = _fortune()
+	if f:
+		f.net_bonus_buy()
 
 
 @rpc("any_peer", "call_remote", "reliable")
