@@ -296,6 +296,9 @@ func set_worn(on: bool, instant := false) -> void:
 	breath_t = 1.4
 
 
+var city_warn_t := 0.0
+
+
 func _outside() -> float:
 	# в салоне машины воздух тот же, что снаружи (промпт 16.11 02:43) — без маски травишься
 	if surface == null:
@@ -318,11 +321,16 @@ func _process(delta: float) -> void:
 	put = move_toward(put, 1.0 if worn else 0.0, delta / PUT_TIME)
 	overlay.visible = put > 0.0
 	# у озера воздух чистый — можно без противогаза (промпт 20.11 18:31)
-	var out: bool = _outside() > 0.5 and game.alive and not preload("res://scripts/village/lake_camp.gd").clean_air(game.player.global_position)
+	# город — самый грязный (промпт 20.11 18:35): дышать только в Снюхателе5088, фильтр горит быстрее, травит сильнее
+	const CityL := preload("res://scripts/village/city.gd")
+	var city: bool = CityL.in_city(game.player.global_position)
+	var out: bool = _outside() > 0.5 and game.alive and (city or not preload("res://scripts/village/lake_camp.gd").clean_air(game.player.global_position))
 	# фильтр тратится только наверху и в маске
 	if worn and out:
 		# деревня — зона менее заражённая: фильтр тратится на 40% медленнее (промпт 20.11 11:57)
 		var village_k := 0.6 if preload("res://scripts/village/village.gd").near_village(game.player.global_position) else 1.0
+		if city:
+			village_k = 1.5
 		filter_left -= delta * village_k
 		if filter_left <= 0.0:
 			# казуальный режим — следующий фильтр ставится сам; реализм и по умолчанию — вручную (change_filter)
@@ -337,8 +345,14 @@ func _process(delta: float) -> void:
 			else:
 				filter_left = 0.0
 	var protected := worn and filter_left > 0.0
+	if city and protected and String(game.inv.equip["face"]) != CityL.MASK:
+		protected = false
+		city_warn_t -= delta
+		if city_warn_t <= 0.0:
+			city_warn_t = 6.0
+			game.hud.toast("Этот противогаз смог не держит — нужен " + CityL.MASK_NAME, Color(0.95, 0.6, 0.4))
 	if out and not protected and not game.god:   # godmode — без загрязнения воздуха
-		tox = minf(tox + TOX_UP * delta, 1.0)
+		tox = minf(tox + TOX_UP * delta * (1.5 if city else 1.0), 1.0)
 	else:
 		tox = maxf(tox - TOX_DOWN * delta, 0.0)
 	# урон: наверху быстро, в бункере остатки отравления ещё немного жгут

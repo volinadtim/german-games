@@ -275,6 +275,8 @@ func _seat_tick(delta: float) -> void:
 			game.hud.prompt.call_deferred("[F] Повернуть ключ — уехать" if _looking_at_key() else "Ключ зажигания — справа от руля: наведись и нажми F")
 		elif can_go_lake() and not game.window_open() and _looking_at_key():
 			game.hud.prompt.call_deferred(lake_prompt())
+		elif can_go_city() and not game.window_open() and _looking_at_key():
+			game.hud.prompt.call_deferred(city_prompt())
 		elif game.focus == null and can_take_wheel() and not _looking_at_door():
 			game.hud.prompt.call_deferred("[F] Пересесть за руль")
 		elif game.focus == null and next_seat() >= 0 and not game.window_open():
@@ -387,6 +389,17 @@ func can_go_lake() -> bool:
 ## Подсказка у ключа зажигания в деревне: готово ли к поездке к озеру.
 func lake_prompt() -> String:
 	return "[F] Повернуть ключ — ехать к озеру" if village.lake_ready() else "К озеру: " + village.lake_status()
+
+
+## Водитель в лагере у озера: ключ зажигания — поездка в город (village.gd: go_city).
+func can_go_city() -> bool:
+	return state == "parked" and escaped and my_seat == 0 and seat_dir == 0 and game != null and game.alive \
+			and village != null and village.at_lake and not village.at_city
+
+
+## Подсказка у ключа зажигания в лагере: готово ли к поездке в город.
+func city_prompt() -> String:
+	return "[F] Повернуть ключ — ехать в город" if village.city_ready() else "В город: " + village.city_status()
 
 
 ## Водитель смотрит на ключ в замке зажигания (узкий конус от глаз).

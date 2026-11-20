@@ -37,6 +37,13 @@ func v_lake() -> void:
 		game.village.lake_sequence()
 
 
+## Водитель повернул ключ в лагере, всё собрано (промпт 20.11 18:35): все едут в город.
+@rpc("any_peer", "call_local", "reliable")
+func v_city() -> void:
+	if game and is_instance_valid(game) and game.village:
+		game.village.city_sequence()
+
+
 ## Машину открыли ключом (промпт 20.11 11:58): у всех она стоит открытая на поляне.
 @rpc("any_peer", "call_local", "reliable")
 func v_unlock() -> void:

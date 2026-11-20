@@ -55,7 +55,7 @@ static func clean_air(p: Vector3) -> bool:
 ## потом каждые FORAGE_T с подкладывает новые (подальше от игрока), пока на земле меньше FORAGE_MAX.
 const FORAGE := [["wood", 2, 3, 30], ["stone", 1, 3, 22], ["twine", 1, 2, 12], ["water", 1, 1, 8], ["rot_apple", 1, 2, 8],
 	["canned", 1, 1, 4], ["bandage", 1, 1, 5], ["scrap", 1, 2, 9], ["nut", 2, 4, 7], ["tape", 1, 1, 4], ["ammo", 2, 5, 5],
-	["filter", 1, 1, 2], ["pills", 1, 1, 3], ["glass", 1, 1, 4], ["coin", 2, 6, 8]]
+	["filter", 1, 1, 2], ["pills", 1, 1, 3], ["glass", 1, 1, 4], ["coin", 2, 6, 8], ["fuel", 1, 1, 4]]   # канистры — на дорогу в город
 const FORAGE_MAX := 18
 const FORAGE_T := 25.0
 var forage: Array = []

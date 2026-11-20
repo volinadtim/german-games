@@ -52,6 +52,13 @@ const LAKE_NEED := {"filter": 5, "fuel": 3, "steel_hammer": 2}
 var lake                             # lake_camp.gd (строится при поездке / загрузке)
 var at_lake := false
 var card_lake := false               # надпись сейчас — про поездку к озеру
+## Четвёртая локация — город (промпт 20.11 18:35): из лагеря у озера, если в багажнике City.NEED,
+## полный бак и у водителя Снюхатель5088. В сейве village.city.
+const City := preload("res://scripts/village/city.gd")
+var city                             # city.gd (строится при поездке / загрузке)
+var at_city := false
+var card_city := false
+var city_mobs := false
 
 ## Где бродят мутанты деревни: [точка, вид]
 const MUT_SPOTS := [
@@ -118,6 +125,17 @@ func setup_game(g) -> void:
 			_spawn_mutant(s[0], s[1])
 		if at_lake:
 			_lake_mobs()
+		if at_city:
+			_city_mobs()
+
+
+## Хост: расселить умных мутантов города (один раз).
+func _city_mobs() -> void:
+	if city_mobs or game == null or (game.net and not game.net.is_host()):
+		return
+	city_mobs = true
+	for s in City.MUT:
+		_spawn_mutant(s[0], s[1], true)
 
 
 ## Мутанты у озера (промпт 20.11 18:31): умнее и непредсказуемее деревенских (mutant.gd: smart), но не крепче.
@@ -204,9 +222,10 @@ func spawn_car_loot() -> void:
 ## Из car.gd, когда машина отъехала: экран темнеет, надпись, машина переносится в деревню, игрок — в салон.
 ## seat — место этого игрока (0 — водитель).
 ## fast — пропуск кат-сцены (ui/cutscene_skip.gd): короткое затемнение без надписи.
-func stall_sequence(seat: int, fast := false, to_lake := false) -> void:
+func stall_sequence(seat: int, fast := false, to_lake := false, to_city := false) -> void:
 	card_seat = seat
 	card_lake = to_lake
+	card_city = to_city
 	card_moved = false
 	card_after = false
 	card_fast = false
@@ -216,6 +235,8 @@ func stall_sequence(seat: int, fast := false, to_lake := false) -> void:
 	card_l.text = "Через пару сотен метров мотор чихнул, кашлянул — и заглох.\nБак пуст.\n\nВокруг — брошенная деревня. Воздух снаружи всё такой же.\nНадо что-то делать."
 	if to_lake:
 		card_l.text = "Багажник набит, бак полный. Деревня осталась позади.\n\nДолгая дорога через лес — и вот оно: озеро,\nстарые палатки и кострище.\n\nЛагерь у озера."
+	if to_city:
+		card_l.text = "Бак полный, " + City.MASK_NAME + " на лице. Лес кончился.\n\nМежду домами висит жёлто-зелёный смог —\nобычный противогаз тут не спасёт.\n\nГород."
 	if fast:
 		_card_fast()
 		return
@@ -250,7 +271,9 @@ func _card_fast() -> void:
 func _relocate_once() -> void:
 	if not card_moved:
 		card_moved = true
-		if card_lake:
+		if card_city:
+			_city_relocate(card_seat)
+		elif card_lake:
 			_lake_relocate(card_seat)
 		else:
 			_relocate(card_seat)
@@ -259,7 +282,9 @@ func _relocate_once() -> void:
 func _after_once() -> void:
 	if not card_after:
 		card_after = true
-		if card_lake:
+		if card_city:
+			_city_after()
+		elif card_lake:
 			_lake_after()
 		else:
 			_after_card()
@@ -343,6 +368,101 @@ func _lake_relocate(seat: int) -> void:
 
 func _lake_after() -> void:
 	hint("Лагерь у озера. Бак почти пуст — дорога съела бензин.\nВоздух здесь чистый — противогаз можно снять [G].\nПо лагерю — хворост и припасы, но мутанты тут хитрее.\nПосмотри на дверь и нажми [F] — выйти.", 10.0)
+
+
+## Сколько нужного для города лежит в багажнике (большие фильтры — тоже фильтры).
+func city_counts() -> Dictionary:
+	var c := {}
+	for k in City.NEED:
+		c[k] = 0
+	if car == null:
+		return c
+	for it in car.trunk.contents:
+		var id := String(it[0])
+		if id == "filter2":
+			id = "filter"
+		if c.has(id):
+			c[id] += int(it[1])
+	return c
+
+
+## Есть ли у этого игрока Снюхатель5088 (в сумке или на лице).
+func has_city_mask() -> bool:
+	return game != null and game.inv != null and game.inv.count(City.MASK) > 0
+
+
+## В город можно: багажник по City.NEED, полный бак, у водителя Снюхатель5088.
+func city_ready() -> bool:
+	if not at_lake or at_city or car == null or car.fuel < 0.99 or not has_city_mask():
+		return false
+	var c := city_counts()
+	for k in City.NEED:
+		if int(c[k]) < int(City.NEED[k]):
+			return false
+	return true
+
+
+## Строка прогресса для поездки в город.
+func city_status() -> String:
+	var c := city_counts()
+	return "фильтры %d/%d · канистры %d/%d · %s: %s · бак %d%%" % [mini(int(c["filter"]), int(City.NEED["filter"])), int(City.NEED["filter"]),
+		mini(int(c["fuel"]), int(City.NEED["fuel"])), int(City.NEED["fuel"]), City.MASK_NAME, "есть" if has_city_mask() else "нет",
+		roundi((car.fuel if car else 0.0) * 100.0)]
+
+
+## Водитель повернул ключ в лагере (car.gd): всё готово — едем в город (в сети у всех), иначе — чего не хватает.
+func go_city() -> void:
+	if at_city or not at_lake or car == null or game == null:
+		return
+	if not city_ready():
+		game.hud.toast("В город рано: " + city_status(), Color(0.95, 0.8, 0.5))
+		return
+	if car.vnet():
+		car.vnet().rpc("v_city")
+	else:
+		city_sequence()
+
+
+## Затемнение с надписью и перенос машины и игрока в город.
+func city_sequence() -> void:
+	if at_city or card_bg.visible or car == null:
+		return
+	_ensure_city()
+	if game:
+		game.close_windows()
+	stall_sequence(car.my_seat if car.seat_dir == 0 else -1, false, false, true)
+
+
+func _ensure_city() -> void:
+	if city == null:
+		city = City.new()
+		add_child(city)
+
+
+func _city_relocate(seat: int) -> void:
+	at_city = true
+	_quest("")
+	_city_mobs()
+	car.park_at(City.CAR_POS, City.CAR_YAW)
+	car.fuel = 0.25   # дорога съела почти весь бак
+	if seat >= 0 and seat < 4:
+		car.seat_local(seat, true)
+	else:
+		game.player.global_position = City.CAR_POS + Vector3(2.5, 0.3, -1.5 - 0.8 * randf())
+		game.player.velocity = Vector3.ZERO
+
+
+func _city_after() -> void:
+	hint("Город — самое грязное место. Дышать можно только в " + City.MASK_NAME + " [V],\nв другом противогазе — травишься. Фильтры горят быстрее.\nВ развалинах — лом и припасы, мутанты хитрые.\nПосмотри на дверь и нажми [F] — выйти.", 10.0)
+
+
+## Задание справа в лагере: что нужно для поездки в город.
+func _city_quest() -> void:
+	var t := "Город: в багажник %d фильтров, %d канистры, полный бак, на себе — %s\n" % [int(City.NEED["filter"]), int(City.NEED["fuel"]), City.MASK_NAME] + city_status()
+	if not quest_box.visible:
+		_quest(t)
+	elif quest_l.text != t:
+		quest_l.text = t
 
 
 ## Задание справа (после подвала): что положить в багажник для поездки к озеру.
@@ -534,6 +654,8 @@ func _poll() -> void:
 				set_stage(5)
 	if stage >= 2 and not at_lake and not card_bg.visible:
 		_lake_quest()
+	elif at_lake and not at_city and not card_bg.visible:
+		_city_quest()
 
 
 func _make_ui() -> void:
@@ -715,7 +837,7 @@ func net_mutants(arr: Array, full := true) -> void:
 # ---------- сохранение ----------
 
 func to_save() -> Dictionary:
-	var d := {"stage": stage, "loot": loot_done, "lake": at_lake}
+	var d := {"stage": stage, "loot": loot_done, "lake": at_lake, "city": at_city}
 	if car:
 		d["car"] = car.to_save()
 	if bonus_slot:
@@ -742,6 +864,11 @@ func from_save(d: Dictionary) -> void:
 		_ensure_lake()
 		_quest("")
 		_lake_mobs()
+	at_city = bool(d.get("city", false))
+	if at_city:
+		_ensure_city()
+		_quest("")
+		_city_mobs()
 	if car and d.has("car"):
 		car.from_save(d["car"])
 	if storage:
