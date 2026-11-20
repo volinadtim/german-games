@@ -604,6 +604,17 @@ func _draw_minimap(sz: Vector2) -> void:
 			var col: Color = grp[1]
 			col.a = 0.3 + 0.65 * clampf(float(mm_seen[id]) / MM_FORGET, 0.0, 1.0)
 			paint.draw_circle(c + p, 4.5, col)
+	# союзники (сеть, сплитскрин) — видны всегда, у края карты прижимаются к рамке
+	for n in get_tree().get_nodes_in_group("allies"):
+		if n == pl or not (n is Node3D) or not n.is_inside_tree() or not (n as Node3D).visible:
+			continue
+		var ad: Vector3 = (n as Node3D).global_position - cp
+		var av := Vector2(ad.x, ad.z).rotated(yaw)
+		var ap := Vector2(-av.x, -av.y) / mm_range * mm_size
+		var lim := mm_size / 2.0 - 6.0
+		ap = Vector2(clampf(ap.x, -lim, lim), clampf(ap.y, -lim, lim))
+		paint.draw_circle(c + ap, 5.5, Color(0, 0, 0, 0.7))
+		paint.draw_circle(c + ap, 4.0, Color(0.35, 0.7, 1.0, 0.95))
 	# игрок — стрелка вверх
 	paint.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(6, 6), c + Vector2(-6, 6)]), Color(0.4, 1.0, 0.5, 0.95))
 

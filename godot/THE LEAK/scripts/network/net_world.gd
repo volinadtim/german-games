@@ -246,6 +246,7 @@ func _make_puppet(id: int) -> void:
 	pp.collision_layer = PUPPET_LAYER   # видят только удары и пули игроков (огонь по своим); враги и свой игрок — нет
 	pp.collision_mask = 0
 	pp.set_meta("peer", id)
+	pp.add_to_group("allies")
 	pp.net_hit = _pvp_hit
 	var lb := Label3D.new()
 	lb.text = String(players.get(id, "?"))

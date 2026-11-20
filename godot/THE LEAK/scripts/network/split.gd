@@ -377,6 +377,8 @@ func _spawn_p2() -> void:
 	pp.collision_mask = p1.collision_mask
 	pp.active = true
 	hud_p2.mm_player = pp
+	pp.add_to_group("allies")
+	p1.add_to_group("allies")
 	tgt = Target2.new()
 	tgt.player = pp
 	tgt.split = self
