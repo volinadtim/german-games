@@ -116,6 +116,24 @@ func setup_game(g) -> void:
 	if g.net == null or g.net.is_host():
 		for s in MUT_SPOTS:
 			_spawn_mutant(s[0], s[1])
+		if at_lake:
+			_lake_mobs()
+
+
+## Мутанты у озера (промпт 20.11 18:31): умнее и непредсказуемее деревенских (mutant.gd: smart), но не крепче.
+const LAKE_MUT := [[Vector3(2.0, G, 1200.0), "stalker"], [Vector3(62.0, G, 1204.0), "spitter"], [Vector3(6.0, G, 1252.0), "charger"],
+	[Vector3(58.0, G, 1258.0), "stalker"], [Vector3(46.0, G, 1214.0), "spitter"], [Vector3(10.0, G, 1228.0), "spitter"],
+	[Vector3(36.0, G, 1262.0), "charger"]]
+var lake_mobs := false
+
+
+## Хост: расселить мутантов лагеря (один раз).
+func _lake_mobs() -> void:
+	if lake_mobs or game == null or (game.net and not game.net.is_host()):
+		return
+	lake_mobs = true
+	for s in LAKE_MUT:
+		_spawn_mutant(s[0], s[1], true)
 
 
 # ---------- лут ----------
@@ -313,6 +331,7 @@ func _ensure_lake() -> void:
 func _lake_relocate(seat: int) -> void:
 	at_lake = true
 	_quest("")
+	_lake_mobs()
 	car.park_at(LakeCamp.CAR_POS, LakeCamp.CAR_YAW)
 	car.fuel = 0.3   # дорога съела почти весь бак
 	if seat >= 0 and seat < 4:
@@ -323,7 +342,7 @@ func _lake_relocate(seat: int) -> void:
 
 
 func _lake_after() -> void:
-	hint("Лагерь у озера. Бак почти пуст — дорога съела бензин.\nПосмотри на дверь и нажми [F] — выйти.", 8.0)
+	hint("Лагерь у озера. Бак почти пуст — дорога съела бензин.\nВоздух здесь чистый — противогаз можно снять [G].\nПо лагерю — хворост и припасы, но мутанты тут хитрее.\nПосмотри на дверь и нажми [F] — выйти.", 10.0)
 
 
 ## Задание справа (после подвала): что положить в багажник для поездки к озеру.
@@ -599,10 +618,11 @@ func _make_ui() -> void:
 
 # ---------- мутанты ----------
 
-func _spawn_mutant(pos: Vector3, kind: String) -> void:
+func _spawn_mutant(pos: Vector3, kind: String, smart := false) -> void:
 	var m := Mutant.new()
 	m.game = game
 	m.kind = kind
+	m.smart = smart
 	m.position = pos + Vector3(0, 0.1, 0)
 	m.rotation.y = randf() * TAU
 	m.home = pos
@@ -611,17 +631,17 @@ func _spawn_mutant(pos: Vector3, kind: String) -> void:
 	mut_seq += 1
 	game.add_child(m)
 	mutants.append(m)
-	m.died.connect(func(_m): _mutant_died(pos, kind))
+	m.died.connect(func(_m): _mutant_died(pos, kind, smart))
 	m.tree_exiting.connect(func(): mutants.erase(m))
 
 
-func _mutant_died(pos: Vector3, kind: String) -> void:
+func _mutant_died(pos: Vector3, kind: String, smart := false) -> void:
 	await get_tree().create_timer(MUT_RESPAWN).timeout
 	if not is_instance_valid(game):
 		return
 	while is_instance_valid(game.player) and game.player.global_position.distance_to(pos) < 15.0:
 		await get_tree().create_timer(6.0).timeout
-	_spawn_mutant(pos, kind)
+	_spawn_mutant(pos, kind, smart)
 
 
 func mutant_by_id(nid: int):
@@ -721,6 +741,7 @@ func from_save(d: Dictionary) -> void:
 	if at_lake:
 		_ensure_lake()
 		_quest("")
+		_lake_mobs()
 	if car and d.has("car"):
 		car.from_save(d["car"])
 	if storage:

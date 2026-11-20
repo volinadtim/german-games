@@ -36,7 +36,76 @@ func _ready() -> void:
 	_trees()
 
 
+## Воздух у озера чистый (промпт 20.11 18:31): здесь можно ходить без противогаза.
+static func clean_air(p: Vector3) -> bool:
+	return p.z > Z0 - 25.0
+
+
+## Собирательство (промпт 20.11 18:31): [id, мин, макс, вес]. Хост раскладывает находки при приезде,
+## потом каждые FORAGE_T с подкладывает новые (подальше от игрока), пока на земле меньше FORAGE_MAX.
+const FORAGE := [["wood", 2, 3, 30], ["stone", 1, 3, 22], ["twine", 1, 2, 12], ["water", 1, 1, 8], ["rot_apple", 1, 2, 8],
+	["canned", 1, 1, 4], ["bandage", 1, 1, 5], ["scrap", 1, 2, 9], ["nut", 2, 4, 7], ["tape", 1, 1, 4], ["ammo", 2, 5, 5],
+	["filter", 1, 1, 2], ["pills", 1, 1, 3], ["glass", 1, 1, 4], ["coin", 2, 6, 8]]
+const FORAGE_MAX := 18
+const FORAGE_T := 25.0
+var forage: Array = []
+var forage_t := 2.0
+var forage_first := true
+
+
+## Хост: разложить / подложить находки по лагерю.
+func _forage_tick(delta: float) -> void:
+	var g = get_parent().get("game")
+	if g == null or g.player == null or (g.net and not g.net.is_host()):
+		return
+	forage_t -= delta
+	if forage_t > 0.0:
+		return
+	forage_t = FORAGE_T
+	forage = forage.filter(func(p): return is_instance_valid(p))
+	var n := 14 if forage_first else mini(2, FORAGE_MAX - forage.size())
+	var pp: Vector3 = g.player.global_position
+	for i in n:
+		var at := _forage_spot(pp, not forage_first)
+		if at == Vector3.INF:
+			continue
+		var e: Array = _forage_pick()
+		var p = g._make_pickup(String(e[0]), randi_range(int(e[1]), int(e[2])), at, Vector3.ZERO)
+		p.angular_velocity = Vector3.ZERO
+		p.life = 1.0e9
+		forage.append(p)
+	forage_first = false
+
+
+## Случайная находка по весам FORAGE.
+func _forage_pick() -> Array:
+	var sum := 0
+	for e in FORAGE:
+		sum += int(e[3])
+	var r := randi() % sum
+	for e in FORAGE:
+		r -= int(e[3])
+		if r < 0:
+			return e
+	return FORAGE[0]
+
+
+## Точка для находки: не в озере, не в костре, не у машины; far — не ближе 10 м к игроку.
+func _forage_spot(pp: Vector3, far: bool) -> Vector3:
+	for t in 12:
+		var p := Vector3(randf_range(X0 + 3.0, X1 - 3.0), G + 0.4, randf_range(Z0 + 4.0, Z1 - 4.0))
+		if Vector2(p.x - LAKE_C.x, p.z - LAKE_C.z).length() < LAKE_R + 2.0:
+			continue
+		if Vector2(p.x - FIRE.x, p.z - FIRE.z).length() < 3.0 or Vector2(p.x - CAR_POS.x, p.z - CAR_POS.z).length() < 4.0:
+			continue
+		if far and Vector2(p.x - pp.x, p.z - pp.z).length() < 10.0:
+			continue
+		return p
+	return Vector3.INF
+
+
 func _process(delta: float) -> void:
+	_forage_tick(delta)
 	fire_t += delta
 	if fire_light:
 		fire_light.light_energy = 2.4 + 0.5 * sin(fire_t * 11.0) + 0.35 * sin(fire_t * 23.7 + 1.3)

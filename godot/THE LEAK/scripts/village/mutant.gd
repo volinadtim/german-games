@@ -18,6 +18,13 @@ func _ready() -> void:
 	hp = max_hp
 	speed = k["speed"]
 	height = k["h"]
+	if smart:
+		# лагерь у озера: шустрее и зорче, здоровья даже меньше — берут умом
+		max_hp *= 0.85
+		hp = max_hp
+		speed *= 1.15
+		sight = sight * 1.5
+		flank = randf_range(0.6, 1.3) * (1.0 if randf() < 0.5 else -1.0)
 	tg = game
 	add_to_group("mutants")
 	floor_snap_length = 0.3
@@ -64,21 +71,23 @@ func _physics_process(delta: float) -> void:
 		_growl()
 	match state:
 		"idle":
-			if can and d < SIGHT * 2.2 and _car_noisy():
+			if can and d < sight * 2.2 and _car_noisy():
 				_set_state("chase")   # машина гудит рядом — идут на шум
 				_growl()
-			elif can and d < SIGHT and _clear(ppos):
+			elif can and d < sight and _clear(ppos):
 				_set_state("chase")
 				_growl()
 			else:
 				want = _wander(delta)
 		"chase":
-			if not can or global_position.distance_to(home) > LEASH or (d > SIGHT * 1.8):
+			if not can or global_position.distance_to(home) > LEASH or (d > sight * 1.8):
 				_set_state("return")
 			else:
 				want = _fight(delta, d, to, ppos)
+				if smart:
+					want = _smart(delta, d, to, want)
 		"return":
-			if can and d < SIGHT * 0.7 and _clear(ppos):
+			if can and d < sight * 0.7 and _clear(ppos):
 				_set_state("chase")
 			elif Vector2(home.x - global_position.x, home.z - global_position.z).length() < 1.5:
 				_set_state("idle")
@@ -96,6 +105,45 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	StepUp.step_down(self, was_floor)
 	_animate(delta, Vector2(velocity.x, velocity.z).length())
+
+
+## Умный мутант (промпт 20.11 18:31): уворачивается, когда в него целятся, заходит с фланга,
+## раненый один раз отходит и заходит с другой стороны. Поверх обычного боя (_fight).
+func _smart(delta: float, d: float, to: Vector3, want: Vector3) -> Vector3:
+	dodge_cd -= delta
+	if state != "chase":
+		return want
+	var dir := to.normalized()
+	var side := dir.cross(Vector3.UP)
+	if hp < max_hp * 0.35 and not retreated:
+		retreated = true
+		retreat_t = randf_range(2.0, 4.0)
+		flank = -flank
+	if retreat_t > 0.0:
+		retreat_t -= delta
+		return _steer(global_position - dir * 5.0 + side * signf(flank) * 4.0, delta) * speed
+	# игрок целится — рывок вбок, иногда с прыжком
+	if dodge_cd <= 0.0 and d < 24.0 and tg == game and _aimed_at():
+		dodge_cd = randf_range(1.0, 2.8)
+		if randf() < 0.65:
+			knock = side * (1.0 if randf() < 0.5 else -1.0) * randf_range(7.0, 10.0)
+			if is_on_floor() and randf() < 0.4:
+				velocity.y = 4.5
+	# издалека — не в лоб, а по дуге с фланга
+	if d > 5.0 and kind != "spitter":
+		var goal: Vector3 = tg.player.global_position + (-dir).rotated(Vector3.UP, flank) * minf(d * 0.6, 6.0)
+		return _steer(goal, delta) * speed
+	return want
+
+
+## Игрок смотрит прямо на мутанта (прицел в пределах ~8°).
+func _aimed_at() -> bool:
+	var cam = game.player.cam
+	if cam == null:
+		return false
+	var fw: Vector3 = -cam.global_transform.basis.z
+	var me: Vector3 = (global_position + Vector3(0, height * 0.6, 0) - cam.global_position).normalized()
+	return fw.dot(me) > 0.99
 
 
 # ---------- бой по видам ----------
@@ -123,6 +171,7 @@ func _fight(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 				_set_state("slam_prep")
 				return Vector3.ZERO
 			if d > 4.0 and d < 17.0 and cool <= 0.0 and _clear(ppos):
+				phase_len = randf_range(0.4, 1.3) if smart else 0.9
 				_set_state("roar")
 				_growl(0.6)
 				return Vector3.ZERO
@@ -133,6 +182,8 @@ func _fight(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 			# цель — за спиной игрока
 			var back: Vector3 = tg.player.global_transform.basis.z
 			back.y = 0.0
+			if smart:
+				back = back.rotated(Vector3.UP, flank)   # заходит то сбоку, то со спины
 			var goal := ppos + back.normalized() * 2.2
 			var behind := back.normalized().dot((global_position - ppos).normalized()) > 0.3
 			if d < 2.8 and cool <= 0.0 and (behind or d < 1.6):
@@ -152,6 +203,15 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 			_face(to, delta)
 			sack.scale = Vector3.ONE * (1.0 + st * 1.2)
 			glow_mat.emission_energy_multiplier = 2.0 + st * 6.0
+			if smart and st > 0.25 and randf() < delta * 1.5:
+				# финт: раздул зоб — и передумал, ушёл вбок
+				sack.scale = Vector3.ONE
+				glow_mat.emission_energy_multiplier = 2.0
+				strafe = -strafe
+				knock = to.normalized().cross(Vector3.UP) * strafe * 7.0
+				cool = 0.5
+				_set_state("chase")
+				return Vector3.ZERO
 			if st > 0.55:
 				sack.scale = Vector3.ONE
 				glow_mat.emission_energy_multiplier = 2.0
@@ -160,6 +220,11 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 				var v := _arc(from, lead, 13.0)
 				_spit(from, v, true)
 				_fx("spit", v)
+				if smart:
+					# второй комок — туда, где игрок стоит сейчас: от упреждения уже не уйти простым шагом
+					var v2 := _arc(from, ppos + Vector3(0, 1.0, 0) - tg.player.velocity * 0.15, 11.0)
+					_spit(from, v2, true)
+					_fx("spit", v2)
 				cool = SPIT_CD + randf_range(-0.4, 0.6)
 				_set_state("chase")
 		"swipe":
@@ -175,10 +240,17 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 				_set_state("chase")
 		"roar":
 			_face(to, delta)
-			if st > 0.9:
+			if st > phase_len:
 				charge_dir = to.normalized()
-				_set_state("charge")
+				if smart and randf() < 0.25:
+					cool = 1.2   # финт: проревел и не побежал
+					_set_state("chase")
+				else:
+					_set_state("charge")
 		"charge":
+			if smart and d > 3.0:
+				# умный Таран чуть доворачивает на бегу
+				charge_dir = charge_dir.slerp(to.normalized(), clampf(1.3 * delta, 0.0, 1.0)).normalized()
 			var v := charge_dir * CHARGE_SPEED
 			if d < 1.5 + _car_reach() and hits_done == 0 and tg.alive and _clear(ppos):
 				hits_done = 1
@@ -229,12 +301,13 @@ func _special(delta: float, d: float, to: Vector3, ppos: Vector3) -> Vector3:
 					_hit_tgt(STALK_DMG)
 			if st > 0.9:
 				hits_done = 0
-				cool = 2.5
+				cool = randf_range(1.0, 3.2) if smart else 2.5
+				phase_len = randf_range(0.5, 2.2) if smart else 1.6
 				_set_state("flee")
 			return to.normalized() * (3.0 if d > 1.0 else 0.0)
 		"flee":
 			_set_alpha(lerpf(alpha, 0.12, 1.0 - exp(-4.0 * delta)))
-			if st > 1.6:
+			if st > phase_len:
 				_set_state("chase")
 			return _steer(global_position - to.normalized() * 6.0, delta) * speed * 1.1
 	return Vector3.ZERO
@@ -319,6 +392,8 @@ func _car_reach() -> float:
 
 ## Урон цели: игрок в машине — по кузову, иначе по игроку.
 func _hit_tgt(dmg: float) -> void:
+	if smart:
+		dmg *= 0.85   # умные бьют чуть слабее — опасны хитростью, а не уроном
 	var c = _car_tgt()
 	if c != null:
 		c.enemy_hit(dmg, global_position - global_transform.basis.z * 0.9 + Vector3(0, 1.05, 0))
@@ -394,6 +469,8 @@ func apply_hit(dmg: float, dir: Vector3) -> void:
 		return
 	if state in ["idle", "return"]:
 		_set_state("chase")
+	elif smart and kind != "charger" and state == "chase" and randf() < 0.4:
+		knock = flat.cross(Vector3.UP) * (1.0 if randf() < 0.5 else -1.0) * 8.0   # не замирает — отскакивает вбок
 	elif kind != "charger" and state in ["chase", "spit_prep", "flee"]:
 		_set_state("stagger")
 
@@ -419,6 +496,8 @@ func _die(_dir: Vector3) -> void:
 			game.spawn_loot("filter", 1, at, Vector3(0, 2.5, 0), 1.5)
 		elif r < 0.63:
 			game.spawn_loot("fuel", 1, at, Vector3(0, 2.5, 0), 1.5)
+		if smart and randf() < 0.6:   # у озера — ещё материал для лагеря
+			game.spawn_loot(["wood", "twine", "scrap", "bandage", "nut"].pick_random(), 1, at, Vector3(0, 2.5, 0), 1.5)
 	died.emit(self)
 
 

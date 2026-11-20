@@ -49,6 +49,14 @@ var hits_done := 0
 var vis_t := 0.0          # Тень: сколько ещё видна после удара
 var alpha := 1.0
 var voice_t := 2.0
+## Умный мутант лагеря у озера (промпт 20.11 18:31): уворачивается, обходит, финтит (mutant.gd: _smart)
+var smart := false
+var sight := SIGHT
+var dodge_cd := 0.0
+var retreat_t := 0.0
+var retreated := false
+var flank := 0.0         # угол захода с фланга
+var phase_len := 0.9     # случайная длина замаха / отхода
 
 var vis: Node3D
 var torso: Node3D

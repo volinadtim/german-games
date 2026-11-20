@@ -316,7 +316,8 @@ func _process(delta: float) -> void:
 	# анимация надевания / снятия
 	put = move_toward(put, 1.0 if worn else 0.0, delta / PUT_TIME)
 	overlay.visible = put > 0.0
-	var out: bool = _outside() > 0.5 and game.alive
+	# у озера воздух чистый — можно без противогаза (промпт 20.11 18:31)
+	var out: bool = _outside() > 0.5 and game.alive and not preload("res://scripts/village/lake_camp.gd").clean_air(game.player.global_position)
 	# фильтр тратится только наверху и в маске
 	if worn and out:
 		# деревня — зона менее заражённая: фильтр тратится на 40% медленнее (промпт 20.11 11:57)
