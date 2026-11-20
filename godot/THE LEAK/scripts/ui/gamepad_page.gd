@@ -186,11 +186,8 @@ func _pads_text() -> String:
 		var d: int = pads[i]
 		var who := "игрок 1" if d == d1 else ("игрок 2" if d == d2 else "не используется")
 		lines.append("%d. %s — %s" % [i + 1, Input.get_joy_name(d), who])
-	var tail := "
-В Split-Screen игрок 1 — клавиатура и мышь." if pads.size() == 1 else ""
-	return "Подключено (в Split-Screen):
-" + "
-".join(lines) + tail
+	var tail := "\nВ Split-Screen игрок 1 — клавиатура и мышь." if pads.size() == 1 else ""
+	return "Подключено (в Split-Screen):\n" + "\n".join(lines) + tail
 
 
 func _start(a: String) -> void:
