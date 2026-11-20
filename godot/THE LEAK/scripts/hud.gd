@@ -414,6 +414,7 @@ func _paint() -> void:
 	paint.draw_string(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.9, 0.78, 0.5))
 	if minimal:
 		return   # реализм: без баффов, монет, хотбара и заряда фонарика
+	_draw_radar(sz)
 	# баффы еды и напитков: значок предмета, сила и таймер
 	var bx0 := x
 	for k in buffs:
@@ -465,6 +466,47 @@ func _paint() -> void:
 			paint.draw_string_outline(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.8))
 			paint.draw_string(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0, 0.8, 0.45))
 
+
+
+## Радар в правом верхнем углу (промпт 20.11 14:34, только «Обычный» и «Казуальный»): круг вокруг камеры,
+## верх — направление взгляда; враги — красные точки, мутанты — оранжевые, дальние прижаты к краю.
+const RADAR_R := 70.0
+const RADAR_RANGE := 40.0
+func _draw_radar(sz: Vector2) -> void:
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var c := Vector2(sz.x - RADAR_R - 20.0, RADAR_R + 20.0)
+	paint.draw_circle(c, RADAR_R, Color(0.02, 0.06, 0.03, 0.55))
+	paint.draw_arc(c, RADAR_R, 0, TAU, 64, Color(0.45, 0.9, 0.5, 0.7), 2.0, true)
+	paint.draw_arc(c, RADAR_R * 0.5, 0, TAU, 48, Color(0.45, 0.9, 0.5, 0.25), 1.0, true)
+	paint.draw_line(c - Vector2(RADAR_R, 0), c + Vector2(RADAR_R, 0), Color(0.45, 0.9, 0.5, 0.15), 1.0)
+	paint.draw_line(c - Vector2(0, RADAR_R), c + Vector2(0, RADAR_R), Color(0.45, 0.9, 0.5, 0.15), 1.0)
+	# вращающийся луч
+	var sw := fmod(t * 1.6, TAU)
+	for i in 6:
+		var a0 := sw - i * 0.07
+		paint.draw_line(c, c + Vector2(cos(a0), sin(a0)) * RADAR_R, Color(0.5, 1.0, 0.55, 0.22 - i * 0.035), 2.0, true)
+	var cp := cam.global_position
+	var fw := -cam.global_transform.basis.z
+	var yaw := atan2(fw.x, fw.z)   # 0 — взгляд вдоль +Z
+	for grp in [["enemies", Color(1.0, 0.25, 0.2)], ["mutants", Color(1.0, 0.6, 0.15)]]:
+		for n in get_tree().get_nodes_in_group(grp[0]):
+			if not (n is Node3D) or not n.is_inside_tree() or not n.visible:
+				continue
+			if "hp" in n and float(n.hp) <= 0.0:
+				continue
+			var d: Vector3 = (n as Node3D).global_position - cp
+			var v := Vector2(d.x, d.z).rotated(yaw)   # вперёд → (0, +) → экран вверх после инверсии
+			var p := Vector2(-v.x, -v.y) / RADAR_RANGE * RADAR_R
+			var far := p.length() > RADAR_R - 5.0
+			if far:
+				p = p.normalized() * (RADAR_R - 5.0)
+			var col: Color = grp[1]
+			col.a = 0.5 if far else 0.95
+			paint.draw_circle(c + p, 3.0 if far else 4.5, col)
+	# игрок — треугольник-стрелка вверх
+	paint.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(6, 6), c + Vector2(-6, 6)]), Color(0.85, 1.0, 0.85, 0.95))
 
 
 ## Полоска здоровья (промпт 18.11 02:15: «слишком простая», во всех режимах одна и та же):
