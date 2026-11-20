@@ -407,6 +407,11 @@ func _paint() -> void:
 		paint.draw_string_outline(f, Vector2(x + w + 36, y + 14), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.8))
 		paint.draw_string(f, Vector2(x + w + 36, y + 14), bt, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.3, 0.22, 0.6 + 0.4 * a))
 
+	# монеты
+	Items.draw_icon(paint, "coin", Rect2(x - 4, y - 72, 34, 34))
+	var ct := "× %d" % coins
+	paint.draw_string_outline(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.7))
+	paint.draw_string(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.9, 0.78, 0.5))
 	if minimal:
 		return   # реализм: без баффов, монет, хотбара и заряда фонарика
 	# баффы еды и напитков: значок предмета, сила и таймер
@@ -425,11 +430,6 @@ func _paint() -> void:
 		paint.draw_string(f, r.position + Vector2(0, 38), tt, HORIZONTAL_ALIGNMENT_RIGHT, 38, 13, Color(1, 1, 1))
 		bx0 += 48.0
 
-	# монеты
-	Items.draw_icon(paint, "coin", Rect2(x - 4, y - 72, 34, 34))
-	var ct := "× %d" % coins
-	paint.draw_string_outline(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, 5, Color(0, 0, 0, 0.7))
-	paint.draw_string(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.9, 0.78, 0.5))
 	if knuckles:
 		Items.draw_icon(paint, "knuckles", Rect2(x + 120, y - 72, 34, 34))
 
