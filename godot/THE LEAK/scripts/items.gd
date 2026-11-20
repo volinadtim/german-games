@@ -67,8 +67,11 @@ const ITEMS := {
 	# стартовая одежда (промпт 16.11 06:03): общей сумки нет — вещи только в одежде и на спине
 	"sack": {"name": "Вещмешок", "desc": "Спина: простой мешок с лямками, отсек 3×3.", "stack": 1,
 		"icon": "sack", "color": Color(0.42, 0.4, 0.28), "equip": "back", "bag": [3, 3]},
-	"tshirt": {"name": "Футболка", "desc": "Тело: простая футболка, без защиты. Нагрудный карман на 2 клетки.", "stack": 1,
-		"icon": "tshirt", "color": Color(0.55, 0.55, 0.5), "equip": "body"},
+	"tshirt": {"name": "Драная футболка", "desc": "Тело: застиранная футболка в дырах, без защиты. Нагрудный карман на 2 клетки.", "stack": 1,
+		"icon": "tshirt", "color": Color(0.45, 0.43, 0.38), "equip": "body"},
+	# стартовые штаны — лохмотья, в магазине аналога нет (промпт 20.11 11:57)
+	"rag_pants": {"name": "Рваные штаны", "desc": "Ноги: лохмотья в заплатах, −3% урона. Расползаются от ударов.", "stack": 1,
+		"icon": "pants", "color": Color(0.3, 0.27, 0.22), "equip": "legs", "armor": 0.03, "dur": 30},
 	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 3,
 		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
 	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 3,
@@ -169,7 +172,7 @@ const SIZES := {
 	"repair_weapon": [2, 1], "repair_gear": [2, 1], "repair_gun": [2, 1], "canned": [1, 1],
 	"helmet": [2, 2], "moto_helmet": [2, 2], "ushanka": [2, 1],
 	"jacket": [2, 2], "kurtka": [2, 2], "vest": [2, 2],
-	"pants": [2, 2], "jeans": [2, 2], "wpants": [2, 2],
+	"pants": [2, 2], "rag_pants": [2, 2], "jeans": [2, 2], "wpants": [2, 2],
 	"boots": [2, 2], "sneakers": [2, 1],
 }
 
@@ -177,7 +180,7 @@ const SIZES := {
 ## Рюкзак — "bag" в ITEMS (свой блок).
 const POCKETS := {
 	"kurtka": [2, 1], "jacket": [2, 2], "vest": [3, 1],
-	"jeans": [2, 1], "pants": [2, 1], "wpants": [1, 2], "tshirt": [2, 1],
+	"jeans": [2, 1], "pants": [2, 1], "rag_pants": [2, 1], "wpants": [1, 2], "tshirt": [2, 1],
 }
 
 
@@ -767,7 +770,7 @@ static func make_mesh(id: String) -> Node3D:
 			mi.mesh = sm
 			m.roughness = 0.55
 			m.metallic = 0.35
-		"jacket", "pants", "kurtka", "vest", "jeans", "wpants", "tshirt":
+		"jacket", "pants", "rag_pants", "kurtka", "vest", "jeans", "wpants", "tshirt":
 			var bm := BoxMesh.new()
 			bm.size = Vector3(0.4, 0.06, 0.32) if id in ["jacket", "kurtka", "vest", "tshirt"] else Vector3(0.3, 0.05, 0.42)
 			if id == "vest":

@@ -17,7 +17,7 @@ const SlotM := preload("res://scripts/slot/slot_machine.gd")
 const WAKE_POS := Vector3(-11.25, 0.05, -4.3)   # у западной стены; game_base.gd CHEST_AVOID и glass_floor.gd AVOID обходят это место
 ## Сеть (промпт 16.11 22:04): все просыпаются в этой же комнате, каждый у своей стены — [место, поворот, вещи рядом
 ## (вперёд, вбок)]. Номер места — по порядку id игроков (хост — первое, у бутылки). Места обходят завалы и плиту.
-const KIT := ["tshirt", "pants", "sack", "bandage"]
+const KIT := ["tshirt", "rag_pants", "sack", "bandage"]
 const SPOTS := [
 	[WAKE_POS, -PI / 2.0, [Vector2(1.0, -0.85), Vector2(1.45, -0.45), Vector2(0.85, 1.2), Vector2(1.4, 1.0)]],
 	[Vector3(-7.7, 0.05, -8.45), PI, [Vector2(1.0, 0.85), Vector2(1.45, 0.45), Vector2(0.85, -1.2), Vector2(1.4, -1.0)]],

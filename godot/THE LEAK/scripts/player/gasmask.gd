@@ -319,7 +319,9 @@ func _process(delta: float) -> void:
 	var out: bool = _outside() > 0.5 and game.alive
 	# фильтр тратится только наверху и в маске
 	if worn and out:
-		filter_left -= delta
+		# деревня — зона менее заражённая: фильтр тратится на 40% медленнее (промпт 20.11 11:57)
+		var village_k := 0.6 if preload("res://scripts/village/village.gd").near_village(game.player.global_position) else 1.0
+		filter_left -= delta * village_k
 		if filter_left <= 0.0:
 			# казуальный режим — следующий фильтр ставится сам; реализм и по умолчанию — вручную (change_filter)
 			var nf := _next_filter()

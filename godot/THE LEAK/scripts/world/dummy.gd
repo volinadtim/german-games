@@ -93,7 +93,8 @@ func get_prompt(_g) -> String:
 func interact(g) -> void:
 	if not knife:
 		return
-	if g.collect("knife", 1, null) > 0:
+	set_meta("dur", preload("res://scripts/items.gd").max_dur("knife") * 0.5)   # нож в манекене — 50% прочности (промпт 20.11 11:57)
+	if g.collect("knife", 1, self) > 0:
 		return   # некуда взять — нож остаётся в манекене
 	remove_knife()
 	g.dummy_knife_taken = true

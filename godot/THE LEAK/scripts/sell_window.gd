@@ -15,9 +15,11 @@ const Weapons := preload("res://scripts/weapons.gd")
 ## рыночные цены вещей, которых нет в магазине и которые не хлам
 const EXTRA_MARKET := {"wallet": 10, "knuckles": 30, "twine": 4,
 	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20, "pistol": 120, "mag": 20, "ammo": 3}
-const NO_SELL := ["coin", "car_key"]
-## мусор, который магазин не берёт совсем (промпты 16.11 02:45, 02:46)
-const TRASH := ["glass", "wood", "stone"]
+const NO_SELL := ["coin", "car_key"]   # монеты — это деньги, ключ — сюжетный
+## мусор раньше не брали; теперь продаётся всё (промпт 20.11 11:57) — список пуст
+const TRASH := []
+## фиксированные рыночные цены (продажа = половина): канистра — 80, стартовые шмотки — по 1 (промпт 20.11 11:57)
+const FIXED_MARKET := {"fuel": 160, "tshirt": 2, "rag_pants": 2, "sack": 2}
 const TRASH_MSG := "Этот мусор даже мы покупать не будем"
 const Inv := preload("res://scripts/inventory.gd")
 const CELL := 48.0        # 10 колонок сундука = 480 px — ровно в ширину блока снаряжения
@@ -69,8 +71,10 @@ func _find_near_chest():
 
 ## Рыночная цена (0 — не продаётся).
 static func market(id: String) -> int:
-	if id in NO_SELL or id in TRASH or not Items.ITEMS.has(id) or Items.ITEMS[id].get("quest", false):
+	if id in NO_SELL or not Items.ITEMS.has(id) or Items.ITEMS[id].get("quest", false):
 		return 0
+	if FIXED_MARKET.has(id):
+		return int(FIXED_MARKET[id])
 	for e in Weapons.SHOP:
 		if e[0] == id:
 			return int(e[1])
@@ -82,7 +86,7 @@ static func market(id: String) -> int:
 			return int(e[1])
 	if Items.ITEMS[id].has("price"):
 		return int(Items.ITEMS[id]["price"]) * 2
-	return int(EXTRA_MARKET.get(id, 0))
+	return maxi(2, int(EXTRA_MARKET.get(id, 0)))   # любая вещь продаётся хотя бы за 1
 
 
 ## Сколько дадут за 1 шт. (dur < 0 — новая вещь).

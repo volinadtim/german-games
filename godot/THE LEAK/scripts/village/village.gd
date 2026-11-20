@@ -133,7 +133,7 @@ func spawn_village_loot() -> void:
 	# подвал — запасы на полках
 	_put("ammo", 8, _spot(0, r))
 	_put("filter", 2, _spot(0, r))
-	_put("gasmask2", 1, _spot(0, r))
+	# «Шлемыч» убран со второй локации — он понадобится в другой (промпт 20.11 11:57)
 	_put("filter2", 2, _spot(0, r))
 	_put("coin", 20, _spot(0, r))
 
@@ -159,7 +159,7 @@ func spawn_car_loot() -> void:
 	if game.net and not game.net.is_host():
 		return
 	var xf: Transform3D = car.global_transform
-	_put("pistol", 1, xf * Vector3(-0.36, 1.06, -0.02), 5.0, true)
+	_put("pistol", 1, xf * Vector3(-0.36, 1.06, -0.02), 5.0 + 0.65 * preload("res://scripts/gun.gd").DUR_MAX / 100.0, true)   # 65% прочности (промпт 20.11 11:57)
 	_put("coin", randi_range(5, 9), xf * Vector3(0.25, 1.05, -0.8), -1.0, true)
 	_put("coin", randi_range(3, 6), xf * Vector3(-0.3, 1.05, -0.75), -1.0, true)
 	_put("coin", randi_range(2, 5), xf * Vector3(0.1, 1.06, 0.66), -1.0, true)
