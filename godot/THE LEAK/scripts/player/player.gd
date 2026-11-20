@@ -194,7 +194,7 @@ func _noclip_tick(delta: float) -> void:
 		dir += Vector3.DOWN
 	if dir.length() > 1.0:
 		dir = dir.normalized()
-	var spd: float = 8.0 * (3.0 if ia.is_action_pressed("sprint") else 1.0)
+	var spd: float = nc_speed * (3.0 if ia.is_action_pressed("sprint") else 1.0)
 	global_position += dir * spd * delta
 	nc_vel = nc_vel.lerp(dir * spd, 1.0 - exp(-8.0 * delta))
 	_animate(delta, global_transform.basis.inverse() * nc_vel, false)   # поза полёта (player_anim.gd)

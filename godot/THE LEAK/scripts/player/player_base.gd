@@ -243,6 +243,7 @@ var outfit_cache := {}            # ключ кусков -> ArrayMesh
 var peek := 0.0                   # выглядывание из-за угла (intro.gd): + — корпус и голова вбок вправо
 var lean := 0.0                   # наклон Q/E (player_anim.gd): -1 влево, +1 вправо, камера и голова смещаются в сторону
 var dying := false              # идёт анимация смерти (player_death.gd); нижние части её читают
+var nc_speed := 8.0                # скорость полёта в noclip (колесо мыши / /ncspeed)
 var noclip := false               # консоль /noclip (промпт 18.11 00:49): полёт сквозь стены, без гравитации
 var force_crouch := false        # присесть без управления (кат-сцены, intro.gd)
 var head_parts: Array = []        # голова/шея простой модели (только тень)

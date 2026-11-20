@@ -6,6 +6,9 @@ extends CanvasLayer
 ## Читерская команда (money/get/noclip/god и т.п.): register_cheat(...) — работает только после /cheats on.
 
 const Items := preload("res://scripts/items.gd")
+const VillageBuild := preload("res://scripts/village/village_build.gd")
+const LakeCampS := preload("res://scripts/village/lake_camp.gd")
+const CityS := preload("res://scripts/village/city.gd")
 const SUGG_ROWS := 8      # сколько строк подсказок /get видно сразу
 
 var game   # core/game.gd
@@ -39,6 +42,8 @@ func _ready() -> void:
 	register_cheat("money", "/money [кол-во] — выдать монеты (по умолчанию 100)", _cmd_money)
 	register_cheat("get", "/get [предмет] [кол-во] — выдать предмет (Tab — подсказки, места нет — под ноги)", _cmd_get)
 	register_cheat("noclip", "/noclip — полёт сквозь стены вкл/выкл (WASD, Пробел — вверх, Ctrl — вниз, Shift — быстрее)", _cmd_noclip)
+	register_cheat("ncspeed", "/ncspeed [x] — скорость полёта в noclip (по умолчанию 8; также колёсико мыши)", _cmd_ncspeed)
+	register_cheat("tp", "/tp bunker|village|lake|city — телепорт между локациями", _cmd_tp)
 	register_cheat("god", "/god — неуязвимость (урон и отравление не берут) вкл/выкл", _cmd_god)
 	register_cheat("freecam", "/freecam — свободная камера вкл/выкл (WASD, Пробел/Ctrl, Shift, Колёсико — скорость)", _cmd_freecam)
 	register_cheat("time", "/time [час 0-24 | day | night | dawn | dusk | reset] — время суток", _cmd_time)
@@ -122,6 +127,15 @@ func _build_ui() -> void:
 
 
 func _input(e: InputEvent) -> void:
+	if game != null and game.player != null and game.player.noclip and not open and e is InputEventMouseButton and e.pressed 			and (_freecam == null or not is_instance_valid(_freecam)):
+		if e.button_index == MOUSE_BUTTON_WHEEL_UP:
+			game.player.nc_speed = clampf(game.player.nc_speed * 1.25, 1.0, 300.0)
+			get_viewport().set_input_as_handled()
+			return
+		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			game.player.nc_speed = clampf(game.player.nc_speed / 1.25, 1.0, 300.0)
+			get_viewport().set_input_as_handled()
+			return
 	if _freecam != null and is_instance_valid(_freecam) and not open:
 		if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 			_freecam_rot.y -= e.relative.x * 0.0025
@@ -372,6 +386,37 @@ func _cmd_noclip(_a: PackedStringArray) -> void:
 	if game.has_method("save_now"):
 		game.save_now()
 	print_line("[color=#9e9]Noclip: %s[/color]" % ("вкл" if p.noclip else "выкл"))
+
+func _cmd_ncspeed(a: PackedStringArray) -> void:
+	if game == null or game.player == null:
+		return
+	if a.size() > 0 and String(a[0]).is_valid_float():
+		game.player.nc_speed = clampf(float(a[0]), 1.0, 300.0)
+	print_line("[color=#9e9]Скорость noclip: %.1f[/color]" % game.player.nc_speed)
+
+## /tp — телепорт игрока в одну из локаций (мир бесшовный, просто переставляем позицию).
+func _cmd_tp(a: PackedStringArray) -> void:
+	if game == null or game.player == null:
+		return
+	var to := Vector3.ZERO
+	var k: String = String(a[0]).to_lower() if a.size() > 0 else ""
+	match k:
+		"bunker", "бункер":
+			to = game.START
+		"village", "деревня":
+			to = VillageBuild.STALL + Vector3(2.5, 0.3, -2.0)
+		"lake", "лагерь", "озеро":
+			to = LakeCampS.CAR_POS + Vector3(2.5, 0.3, -1.5)
+		"city", "город":
+			to = CityS.CAR_POS + Vector3(2.5, 0.3, -1.5)
+		_:
+			print_line("[color=#e99]/tp bunker|village|lake|city[/color]")
+			return
+	game.player.global_position = to
+	game.player.velocity = Vector3.ZERO
+	if game.has_method("save_now"):
+		game.save_now()
+	print_line("[color=#9e9]Телепорт: %s[/color]" % k)
 
 func _cmd_freecam(_a: PackedStringArray) -> void:
 	if _freecam != null and is_instance_valid(_freecam):
