@@ -281,6 +281,8 @@ func _rebuild_tab() -> void:
 		"Инструменты":
 			var grid := _grid()
 			for e in TOOLS:
+				if not sells(String(e[0])):
+					continue
 				_item_cell(grid, String(e[0]), _price(String(e[0])))
 		"Слот-Машина":
 			_build_slot_tab()

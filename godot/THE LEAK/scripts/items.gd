@@ -146,7 +146,7 @@ const ITEMS := {
 	"snyuhatel5088": {"name": "Снюхатель5088", "desc": "Противогаз «Снюхатель5088»: герметичная маска с панорамным стеклом и двойным клапаном. Только в нём можно выжить в городе. Лицо (вместе с каской). [V] — надеть/снять.", "stack": 1, "price": 120,
 		"icon": "gasmask", "color": Color(0.16, 0.2, 0.26), "equip": "face"},
 	"lockpick": {"name": "Отмычка", "desc": "Набор тонких стальных отмычек. Вскрывает запертый сейф (одноразовая).", "stack": 5,
-		"icon": "car_key", "color": Color(0.6, 0.62, 0.66)},
+		"icon": "lockpick", "color": Color(0.6, 0.62, 0.66)},
 	"filter2": {"name": "Большой фильтр", "desc": "Армейский фильтр из деревни: 200 секунд наверху. Ставится в любой противогаз.", "stack": 10, "price": 15,
 		"icon": "filter", "color": Color(0.5, 0.45, 0.22)},
 	# ключ от ржавой машины на поляне (car.gd) — лежит в сейфе; завести машину и уехать = победа
@@ -747,6 +747,18 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 				pts.append(c + Vector2(cos(a), sin(a)) * s * 0.3)
 			ci.draw_colored_polygon(pts, col)
 			ci.draw_circle(c, s * 0.12, Color(0.08, 0.08, 0.08))
+		"lockpick":
+			# две тонкие отмычки крест-накрест в кожаном чехле: крючок и граблевидная
+			var lw := maxf(1.5, s * 0.05)
+			var st := Color(0.78, 0.8, 0.84)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.3, s * 0.12), Vector2(s * 0.6, s * 0.26)), Color(0.36, 0.22, 0.12))
+			ci.draw_line(c + Vector2(-s * 0.3, s * 0.2), c + Vector2(s * 0.3, s * 0.2), Color(0.2, 0.12, 0.07), maxf(1.0, s * 0.02))
+			ci.draw_line(c + Vector2(-s * 0.2, s * 0.14), c + Vector2(-s * 0.06, -s * 0.34), st, lw, true)
+			ci.draw_line(c + Vector2(-s * 0.06, -s * 0.34), c + Vector2(s * 0.04, -s * 0.38), st, lw, true)
+			ci.draw_line(c + Vector2(s * 0.2, s * 0.14), c + Vector2(s * 0.08, -s * 0.3), st.darkened(0.15), lw, true)
+			for k in 3:
+				var tx := c + Vector2(s * (0.08 - 0.035 * k) + s * 0.0, -s * (0.3 - 0.0) + s * 0.07 * k)
+				ci.draw_line(tx, tx + Vector2(s * 0.08, 0), st.darkened(0.15), maxf(1.0, s * 0.03), true)
 		"car_key":
 			# ключ по диагонали: чёрная пластмассовая головка, стальное жало с бородкой, кольцо и латунная бирка
 			var d := Vector2(1, 1).normalized()          # вдоль жала

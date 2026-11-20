@@ -77,6 +77,8 @@ func shop_tier() -> int:
 
 ## Товар есть в этом магазине: его тир не выше тира магазина.
 func sells(id: String) -> bool:
+	if id == "lockpick":   # только магазин у озера (промпт 20.11 18:51)
+		return shop_tier() == 2
 	return int(TIER.get(id, 0)) <= shop_tier()
 
 
