@@ -133,6 +133,7 @@ const CONTROLS := [
 	["handbrake", "Ручник (машина)", ["k:32"]],            # Пробел (car_drive.gd)
 	["seat_switch", "Пересесть на соседнее место", ["k:90"]],   # Z (car_drive.gd, промпт 18.11 01:00)
 	["car_lean", "Высунуться из окна (держать)", ["k:86"]],     # V (car_drive.gd, промпт 18.11 01:20)
+	["world_map", "Карта (зарисовывалка)", ["k:77"]],   # M (ui/sketch_map.gd, промпт 20.11 18:42)
 ]
 
 ## Разделы страницы «Управление» (промпт 22:53). Обзора стрелками больше нет (20.11 11:43).
@@ -141,7 +142,7 @@ const CTL_GROUPS := [
 	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject", "swap_hands", "drop_mode"]],
 	["Действия", ["interact", "carry", "loot_all", "gasmask", "lean_left", "lean_right"]],
 	["Инвентарь", ["inventory", "inv_use", "hand_right", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
-	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat", "voice", "toggle_cursor"]],
+	["Интерфейс", ["world_map", "toggle_fullscreen", "hide_ui", "toggle_ping", "chat", "voice", "toggle_cursor"]],
 	["Машина", ["handbrake", "seat_switch", "car_lean"]],
 ]
 

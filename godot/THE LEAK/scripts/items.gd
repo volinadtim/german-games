@@ -204,6 +204,9 @@ const ITEMS := {
 		"icon": "holster", "color": Color(0.36, 0.24, 0.14)},
 	"bag_hooks": {"name": "Крючки для рюкзака", "desc": "Два крючка на лямки: слоты сверху куклы снаряжения — туда инструменты и холодное оружие. Клавиша хотбара — снять в руку / повесить обратно.", "stack": 1,
 		"icon": "hooks", "color": Color(0.6, 0.6, 0.62)},
+	# карта-зарисовывалка (промпт 20.11 18:42, ui/sketch_map.gd): лагерь у озера, тир 2
+	"sketch_map": {"name": "Карта-зарисовывалка", "desc": "Пока лежит в сумке — сама зарисовывает места, где ты проходил. [M] — открыть карту, ставить метки.", "stack": 1,
+		"icon": "sketch_map", "color": Color(0.86, 0.8, 0.62)},
 }
 
 
@@ -387,6 +390,11 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 			ci.draw_rect(Rect2(c + Vector2(s * 0.1, -s * 0.44), Vector2(s * 0.05, s * 0.13)), col)
 			for i in 3:
 				ci.draw_rect(Rect2(c + Vector2(-s * 0.13 + i * s * 0.1, s * 0.13), Vector2(s * 0.06, s * 0.06)), col)
+		"sketch_map":
+			ci.draw_rect(Rect2(c - Vector2(s * 0.34, s * 0.26), Vector2(s * 0.68, s * 0.52)), col)
+			ci.draw_rect(Rect2(c - Vector2(s * 0.34, s * 0.26), Vector2(s * 0.68, s * 0.52)), dark, false, maxf(1.0, s * 0.03))
+			ci.draw_polyline(PackedVector2Array([c + Vector2(-s * 0.26, s * 0.12), c + Vector2(-s * 0.08, -s * 0.06), c + Vector2(s * 0.06, s * 0.08), c + Vector2(s * 0.26, -s * 0.14)]), dark, maxf(1.5, s * 0.04))
+			ci.draw_circle(c + Vector2(s * 0.14, s * 0.1), s * 0.05, Color(0.85, 0.15, 0.1))
 		"fuel":
 			var body := Rect2(c - Vector2(s * 0.28, s * 0.3), Vector2(s * 0.56, s * 0.66))
 			ci.draw_rect(body, dark)

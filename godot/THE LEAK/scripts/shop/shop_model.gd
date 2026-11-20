@@ -50,7 +50,7 @@ const CLOTHES := [
 	["Низ", ["jeans", "pants", "wpants"]],
 	["Ботинки", ["sneakers", "boots", "berets"]],
 	["Перчатки", ["gloves", "tac_gloves"]],
-	["Снаряжение", ["gasmask", "filter", "backpack", "gps", "holster", "bag_hooks", "scuba", "dive_light"]],
+	["Снаряжение", ["gasmask", "filter", "backpack", "gps", "holster", "bag_hooks", "sketch_map", "scuba", "dive_light"]],
 ]
 var sub := 0                  # открытая подвкладка «Одежды» (CLOTHES)
 ## Тир товара (промпт 20.11 17:59): 0 — бункер (пролог), 1 — деревня, 2 — следующая локация (пока нигде не продаётся).
@@ -60,7 +60,7 @@ const TIER := {"medkit": 1, "canned": 1, "soda": 1, "moto_helmet": 1, "vest": 1,
 	# новые (промпт 20.11 17:59)
 	"energy": 1, "ration": 1, "ammo_box": 1, "bushlat": 1, "berets": 1, "sapper": 1, "sledge": 1,
 	"gps": 1, "holster": 1, "bag_hooks": 1,   # промпт 20.11 18:38
-	"medkit_army": 2, "kevlar_helmet": 2, "plate_vest": 2, "fire_axe": 2, "scuba": 2, "dive_light": 2}
+	"medkit_army": 2, "kevlar_helmet": 2, "plate_vest": 2, "fire_axe": 2, "scuba": 2, "dive_light": 2, "sketch_map": 2}
 
 
 ## Тир этого магазина: бункер — 0, деревня (village_shop.gd) — 1, лагерь у озера (lake_shop.gd) — 2.

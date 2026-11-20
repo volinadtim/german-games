@@ -19,6 +19,9 @@ func setup(p: Player) -> void:
 
 	hud = Hud.new()
 	add_child(hud)
+	sketch_map = preload("res://scripts/ui/sketch_map.gd").new()
+	sketch_map.game = self
+	add_child(sketch_map)
 	inv = Inventory.new()
 	inv.game = self
 	add_child(inv)
@@ -356,7 +359,8 @@ func _aimed_pickup(from: Vector3, fwd: Vector3) -> Node:
 ## Одно окно за раз: пока открыт инвентарь или магазин, другие окна не открываются.
 func window_open() -> bool:
 	return invs.any(func(i): return is_instance_valid(i) and i.open) or (shop != null and shop.opened) or (slot != null and slot.pack_open) \
-		or (loot_window != null and loot_window.open) or (skills != null and skills.open)
+		or (loot_window != null and loot_window.open) or (skills != null and skills.open) \
+		or (sketch_map != null and sketch_map.open)
 
 
 ## Закрыть все окна (инвентарь, магазин с продажей, наборы KILLBOX, лут) — перед кат-сценой (промпт 16.11 21:40).

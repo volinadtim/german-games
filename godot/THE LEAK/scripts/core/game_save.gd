@@ -122,6 +122,7 @@ func save_state() -> Dictionary:
 		"shop_cue_done": shop_cue_done,
 		"village": village.to_save() if village else {},
 		"lake_safe": _lake_safe_save(),
+		"sketch_map": sketch_map.to_save() if sketch_map else {},
 		"cheats": _save_cheats(),
 	}
 
@@ -337,6 +338,8 @@ func load_state(d: Dictionary) -> void:
 		slot._update_screen_hint()
 	if village:
 		village.from_save(d.get("village", {}))
+	if sketch_map:
+		sketch_map.from_save(d.get("sketch_map", {}))
 	_load_cheats(d.get("cheats", {}))
 	inv.notify()
 	loading = false
