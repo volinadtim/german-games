@@ -51,6 +51,9 @@ func setup(p: Player) -> void:
 	revive = preload("res://scripts/systems/revive.gd").new()   # смерть, подъём союзника, лечение с полоской
 	revive.game = self
 	add_child(revive)
+	last_chance = preload("res://scripts/systems/last_chance.gd").new()   # «Это последний шанс!» — 23 монеты, когда застрял
+	last_chance.game = self
+	add_child(last_chance)
 
 	if USE_FLASHLIGHT:
 		flashlight = Flashlight.new()

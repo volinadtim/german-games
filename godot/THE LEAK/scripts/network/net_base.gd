@@ -184,6 +184,7 @@ const PUSH_R := 0.62        # игроки касаются, когда цент
 const Fx := preload("res://scripts/core/fx.gd")
 
 var puppets := {}         # peer_id -> player.gd (модель другого игрока)
+var peer_cash := {}       # peer_id -> [монеты, получил ли «последний шанс»] (systems/last_chance.gd)
 var targets := {}         # хост: peer_id -> RemoteTarget (цель для врагов)
 var enemy_map := {}       # nid -> враг (хост: свои, клиент: копии)
 var enemy_seq := 0

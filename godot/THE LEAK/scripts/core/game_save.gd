@@ -114,6 +114,7 @@ func save_state() -> Dictionary:
 		"intro_done": intro_done,
 		"intro_wake_done": intro_wake_done,
 		"dummy_knife_taken": dummy_knife_taken,
+		"last_chance": last_chance.used if last_chance else false,
 		"shop_on": shop_on,
 		"shop_cue_done": shop_cue_done,
 		"village": village.to_save() if village else {},
@@ -275,6 +276,8 @@ func load_state(d: Dictionary) -> void:
 			hud.toast("Общей сумки больше нет: что не влезло в одежду и вещмешок — на полу рядом", Color(0.95, 0.75, 0.45))
 	play_time = float(d.get("play_time", 0.0))
 	dummy_knife_taken = bool(d.get("dummy_knife_taken", false))
+	if last_chance:
+		last_chance.used = bool(d.get("last_chance", false))
 	if dummy_knife_taken and knife_dummy and is_instance_valid(knife_dummy):
 		knife_dummy.remove_knife()
 	# вступление: сохранились посреди него — монстрика уже нет, поэтому автомат всё равно включаем

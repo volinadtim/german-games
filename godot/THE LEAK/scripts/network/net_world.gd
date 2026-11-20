@@ -292,6 +292,8 @@ func _game_tick(delta: float) -> void:
 		for k in ["head", "body", "legs", "feet", "hands", "back"]:
 			eq[k] = String(game.inv.equip.get(k, ""))
 		rpc("pgear", eq)
+		var lc = game.get("last_chance")
+		rpc("pcash", int(game.inv.coins), lc != null and bool(lc.used))
 	if p and p.punching and not was_punching and peer and online:
 		rpc("pev", p.last_arm)
 	was_punching = p != null and p.punching
@@ -376,6 +378,12 @@ func _make_ui() -> void:
 
 
 # ---------- игроки ----------
+
+## Монеты другого игрока и получил ли он «последний шанс» (systems/last_chance.gd, раз в секунду).
+@rpc("any_peer", "unreliable", "call_remote")
+func pcash(coins: int, used: bool) -> void:
+	peer_cash[multiplayer.get_remote_sender_id()] = [coins, used]
+
 
 ## Одежда другого игрока — видна на его модели (промпт 18.11 00:44).
 @rpc("any_peer", "unreliable", "call_remote")
