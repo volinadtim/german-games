@@ -4,9 +4,11 @@ extends Node
 ## Кнопки не кладём в InputMap: этот узел сам шлёт InputEventAction (так работают сочетания Back+кнопка).
 ## В InputMap идут только оси левого стика (ходьба, аналогово) — и только пока геймпад подключён,
 ## чтобы не мешать антизалипанию клавиш (player.gd: _unstick_moves).
-## Когда курсор виден (меню, инвентарь, магазин…): клетки (ui/pad_nav.gd) — крестовина переключает активную,
-## A — ЛКМ по ней, X — ПКМ, B — назад (ui_cancel), RB — крафт в инвентаре, при перетаскивании LB — повернуть предмет,
-## правый стик — тоже по клеткам; ↓ — клетки / свободный курсор (правым стиком), левый стик — ходьба. В игре курсора нет. Start — пауза всегда.
+## Когда курсор виден (меню, инвентарь, магазин…): навигация — autoload UiNav (ui/ui_nav.gd, встроенный фокус):
+## крестовина (все 4 стороны) и правый стик шлют ui_up / ui_down / ui_left / ui_right; левый стик — тоже, но только пока
+## персонаж не управляется (пауза, главное меню, магазин, лут), иначе он — ходьба. Back (коротко) — toggle_cursor:
+## рамка ↔ свободный курсор (его водит правый стик). A — ЛКМ по рамке, X — ПКМ, B — назад (ui_cancel), RB — крафт
+## в инвентаре, при перетаскивании LB — повернуть предмет. В игре курсора нет. Start — пауза всегда.
 ## Back + стрелка в инвентаре — привязать предмет под рамкой к слоту (как раньше просто стрелка).
 ## Руки (промпт 20.11 11:43): кнопка слота (крестовина) — нажать: в левую руку, задержать: в правую.
 ## Сброс: RB — режим сброса, потом LT — из левой, RT — из правой (задержать — кинуть дальше).
@@ -28,13 +30,17 @@ const DEFAULT := {
 	"drop_mode": "b:10",                               # RB — режим сброса, потом LT — из левой, RT — из правой
 	"fists": "b:8", "inv_use": "b:8",                  # R3 — стойка; в инвентаре — использовать
 	# крестовина (промпты 20.11 14:51/14:54): ← держать — круговое меню хотбара (ui/pad_wheel.gd), → — перезарядка,
-	# ↑ ↓ в игре свободны (в окнах ↓ — клетки / курсор, ui/pad_nav.gd; промпт 20.11 15:03). hot_wheel ловит _button.
+	# ↑ ↓ в игре свободны (в окнах — ui_up / ui_down, ui/ui_nav.gd). hot_wheel ловит _button.
 	"hot_wheel": "b:13", "reload": "b:14",
 	"loot_all": "c:0",                                  # Back + A — забрать всё (в окне лута)
 	"hot_5": "c:11", "gasmask": "c:12", "carry": "c:13", "swap_hands": "c:14",
 	"mag_eject": "c:10", "crouch": "c:1", "toggle_ping": "c:3", "hide_ui": "c:9",
 	"seat_switch": "c:2",                               # Back + X — пересесть в машине
+	"toggle_cursor": "b:4",                             # Back коротко — в окнах рамка ↔ курсор (промпт 20.11 15:24)
 }
+const SPRINT_HOLD := 0.4    # бег: держат кнопку бега во время бега — выключить (промпт 20.11 15:31)
+const SPRINT_STILL := 1.0   # ...или постоять на месте секунду
+const UI_DIR := {JOY_BUTTON_DPAD_UP: "ui_up", JOY_BUTTON_DPAD_DOWN: "ui_down", JOY_BUTTON_DPAD_LEFT: "ui_left", JOY_BUTTON_DPAD_RIGHT: "ui_right"}
 const HOLD_T := 0.35         # кнопку слота держат дольше — предмет в правую руку
 const UI_HOT := {JOY_BUTTON_DPAD_UP: 1, JOY_BUTTON_DPAD_RIGHT: 2, JOY_BUTTON_DPAD_DOWN: 3, JOY_BUTTON_DPAD_LEFT: 4}
 
@@ -63,6 +69,8 @@ var trig := {"L": false, "R": false}
 var ui_held := {}            # кнопки, нажатые в режиме курсора (A/X)
 var mouse_mask := 0
 var sprint_latch := false
+var _sprint_hold := -1       # мс, когда во время бега зажали кнопку бега (-1 — не держат)
+var _still_t := 0.0          # сколько стоим на месте при включённом беге
 var pending := []            # [действие, время отпускания, устройство]
 var wheel_t := 0.0
 var hot_hold := {}           # кнопка слота -> [слоты hot_N, время нажатия, устройство, уже сработало]
@@ -73,7 +81,7 @@ var virtual_cursor := false  # курсор свой, настоящую мыш�
 var vpos := Vector2(200, 200)
 var cursor_layer: CanvasLayer
 var cursor_dot: Control
-var nav                      # ui/pad_nav.gd — клетки в меню
+var nav                      # ui/ui_nav.gd — autoload UiNav, навигация в меню
 static var inst              # главный узел (menu.pad) — для pad_text / rumble
 static var ps := false       # последний геймпад — PlayStation (DualSense): другие имена кнопок
 var vibration := true        # вибрация (settings.cfg [pad] vibration)
@@ -111,9 +119,8 @@ func _ready() -> void:
 			cursor_dot.draw_polyline(pts + PackedVector2Array([Vector2.ZERO]), Color(0, 0, 0), 2.0))
 		cursor_layer.add_child(cursor_dot)
 	inst = self
-	nav = preload("res://scripts/ui/pad_nav.gd").new()
+	nav = get_node("/root/UiNav")
 	nav.pad = self
-	add_child(nav)
 	wheel = preload("res://scripts/ui/pad_wheel.gd").new()
 	wheel.pad = self
 	add_child(wheel)
@@ -162,7 +169,7 @@ func load_cfg() -> void:
 	# новые действия (сброс) — в старый «Свой» пресет, если их кнопка там свободна
 	if not custom.is_empty():
 		custom.erase("pad_cursor")   # курсор в игре убран (промпт 20.11 15:04)
-		for a in ["drop_mode", "hot_wheel"]:
+		for a in ["drop_mode", "hot_wheel", "toggle_cursor"]:
 			if not custom.has(a) and not str(DEFAULT[a]) in custom.values():
 				custom[a] = DEFAULT[a]
 	swap_sticks = bool(cf.get_value(section, "swap_sticks", false))
@@ -445,14 +452,7 @@ func _ui_button(b: int, pressed: bool) -> bool:
 					mod_used = true
 					_tap("hot_%d" % UI_HOT[b], last_dev)
 				return true
-			if nav.popup_open():
-				if pressed:   # выпадающий список: у него своя навигация (ui_up / ui_down)
-					var ua: String = {JOY_BUTTON_DPAD_UP: "ui_up", JOY_BUTTON_DPAD_DOWN: "ui_down",
-						JOY_BUTTON_DPAD_LEFT: "ui_left", JOY_BUTTON_DPAD_RIGHT: "ui_right"}[b]
-					_send(ua, true, last_dev)
-					_send(ua, false, last_dev)
-				return true
-			nav.dpad(b, pressed)
+			_send(UI_DIR[b], pressed, last_dev)   # ui_* — UiNav двигает фокус (или листает выпадающий список)
 			return true
 		JOY_BUTTON_RIGHT_SHOULDER:
 			# RB: в инвентаре — крафт (промпт 20.11 15:10); вне инвентаря — как в игре (лут: «забрать всё»)
@@ -495,13 +495,15 @@ func _actions(spec: String) -> Array:
 
 func _act(a: String, pressed: bool, dev: int) -> void:
 	if a == "sprint":
+		# бег (промпт 20.11 15:31): нажать — бежим; выключается, если постоять секунду или зажать кнопку бега во время бега
 		if not pressed:
-			return   # отпускание L3 не важно: бег защёлкнут
+			_sprint_hold = -1
+			return
 		if sprint_latch:
-			sprint_latch = false   # L3 ещё раз — перестать бежать (промпт 20.11 14:49)
-			pressed = false
-		else:
-			sprint_latch = true   # L3: бежим, пока не остановишься или не нажмёшь L3 ещё раз
+			_sprint_hold = Time.get_ticks_msec()   # держат — выключим в _sprint_tick
+			return
+		sprint_latch = true
+		_still_t = 0.0
 	_send(a, pressed, dev)
 
 
@@ -598,14 +600,15 @@ func _process(delta: float) -> void:
 		return
 	var move := _stick(not swapped())
 	var look := _stick(swapped())
-	if sprint_latch and move.length() < 0.05:
-		sprint_latch = false
-		_send("sprint", false, last_dev)
+	_sprint_tick(move, delta)
 	if _ui_mode():
+		var v := look
+		if _sticks_free() and move.length() > v.length():
+			v = move   # персонаж не управляется — левый стик тоже листает (во время ходьбы — нет)
 		if nav.free_cursor():
-			_cursor(_stick(false), delta)   # свободный курсор — правым стиком (левый — ходьба)
+			_cursor(v, delta)   # свободный курсор (toggle_cursor)
 			return
-		nav.stick(_stick(false), delta)   # клетки — и правым стиком (↓ крестовины занята переключателем)
+		nav.stick(v, delta)   # рамка по клеткам
 		return
 	if wheel.is_open:
 		wheel.aim(look)   # круговое меню: правый стик выбирает слот, обзор стоит
@@ -620,6 +623,25 @@ func _process(delta: float) -> void:
 	p.look(Vector2(look.x, look.y * 0.75) * LOOK_PX * sens * delta)
 
 
+## Бег с геймпада выключается: стоим на месте SPRINT_STILL или держим кнопку бега SPRINT_HOLD.
+func _sprint_tick(move: Vector2, delta: float) -> void:
+	if not sprint_latch:
+		_still_t = 0.0
+		return
+	_still_t = _still_t + delta if move.length() < 0.05 else 0.0
+	var held_long := _sprint_hold >= 0 and Time.get_ticks_msec() - _sprint_hold >= int(SPRINT_HOLD * 1000.0)
+	if _still_t >= SPRINT_STILL or held_long:
+		sprint_latch = false
+		_sprint_hold = -1
+		_still_t = 0.0
+		_send("sprint", false, last_dev)
+
+
+## Левый стик свободен от ходьбы: пауза, главное меню или персонаж не управляется (магазин, лут, автомат…).
+func _sticks_free() -> bool:
+	return get_tree().paused or _player() == null
+
+
 func _cursor(v: Vector2, delta: float) -> void:
 	if v == Vector2.ZERO:
 		return
@@ -629,7 +651,7 @@ func _cursor(v: Vector2, delta: float) -> void:
 	mouse_to((p0 + v * CURSOR_PX * delta).clamp(Vector2.ZERO, sz - Vector2.ONE), v * CURSOR_PX)
 
 
-## Мышь — в точку окна p1 (пиксели) и движение мыши от геймпада (курсор стиком, клетки pad_nav.gd).
+## Мышь — в точку окна p1 (пиксели) и движение мыши от геймпада (курсор стиком, рамка ui_nav.gd).
 func mouse_to(p1: Vector2, vel := Vector2.ZERO) -> void:
 	var p0 := vpos if virtual_cursor else _win_mouse()
 	vpos = p1

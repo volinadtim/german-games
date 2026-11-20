@@ -1,28 +1,28 @@
 extends Node
-## Клетки (плитки) в меню и окнах — с геймпада и с клавиатуры (промпты 20.11 14:40–15:10). Создаёт ui/gamepad.gd (pad.nav),
-## работает и на паузе. Клетки ищем по всему интерфейсу (кнопка, ползунок, поле, слот, ячейка сетки) — каждое окно
-## и каждая страница меню работают без своей разметки; закрытое другой панелью (выше по отрисовке, ловит мышь) — пропускаем.
-## Активная клетка обведена рамкой, курсора мыши нет. Мышь всё равно ставим в центр клетки (warp) — подсказки
-## и перетаскивание (A держать + стрелки) работают как от мыши.
-## Клавиатура: стрелки — клетка (на ползунке ←/→ — значение), Enter — клик, Esc — назад (ui_cancel, как и было).
-## Геймпад: ↑ ← → и правый стик — клетка, A — клик, X — правый клик, B — назад, RB — крафт в инвентаре,
-## ↓ — переключить «клетки ↔ свободный курсор» (курсор — правым стиком). В игре (мышь захвачена) курсора с геймпада нет.
-## Геймпад подключён при запуске — клетки сразу, и в главном меню. Новый экран — рамка на первом пункте (сверху слева);
-## перестроилось то же окно / закрылось подменю — на прежнем месте.
-## Движение мыши, клик мышью или касание — клетки прячем, курсор возвращаем (до следующей стрелки / кнопки геймпада).
+## Навигация по меню и окнам — один autoload UiNav (project.godot), подход Германа (промпт 20.11 15:24):
+## встроенный Focus Godot + ui_up / ui_down / ui_left / ui_right + действие toggle_cursor. Работает и на паузе.
+## Направления: стрелки клавиатуры (ui_* в InputMap), крестовина и стики геймпада — их шлёт ui/gamepad.gd как ui_*
+## (с фильтром по геймпаду игрока; левый стик — только пока персонаж не управляется: пауза, меню, магазин, лут).
+## Кнопка / ползунок получают настоящий фокус (grab_focus) с яркой рамкой-стилем focus; ячейки сеток (сумка, сундук, лут)
+## и прочие клетки без фокуса — та же рамка рисуется поверх. Сосед: focus_neighbor_* у контрола, если задан, иначе
+## ближайшая клетка в ту сторону (клетки ищем по всему интерфейсу, закрытые другой панелью пропускаем).
+## Новый экран — фокус на первом пункте (сверху слева); перестроилось окно / закрылось подменю — на прежнем месте.
+## Ввод с клавиатуры (стрелки, Enter) или геймпада — курсор мыши прячется; движение мыши / клик / касание — рамку
+## и фокус убираем, курсор возвращаем. toggle_cursor (по умолчанию F2 и Back на геймпаде; переназначается в «Управлении»)
+## — вручную: рамка ↔ курсор (с геймпада курсор водит правый стик). Enter / A — клик, Esc / B — назад.
 
-const ST_ON := 0.55           # правый стик: отклонение для шага по клеткам
-const REP_DELAY := 0.32       # стрелку держат — повтор
+const ST_ON := 0.55           # стик: отклонение для шага по клеткам
+const REP_DELAY := 0.32       # направление держат — повтор
 const REP_T := 0.1
 const SAME_PX := 24.0         # клетка на прежнем месте (окно перестроилось) — та же
 const FRAME_COL := Color(1.0, 0.82, 0.3)
-const PAD_HINT := "Стрелки — клетка  ·  %s — взять / положить (держать + стрелки — перетащить)  ·  %s — действия  ·  %s — использовать  ·  %s — крафт  ·  %s + стрелка — в слот"
-const KB_DIR := {KEY_UP: Vector2.UP, KEY_DOWN: Vector2.DOWN, KEY_LEFT: Vector2.LEFT, KEY_RIGHT: Vector2.RIGHT}
+const PAD_HINT := "Крестовина / правый стик — клетка  ·  %s — взять / положить (держать + стрелки — перетащить)  ·  %s — действия  ·  %s — использовать  ·  %s — крафт  ·  %s + стрелка — в слот  ·  %s — курсор"
+const DIRS := {"ui_up": Vector2.UP, "ui_down": Vector2.DOWN, "ui_left": Vector2.LEFT, "ui_right": Vector2.RIGHT}
 
-var pad                        # ui/gamepad.gd
-var pad_used := false          # клетки включены: последний ввод — геймпад или стрелки клавиатуры
+var pad                        # ui/gamepad.gd (menu.pad) — ставит себя сам
+var pad_used := false          # рамка включена: последний ввод — геймпад или стрелки клавиатуры
 var by_kb := false             # ...и это была клавиатура (подсказки — клавиши, не кнопки геймпада)
-var cursor_mode := false       # свободный курсор геймпада (↓ переключает)
+var cursor_mode := false       # свободный курсор геймпада (toggle_cursor)
 var target: Control            # активная клетка
 var trect := Rect2()           # её прямоугольник в target (ячейка сетки или весь контрол)
 var last_pt := Vector2(-1, -1) # центр последней клетки (холст)
@@ -30,16 +30,18 @@ var _hist: Array = []          # прежние центры клеток (но�
 var _warp_ms := 0              # когда геймпад двигал мышь (её «настоящие» движения после warp не считаем)
 var _layer: CanvasLayer
 var _frame: Control
-var _dir_b := -1
-var _dir_t := 0.0
+var _hold := Vector2.ZERO      # направление, зажатое на геймпаде (ui_* от gamepad.gd) — повтор
+var _hold_t := 0.0
 var _rep := 0.0
-var _st_dir := Vector2.ZERO    # правый стик: куда шагаем
+var _st_dir := Vector2.ZERO    # стик: куда шагаем
 var _st_t := 0.0
 var _ui_t := 0.0
 var _check_t := 0.0
 var _warp_wait := 0            # кадров до warp после прокрутки ScrollContainer
 var _sec_wait := 0.0           # ждём выезда крафта — потом выбрать клетку в нём
 var _hidden_mouse := false
+var _focused: Control          # кому мы дали фокус
+var _sb: StyleBoxFlat
 
 
 func _ready() -> void:
@@ -53,9 +55,22 @@ func _ready() -> void:
 	_frame.draw.connect(_draw_frame)
 	_layer.add_child(_frame)
 	pad_used = not Input.get_connected_joypads().is_empty()
+	# пробел — прыжок и поворот предмета (LB), а не «нажать кнопку с фокусом»: ui_accept — только Enter
+	for a in ["ui_accept", "ui_select"]:
+		if InputMap.has_action(a):
+			for ev in InputMap.action_get_events(a):
+				if ev is InputEventKey and (ev.keycode == KEY_SPACE or ev.physical_keycode == KEY_SPACE):
+					InputMap.action_erase_event(a, ev)
+	if not InputMap.has_action("toggle_cursor"):   # menu.gd переставит клавишу из настроек
+		InputMap.add_action("toggle_cursor")
+		var k := InputEventKey.new()
+		k.physical_keycode = KEY_F2
+		InputMap.action_add_event("toggle_cursor", k)
 
 
 func _input(e: InputEvent) -> void:
+	if pad == null or not is_instance_valid(pad):
+		return
 	if e is InputEventJoypadButton:
 		if e.pressed:
 			pad_used = true
@@ -64,6 +79,8 @@ func _input(e: InputEvent) -> void:
 		if absf(e.axis_value) > 0.5:
 			pad_used = true
 			by_kb = false
+	elif e is InputEventAction:
+		_action(e)
 	elif e.device != pad.SYNTH:
 		if e is InputEventKey:
 			if e.pressed:
@@ -71,43 +88,106 @@ func _input(e: InputEvent) -> void:
 		elif e is InputEventMouseMotion:
 			if Time.get_ticks_msec() - _warp_ms > 150 and e.relative.length() > 3.0:
 				_off()
-		elif (e is InputEventMouseButton and e.pressed) or e is InputEventScreenTouch:
+		elif e is InputEventMouseButton:
+			if e.pressed:
+				_off()
+			else:
+				_drop_mouse_focus.call_deferred()
+		elif e is InputEventScreenTouch:
 			_off()
 
 
-## Клавиатура в меню / окне: стрелки — клетка, Enter — клик. Поле ввода, ожидание клавиши в «Управлении»,
-## выпадающий список (у него свои стрелки) — не трогаем.
-func _key(e: InputEventKey) -> void:
+## Окно / меню открыто и не ждём клавишу в «Управлении».
+func _ui_ok() -> bool:
 	if not pad._ui_mode() or pad.capturing:
-		return
-	var k: int = e.keycode
-	var enter := k == KEY_ENTER or k == KEY_KP_ENTER
-	if not enter and not KB_DIR.has(k):
-		return
+		return false
 	var m = pad.get_parent()
-	if m != null and str(m.get("waiting_action")) != "" and str(m.get("waiting_action")) != "<null>":
+	return not (m != null and str(m.get("waiting_action")) != "" and str(m.get("waiting_action")) != "<null>")
+
+
+## ui_* и toggle_cursor от геймпада (ui/gamepad.gd шлёт их как InputEventAction).
+func _action(e: InputEventAction) -> void:
+	if not _ui_ok():
+		return
+	if e.action == "toggle_cursor":
+		if e.pressed:
+			get_viewport().set_input_as_handled()
+			toggle_cursor(false)
+		return
+	if not DIRS.has(e.action) or popup_open():
+		return   # выпадающий список листает сам
+	get_viewport().set_input_as_handled()
+	var d: Vector2 = DIRS[e.action]
+	if not e.pressed:
+		if d == _hold:
+			_hold = Vector2.ZERO
+		return
+	pad_used = true
+	by_kb = false
+	_hold = d
+	_hold_t = 0.0
+	_rep = 0.0
+	_go(d)
+
+
+## Клавиатура в меню / окне: ui_* (стрелки) — клетка, Enter — клик, toggle_cursor (F2) — рамка ↔ курсор.
+## Поле ввода и выпадающий список (у него свои стрелки) — не трогаем.
+func _key(e: InputEventKey) -> void:
+	if not _ui_ok():
 		return
 	var fo := get_viewport().gui_get_focus_owner()
 	if fo is TextEdit or (fo is LineEdit and (fo as LineEdit).is_editing()):
 		return
-	if popup_open():
+	if e.is_action_pressed("toggle_cursor") and not e.is_echo():
+		get_viewport().set_input_as_handled()
+		toggle_cursor(true)
+		return
+	var k: int = e.keycode
+	var enter := k == KEY_ENTER or k == KEY_KP_ENTER
+	var dir := Vector2.ZERO
+	for a in DIRS:
+		if e.is_action_pressed(a, true):
+			dir = DIRS[a]
+	if (not enter and dir == Vector2.ZERO) or popup_open():
 		return
 	get_viewport().set_input_as_handled()
-	if fo != null:
-		fo.release_focus()   # фокус Godot не нужен: рамка — наша
 	pad_used = true
 	by_kb = true
-	cursor_mode = false
 	if enter:
+		cursor_mode = false
 		if not e.is_echo() and _valid(target):
 			before_click()
 			pad._mouse_btn(MOUSE_BUTTON_LEFT, true)
 			pad._mouse_btn(MOUSE_BUTTON_LEFT, false)
 		return
+	_go(dir)
+
+
+## Шаг рамки: из свободного курсора — к ближайшей клетке, нет клетки — первая на экране.
+func _go(d: Vector2) -> void:
+	if cursor_mode:
+		cursor_mode = false
+		_pick_near(_mouse_canvas())
+		return
 	if not _valid(target):
 		_repick()
-	else:
-		_step(KB_DIR[k])
+		return
+	_step(d)
+
+
+## toggle_cursor: рамка ↔ курсор. С клавиатуры — обычная мышь, с геймпада — свободный курсор правым стиком.
+func toggle_cursor(kb: bool) -> void:
+	if pad_used and not cursor_mode and _valid(target):
+		if kb:
+			_off()
+		else:
+			cursor_mode = true
+			_unfocus()
+		return
+	pad_used = true
+	by_kb = kb
+	cursor_mode = false
+	_pick_near(_mouse_canvas())
 
 
 ## Открыт выпадающий список / всплывающее окно Godot (OptionButton) — у него своя навигация (ui_up / ui_accept).
@@ -118,7 +198,7 @@ func popup_open() -> bool:
 	return false
 
 
-## Мышь / касание — клетки и рамку прячем, курсор возвращаем.
+## Мышь / касание — рамку и фокус прячем, курсор возвращаем.
 func _off() -> void:
 	if not pad_used and not cursor_mode:
 		return
@@ -126,24 +206,37 @@ func _off() -> void:
 	by_kb = false
 	cursor_mode = false
 	target = null
-	_dir_b = -1
+	_hold = Vector2.ZERO
+	_unfocus()
 	_show(false)
 	_restore_mouse()
 
 
-## Курсором правого стика двигаем свободно: режим курсора или в окне нет ни одной клетки.
+## Кнопку нажали мышью — фокус с неё снимаем (рамка только при навигации), поля ввода не трогаем.
+func _drop_mouse_focus() -> void:
+	if pad_used:
+		return
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is BaseButton or fo is Slider:
+		fo.release_focus()
+
+
+## Курсором стика двигаем свободно: режим курсора или в окне нет ни одной клетки.
 func free_cursor() -> bool:
 	return cursor_mode or not _valid(target)
 
 
 func _process(delta: float) -> void:
+	if pad == null or not is_instance_valid(pad):
+		return
 	if not pad._ui_mode() or pad.capturing:
 		_ui_t = 0.0
 		target = null
 		cursor_mode = false
 		last_pt = Vector2(-1, -1)
 		_hist.clear()
-		_dir_b = -1
+		_hold = Vector2.ZERO
+		_unfocus()
 		_show(false)
 		_restore_mouse()
 		return
@@ -175,48 +268,20 @@ func _process(delta: float) -> void:
 		if ok:
 			_hide_mouse()
 		else:
+			_unfocus()
 			_restore_mouse()   # клеток нет (например, 3D-экран автомата) — нужен обычный курсор
-	if _dir_b >= 0:
-		_dir_t += delta
-		if _dir_t >= REP_DELAY:
+	if _hold != Vector2.ZERO:
+		_hold_t += delta
+		if _hold_t >= REP_DELAY:
 			_rep -= delta
 			if _rep <= 0.0:
 				_rep = REP_T
-				_step(_dir_vec(_dir_b))
+				_go(_hold)
 
 
-# ---------- кнопки (зовёт gamepad.gd в режиме меню) ----------
+# ---------- стики и кнопки (зовёт gamepad.gd в режиме меню) ----------
 
-## Стрелка крестовины в меню.
-func dpad(b: int, pressed: bool) -> void:
-	if not pressed:
-		if b == _dir_b:
-			_dir_b = -1
-		return
-	pad_used = true
-	by_kb = false
-	if b == JOY_BUTTON_DPAD_DOWN:
-		_dir_b = -1
-		if cursor_mode:
-			cursor_mode = false
-			_pick_near(_mouse_canvas())   # из курсора — к ближайшей клетке
-		else:
-			cursor_mode = true   # клетки -> свободный курсор (мышь там, где была рамка)
-		return
-	_dir_b = b
-	_dir_t = 0.0
-	_rep = 0.0
-	if cursor_mode:
-		cursor_mode = false
-		_pick_near(_mouse_canvas())   # из курсора — к ближайшей клетке
-		return
-	if not _valid(target):
-		_repick()
-		return
-	_step(_dir_vec(b))
-
-
-## Правый стик в режиме клеток (зовёт gamepad.gd): шаг по клеткам, держат — повтор.
+## Стик в режиме клеток (зовёт gamepad.gd: правый; левый — только когда персонаж не управляется): шаг, держат — повтор.
 func stick(v: Vector2, delta: float) -> void:
 	var d := Vector2.ZERO
 	if v.length() >= ST_ON:
@@ -234,10 +299,7 @@ func stick(v: Vector2, delta: float) -> void:
 		if _st_t > 0.0:
 			return
 		_st_t = REP_T
-	if not _valid(target):
-		_repick()
-	else:
-		_step(d)
+	_go(d)
 
 
 ## Перед кликом A/X/Enter — мышь точно в центр активной клетки (окно могло перестроиться).
@@ -282,21 +344,21 @@ func _craft_pick() -> void:
 
 # ---------- клетки ----------
 
-func _dir_vec(b: int) -> Vector2:
-	match b:
-		JOY_BUTTON_DPAD_UP: return Vector2.UP
-		JOY_BUTTON_DPAD_DOWN: return Vector2.DOWN
-		JOY_BUTTON_DPAD_LEFT: return Vector2.LEFT
-	return Vector2.RIGHT
-
-
-## Шаг в сторону dir: ближайшая клетка в этом направлении (сдвиг вбок штрафуется вдвое). Ползунок — ←/→ меняют значение.
+## Шаг в сторону dir: сосед из focus_neighbor_* (если задан в окне), иначе ближайшая клетка в этом направлении
+## (сдвиг вбок штрафуется вдвое). Ползунок — ←/→ меняют значение.
 func _step(dir: Vector2) -> void:
 	if target is Slider and dir.x != 0.0:
 		var s: Range = target
 		var st := maxf(s.step, (s.max_value - s.min_value) / 20.0)
 		s.value = clampf(s.value + st * signf(dir.x), s.min_value, s.max_value)
 		return
+	var side := SIDE_TOP if dir.y < 0.0 else SIDE_BOTTOM if dir.y > 0.0 else SIDE_LEFT if dir.x < 0.0 else SIDE_RIGHT
+	var np := target.get_focus_neighbor(side)
+	if not np.is_empty():
+		var nb := target.get_node_or_null(np)
+		if nb is Control and _valid(nb):
+			_select({"c": nb, "r": Rect2(Vector2.ZERO, (nb as Control).size), "sc": _scroll_of(nb)})
+			return
 	var from := _tpoint()
 	var best = null
 	var bs := INF
@@ -346,6 +408,7 @@ func _pick_near(from: Vector2) -> void:
 func _select(cd: Dictionary) -> void:
 	target = cd.c
 	trect = cd.r
+	_focus_target()
 	if cd.sc != null:
 		_scroll_into(cd.sc, cd.c, cd.r)
 		_warp_wait = 2   # ScrollContainer передвинет детей к концу кадра
@@ -531,7 +594,7 @@ func _inv_hint() -> void:
 	if not l.has_meta("kb"):
 		l.set_meta("kb", l.text)
 	var t: String = PAD_HINT % [pad.spec_name("b:0"), pad.spec_name("b:2"), pad.spec_name("b:8"),
-		pad.spec_name("b:10"), pad.spec_name("b:4")] if pad_used and not by_kb else str(l.get_meta("kb"))
+		pad.spec_name("b:10"), pad.spec_name("b:4"), pad.spec_name(pad.spec_of("toggle_cursor"))] if pad_used and not by_kb else str(l.get_meta("kb"))
 	if l.text != t:
 		l.text = t
 
@@ -551,6 +614,47 @@ func _inv():
 
 # ---------- рамка и мышь ----------
 
+## Кнопке / ползунку — настоящий фокус Godot (grab_focus); у Button рамку рисует его стиль focus (_focus_sb).
+## Ячейке сетки и прочим клеткам фокус не нужен — рамку рисует _frame. Поля ввода фокусом не трогаем (иначе
+## стрелки уйдут в редактирование) — в них входят кликом (A / Enter).
+func _focus_target() -> void:
+	if not (target is BaseButton or target is Slider):
+		_unfocus()
+		return
+	if target.focus_mode == Control.FOCUS_NONE:
+		target.focus_mode = Control.FOCUS_ALL   # окна ставили FOCUS_NONE от пробела; пробел из ui_accept убран (_ready)
+	if target is Button and not target.has_theme_stylebox_override("focus"):
+		target.add_theme_stylebox_override("focus", _focus_sb())
+	if _focused != target:
+		_unfocus()
+	_focused = target
+	if not target.has_focus():
+		target.grab_focus()
+
+
+func _unfocus() -> void:
+	if _focused != null and is_instance_valid(_focused) and _focused.has_focus():
+		_focused.release_focus()
+	_focused = null
+
+
+## Стиль фокуса для всех кнопок: яркая рамка (как у рамки клеток), лёгкая заливка.
+func _focus_sb() -> StyleBoxFlat:
+	if _sb == null:
+		_sb = StyleBoxFlat.new()
+		_sb.bg_color = Color(FRAME_COL, 0.12)
+		_sb.border_color = FRAME_COL
+		_sb.set_border_width_all(3)
+		_sb.set_corner_radius_all(3)
+		_sb.set_expand_margin_all(3.0)
+	return _sb
+
+
+## Рамку активной клетки рисует сам Godot (фокус кнопки со стилем focus)?
+func _styled() -> bool:
+	return target is Button and target.has_focus() and target.get_theme_stylebox("focus") == _sb
+
+
 func _show(on: bool) -> void:
 	_frame.visible = on
 	if on:
@@ -558,7 +662,7 @@ func _show(on: bool) -> void:
 
 
 func _draw_frame() -> void:
-	if not _valid(target):
+	if not _valid(target) or _styled():
 		return
 	var r: Rect2 = (target.get_global_transform_with_canvas() * trect).grow(3.0)
 	_frame.draw_rect(r, Color(FRAME_COL, 0.12), true)

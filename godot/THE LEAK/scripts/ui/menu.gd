@@ -117,6 +117,7 @@ const CONTROLS := [
 	["hot_5", "Слот 5", ["k:53"]],
 	["toggle_fullscreen", "Полный экран", ["k:4194342"]],   # F11
 	["hide_ui", "Скрыть интерфейс", ["k:4194341"]],        # F10 (main.gd)
+	["toggle_cursor", "Курсор ↔ рамка в меню", ["k:4194333"]],   # F2 (ui/ui_nav.gd; F1 — консоль; на геймпаде Back)
 	["toggle_ping", "Скрыть/показать пинг", ["k:96"]],     # ~ (net_world.gd)
 	["chat", "Чат", ["k:84"]],                             # T (ui/chat.gd)
 	["voice", "Голосовой чат (держать)", ["k:88"]],        # X (network/voip.gd)
@@ -131,7 +132,7 @@ const CTL_GROUPS := [
 	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject", "swap_hands", "drop_mode"]],
 	["Действия", ["interact", "carry", "loot_all", "gasmask", "lean_left", "lean_right"]],
 	["Инвентарь", ["inventory", "inv_use", "hand_right", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
-	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat", "voice"]],
+	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat", "voice", "toggle_cursor"]],
 	["Машина", ["handbrake", "seat_switch", "car_lean"]],
 ]
 
