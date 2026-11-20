@@ -46,6 +46,9 @@ var mirrored := true
 var sweep_t := 0.0
 var head_paths: Array = []
 var head_paths2: Array = []
+var posts: Array = []        # [левая, правая] постобработка (линза, виньетка, размытие ударов) — у каждого своя
+var main_post: CanvasItem    # общая постобработка main.gd — в Split-Screen спрятана
+const POST_SHARED := ["levels", "brightness", "gamma", "distort", "aberration", "vignette"]   # настройки меню — общие
 var jump_down := false       # игрок 2 держит прыжок — голос за пропуск кат-сцены
 
 
@@ -144,6 +147,10 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if is_instance_valid(main_post):
+		main_post.visible = true
+	if is_instance_valid(p1) and is_instance_valid(main):
+		p1.post_mat = main.get("post_mat")
 	if inst == self:
 		inst = null
 	get_tree().root.disable_3d = false
@@ -194,6 +201,7 @@ func _build_screens() -> void:
 		svs.append(sv)
 		cams.append(c)
 	root.disable_3d = true
+	_build_posts()
 	# интерфейс игрока 2: тот же hud.gd, что у игрока 1, плюс строка «погиб / подключите геймпад»
 	hud_p2 = HudScript.new()
 	hud_p2.no_gun = true
@@ -219,6 +227,49 @@ func _build_screens() -> void:
 	info_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	info_l.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	hud2.add_child(info_l)
+
+
+## Эффект линзы у каждого свой (промпт 20.11 15:06): общая постобработка main.gd прячется, в каждой половине —
+## своя копия (CanvasLayer -1 под HUD), центр линзы и виньетка — по своей половине, размытие удара и отравление —
+## от своего игрока (player.post_mat). Настройки изображения из меню копируются с общей (_sync_posts).
+func _build_posts() -> void:
+	var mp: ShaderMaterial = main.get("post_mat")
+	if mp == null:
+		return
+	for c in main.get_children():
+		if c is CanvasLayer:
+			for r in c.get_children():
+				if r is ColorRect and r.material == mp:
+					main_post = r
+	if main_post:
+		main_post.visible = false
+	for i in 2:
+		var l := CanvasLayer.new()
+		l.layer = -1
+		svs[i].add_child(l)
+		var r := ColorRect.new()
+		r.set_anchors_preset(Control.PRESET_FULL_RECT)
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		r.material = mp.duplicate()
+		l.add_child(r)
+		posts.append(r.material)
+	p1.post_mat = posts[0]
+	_sync_posts()
+
+
+func _sync_posts() -> void:
+	var mp: ShaderMaterial = main.get("post_mat")
+	if mp == null or posts.is_empty():
+		return
+	for m in posts:
+		for k in POST_SHARED:
+			var v = mp.get_shader_parameter(k)
+			if v != null:
+				m.set_shader_parameter(k, v)
+	if is_instance_valid(pp) and pp.post_mat != posts[1]:
+		pp.post_mat = posts[1]
+	if is_instance_valid(p1) and p1.post_mat != posts[0]:
+		p1.post_mat = posts[0]
 
 
 ## Интерфейс в половинке экрана (промпт 20.11 14:53): мельче, чем на весь экран, чтобы HUD и окна
@@ -495,6 +546,7 @@ func _process(delta: float) -> void:
 		_sweep_layers()
 		_heads()
 		_fit_ui()
+		_sync_posts()
 	var root := get_tree().root
 	var src := root.get_camera_3d()
 	if src == null or not is_instance_valid(src):
