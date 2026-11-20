@@ -400,7 +400,7 @@ func _payout() -> void:
 			msg += " (СЕРИЯ ×%s)" % _mult_str(mult)
 		# выигрыш со звоном высыпается в лоток-«пасть», забирать на E (промпт 14.11 17:53)
 		_pour(win)
-		game.hud.toast("KILLBOX: +%d — монеты в лотке" % win, Color(1.0, 0.8, 0.4))
+		game.hud.toast_all("KILLBOX: +%d — монеты в лотке" % win, Color(1.0, 0.8, 0.4))   # в сплитскрине — обоим
 	if sevens or win >= 30:
 		party = 2.5
 		snd2.stream = game.snd["jingle"][0]

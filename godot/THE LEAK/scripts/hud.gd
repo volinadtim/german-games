@@ -261,6 +261,31 @@ func hurt_flash(amount := 0.75) -> void:
 	hit_edge = maxf(hit_edge, clampf(amount * 1.2, 0.5, 1.0))
 
 
+## Сообщение обоим игрокам экрана: себе и (Split-Screen) в HUD игрока 2 — без перенаправления redirect.
+func toast_all(text: String, col := Color(0.88, 0.86, 0.8), important = null) -> void:
+	var r := redirect
+	redirect = Callable()
+	toast(text, col, important)
+	redirect = r
+	if not is_inside_tree():
+		return
+	var cand: Array = []   # где искать игру с мета "split": предки HUD и корень сцены с детьми
+	var a := get_parent()
+	while a != null:
+		cand.append(a)
+		a = a.get_parent()
+	var g := get_tree().current_scene
+	if g:
+		cand.append(g)
+		cand.append_array(g.get_children())
+	for n in cand:
+		if n != null and n.has_meta("split"):
+			var sp = n.get_meta("split")
+			if is_instance_valid(sp) and sp.get("hud_p2") != null and sp.hud_p2 != self:
+				sp.hud_p2.toast(text, col, important)
+			return
+
+
 func toast(text: String, col := Color(0.88, 0.86, 0.8), important = null) -> void:
 	if redirect.is_valid():
 		var h = redirect.call()
