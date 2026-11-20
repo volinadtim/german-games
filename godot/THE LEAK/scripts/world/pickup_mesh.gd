@@ -66,6 +66,9 @@ static func _gauze_tex() -> ImageTexture:
 
 ## Узел модели и размер коробки столкновений: [Node3D, Vector3].
 static func make(id: String) -> Array:
+	var base := Items.model_of(id)   # новые предметы — модель похожего (Weapons.ALIAS); одежда без модели — свой спрайт
+	if base in WEAPON_LIKE or base in MODELS:
+		id = base
 	if id in WEAPON_LIKE:
 		var w := Items.make_mesh(id)
 		w.scale = Vector3.ONE * WEAPON_SCALE

@@ -17,7 +17,13 @@ const WEAPONS := {
 	"pistol": {"mult": 1.6, "reach": 1.15, "price": 0},     # стреляет gun.gd; это — удар рукоятью
 	"knuckles": {"mult": 1.9, "reach": 1.05, "price": 0},   # кастет — оружие, а не перчатки (промпт 20.11 14:27)
 	"stone": {"mult": 1.4, "reach": 1.05, "price": 0},      # камень в руке: бросок — stone_throw.gd, это — удар
+	# новые предметы по тирам (промпт 20.11 17:59): тир 0 — бункер
+	"wrench": {"mult": 2.3, "reach": 1.3, "price": 35},
 }
+
+## Новые предметы без своей модели берут модель/форму у похожего (промпт 20.11 17:59): id -> базовый id.
+## Иконка — поле "icon" в items.gd, цвет иконки свой.
+const ALIAS := {"wrench": "steel_hammer", "tea": "water", "cap": "ushanka", "sweater": "kurtka"}
 
 ## Удар предметом в руке; не оружие (любой предмет с пола, промпт 18.11 00:27) — чуть сильнее кулака.
 static func stats(id: String) -> Dictionary:
@@ -29,7 +35,9 @@ const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["g
 	["helmet", 45], ["jacket", 60], ["gloves", 30], ["pants", 35], ["boots", 40], ["backpack", 70],
 	# одежда на выбор (промпт 14.11 21:14), подвкладки «Одежды» — shop.gd: CLOTHES
 	["ushanka", 15], ["moto_helmet", 90], ["kurtka", 30], ["vest", 120], ["jeans", 20], ["wpants", 55],
-	["sneakers", 25], ["tac_gloves", 75]]
+	["sneakers", 25], ["tac_gloves", 75],
+	# тир 0 — бункер (промпт 20.11 17:59)
+	["wrench", 35], ["cap", 8], ["sweater", 18]]
 
 
 static func _m(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
@@ -67,6 +75,7 @@ static func _box(root: Node3D, size: Vector3, pos: Vector3, m: Material) -> Mesh
 
 static func make(id: String) -> Node3D:
 	var root := Node3D.new()
+	id = String(ALIAS.get(id, id))
 	match id:
 		"bat":
 			var wood := _m(Color(0.55, 0.38, 0.22))

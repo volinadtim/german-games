@@ -150,6 +150,18 @@ const ITEMS := {
 	# бензин для машины — в деревне (village.gd); E у машины — залить, полный бак
 	"fuel": {"name": "Канистра бензина", "desc": "Помятая канистра с бензином. Подойди к машине — [F] залить, полный бак.", "stack": 2,
 		"icon": "fuel", "color": Color(0.62, 0.12, 0.08)},
+	# ---- новые предметы по тирам (промпт 20.11 17:59): тир магазина — shop_model.gd: TIER, модель — Weapons.ALIAS ----
+	# тир 0 — бункер
+	"tea": {"name": "Термос с чаем", "desc": "Напиток: +20% к скорости на 45 с. 2 кружки.", "stack": 1,
+		"icon": "water", "color": Color(0.42, 0.5, 0.36), "buff": "speed", "power": 0.20, "time": 45.0, "uses": true, "dur": 2},
+	"pills": {"name": "Таблетки", "desc": "Обезболивающее: каждая восстанавливает 10 здоровья. 3 штуки в баночке.", "stack": 1,
+		"icon": "pills", "color": Color(0.75, 0.42, 0.12), "heal": 10.0, "uses": true, "dur": 3},
+	"cap": {"name": "Кепка", "desc": "Голова: −2% урона. Почти ничего, зато дёшево. Изнашивается от ударов.", "stack": 1,
+		"icon": "ushanka", "color": Color(0.5, 0.2, 0.16), "equip": "head", "armor": 0.02, "dur": 30},
+	"sweater": {"name": "Свитер", "desc": "Тело: −5% урона. Колючий, вязаный. Изнашивается от ударов.", "stack": 1,
+		"icon": "kurtka", "color": Color(0.45, 0.36, 0.3), "equip": "body", "armor": 0.05, "dur": 50},
+	"wrench": {"name": "Гаечный ключ", "desc": "Тяжёлый разводной ключ. Урон ×2.3.", "stack": 1,
+		"icon": "steel_hammer", "color": Color(0.5, 0.55, 0.6), "weapon": true, "dur": 45},
 }
 
 
@@ -175,6 +187,7 @@ const SIZES := {
 	"jacket": [2, 2], "kurtka": [2, 2], "vest": [2, 2],
 	"pants": [2, 2], "rag_pants": [2, 2], "jeans": [2, 2], "wpants": [2, 2],
 	"boots": [2, 2], "sneakers": [2, 1],
+	"tea": [1, 2], "cap": [2, 1], "sweater": [2, 2], "wrench": [1, 2],
 }
 
 ## Отдельные ячейки хранения у одежды (промпт 16.11 02:42): [ширина, высота] блока карманов.
@@ -193,6 +206,11 @@ static func tool_ids(tid: String) -> Array:
 			out.append(id)
 	out.append(tid)
 	return out
+
+
+## Чью 3D-модель берёт предмет: свой id или базовый из Weapons.ALIAS (новые предметы без своей модели).
+static func model_of(id: String) -> String:
+	return String(Weapons.ALIAS.get(id, id))
 
 
 static func size_of(id: String) -> Vector2i:
@@ -652,6 +670,8 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
 static func make_mesh(id: String) -> Node3D:
+	var own_col: Color = ITEMS[id]["color"] if ITEMS.has(id) else Color.WHITE
+	id = model_of(id)
 	# армейские версии (деревня) — те же модели, что у обычных
 	if id == "gasmask2":
 		id = "gasmask"
@@ -666,7 +686,7 @@ static func make_mesh(id: String) -> Node3D:
 			w.rotation.x = -PI / 2
 			w.position = Vector3(-0.065, 0.014, 0.065)
 		return w
-	var col: Color = ITEMS[id]["color"] if ITEMS.has(id) else Color.WHITE
+	var col: Color = own_col
 	var mi := MeshInstance3D.new()
 	var m := StandardMaterial3D.new()
 	m.albedo_color = col

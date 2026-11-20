@@ -20,8 +20,8 @@ var content: VBoxContainer    # содержимое вкладки — пере
 const TABS := ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"]
 ## подвкладки «Расходников» во всех магазинах (промпт 16.11 02:57); цены — CONSUMABLES
 const CONS_SUBS := [
-	["Пропитание", ["water", "soda", "choco", "canned"]],
-	["Медицина", ["bandage", "medkit"]],
+	["Пропитание", ["water", "tea", "soda", "choco", "canned"]],
+	["Медицина", ["pills", "bandage", "medkit"]],
 	["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]],
 	["Патроны", ["ammo", "mag"]],   # только в деревне (TIER1_HIDE), промпт 20.11 14:27
 ]
@@ -37,27 +37,34 @@ const GUN_SHOP := [["pistol", 320]]   # пистолет без магазина
 const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55]]
 ## расходники: [id, цена] (промпты 20.11 14:22, 14:27; аптечка — 4 применения, вода/газировка/тушёнка — по нескольку)
 const CONSUMABLES := [["battery", 3], ["water", 10], ["soda", 30], ["choco", 15], ["canned", 50],
-	["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80]]
+	["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80],
+	["tea", 18], ["pills", 15]]   # тир 0 (промпт 20.11 17:59)
 ## подвкладки «Одежды» (промпт 14.11 21:14): [название, товары]. Цены — Weapons.SHOP / CONSUMABLES (_price).
 ## Обувь — отдельная подвкладка «Ботинки»; ремкомплект одежды — в «Расходниках»; фонарик и метла — в «Инструментах»
 ## (промпт 16.11 02:42). «Снаряжение» — последняя (CLOTHES[-1]).
 const CLOTHES := [
-	["Голова", ["ushanka", "helmet", "moto_helmet"]],
-	["Верх", ["kurtka", "jacket", "vest"]],
+	["Голова", ["cap", "ushanka", "helmet", "moto_helmet"]],
+	["Верх", ["sweater", "kurtka", "jacket", "vest"]],
 	["Низ", ["jeans", "pants", "wpants"]],
 	["Ботинки", ["sneakers", "boots"]],
 	["Перчатки", ["gloves", "tac_gloves"]],
 	["Снаряжение", ["gasmask", "filter", "backpack"]],
 ]
 var sub := 0                  # открытая подвкладка «Одежды» (CLOTHES)
-## магазин первого тира (бункер): без аптечек, тушёнки, газировки и лучшей одежды — они только в деревне (промпт 16.11 03:13)
-const TIER1_HIDE := ["medkit", "canned", "soda", "moto_helmet", "vest", "wpants", "tac_gloves", "crowbar", "machete",
-	"pistol", "ammo", "mag"]   # + монтировка и мачете (промпт 16.11 04:35)
+## Тир товара (промпт 20.11 17:59): 0 — бункер (пролог), 1 — деревня, 2 — следующая локация (пока нигде не продаётся).
+## Нет в списке — тир 0. Тир 1 — аптечки, тушёнка, газировка, лучшая одежда, монтировка, мачете, огнестрел (промпты 16.11 03:13, 04:35).
+const TIER := {"medkit": 1, "canned": 1, "soda": 1, "moto_helmet": 1, "vest": 1, "wpants": 1, "tac_gloves": 1,
+	"crowbar": 1, "machete": 1, "pistol": 1, "ammo": 1, "mag": 1}
 
 
-## Товар есть в этом магазине: в бункере (не village_shop.gd) — без TIER1_HIDE.
+## Тир этого магазина: бункер — 0, деревня (village_shop.gd) — 1.
+func shop_tier() -> int:
+	return 1 if "main_shop" in self else 0
+
+
+## Товар есть в этом магазине: его тир не выше тира магазина.
 func sells(id: String) -> bool:
-	return "main_shop" in self or not id in TIER1_HIDE
+	return int(TIER.get(id, 0)) <= shop_tier()
 
 
 const CHEST_REFRESH := 80   # «Обновить все ящики»
