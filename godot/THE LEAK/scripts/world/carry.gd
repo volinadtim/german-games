@@ -14,6 +14,8 @@ var held_layer := 1
 var held_mask := 1
 var yaw_off := 0.0
 var moved := {}           # ключ -> [x, y, z, rot_y]
+var who: Node3D = null    # Split-Screen (network/split.gd): перенос игрока 2 — его player.gd; B жмёт split.gd
+var share: Node = null    # ...и новые места пишет в перенос игрока 1 (он в сейве)
 ## Проверка места (промпт 16.11 04:28): нельзя ставить внутрь стен, пола, других объектов и игроков.
 const FIT_TOL := 0.04     # допуск: формы сжимаются на столько с каждой стороны
 const FIT_LIFT := 0.02    # и чуть приподнимаются — чтобы пол под объектом не считался пересечением
@@ -72,10 +74,23 @@ func hint(target: Object) -> String:
 	return "[B] Взять в руки" if key_of(target) != "" else ""
 
 
+## Чей перенос: игрок 2 в Split-Screen (who) или игрок 1.
+func _pl():
+	return who if who != null else game.player
+
+
+## B: взять / поставить (split.gd зовёт для игрока 2 от его лица).
+func toggle() -> void:
+	if held:
+		_drop()
+	else:
+		_pick()
+
+
 func _unhandled_input(e: InputEvent) -> void:
-	if not e.is_action_pressed("carry") or e.is_echo():
+	if who != null or not e.is_action_pressed("carry") or e.is_echo():
 		return
-	if game == null or not game.alive or game.player == null or not game.player.active or game.window_open():
+	if game == null or not game.alive or _pl() == null or not _pl().active or game.window_open():
 		return
 	get_viewport().set_input_as_handled()
 	if held:
@@ -85,11 +100,11 @@ func _unhandled_input(e: InputEvent) -> void:
 
 
 func _aim() -> Object:
-	var cam: Camera3D = game.player.cam
+	var cam: Camera3D = _pl().cam
 	var from := cam.global_position
 	var q := PhysicsRayQueryParameters3D.create(from, from - cam.global_transform.basis.z * REACH)
 	q.collision_mask = 1
-	q.exclude = [game.player.get_rid()]
+	q.exclude = [_pl().get_rid()]
 	var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(q)
 	return hit.collider if hit else null
 
@@ -106,14 +121,14 @@ func _pick() -> void:
 		held_mask = (held as CollisionObject3D).collision_mask
 		(held as CollisionObject3D).collision_layer = 0
 		(held as CollisionObject3D).collision_mask = 0
-	yaw_off = held.global_rotation.y - game.player.global_rotation.y
-	game.player.carrying = true
+	yaw_off = held.global_rotation.y - _pl().global_rotation.y
+	_pl().carrying = true
 	game.play_ui("pickup", -17.0, 0.8)   # мягкий шорох, без гула (промпт 16.11 00:20)
 	game.hud.toast("Несёшь: B — поставить", Color(0.85, 0.85, 0.75))
 
 
 func _hold_pos() -> Vector3:
-	var p: Node3D = game.player
+	var p: Node3D = _pl()
 	var fwd := -p.global_transform.basis.z
 	fwd.y = 0.0
 	fwd = fwd.normalized()
@@ -132,12 +147,12 @@ func _hold_pos() -> Vector3:
 func _process(_delta: float) -> void:
 	if held == null:
 		return
-	if not is_instance_valid(held) or not game.alive:
+	if not is_instance_valid(held) or (who == null and not game.alive):
 		_release()
 		return
 	var p := _hold_pos()
-	held.global_position = Vector3(p.x, game.player.global_position.y + HOLD_LIFT, p.z)
-	held.global_rotation.y = game.player.global_rotation.y + yaw_off
+	held.global_position = Vector3(p.x, _pl().global_position.y + HOLD_LIFT, p.z)
+	held.global_rotation.y = _pl().global_rotation.y + yaw_off
 	blocked = is_blocked(held, Transform3D(Basis(Vector3.UP, held.global_rotation.y), _drop_pos()))
 	_overlay(_ov_red if blocked else _ov_green)
 
@@ -145,10 +160,10 @@ func _process(_delta: float) -> void:
 ## Куда встанет объект, если отпустить: под точкой удержания на полу.
 func _drop_pos() -> Vector3:
 	var p := _hold_pos()
-	var y: float = game.player.global_position.y
+	var y: float = _pl().global_position.y
 	var q := PhysicsRayQueryParameters3D.create(Vector3(p.x, y + 1.0, p.z), Vector3(p.x, y - 2.0, p.z))
 	q.collision_mask = 1
-	q.exclude = [game.player.get_rid()]
+	q.exclude = [_pl().get_rid()]
 	var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(q)
 	if hit:
 		y = hit.position.y
@@ -258,7 +273,7 @@ func _drop() -> void:
 		return
 	held.global_position = p
 	var key := key_of(held)
-	moved[key] = [held.global_position.x, held.global_position.y, held.global_position.z, held.global_rotation.y]
+	(share if share != null else self).moved[key] = [held.global_position.x, held.global_position.y, held.global_position.z, held.global_rotation.y]
 	game.play_ui("thud", -23.0, 1.8)    # тихий высокий стук — низкий гул давил на уши
 	_release()
 
@@ -272,8 +287,8 @@ func _release() -> void:
 		(held as CollisionObject3D).collision_layer = held_layer
 		(held as CollisionObject3D).collision_mask = held_mask
 	held = null
-	if game.player:
-		game.player.carrying = false
+	if _pl():
+		_pl().carrying = false
 
 
 func to_save() -> Dictionary:

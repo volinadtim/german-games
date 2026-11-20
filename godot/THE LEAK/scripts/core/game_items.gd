@@ -7,7 +7,10 @@ extends "res://scripts/core/game_world.gd"
 ## Попадание по врагу/ящику/кувшину (не манекену): изнашивается оружие в бьющей руке (player.last_arm).
 func weapon_hit() -> void:
 	if Fx.by != null and is_instance_valid(Fx.by) and Fx.by != player:
-		return   # Split-Screen: бил игрок 2 — оружие игрока 1 не изнашивается
+		var sp = get_meta("split", null)
+		if sp != null and Fx.by == sp.pp:
+			sp._as_p2(weapon_hit)   # Split-Screen: бил игрок 2 — изнашивается его оружие
+		return
 	if player == null or player.last_arm < 0:
 		return
 	var sl := "left" if player.last_arm == 0 else "right"

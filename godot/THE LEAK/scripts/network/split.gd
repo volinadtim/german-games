@@ -45,6 +45,9 @@ var screens: CanvasLayer
 var hud2: Control
 var hud_p2                   # hud.gd игрока 2 — тот же интерфейс, что у игрока 1
 var inv2                     # inventory.gd игрока 2 — своя сумка, монеты, экипировка, хотбар
+var carry2                   # world/carry.gd игрока 2 — перенос на B
+var takedown2                # world/takedown.gd игрока 2 — удар в спину
+var wheel2                   # ui/pad_wheel.gd игрока 2 — круговое меню хотбара
 var info_l: Label
 var tgt: Target2
 
@@ -404,6 +407,10 @@ func _as_p2(f: Callable) -> void:
 	var h0 = game.hud
 	var hp0: float = game.hp
 	var a0: bool = game.alive
+	var c0 = game.carry
+	var t0 = game.takedown
+	game.carry = carry2
+	game.takedown = takedown2
 	game.player = pp
 	game.focus = focus2
 	game.inv = inv2
@@ -423,6 +430,8 @@ func _as_p2(f: Callable) -> void:
 	game.hud = h0
 	game.hp = hp0
 	game.alive = a0
+	game.carry = c0
+	game.takedown = t0
 
 
 ## P2Box: событие для правой половины. Пока окно игрока 2 открыто — его геймпад и курсор, код окна — от его лица.
@@ -449,16 +458,9 @@ func _toast_to():
 
 
 func _p2_focus() -> void:
-	var c = game.carry
-	var td = game.get("takedown")
-	game.carry = null      # переносить (B) игрок 2 пока не умеет — без подсказки
-	game.takedown = null   # удар в спину помнит одну цель (world/takedown.gd) — пока только у игрока 1
 	prompt2 = game.update_focus(true)
-	game.carry = c
-	game.takedown = td
-	var sc = focus2.get_script() if focus2 != null and is_instance_valid(focus2) else null
-	if sc and sc.resource_path.ends_with("car.gd"):
-		focus2 = null   # машина — пока только игрок 1 (места и руль завязаны на него)
+	if focus2 != null and is_instance_valid(focus2) and focus2.has_method("seats_now") and focus2.seats_now(game):
+		focus2 = null   # сесть в машину — только игрок 1 (места и руль его), игрок 2 едет с ним; ключ, бак, багажник — оба
 		prompt2 = ""
 
 
@@ -543,6 +545,19 @@ func _spawn_p2() -> void:
 	tgt.player = pp
 	tgt.split = self
 	_make_inv2()
+	carry2 = preload("res://scripts/world/carry.gd").new()
+	carry2.game = game
+	carry2.who = pp
+	carry2.share = game.carry
+	add_child(carry2)
+	takedown2 = preload("res://scripts/world/takedown.gd").new()
+	takedown2.game = game
+	add_child(takedown2)
+	wheel2 = preload("res://scripts/ui/pad_wheel.gd").new()
+	wheel2.pad = main.menu.pad if main.get("menu") else null
+	wheel2.inv_src = inv2
+	wheel2.on_pick = func(k: int, right: bool): _as_p2(game.hotbar_use_hand.bind(k, "right" if right else "left"))
+	svs[1].add_child(wheel2)
 
 
 ## Свой инвентарь игрока 2 — тот же inventory.gd, сигналы — в те же функции game.gd, но от его лица (_as_p2).
@@ -606,6 +621,9 @@ func damage2(amount: float, _from: Vector3) -> void:
 		pp.visible = false
 		pp.collision_layer = 0
 		pp.charging = -1
+		if carry2 and carry2.held:
+			carry2._release()
+		wheel2.close()
 
 
 func _respawn() -> void:
@@ -676,13 +694,25 @@ func _act2(a: String, pressed: bool) -> void:
 		return
 	if not pressed:
 		pi.press(a, false)
+		if a == "hot_wheel" and wheel2.is_open:
+			wheel2.release()   # отпустил ← — выбранное в левую руку
+			return
 		if a == "attack_left" or a == "attack_right":
 			pp.charge_release(0 if a == "attack_left" else 1)
 		return
 	if not alive or mirrored or get_tree().paused or ui_p2:
 		return
+	if wheel2.is_open and (a == "attack_left" or a == "attack_right"):
+		wheel2.pick(a == "attack_right")   # LT — в левую, RT — в правую
+		return
 	if a == "interact" or a == "inventory":
 		_p2_action(a)
+		return
+	if a == "hot_wheel" and not game.window_open():
+		wheel2.open("p2", _dev())
+		return
+	if a == "carry" and not game.window_open() and pp.active:
+		_as_p2(carry2.toggle)
 		return
 	if a.begins_with("hot_") and not game.window_open():
 		_as_p2(game.hotbar_use_hand.bind(int(a.substr(4)) - 1, "right" if pi.is_action_pressed(&"hand_right") else "left"))
@@ -730,6 +760,9 @@ func _physics_process(delta: float) -> void:
 	if mv.length() < 0.05:
 		pi.sprint_latch = false
 	var sens: float = (pad.sens if pad else 1.0) * PlayerScript.look_sens
+	if wheel2.is_open:
+		wheel2.aim(lk)   # круговое меню: правый стик выбирает слот, обзор стоит
+		return
 	if pad and pad.invert_y:
 		lk.y = -lk.y
 	lk = lk * lk.length()

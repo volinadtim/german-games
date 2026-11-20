@@ -99,6 +99,14 @@ func get_prompt(g) -> String:
 	return ("[F] Сесть за руль" if s == 0 else "[F] Сесть в машину") + note
 
 
+## Взаимодействие сейчас — посадка в машину (Split-Screen: игрок 2 не садится — едет вместе с игроком 1).
+func seats_now(g) -> bool:
+	if state != "parked" or my_seat >= 0:
+		return false
+	var zone := aim_zone()
+	return not (zone == "fuel" and escaped) and not (at_trunk(g) and zone != "hood") 		and not (can_repair(g) and hammer_id() != "")
+
+
 func interact(g) -> void:
 	if state == "idle":
 		if g.inv.count("car_key") <= 0:

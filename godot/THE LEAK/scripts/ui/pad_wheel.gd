@@ -15,6 +15,8 @@ var key := ""               # кнопка, которой открыли ("b:13
 var dev := 0
 var sel := -1
 var _ui: Control
+var inv_src = null          # Split-Screen (network/split.gd): круг игрока 2 — его инвентарь
+var on_pick := Callable()   # ...и выбор слота (номер, в правую руку) — его хотбар вместо нажатий hot_N
 
 
 func _ready() -> void:
@@ -46,17 +48,24 @@ func close() -> void:
 ## Отпустили ← — выбранный слот в левую руку.
 func release() -> void:
 	if sel >= 0:
-		pad._tap("hot_%d" % (sel + 1), dev)
+		_choose(false)
 	close()
 
 
 ## Курок при открытом меню: right — в правую руку (RT), иначе в левую (LT).
 func pick(right: bool) -> void:
 	if sel >= 0:
-		if right:
-			pad._tap("hand_right", dev)
-		pad._tap("hot_%d" % (sel + 1), dev)
+		_choose(right)
 	close()
+
+
+func _choose(right: bool) -> void:
+	if on_pick.is_valid():
+		on_pick.call(sel, right)
+		return
+	if right:
+		pad._tap("hand_right", dev)
+	pad._tap("hot_%d" % (sel + 1), dev)
 
 
 ## Правый стик: направление выбирает слот (центр — выбор остаётся).
@@ -79,6 +88,8 @@ func _process(_d: float) -> void:
 
 
 func _inv():
+	if inv_src != null:
+		return inv_src
 	for c in get_tree().root.get_children():
 		for n in c.get_children():
 			if n.has_method("save_now") and n.get("inv") != null:
