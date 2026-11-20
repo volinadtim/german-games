@@ -1,4 +1,4 @@
-# Правила для агентов, которые правят eskiNess
+# Правила для агентов, которые правят THE LEAK (папка godot/THE LEAK)
 
 Бриф агента короткий и ссылается сюда. Всё ниже — обязательно.
 
@@ -6,14 +6,14 @@
 - Воркеру диспетчера `git pull` не нужен — worktree уже обновлён. В сессии приложения: `git pull -q --rebase origin main`. Отправка — только `scripts/ship.sh "сообщение" [файлы]` (коммит + rebase + push, печатает одну строку). Без PR и веток.
 - Коммит короткий, по-русски (строку Co-Authored-By добавляет `ship.sh`).
 - `.godot/` не коммитить; `*.uid` и `*.import` — коммитить. Временные файлы (`zz_*`, тестовые сцены) не коммитить.
-- Единственная проверка: `scripts/gd-check.sh` (печатает OK или только ошибки; `--import` — после новых ассетов). Godot напрямую не запускать — он выводит десятки килобайт шума.
+- Проверка: `scripts/gd-check.sh` (печатает OK или только ошибки; `--import` — после новых ассетов; её же запускает `ship.sh`). После правок в управлении, данных, сценах или сразу в нескольких зонах — ещё `scripts/smoke.sh --compare` (без окна, ~15 с: все локации, пол под игроком, окна, сплитскрин, управление, F8; сверка с `tests/baseline.json`). Godot напрямую не запускать — он выводит десятки килобайт шума.
 - **Где что лежит — сначала карта:** `grep -n -i "<слово>" godot/THE LEAK/CODEMAP.md` (строки вида `scripts/car/car_drive.gd:1077 at_trunk(g) — описание`), потом Read только нужного куска (offset/limit). Нет карты — `python scripts/codemap.py`. Большие `.gd` целиком не читать, `ls`/`wc -l` для поиска не нужны.
 - Новой функции — строка `## что делает` над ней (из неё строится карта).
 - Любой длинный вывод режь: `| tail -20`, `| head -40`.
 
 ## Чего НЕ делать
-- **Никаких скриншотов, тестовых скриптов, симуляций и прогонов игры.** Тестирует Герман сам.
-- Не трогать сейвы игрока (`user://save_1..3.json`, `settings.cfg`).
+- **Никаких скриншотов, своих тестовых скриптов, симуляций и прогонов игры** (кроме `gd-check.sh` и `smoke.sh`). Тестирует Герман сам.
+- Не трогать сейвы игрока (`user://save_1..3.json`, `user://saves/`, `settings.cfg`, `controls.cfg`); старые сейвы должны грузиться.
 - Не скачивать файлы и шрифты из интернета, не менять системные настройки.
 - В чужих файлах — только минимальные правки (хук, пара строк), аккуратно с rebase.
 
@@ -22,24 +22,45 @@
 - Меньше шагов: поиск по карте одной командой, все нужные куски одним сообщением (несколько Read), все правки одним сообщением, проверка+коммит — одним `ship.sh` (gd-check внутри).
 - Ответ основной сессии — **1–2 строки**: хеш коммита и что не проверено. Без пересказа.
 
-## Кто за что отвечает (файлы)
-Пути от `scripts/`. Крупные скрипты разбиты цепочкой наследования: `x.gd extends "x_часть.gd" extends …` — главный файл (`x.gd`, его грузят preload/сцены) наследует части; переменные/константы — в самой нижней части. Новую функцию кладём в часть по смыслу; часть может вызывать только свои и нижележащие функции.
-Папки: `locations/` — места (bunker, village, lake, city), `slot/` — все игровые автоматы, `shop/` — все магазины, `items/` — предметы и инвентарь, `weapons/` — оружие, `ui/` — окна и меню, `enemy/` — враги и мутанты, `world/` — предметы мира, `player/`, `car/`, `network/`, `systems/`, `core/`.
-| Зона | Файлы |
+## Три правила архитектуры (обязательно)
+1. **Кнопки — только в `data/controls/bindings.cfg`.** В коде нет `KEY_*`/`JOY_*` и `InputMap.add_action`: ввод спрашиваем только через
+   autoload `Controls` — `Controls.pressed(игрок, "jump")`, `Controls.just_pressed(...)`, `Controls.vector(...)`,
+   `Controls.event(e, "interact")` в `_input`. Новое действие — секция в `bindings.cfg` (label, group, keys, pad, modes, hint).
+   Подсказка игроку — `"{interact} — открыть"` (или старое `"[F]"`) через `hud.prompt` / `Controls.hint()`: кнопка подставится
+   под текущий ввод (клавиатура / Xbox / DualSense) и с переназначением игрока. Окно или слой ввода — `Controls.mode_on("inventory", self)`.
+   Исключения (слой устройств): `scripts/controls/*`, `scripts/network/split.gd` (геймпад игрока 2), страницы переназначения кнопок.
+2. **Настраиваемые числа — только в данных `data/`.** Баланс, цены, шансы, урон, скорости, тексты предметов — в `.tres`;
+   скрипт читает `static var X: float = _D_<ИМЯ>.v("X")` (таблица — `scripts/data/data_table.gd`, Configuration Object;
+   предмет — `data/items/<id>.tres`, `scripts/data/item_type.gd`, Type Object). Новое число — ключ в нужной таблице, не `const` в коде.
+3. **Расстановка — только в сценах `scenes/`.** Где стоит объект — метка в `scenes/locations/<место>.tscn`
+   (`scripts/world/prop_spot.gd`, превью модели видно в редакторе); код берёт `Places.pos/yaw/points/spots("место", "Метка")`
+   (`scripts/world/places.gd`). Объект — заготовка `scenes/props/<объект>.tscn`, создаётся `preload(...).instantiate()`.
+   Новый объект на карте — метка в сцене места, а не `Vector3(...)` в коде. Превью пересобирает `scripts/bake-places.sh`
+   (сцены мест он не перезаписывает, только дописывает недостающие метки).
+
+## Кто за что отвечает (зоны = папки)
+Зона — это папка; правим в своей папке, в чужих — только минимальные хуки. Пути от `godot/THE LEAK/`.
+| Зона | Папки и главные файлы |
 |---|---|
-| Автоматы: KILLBOX (бункер), CASHY BOX (деревня), КЛЁВ (озеро), РАДИАЦИЯ (город), тумблер быстрых круток | `slot/slot_machine.gd` ← `slot_machine_board.gd` ← `slot_machine_model.gd` ← `slot_machine_base.gd`, `slot/slot_symbols.gd`, `slot/slot_net.gd`, `slot/bonus_slot.gd`, `slot/lake_slot.gd`, `slot/city_slot.gd`, `slot/fast_switch.gd` |
-| Магазины Trinkets Market (бункер, деревня, озеро, город) | `shop/shop.gd` ← `shop_ui.gd` ← `shop_model.gd`; `shop/village_shop.gd` ← `shop.gd`; `shop/lake_shop.gd`, `shop/city_shop.gd` ← `village_shop.gd` |
-| Инвентарь, предметы, крафт | `items/items.gd`, `items/inventory.gd`, `world/stone_pile.gd`, `player/gasmask.gd`, `player/flashlight.gd` |
-| Оружие: пистолет, ближний бой, камни | `weapons/gun.gd`, `weapons/weapons.gd`, `weapons/stone_throw.gd` |
-| HUD, окна лута и продажи | `ui/hud.gd`, `ui/loot_window.gd`, `ui/sell_window.gd` |
-| Игрок, бой | `player/player.gd` ← `player_combat.gd` ← `player_anim.gd` ← `player_model.gd` ← `player_base.gd` |
-| Враги, мутанты | `enemy/enemy.gd` ← `enemy_combat.gd` ← `enemy_nav.gd` ← `enemy_model.gd` ← `enemy_base.gd`; `enemy/mutant.gd` ← `mutant_base.gd` |
-| Меню, управление, подбор, модели лута, графика | `ui/menu.gd`, `ui/touch_controls.gd`, `ui/icon_button.gd`, `world/pickup.gd`, `world/pickup_mesh.gd`, `core/graphics.gd` |
-| Сеть | `network/net.gd` ← `net_session.gd` ← `net_world.gd` ← `net_objects.gd` ← `net_base.gd`, `network/net_lobby.gd` |
-| Бункер (1-я локация): уровень, свет, атмосфера, поляна, дом | `locations/bunker/level.gd` ← `level_decor.gd` ← `level_geometry.gd`; `locations/bunker/atmosphere.gd` ← `atmosphere_assets.gd`; `locations/bunker/surface.gd` ← `surface_build.gd`; `locations/bunker/flicker_light.gd`, `glass_floor.gd`, `tape_spot.gd`, `bunker_home.gd` (дом, чертежи) |
-| Машина (кат-сцена, места, двери, вождение, бензин) | `car/car.gd` ← `car_drive.gd` ← `car_model.gd` |
-| Деревня — 2-я локация (дорога, дома, подвал, задание, забор), сеть машины/деревни | `locations/village/village.gd` ← `village_build.gd`; `locations/village/old_fence.gd`; `locations/village/village_net.gd` (/root/VillageNet) |
-| Лагерь у озера — 3-я локация (тайники, стройка, погружение) | `locations/lake/lake_camp.gd`, `lake_base.gd`, `lake_spot.gd`, `lake_dive.gd` |
-| Город — 4-я локация | `locations/city/city.gd` |
-| Мир: ящики, кувшины, манекен, перенос, постройки | `world/chest.gd`, `world/jar.gd` ← `jar_model.gd`, `world/dummy.gd`, `world/carry.gd` (перенос на B), `world/build_kit.gd` |
-| Общие (правки осторожно) | `core/game.gd` ← `game_save.gd` ← `game_items.gd` ← `game_world.gd` ← `game_base.gd`; `core/main.gd`, `core/sfx.gd`, `core/sfx_extra.gd`, `core/fx.gd`, `core/ambience.gd`, `systems/save.gd` |
+| **Управление** | `scripts/controls/` (`controls.gd` — фасад, `bindings.gd` — таблица, `modes.gd` — стек режимов, `router.gd` — устройства по игрокам и Steam Input, `glyphs.gd` — имена кнопок, `gamepad.gd` — кнопки геймпада, `ui_nav.gd` — рамка в меню, `key_hint.gd` — подписи), `data/controls/bindings.cfg`; страницы настроек — `scripts/ui/menu.gd` (клавиатура), `scripts/ui/gamepad_page.gd` |
+| **Данные** | `data/` (`balance/` — игрок, рывок, подкат, игра, уровни, перки, машина; `weapons/`; `enemies/`; `slots/` — KILLBOX, CASHY BOX, КЛЁВ, РАДИАЦИЯ, символы; `shops/`; `items/`; `settings/` — настройки по умолчанию), `scripts/data/` |
+| **Сцены** | `scenes/locations/` (bunker, village, lake, city — метки расстановки; `preview/` — снимки для редактора), `scenes/props/` (заготовки), `scripts/world/places.gd`, `scripts/world/prop_spot.gd`, `tests/tools/bake_places.gd` |
+| Проверка и отчёты | `tests/smoke.gd` + `scripts/smoke.sh` (снимок `tests/baseline.json`), `scripts/systems/bug_report.gd` (F8, `/where`, подсказка про Steam Input) |
+| Автоматы | `scripts/slot/` (KILLBOX: `slot_machine.gd` ← `slot_machine_board.gd` ← `slot_machine_model.gd` ← `slot_machine_base.gd`; CASHY BOX `bonus_slot.gd`, КЛЁВ `lake_slot.gd`, РАДИАЦИЯ `city_slot.gd`, `slot_symbols.gd`, `slot_net.gd`, `fast_switch.gd`); числа — `data/slots/` |
+| Магазины | `scripts/shop/` (`shop.gd` ← `shop_ui.gd` ← `shop_model.gd`; `village_shop.gd`, `lake_shop.gd`, `city_shop.gd`); ассортимент и цены — `data/shops/shops.tres` |
+| Предметы, инвентарь, крафт | `scripts/items/` (`items.gd`, `inventory.gd`), `scripts/player/gasmask.gd`, `flashlight.gd`, `scripts/world/stone_pile.gd`; предметы — `data/items/` |
+| Оружие | `scripts/weapons/` (`gun.gd`, `weapons.gd`, `stone_throw.gd`); числа — `data/weapons/` |
+| Интерфейс | `scripts/ui/` (`hud.gd`, `loot_window.gd`, `sell_window.gd`, `menu.gd`, `touch_controls.gd`, `icon_button.gd`, `sketch_map.gd`, `console.gd`, `chat.gd`), `scripts/core/graphics.gd` |
+| Игрок | `scripts/player/` (`player.gd` ← `player_combat.gd` ← `player_anim.gd` ← `player_model.gd` ← `player_base.gd`, `dash.gd`, `slide.gd`); числа — `data/balance/player.tres`, `dash.tres`, `slide.tres` |
+| Враги | `scripts/enemy/` (`enemy.gd` ← `enemy_combat.gd` ← `enemy_nav.gd` ← `enemy_model.gd` ← `enemy_base.gd`; `mutant.gd` ← `mutant_base.gd`); числа — `data/enemies/` |
+| Сеть | `scripts/network/` (`net.gd` ← `net_session.gd` ← `net_world.gd` ← `net_objects.gd` ← `net_base.gd`, `net_lobby.gd`, `split.gd` — сплитскрин, `voip.gd`) |
+| Бункер (1-я локация) | `scripts/locations/bunker/` (`level.gd` ← `level_decor.gd` ← `level_geometry.gd`, `atmosphere.gd`, `surface.gd` ← `surface_build.gd`, `bunker_home.gd`…); места — `scenes/locations/bunker.tscn` |
+| Машина | `scripts/car/` (`car.gd` ← `car_drive.gd` ← `car_model.gd`); числа — `data/balance/car.tres` |
+| Деревня (2-я) | `scripts/locations/village/` (`village.gd` ← `village_build.gd`, `old_fence.gd`, `village_net.gd`); места — `scenes/locations/village.tscn` |
+| Лагерь у озера (3-я) | `scripts/locations/lake/` (`lake_camp.gd`, `lake_base.gd`, `lake_spot.gd`, `lake_dive.gd`); места — `scenes/locations/lake.tscn` |
+| Город (4-я) | `scripts/locations/city/city.gd`; места — `scenes/locations/city.tscn` |
+| Мир: ящики, кувшины, манекен, перенос | `scripts/world/` (`chest.gd`, `jar.gd` ← `jar_model.gd`, `dummy.gd`, `carry.gd`, `build_kit.gd`, `pickup.gd`, `pickup_mesh.gd`, `wood_source.gd`) |
+| Общие (правки осторожно) | `scripts/core/` (`game.gd` ← `game_save.gd` ← `game_items.gd` ← `game_world.gd` ← `game_base.gd`; `main.gd`, `sfx.gd`, `fx.gd`, `ambience.gd`), `scripts/systems/` (`save.gd`, `skills.gd`, `levels.gd`, `perks.gd`, `revive.gd`) |
+
+Крупные скрипты разбиты цепочкой наследования: `x.gd extends "x_часть.gd" extends …` — главный файл (`x.gd`) наследует части;
+переменные/константы — в самой нижней части. Новую функцию кладём в часть по смыслу; часть может вызывать только свои и нижележащие функции.
