@@ -20,10 +20,10 @@ var content: VBoxContainer    # содержимое вкладки — пере
 const TABS := ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"]
 ## подвкладки «Расходников» во всех магазинах (промпт 16.11 02:57); цены — CONSUMABLES
 const CONS_SUBS := [
-	["Пропитание", ["water", "tea", "soda", "choco", "canned"]],
-	["Медицина", ["pills", "bandage", "medkit"]],
+	["Пропитание", ["water", "tea", "soda", "energy", "choco", "canned", "ration"]],
+	["Медицина", ["pills", "bandage", "medkit", "medkit_army"]],
 	["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]],
-	["Патроны", ["ammo", "mag"]],   # только в деревне (TIER1_HIDE), промпт 20.11 14:27
+	["Патроны", ["ammo", "ammo_box", "mag"]],   # только в деревне (TIER1_HIDE), промпт 20.11 14:27
 ]
 var sub_c := 0                # открытая подвкладка «Расходников»
 ## вкладка «Оружие» (промпт 20.11 14:27): огнестрел (только в деревне) и холодное оружие из Weapons.SHOP
@@ -38,15 +38,17 @@ const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatch
 ## расходники: [id, цена] (промпты 20.11 14:22, 14:27; аптечка — 4 применения, вода/газировка/тушёнка — по нескольку)
 const CONSUMABLES := [["battery", 3], ["water", 10], ["soda", 30], ["choco", 15], ["canned", 50],
 	["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80],
-	["tea", 18], ["pills", 15]]   # тир 0 (промпт 20.11 17:59)
+	["tea", 18], ["pills", 15],   # тир 0 (промпт 20.11 17:59)
+	["energy", 40], ["ration", 70], ["ammo_box", 90],   # тир 1
+	["medkit_army", 180]]   # тир 2
 ## подвкладки «Одежды» (промпт 14.11 21:14): [название, товары]. Цены — Weapons.SHOP / CONSUMABLES (_price).
 ## Обувь — отдельная подвкладка «Ботинки»; ремкомплект одежды — в «Расходниках»; фонарик и метла — в «Инструментах»
 ## (промпт 16.11 02:42). «Снаряжение» — последняя (CLOTHES[-1]).
 const CLOTHES := [
-	["Голова", ["cap", "ushanka", "helmet", "moto_helmet"]],
-	["Верх", ["sweater", "kurtka", "jacket", "vest"]],
+	["Голова", ["cap", "ushanka", "helmet", "moto_helmet", "kevlar_helmet"]],
+	["Верх", ["sweater", "kurtka", "jacket", "bushlat", "vest", "plate_vest"]],
 	["Низ", ["jeans", "pants", "wpants"]],
-	["Ботинки", ["sneakers", "boots"]],
+	["Ботинки", ["sneakers", "boots", "berets"]],
 	["Перчатки", ["gloves", "tac_gloves"]],
 	["Снаряжение", ["gasmask", "filter", "backpack"]],
 ]
@@ -54,7 +56,10 @@ var sub := 0                  # открытая подвкладка «Одеж
 ## Тир товара (промпт 20.11 17:59): 0 — бункер (пролог), 1 — деревня, 2 — следующая локация (пока нигде не продаётся).
 ## Нет в списке — тир 0. Тир 1 — аптечки, тушёнка, газировка, лучшая одежда, монтировка, мачете, огнестрел (промпты 16.11 03:13, 04:35).
 const TIER := {"medkit": 1, "canned": 1, "soda": 1, "moto_helmet": 1, "vest": 1, "wpants": 1, "tac_gloves": 1,
-	"crowbar": 1, "machete": 1, "pistol": 1, "ammo": 1, "mag": 1}
+	"crowbar": 1, "machete": 1, "pistol": 1, "ammo": 1, "mag": 1,
+	# новые (промпт 20.11 17:59)
+	"energy": 1, "ration": 1, "ammo_box": 1, "bushlat": 1, "berets": 1, "sapper": 1, "sledge": 1,
+	"medkit_army": 2, "kevlar_helmet": 2, "plate_vest": 2, "fire_axe": 2}
 
 
 ## Тир этого магазина: бункер — 0, деревня (village_shop.gd) — 1.

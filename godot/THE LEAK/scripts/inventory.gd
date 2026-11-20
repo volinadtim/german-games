@@ -1347,7 +1347,7 @@ func _use_label(id: String) -> String:
 		return "Лечиться"
 	if id == "mag":
 		return "Снарядить"
-	return {"wallet": "Открыть", "flashlight": "Взять в руку", "battery": "Зарядить фонарик", "filter": "Сменить фильтр", "filter2": "Сменить фильтр",
+	return {"wallet": "Открыть", "ammo_box": "Открыть", "flashlight": "Взять в руку", "battery": "Зарядить фонарик", "filter": "Сменить фильтр", "filter2": "Сменить фильтр",
 		"broom": "Подмести стекло"}.get(id, "")
 
 

@@ -281,6 +281,15 @@ func use_item(key, no_channel := false) -> void:
 		inv.add("coin", c)
 		hud.toast("В кошельке нашлось %d монет" % c, Color(0.92, 0.82, 0.55))
 		play_ui("coin", -11.0)
+	elif id == "ammo_box":
+		# пачка патронов (промпт 20.11 17:59): 20 патронов в сумку, не влезло — пачка остаётся
+		var left: int = inv.add("ammo", 20)
+		if left >= 20:
+			hud.toast("Некуда положить патроны")
+			return
+		_use_take(idx)
+		hud.toast("В пачке %d патронов" % (20 - left) + (" (%d не влезло)" % left if left > 0 else ""), Color(0.92, 0.82, 0.55))
+		play_ui("coin", -14.0)
 	else:
 		hud.toast("Это нельзя использовать")
 

@@ -19,11 +19,19 @@ const WEAPONS := {
 	"stone": {"mult": 1.4, "reach": 1.05, "price": 0},      # камень в руке: бросок — stone_throw.gd, это — удар
 	# новые предметы по тирам (промпт 20.11 17:59): тир 0 — бункер
 	"wrench": {"mult": 2.3, "reach": 1.3, "price": 35},
+	# тир 1 — деревня
+	"sapper": {"mult": 3.3, "reach": 1.4, "price": 110},
+	"sledge": {"mult": 4.0, "reach": 1.5, "price": 170},
+	# тир 2 — следующая локация
+	"fire_axe": {"mult": 4.4, "reach": 1.5, "price": 240},
 }
 
 ## Новые предметы без своей модели берут модель/форму у похожего (промпт 20.11 17:59): id -> базовый id.
 ## Иконка — поле "icon" в items.gd, цвет иконки свой.
-const ALIAS := {"wrench": "steel_hammer", "tea": "water", "cap": "ushanka", "sweater": "kurtka"}
+const ALIAS := {"wrench": "steel_hammer", "tea": "water", "cap": "ushanka", "sweater": "kurtka",
+	"sapper": "hatchet", "sledge": "steel_hammer", "energy": "soda", "ration": "canned", "ammo_box": "ammo",
+	"bushlat": "jacket", "berets": "boots",
+	"fire_axe": "hatchet", "medkit_army": "medkit", "kevlar_helmet": "moto_helmet", "plate_vest": "vest"}
 
 ## Удар предметом в руке; не оружие (любой предмет с пола, промпт 18.11 00:27) — чуть сильнее кулака.
 static func stats(id: String) -> Dictionary:
@@ -37,7 +45,10 @@ const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["g
 	["ushanka", 15], ["moto_helmet", 90], ["kurtka", 30], ["vest", 120], ["jeans", 20], ["wpants", 55],
 	["sneakers", 25], ["tac_gloves", 75],
 	# тир 0 — бункер (промпт 20.11 17:59)
-	["wrench", 35], ["cap", 8], ["sweater", 18]]
+	["wrench", 35], ["cap", 8], ["sweater", 18],
+	# тир 1 — деревня, тир 2 — пока нигде (shop_model.gd: TIER)
+	["sapper", 110], ["sledge", 170], ["bushlat", 95], ["berets", 75],
+	["fire_axe", 240], ["kevlar_helmet", 180], ["plate_vest", 220]]
 
 
 static func _m(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:

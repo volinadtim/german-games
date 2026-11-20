@@ -162,6 +162,30 @@ const ITEMS := {
 		"icon": "kurtka", "color": Color(0.45, 0.36, 0.3), "equip": "body", "armor": 0.05, "dur": 50},
 	"wrench": {"name": "Гаечный ключ", "desc": "Тяжёлый разводной ключ. Урон ×2.3.", "stack": 1,
 		"icon": "steel_hammer", "color": Color(0.5, 0.55, 0.6), "weapon": true, "dur": 45},
+	# тир 1 — деревня
+	"energy": {"name": "Энергетик", "desc": "Напиток: +40% к скорости на 40 с. Одна банка — один раз.", "stack": 3,
+		"icon": "soda", "color": Color(0.3, 0.62, 0.22), "buff": "speed", "power": 0.40, "time": 40.0},
+	"ration": {"name": "Сухпаёк", "desc": "Еда: −35% входящего урона на 120 с. На 2 раза.", "stack": 1,
+		"icon": "canned", "color": Color(0.4, 0.44, 0.26), "buff": "resist", "power": 0.35, "time": 120.0, "uses": true, "dur": 2},
+	"ammo_box": {"name": "Пачка патронов", "desc": "Открыть: внутри 20 пистолетных патронов.", "stack": 5,
+		"icon": "ammo", "color": Color(0.62, 0.5, 0.25)},
+	"bushlat": {"name": "Бушлат", "desc": "Тело: −20% урона. Тёплый, на вате, два больших кармана. Изнашивается от ударов.", "stack": 1,
+		"icon": "jacket", "color": Color(0.14, 0.16, 0.24), "equip": "body", "armor": 0.20, "dur": 110},
+	"berets": {"name": "Берцы", "desc": "Обувь: +10% к скорости, стекло не ранит. Очень крепкие. Изнашиваются от ударов и стекла.", "stack": 1,
+		"icon": "boots", "color": Color(0.1, 0.1, 0.1), "equip": "feet", "glassproof": true, "dur": 150, "speed": 0.10},
+	"sapper": {"name": "Сапёрная лопатка", "desc": "Заточенный край, короткая ручка. Урон ×3.3, очень крепкая.", "stack": 1,
+		"icon": "hatchet", "color": Color(0.36, 0.4, 0.3), "weapon": true, "dur": 90},
+	"sledge": {"name": "Кувалда", "desc": "Тяжёлая. Урон ×4.0.", "stack": 1,
+		"icon": "steel_hammer", "color": Color(0.32, 0.32, 0.34), "weapon": true, "dur": 50},
+	# тир 2 — следующая локация (пока нигде не продаётся)
+	"medkit_army": {"name": "Армейская аптечка", "desc": "4 применения, каждое восстанавливает 75 здоровья.", "stack": 1,
+		"icon": "medkit", "color": Color(0.3, 0.4, 0.2), "heal": 75.0, "uses": true, "dur": 4},
+	"kevlar_helmet": {"name": "Кевларовый шлем", "desc": "Голова: −22% урона. Лёгкий и прочный. Изнашивается от ударов.", "stack": 1,
+		"icon": "moto_helmet", "color": Color(0.2, 0.24, 0.18), "equip": "head", "armor": 0.22, "dur": 140},
+	"plate_vest": {"name": "Армейский бронежилет", "desc": "Тело: −32% урона, −3% к скорости. Керамические плиты. Изнашивается от ударов.", "stack": 1,
+		"icon": "vest", "color": Color(0.22, 0.26, 0.2), "equip": "body", "armor": 0.32, "dur": 180, "speed": -0.03},
+	"fire_axe": {"name": "Пожарный топор", "desc": "Красный, с длинной рукоятью. Урон ×4.4.", "stack": 1,
+		"icon": "hatchet", "color": Color(0.7, 0.12, 0.08), "weapon": true, "dur": 70},
 }
 
 
@@ -188,6 +212,8 @@ const SIZES := {
 	"pants": [2, 2], "rag_pants": [2, 2], "jeans": [2, 2], "wpants": [2, 2],
 	"boots": [2, 2], "sneakers": [2, 1],
 	"tea": [1, 2], "cap": [2, 1], "sweater": [2, 2], "wrench": [1, 2],
+	"bushlat": [2, 2], "berets": [2, 2], "sapper": [1, 2], "sledge": [1, 3],
+	"medkit_army": [2, 2], "kevlar_helmet": [2, 2], "plate_vest": [2, 2], "fire_axe": [1, 3],
 }
 
 ## Отдельные ячейки хранения у одежды (промпт 16.11 02:42): [ширина, высота] блока карманов.
@@ -195,6 +221,7 @@ const SIZES := {
 const POCKETS := {
 	"kurtka": [2, 1], "jacket": [2, 2], "vest": [3, 1],
 	"jeans": [2, 1], "pants": [2, 1], "rag_pants": [2, 1], "wpants": [1, 2], "tshirt": [2, 1],
+	"bushlat": [2, 2], "plate_vest": [3, 1],
 }
 
 
@@ -256,7 +283,7 @@ static func holdable(id: String) -> bool:
 ## лечение, еда и питьё, ремкомплект, фонарик, батарейка, веник, кошелёк.
 static func hand_use(id: String) -> bool:
 	var d: Dictionary = ITEMS.get(id, {})
-	return d.has("heal") or d.has("buff") or d.has("repair") or id in ["flashlight", "battery", "broom", "wallet"]
+	return d.has("heal") or d.has("buff") or d.has("repair") or id in ["flashlight", "battery", "broom", "wallet", "ammo_box"]
 
 
 ## Предмет с зарядами/применениями (ремкомплект, аптечка, вода…): в ячейке — «×N», dur — сколько осталось.
