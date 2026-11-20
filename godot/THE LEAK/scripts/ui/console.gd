@@ -15,6 +15,7 @@ var game   # core/game.gd
 var open := false
 var sugg_l: RichTextLabel   # подсказки предметов над полем (после «/get »)
 var sugg: Array = []        # id подходящих предметов
+var sugg_tp := false       # подсказки — места для /tp, а не предметы
 var sugg_i := -1            # выделенный
 var commands := {}        # имя -> {"desc": String, "fn": Callable, "cheat": bool}
 var cheats_on := false   # /cheats on|off — разблокирует читерские команды
@@ -43,7 +44,7 @@ func _ready() -> void:
 	register_cheat("get", "/get [предмет] [кол-во] — выдать предмет (Tab — подсказки, места нет — под ноги)", _cmd_get)
 	register_cheat("noclip", "/noclip — полёт сквозь стены вкл/выкл (WASD, Пробел — вверх, Ctrl — вниз, Shift — быстрее)", _cmd_noclip)
 	register_cheat("ncspeed", "/ncspeed [x] — скорость полёта в noclip (по умолчанию 8; также колёсико мыши)", _cmd_ncspeed)
-	register_cheat("tp", "/tp bunker|village|lake|city — телепорт между локациями", _cmd_tp)
+	register_cheat("tp", "/tp бункер|деревня|озеро|город — телепорт (Tab — список мест)", _cmd_tp)
 	register_cheat("god", "/god — неуязвимость (урон и отравление не берут) вкл/выкл", _cmd_god)
 	register_cheat("freecam", "/freecam — свободная камера вкл/выкл (WASD, Пробел/Ctrl, Shift, Колёсико — скорость)", _cmd_freecam)
 	register_cheat("time", "/time [час 0-24 | day | night | dawn | dusk | reset] — время суток", _cmd_time)
@@ -394,29 +395,49 @@ func _cmd_ncspeed(a: PackedStringArray) -> void:
 		game.player.nc_speed = clampf(float(a[0]), 1.0, 300.0)
 	print_line("[color=#9e9]Скорость noclip: %.1f[/color]" % game.player.nc_speed)
 
-## /tp — телепорт игрока в одну из локаций (мир бесшовный, просто переставляем позицию).
+## места для /tp: [главное имя, псевдонимы, точка на земле у центра локации] (мир бесшовный; лагерь и город смещены на OFF)
+func _tp_places() -> Array:
+	return [
+		["бункер", ["bunker"], game.START],
+		["деревня", ["village"], VillageBuild.STALL + Vector3(2.5, 0.0, -2.0)],
+		["озеро", ["lake", "лагерь", "camp"], LakeCampS.OFF + LakeCampS.CAR_POS + Vector3(2.5, 0.0, -1.5)],
+		["город", ["city"], CityS.OFF + CityS.CAR_POS + Vector3(2.5, 0.0, -1.5)],
+	]
+
+
+## Поставить точку на землю: луч вниз от точки (без игрока).
+func _tp_ground(p: Vector3) -> Vector3:
+	var q := PhysicsRayQueryParameters3D.create(p + Vector3(0, 6.0, 0), p + Vector3(0, -10.0, 0))
+	q.collision_mask = 1
+	q.exclude = [game.player.get_rid()]
+	var hit: Dictionary = game.get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		return hit.position + Vector3(0, 0.3, 0)
+	return p + Vector3(0, 0.3, 0)
+
+
+## /tp — телепорт игрока в одну из локаций.
 func _cmd_tp(a: PackedStringArray) -> void:
 	if game == null or game.player == null:
 		return
-	var to := Vector3.ZERO
-	var k: String = String(a[0]).to_lower() if a.size() > 0 else ""
-	match k:
-		"bunker", "бункер":
-			to = game.START
-		"village", "деревня":
-			to = VillageBuild.STALL + Vector3(2.5, 0.3, -2.0)
-		"lake", "лагерь", "озеро":
-			to = LakeCampS.CAR_POS + Vector3(2.5, 0.3, -1.5)
-		"city", "город":
-			to = CityS.CAR_POS + Vector3(2.5, 0.3, -1.5)
-		_:
-			print_line("[color=#e99]/tp bunker|village|lake|city[/color]")
-			return
+	var k := _norm(" ".join(a))
+	var places := _tp_places()
+	var found: Array = []
+	for pl in places:
+		if k != "" and (k == pl[0] or k in pl[1]):
+			found = pl
+	if found.is_empty():
+		var names: PackedStringArray = []
+		for pl in places:
+			names.append("%s (%s)" % [pl[0], pl[1][0]])
+		print_line("[color=#e99]/tp [место]: %s[/color]" % ", ".join(names))
+		return
+	var to := _tp_ground(found[2])
 	game.player.global_position = to
 	game.player.velocity = Vector3.ZERO
 	if game.has_method("save_now"):
 		game.save_now()
-	print_line("[color=#9e9]Телепорт: %s[/color]" % k)
+	print_line("[color=#9e9]Телепорт: %s[/color]" % found[0])
 
 func _cmd_freecam(_a: PackedStringArray) -> void:
 	if _freecam != null and is_instance_valid(_freecam):
@@ -554,6 +575,8 @@ func _cmd_get(a: PackedStringArray) -> void:
 
 ## Текст поля для подсказки i.
 func _sugg_text(i: int) -> String:
+	if sugg_tp:
+		return "/tp " + String(sugg[i])
 	return "/get " + String(Items.ITEMS[sugg[i]]["name"]) + " "
 
 
@@ -561,7 +584,19 @@ func _sugg_text(i: int) -> String:
 func _update_sugg() -> void:
 	sugg.clear()
 	sugg_i = -1
+	sugg_tp = false
 	var t := edit.text
+	var tl := t.to_lower()
+	if (tl == "/tp" or tl.begins_with("/tp ")) and game != null:
+		var q2 := _norm(t.substr(3))
+		for pl in _tp_places():
+			if q2 == "" or String(pl[0]).begins_with(q2) or pl[1].any(func(x): return String(x).begins_with(q2)):
+				sugg.append(pl[0])
+		sugg_tp = true
+		if not sugg.is_empty():
+			sugg_i = 0
+		_draw_sugg()
+		return
 	if not t.to_lower().begins_with("/get "):
 		sugg_l.visible = false
 		return
@@ -595,7 +630,15 @@ func _update_sugg() -> void:
 func _draw_sugg() -> void:
 	sugg_l.clear()
 	if sugg.is_empty():
-		sugg_l.append_text("[color=#a77]  нет такого предмета[/color]")
+		sugg_l.append_text("[color=#a77]  нет такого %s[/color]" % ("места" if sugg_tp else "предмета"))
+		sugg_l.visible = true
+		return
+	if sugg_tp:
+		var tl2: PackedStringArray = []
+		for i in sugg.size():
+			tl2.append(("[bgcolor=#3a3520][color=#fd6]▶ %s[/color][/bgcolor]" if i == sugg_i else "[color=#ccc]  %s[/color]") % sugg[i])
+		sugg_l.append_text("
+".join(tl2))
 		sugg_l.visible = true
 		return
 	@warning_ignore("integer_division")
