@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """Карта кода Godot-игры без LLM: файл -> строки, extends, описание; функции/сигналы/константы со строкой и ## описанием.
 
-    python scripts/codemap.py [godot/eskiness]   -> godot/eskiness/CODEMAP.md (в git не кладём, строится заново)
+    python scripts/codemap.py [godot/THE LEAK]   -> godot/THE LEAK/CODEMAP.md (в git не кладём, строится заново)
 
-Агент не листает код в поисках места, а делает `grep -n -i "<слово>" godot/eskiness/CODEMAP.md`
+Агент не листает код в поисках места, а делает `grep -n -i "<слово>" godot/THE LEAK/CODEMAP.md`
 и сразу читает нужные строки (Read с offset/limit). Номера строк — на момент генерации.
 """
 import os, re, sys
 
-root = sys.argv[1] if len(sys.argv) > 1 else 'godot/eskiness'
+root = sys.argv[1] if len(sys.argv) > 1 else 'godot/THE LEAK'
 FUNC = re.compile(r'^(static\s+)?func\s+(\w+)\s*\(([^)]*)\)')
 SIG = re.compile(r'^signal\s+(\w+)')
 CONST = re.compile(r'^const\s+([A-Z_][A-Z0-9_]*)\b')
@@ -31,7 +31,7 @@ files.sort()
 
 out = ['# Карта кода (сгенерировано scripts/codemap.py — не править руками)',
        '# Ищи: grep -n -i "<слово>" CODEMAP.md  ->  читай нужные строки файла (Read offset/limit), а не весь файл.',
-       '# Формат: ## файл (N стр.) [extends] — описание;  затем  <файл>:<строка> <имя>(<аргументы>) — описание из ## над функцией. Пути от godot/eskiness/.', '']
+       '# Формат: ## файл (N стр.) [extends] — описание;  затем  <файл>:<строка> <имя>(<аргументы>) — описание из ## над функцией. Пути от godot/THE LEAK/.', '']
 total_funcs = 0
 for path in files:
     rel = os.path.relpath(path, root).replace('\\', '/')

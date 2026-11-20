@@ -1,7 +1,7 @@
 extends SceneTree
 ## Автотест сетевой игры: два экземпляра на одном ПК.
-##   godot --path godot/eskiness -s res://tests/net_test.gd -- host <папка_скриншотов>
-##   godot --path godot/eskiness -s res://tests/net_test.gd -- client <папка_скриншотов>
+##   godot --path godot/THE LEAK -s res://tests/net_test.gd -- host <папка_скриншотов>
+##   godot --path godot/THE LEAK -s res://tests/net_test.gd -- client <папка_скриншотов>
 ## Хост открывает комнату и ждёт клиента; клиент находит комнату через broadcast, подключается по коду.
 ## Дальше (этап 2): хост начинает, клиент ходит и бьёт врага, хост видит. Пишет в лог строки «NETTEST …».
 ## Сейв-слот 99, settings.cfg не трогается (eskiness_net_nosave).

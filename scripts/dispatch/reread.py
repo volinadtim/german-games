@@ -24,9 +24,9 @@ def rel(p):
     p = p.replace('\\', '/')
     m = re.search(r'(godot/[^\s\'"]+|scripts/[^\s\'"]+|rust/[^\s\'"]+|[A-Z]+\.md)$', p)
     r = m.group(1) if m else p.split('/')[-1]
-    # из godot/eskiness агенты пишут пути от scripts/ — приводим к одному виду
+    # из godot/THE LEAK агенты пишут пути от scripts/ — приводим к одному виду
     if r.startswith('scripts/') and r.endswith(('.gd', '.tscn', '.gdshader')):
-        r = 'godot/eskiness/' + r
+        r = 'godot/THE LEAK/' + r
     return r
 
 

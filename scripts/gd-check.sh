@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Проверка Godot-проекта без шума: печатает OK или только ошибки (не больше 40 строк).
-#   scripts/gd-check.sh [путь-к-проекту=godot/eskiness] [--import]
+#   scripts/gd-check.sh [путь-к-проекту=godot/THE LEAK] [--import]
 # --import — сначала переимпорт ресурсов (нужно после добавления моделей/текстур/звуков).
-P="${1:-godot/eskiness}"; [ "$P" = "--import" ] && { P=godot/eskiness; IMP=1; }
+P="${1:-godot/THE LEAK}"; [ "$P" = "--import" ] && { P="godot/THE LEAK"; IMP=1; }
 [ "${2:-}" = "--import" ] && IMP=1
 [ -d "$P/.godot" ] || IMP=1   # свежий worktree — сначала импорт
 LOG=$(mktemp)

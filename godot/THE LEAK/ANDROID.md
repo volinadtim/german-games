@@ -77,7 +77,7 @@
 Из папки репозитория, когда шаблоны и SDK уже настроены:
 
 ```
-godot --headless --path godot/eskiness --export-debug "Android" ../eskiNess.apk
+godot --headless --path godot/THE LEAK --export-debug "Android" ../eskiNess.apk
 ```
 
 Если чего-то не хватает, команда так и напишет, например, путь к отсутствующему `android_debug.apk`.
@@ -193,7 +193,7 @@ godot --headless --path godot/eskiness --export-debug "Android" ../eskiNess.apk
 - **Размер интерфейса** подстраивается под экран: на вытянутых телефонах (20:9) всё крупнее,
   на планшетах (4:3) окна всё равно влезают.
 - **Проверить кнопки на ПК** можно запуском с флагом `--touch`:
-  `godot --path godot/eskiness -- --touch`. Мышью кнопки не нажимаются, нужен сенсорный экран.
+  `godot --path godot/THE LEAK -- --touch`. Мышью кнопки не нажимаются, нужен сенсорный экран.
 - **Чувствительность обзора** — `LOOK_K` в `touch_controls.gd`. Больше число — быстрее поворот.
 - **Права приложения** не нужны: игра не ходит в интернет.
 
