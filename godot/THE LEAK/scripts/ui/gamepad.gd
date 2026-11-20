@@ -38,7 +38,7 @@ const DEFAULT := {
 	"seat_switch": "c:2",                               # Back + X — пересесть в машине
 	"toggle_cursor": "b:4",                             # Back коротко — в окнах рамка ↔ курсор (промпт 20.11 15:24)
 }
-const SPRINT_HOLD := 0.4    # бег: держат кнопку бега во время бега — выключить (промпт 20.11 15:31)
+const SPRINT_HOLD := 0.2    # бег: держат кнопку бега во время бега — выключить (промпт 20.11 15:31)
 const SPRINT_STILL := 1.0   # ...или постоять на месте секунду
 const UI_DIR := {JOY_BUTTON_DPAD_UP: "ui_up", JOY_BUTTON_DPAD_DOWN: "ui_down", JOY_BUTTON_DPAD_LEFT: "ui_left", JOY_BUTTON_DPAD_RIGHT: "ui_right"}
 const HOLD_T := 0.35         # кнопку слота держат дольше — предмет в правую руку

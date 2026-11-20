@@ -221,7 +221,7 @@ func _physics_process(delta: float) -> void:
 	var dir := transform.basis * Vector3(inp.x, 0, inp.y)
 	var moving := dir.length() > 0.01
 	var sprinting: bool = active and not carrying and moving and inp.y < -0.1 \
-		and ia.is_action_pressed("sprint") and (dash == null or dash.hold_t > 0.12)
+		and ia.is_action_pressed("sprint") and (dash == null or dash.hold_t > 0.07)
 	if sprinting and not stamina.can_sprint():
 		sprinting = false
 

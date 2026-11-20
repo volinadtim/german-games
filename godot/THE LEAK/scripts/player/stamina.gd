@@ -62,6 +62,14 @@ func can_dash() -> bool:
 	return not exhausted and value >= DASH_COST
 
 
+## подкат (слайд): стоит в 3 раза дешевле рывка
+func slide() -> void:
+	value = maxf(value - DASH_COST / 3.0, 0.0)
+	delay = REGEN_DELAY
+	if value < UNLOCK:
+		exhausted = true
+
+
 func dash() -> void:
 	value = maxf(value - DASH_COST, 0.0)
 	delay = REGEN_DELAY
