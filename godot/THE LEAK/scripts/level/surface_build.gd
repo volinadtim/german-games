@@ -46,7 +46,7 @@ var hn2 := FastNoiseLite.new()
 const WARM := Color(1.0, 0.78, 0.52)
 const IN_AMB := Color(0.62, 0.55, 0.46)
 const OUT_AMB := Color(0.5, 0.46, 0.38)
-const IN_FOG := Color(0.042, 0.047, 0.056)   # = fog_light_color в level.gd
+const IN_FOG := Color(0.04, 0.04, 0.045)
 const OUT_FOG := Color(0.15, 0.08, 0.065)
 
 # смена дня и ночи (промпт 00:20 16.11). Время берётся из часов системы — у всех игроков в сети совпадает.

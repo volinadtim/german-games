@@ -46,10 +46,7 @@ void fragment() {
 	}
 	c *= mix(vec3(1.0), vec3(0.8, 1.0, 0.62), toxic * 0.7);
 	c *= 1.0 - toxic * 0.35 * smoothstep(0.2, 0.9, length(SCREEN_UV - 0.5) * 1.41);
-	// яркость без пересвета (20.11 14:40): раньше c * brightness обрезал светлое в белое пятно;
-	// теперь кривая поднимает (опускает) тени и середину, а белое так и остаётся белым
-	c = clamp(c, 0.0, 1.0);
-	c = c * brightness / (1.0 + (brightness - 1.0) * c);
+	c = clamp(c * brightness, 0.0, 1.0);
 	c = pow(c, vec3(1.0 / gamma));
 	float r = length(SCREEN_UV - 0.5) * 1.41;
 	c *= 1.0 - vignette * smoothstep(0.35, 1.0, r);

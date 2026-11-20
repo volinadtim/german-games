@@ -83,9 +83,7 @@ func _make_env() -> Environment:
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.62, 0.55, 0.46)
 	e.ambient_light_energy = 0.18
-	# 20.11 14:40 (исследование цветопередачи): AgX вместо Filmic — яркие лампы не «выгорают» в жёлто-белое
-	# и не меняют оттенок, тени не давятся в чистый чёрный; экспозиция 1.0 — яркость игрок правит ползунком
-	e.tonemap_mode = Environment.TONE_MAPPER_AGX
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	e.ssao_enabled = full
 	e.ssao_radius = 1.0   # 18.11: AO слабее — углы не такие чёрные
 	e.ssao_intensity = 1.6
@@ -95,10 +93,10 @@ func _make_env() -> Environment:
 	e.ssr_max_steps = 64
 	e.glow_enabled = true
 	e.glow_intensity = 0.7
-	e.glow_bloom = 0.04          # было 0.12: общий bloom заливал серой дымкой тёмные углы — теперь светятся в основном лампы
-	e.glow_hdr_threshold = 0.95
+	e.glow_bloom = 0.12
+	e.glow_hdr_threshold = 0.85
 	e.fog_enabled = true
-	e.fog_light_color = Color(0.042, 0.047, 0.056)   # не чёрный, а тёмный серо-синий: даль отделяется от силуэтов
+	e.fog_light_color = Color(0.04, 0.04, 0.045)
 	e.fog_density = 0.02
 	e.fog_height = 0.6
 	e.fog_height_density = 0.5
