@@ -93,8 +93,9 @@ func _init(m, p) -> void:
 		root.save_cfg()
 		root.apply_map()
 		refresh())
-	var fixed: Label = menu._subtitle("Левый стик — ходьба, правый — обзор. Start — пауза. В меню и окнах: левый стик — курсор, "
-		+ "A — клик, X — правый клик, B — назад, LB — повернуть предмет, правый стик — прокрутка.")
+	var fixed: Label = menu._subtitle("Левый стик — ходьба, правый — обзор. Start — пауза. В меню и окнах: крестовина — по клеткам (рамка), "
+		+ "A — клик, X — правый клик, B — назад, LB/RB — раздел окна (тащим предмет: LB — повернуть), правый стик — прокрутка, "
+		+ "удержать ↓ — свободный курсор (правым стиком). Back + стрелка в инвентаре — предмет в слот.")
 	fixed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	fixed.add_theme_font_size_override("font_size", 16)
 	list.add_child(fixed)

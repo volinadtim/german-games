@@ -4,8 +4,10 @@ extends Node
 ## Кнопки не кладём в InputMap: этот узел сам шлёт InputEventAction (так работают сочетания Back+кнопка).
 ## В InputMap идут только оси левого стика (ходьба, аналогово) — и только пока геймпад подключён,
 ## чтобы не мешать антизалипанию клавиш (player.gd: _unstick_moves).
-## Когда курсор виден (меню, инвентарь, магазин…): левый стик — курсор, A — ЛКМ, X — ПКМ,
-## B — назад (ui_cancel), LB — повернуть предмет (пробел), правый стик — прокрутка. Start — пауза всегда.
+## Когда курсор виден (меню, инвентарь, магазин…): клетки (ui/pad_nav.gd) — крестовина переключает активную,
+## A — ЛКМ по ней, X — ПКМ, B — назад (ui_cancel), LB/RB — раздел окна (при перетаскивании LB — повернуть предмет),
+## правый стик — прокрутка; удержать ↓ — свободный курсор (правым стиком), левый стик — ходьба. Start — пауза всегда.
+## Back + стрелка в инвентаре — привязать предмет под рамкой к слоту (как раньше просто стрелка).
 ## Руки (промпт 20.11 11:43): кнопка слота (крестовина) — нажать: в левую руку, задержать: в правую.
 ## Сброс: Back (просто нажать) — режим сброса, потом RT — из левой, LT — из правой (задержать — кинуть дальше).
 
@@ -65,6 +67,8 @@ var virtual_cursor := false  # курсор свой, настоящую мыш�
 var vpos := Vector2(200, 200)
 var cursor_layer: CanvasLayer
 var cursor_dot: Control
+var nav                      # ui/pad_nav.gd — клетки в меню
+var lb_space := false
 
 
 func _init(sec := "pad") -> void:
@@ -93,6 +97,9 @@ func _ready() -> void:
 			cursor_dot.draw_colored_polygon(pts, Color(1, 1, 1))
 			cursor_dot.draw_polyline(pts + PackedVector2Array([Vector2.ZERO]), Color(0, 0, 0), 2.0))
 		cursor_layer.add_child(cursor_dot)
+	nav = preload("res://scripts/ui/pad_nav.gd").new()
+	nav.pad = self
+	add_child(nav)
 	Input.joy_connection_changed.connect(func(_d, _c): apply_map())
 	# убираем геймпад из ui_*: иначе B в игре = Esc (пауза), A жмёт кнопку с фокусом дважды
 	for a in ["ui_accept", "ui_select", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right",
@@ -276,7 +283,8 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 		return
 	var spec := key
 	if mod_down and b >= 0:
-		spec = "c:%d" % b
+		# в меню Back + стрелка = прежняя стрелка (привязка к слоту в инвентаре): сами стрелки водят клетки
+		spec = key if _ui_mode() and b >= JOY_BUTTON_DPAD_UP and b <= JOY_BUTTON_DPAD_RIGHT else "c:%d" % b
 		mod_used = true
 	var acts := _actions(spec)
 	# слоты hot_N — на отпускании (коротко — левая) или по задержке (правая, _hot_tick)
@@ -293,16 +301,36 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 func _ui_button(b: int, pressed: bool) -> bool:
 	match b:
 		JOY_BUTTON_A:
+			if pressed:
+				nav.before_click()
 			_mouse_btn(MOUSE_BUTTON_LEFT, pressed)
 			return true
 		JOY_BUTTON_X:
+			if pressed:
+				nav.before_click()
 			_mouse_btn(MOUSE_BUTTON_RIGHT, pressed)
+			return true
+		JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT:
+			if mod_down and pressed:
+				return false
+			nav.dpad(b, pressed)
+			return true
+		JOY_BUTTON_RIGHT_SHOULDER:
+			if pressed:
+				nav.section(1)
 			return true
 		JOY_BUTTON_B:
 			if pressed:
 				_tap("ui_cancel", last_dev)
 			return true
 		JOY_BUTTON_LEFT_SHOULDER:
+			# LB: тащим предмет — повернуть (пробел), иначе — предыдущий раздел окна
+			if pressed and not get_viewport().gui_is_dragging():
+				nav.section(-1)
+				return true
+			if not pressed and not lb_space:
+				return true
+			lb_space = pressed
 			var k := InputEventKey.new()
 			k.physical_keycode = KEY_SPACE
 			k.keycode = KEY_SPACE
@@ -420,7 +448,9 @@ func _process(delta: float) -> void:
 		sprint_latch = false
 		_act("sprint", false, last_dev)
 	if _ui_mode():
-		_cursor(_stick(true), delta)
+		if nav.free_cursor():
+			_cursor(_stick(false), delta)   # свободный курсор — правым стиком (левый — ходьба)
+			return
 		wheel_t -= delta
 		var r := _stick(false)
 		if absf(r.y) > 0.3 and wheel_t <= 0.0:
@@ -445,15 +475,22 @@ func _cursor(v: Vector2, delta: float) -> void:
 	# координаты окна (пиксели экрана): так их ждут warp_mouse и события, окно само пересчитает масштаб интерфейса
 	var p0 := vpos if virtual_cursor else _win_mouse()
 	var sz := Vector2(DisplayServer.window_get_size())
-	var p1 := (p0 + v * CURSOR_PX * delta).clamp(Vector2.ZERO, sz - Vector2.ONE)
+	mouse_to((p0 + v * CURSOR_PX * delta).clamp(Vector2.ZERO, sz - Vector2.ONE), v * CURSOR_PX)
+
+
+## Мышь — в точку окна p1 (пиксели) и движение мыши от геймпада (курсор стиком, клетки pad_nav.gd).
+func mouse_to(p1: Vector2, vel := Vector2.ZERO) -> void:
+	var p0 := vpos if virtual_cursor else _win_mouse()
 	vpos = p1
 	if not virtual_cursor:
 		Input.warp_mouse(p1)
+	if nav:
+		nav._warp_ms = Time.get_ticks_msec()
 	var mm := InputEventMouseMotion.new()
 	mm.position = p1
 	mm.global_position = p1
 	mm.relative = p1 - p0
-	mm.velocity = v * CURSOR_PX
+	mm.velocity = vel
 	mm.button_mask = mouse_mask
 	mm.device = SYNTH
 	Input.parse_input_event(mm)
