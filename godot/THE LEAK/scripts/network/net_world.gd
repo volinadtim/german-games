@@ -297,12 +297,12 @@ func _game_tick(delta: float) -> void:
 		send_t = SEND_DT
 		var flags := (1 if p.fists else 0) | (2 if p.crouched else 0) | (4 if game.alive else 0) \
 				| (8 if p.gun_mode == 1 else 0) | (16 if p.gun_mode == 2 else 0) | (32 if p.throw_aim else 0) | (64 if p.dying else 0) | (128 if p.waking else 0)   # 128 — просыпается во вступлении; позы с пистолетом; 64 — лежит (player_death.gd)
-		var st := [p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1]]
+		var st := [p.global_position, p.rotation.y, p.head.rotation.x, p.velocity, flags, p.weapon_ids[0], p.weapon_ids[1], _mods_code()]
 		ps_idle_t -= SEND_DT
 		if st != ps_last or ps_idle_t <= 0.0:   # стоим на месте — шлём не 20, а 4 раза в секунду
 			ps_last = st
 			ps_idle_t = PS_IDLE_DT
-			rpc("ps", st[0], st[1], st[2], st[3], st[4], st[5], st[6])
+			rpc("ps", st[0], st[1], st[2], st[3], st[4], st[5], st[6], st[7])
 	gear_t -= delta
 	if gear_t <= 0.0 and p and peer and online and game.get("inv") != null:
 		gear_t = 1.0
@@ -421,7 +421,7 @@ func pgear(eq: Dictionary) -> void:
 
 
 @rpc("any_peer", "unreliable_ordered", "call_remote", 1)
-func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: String, w1: String) -> void:
+func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: String, w1: String, mods := 0) -> void:
 	var id := multiplayer.get_remote_sender_id()
 	last_seen[id] = Time.get_ticks_msec() / 1000.0
 	var pp = puppets.get(id)
@@ -457,6 +457,31 @@ func ps(pos: Vector3, yaw: float, pitch: float, vel: Vector3, flags: int, w0: St
 		pp.set_weapon(w0, 0)
 	if pp.weapon_ids[1] != w1:
 		pp.set_weapon(w1, 1)
+	_puppet_mods(pp, mods)
+
+
+## Код модулей обоих пистолетов в руках (gun.gd MOD_SLOTS): левая — младший байт, правая — старший.
+func _mods_code() -> int:
+	if game.get("inv") == null or game.get("gun") == null:
+		return 0
+	var c := 0
+	for h in 2:
+		var sl: String = game.gun.SLOTS[h]
+		if game.inv.equip[sl] == "pistol":
+			c |= game.gun.mods_code(game.inv.get_dur(sl)) << (8 * h)
+	return c
+
+
+## Модели модулей на пистолетах куклы другого игрока (пересобираем, когда сменился набор или модель).
+func _puppet_mods(pp, mods: int) -> void:
+	if game.get("gun") == null:
+		return
+	for h in 2:
+		var n = pp.weapon_nodes[h]
+		var code := (mods >> (8 * h)) & 255 if pp.weapon_ids[h] == "pistol" else 0
+		if n != null and is_instance_valid(n) and int((n as Node3D).get_meta("mods", 0)) != code:
+			Weapons.set_mods(n, game.gun.mods_list(code))
+			(n as Node3D).set_meta("mods", code)
 
 
 @rpc("any_peer", "reliable")
@@ -561,6 +586,7 @@ func _send_enemies() -> void:
 	rpc("es", buf, xs, full)
 
 
+const Weapons := preload("res://scripts/weapons.gd")
 const MobPack := preload("res://scripts/network/mob_pack.gd")
 
 

@@ -238,25 +238,32 @@ func jar_del(nid: String) -> void:
 # ---------- выстрелы (gun.gd) ----------
 ## Урон пули по врагу идёт обычным путём (enemy.take_hit → хосту). Здесь — вспышка и звук у других игроков,
 ## а у хоста враги рядом слышат выстрел клиента.
-func shot(pos: Vector3) -> void:
+## q — громкость (глушитель < 1), fl — вспышка (0 — без вспышки), модули gun.gd.
+func shot(pos: Vector3, q := 1.0, fl := 1.0) -> void:
 	if peer and game:
-		rpc("pshot", pos)
+		rpc("pshot", pos, q, fl)
 
 
 @rpc("any_peer", "unreliable", "call_remote", 1)
-func pshot(pos: Vector3) -> void:
+func pshot(pos: Vector3, q := 1.0, fl := 1.0) -> void:
 	if game == null or not is_instance_valid(game) or game.gun == null:
 		return
 	var a := AudioStreamPlayer3D.new()
 	a.stream = game.gun.snd_shot
 	a.unit_size = 12.0
 	a.max_distance = 70.0
-	a.volume_db = 2.0
-	a.pitch_scale = randf_range(0.95, 1.05)
+	var sil := q <= 0.9   # глушитель: тише, выше и слышно ближе (как у стрелка, gun.gd _shoot)
+	a.volume_db = 2.0 if not sil else -12.0
+	a.max_distance = 70.0 if not sil else 70.0 * maxf(q, 0.2)
+	a.pitch_scale = randf_range(0.95, 1.05) * (1.0 if not sil else 1.35)
 	game.add_child(a)
 	a.global_position = pos
 	a.finished.connect(a.queue_free)
 	a.play()
+	if hosting:
+		game.gun._alert(pos, game.gun.HEAR_R * q)
+	if fl <= 0.5:
+		return
 	var l := OmniLight3D.new()
 	l.light_color = Color(1.0, 0.75, 0.4)
 	l.light_energy = 5.0
@@ -266,8 +273,6 @@ func pshot(pos: Vector3) -> void:
 	var tw := l.create_tween()
 	tw.tween_property(l, "light_energy", 0.0, 0.07)
 	tw.tween_callback(l.queue_free)
-	if hosting:
-		game.gun._alert(pos)
 
 
 # ---------- игроки друг с другом: толкание и огонь по своим ----------

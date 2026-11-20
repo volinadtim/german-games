@@ -670,7 +670,7 @@ func _shoot(h: int, spread: float) -> void:
 	_eject()
 	_alert(p.global_position, HEAR_R * q)
 	if game.net:
-		game.net.shot(_muzzle())   # сеть: выстрел видят и слышат другие, враги у хоста слышат
+		game.net.shot(_muzzle(), q, fl)   # сеть: выстрел видят и слышат другие, враги у хоста слышат
 	if game.inv.open:
 		game.inv._refresh()
 
