@@ -29,9 +29,17 @@
    Подсказка игроку — `"{interact} — открыть"` (или старое `"[F]"`) через `hud.prompt` / `Controls.hint()`: кнопка подставится
    под текущий ввод (клавиатура / Xbox / DualSense) и с переназначением игрока. Окно или слой ввода — `Controls.mode_on("inventory", self)`.
    Исключения (слой устройств): `scripts/controls/*`, `scripts/network/split.gd` (геймпад игрока 2), страницы переназначения кнопок.
-2. **Настраиваемые числа — только в данных `data/`.** Баланс, цены, шансы, урон, скорости, тексты предметов — в `.tres`;
-   скрипт читает `static var X: float = _D_<ИМЯ>.v("X")` (таблица — `scripts/data/data_table.gd`, Configuration Object;
-   предмет — `data/items/<id>.tres`, `scripts/data/item_type.gd`, Type Object). Новое число — ключ в нужной таблице, не `const` в коде.
+2. **Настраиваемые числа — только в данных `data/`, в типизированных ресурсах.** Баланс, цены, шансы, урон, скорости, тексты —
+   в `.tres`, у каждого файла свой класс в `scripts/data/<область>/` (`KillboxConfig`, `PlayerConfig`, `ShopsConfig`…):
+   `@export` с `##`-подсказкой по-русски (видна в Инспекторе при наведении), `@export_group` по смыслу («Цены и крутки», «Шансы»,
+   «Выплаты»…, геометрия — в группе «… (не баланс)»), `@export_range` где есть разумные пределы. Сущности списком — вложенные
+   ресурсы (Type Object): символ автомата `SlotSymbol`/`KillboxSymbol`, уровень окна `SlotWindowLevel`, товар `ShopItem`,
+   оружие `MeleeWeapon`, вид мутанта `MutantKind`, ветка навыков `PerkBranch`, настройка `SettingDef`, рецепт `CraftRecipe`.
+   Скрипт читает `static var X: float = _D_<ИМЯ>.поле` (или метод класса, собирающий прежний словарь: `_D_KILLBOX.pay_table()`).
+   Новое число — `@export` с подсказкой в нужном классе + значение в `.tres`, не `const` в коде. Не полагайся на значение по
+   умолчанию в классе: Godot не пишет в `.tres` поля, равные умолчанию, — смена умолчания тихо меняет баланс.
+   Предмет — `data/items/<id>.tres`, `scripts/data/item_type.gd`. Проверка «значения не поменялись» при переделке чтения —
+   `tests/tools/data_snapshot.tscn -- check res://tests/tools/data_before.json` (снимок 348 значений на 20.11).
 3. **Расстановка — только в сценах `scenes/`.** Где стоит объект — метка в `scenes/locations/<место>.tscn`
    (`scripts/world/prop_spot.gd`, превью модели видно в редакторе); код берёт `Places.pos/yaw/points/spots("место", "Метка")`
    (`scripts/world/places.gd`). Объект — заготовка `scenes/props/<объект>.tscn`, создаётся `preload(...).instantiate()`.
@@ -43,7 +51,7 @@
 | Зона | Папки и главные файлы |
 |---|---|
 | **Управление** | `scripts/controls/` (`controls.gd` — фасад, `bindings.gd` — таблица, `modes.gd` — стек режимов, `router.gd` — устройства по игрокам и Steam Input, `glyphs.gd` — имена кнопок, `gamepad.gd` — кнопки геймпада, `ui_nav.gd` — рамка в меню, `key_hint.gd` — подписи), `data/controls/bindings.cfg`; страницы настроек — `scripts/ui/menu.gd` (клавиатура), `scripts/ui/gamepad_page.gd` |
-| **Данные** | `data/` (`balance/` — игрок, рывок, подкат, игра, уровни, перки, машина; `weapons/`; `enemies/`; `slots/` — KILLBOX, CASHY BOX, КЛЁВ, РАДИАЦИЯ, символы; `shops/`; `items/`; `settings/` — настройки по умолчанию), `scripts/data/` |
+| **Данные** | `data/` (`balance/` — игрок, рывок, подкат, игра, уровни, перки, машина; `weapons/`; `enemies/`; `slots/` — KILLBOX, CASHY BOX, КЛЁВ, РАДИАЦИЯ (символы — внутри автомата); `shops/`; `items/`; `settings/` — настройки по умолчанию), классы ресурсов — `scripts/data/` (по папкам: `slots/`, `balance/`, `weapons/`, `enemies/`, `shops/`, `settings/`, `items/`) |
 | **Сцены** | `scenes/locations/` (bunker, village, lake, city — метки расстановки; `preview/` — снимки для редактора), `scenes/props/` (заготовки), `scripts/world/places.gd`, `scripts/world/prop_spot.gd`, `tests/tools/bake_places.gd` |
 | Проверка и отчёты | `tests/smoke.gd` + `scripts/smoke.sh` (снимок `tests/baseline.json`), `scripts/systems/bug_report.gd` (F8, `/where`, подсказка про Steam Input) |
 | Автоматы | `scripts/slot/` (KILLBOX: `slot_machine.gd` ← `slot_machine_board.gd` ← `slot_machine_model.gd` ← `slot_machine_base.gd`; CASHY BOX `bonus_slot.gd`, КЛЁВ `lake_slot.gd`, РАДИАЦИЯ `city_slot.gd`, `slot_symbols.gd`, `slot_net.gd`, `fast_switch.gd`); числа — `data/slots/` |

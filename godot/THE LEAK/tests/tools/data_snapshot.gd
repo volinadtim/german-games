@@ -1,5 +1,6 @@
 extends Node
-## Снимок настраиваемых значений (одноразовый инструмент перехода DataTable -> типизированные ресурсы).
+## Снимок настраиваемых значений (инструмент перехода DataTable -> типизированные ресурсы, 20.11).
+## DataTable удалён: режим save работал по старому формату; check сравнивает текущие static var со снимком data_before.json.
 ##   godot --headless --path "godot/THE LEAK" res://tests/tools/data_snapshot.tscn -- save <файл.json>
 ##     ищет в scripts/ строки `static var X… = _D_….v("X")` и пишет значения этих static var (var_to_str);
 ##   godot … res://tests/tools/data_snapshot.tscn -- check <файл.json>
