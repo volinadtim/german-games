@@ -526,6 +526,8 @@ func _build_blueprint_tab() -> void:
 	var g := _grid()
 	for b in home.BLUEPRINTS:
 		var id: String = b[0]
+		if int(BP_TIER.get(id, 0)) > shop_tier():
+			continue
 		var st: int = home.status(id)
 		var desc := "%s\nМатериалы: %s." % [b[2], home.materials_text(id)]
 		if bool(b[5]):
