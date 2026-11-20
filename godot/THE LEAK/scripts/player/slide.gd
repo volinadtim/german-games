@@ -63,7 +63,10 @@ func poll(delta: float, can: bool, sprinting: bool, want_crouch: bool, move_dir:
 
 	if not active:
 		# Вход в скольжение: на земле, бежим (или достаточно быстро движемся) и нажали присед
-		if can and player.is_on_floor() and want_crouch and cd <= 0.0 and (sprinting or spd >= MIN_START_SPEED):
+		# только из бега стоя (не из приседа) и за стамину — иначе не слайдим
+		var st = player.stamina
+		if can and player.is_on_floor() and want_crouch and cd <= 0.0 and sprinting and not player.crouched 				and spd >= MIN_START_SPEED and st != null and st.can_dash():
+			st.dash()
 			active = true
 			var dir: Vector3 = move_dir.normalized() if move_dir.length() > 0.01 else (hv.normalized() if spd > 0.01 else -player.global_transform.basis.z)
 			dir.y = 0.0
