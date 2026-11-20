@@ -2,12 +2,20 @@ extends VBoxContainer
 ## Настройки → Управление → «Геймпад» (промпт 18.11 00:41): пресеты «По умолчанию» (только просмотр)
 ## и «Свой» (клик по кнопке → нажать кнопку геймпада; Back + кнопка — сочетание; Delete — убрать; Esc — отмена).
 ## Логика ввода — ui/gamepad.gd (menu.pad).
+## Два игрока (промпт 20.11 14:49): «Игрок 1 / Игрок 2» — у каждого свой пресет, кнопки, чувствительность
+## (игрок 2 — menu.pad.p2, для сплитскрина); список подключённых геймпадов с игроками и «Поменять геймпады».
 
 const Pad := preload("res://scripts/ui/gamepad.gd")
+const Split := preload("res://scripts/network/split.gd")
 
 var menu      # menu.gd
-var pad       # gamepad.gd
+var pad       # gamepad.gd — профиль, открытый на странице (root или root.p2)
+var root      # gamepad.gd — главный узел ввода (menu.pad)
+var who_btns := {}
 var preset_btns := {}
+var sens_s: HSlider
+var sens_l: Label
+var swap_pads_b: Button
 var hint: Label
 var pad_l: Label
 var rows := {}               # действие -> кнопка
@@ -21,7 +29,19 @@ var back_alone := false      # Back нажата одна — ждём отпу�
 func _init(m, p) -> void:
 	menu = m
 	pad = p
+	root = p
 	add_theme_constant_override("separation", 6)
+	var who := HBoxContainer.new()
+	who.add_theme_constant_override("separation", 6)
+	add_child(who)
+	for pr in [[1, "Игрок 1"], [2, "Игрок 2 (Split-Screen)"]]:
+		var n: int = pr[0]
+		var b: Button = menu._button(pr[1], func(): _set_who(n))
+		b.custom_minimum_size = Vector2(0, 40)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 18)
+		who.add_child(b)
+		who_btns[n] = b
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 6)
 	add_child(top)
@@ -47,14 +67,14 @@ func _init(m, p) -> void:
 	var sr := HBoxContainer.new()
 	sr.add_theme_constant_override("separation", 14)
 	sr.add_child(_name("Чувствительность стика"))
-	var s: HSlider = menu.make_slider(0.3, 2.5, 0.05, pad.sens)
-	sr.add_child(s)
-	var vl: Label = menu.value_label()
-	vl.text = "%d%%" % roundi(pad.sens * 100.0)
-	sr.add_child(vl)
-	s.value_changed.connect(func(v: float) -> void:
+	sens_s = menu.make_slider(0.3, 2.5, 0.05, pad.sens)
+	sr.add_child(sens_s)
+	sens_l = menu.value_label()
+	sens_l.text = "%d%%" % roundi(pad.sens * 100.0)
+	sr.add_child(sens_l)
+	sens_s.value_changed.connect(func(v: float) -> void:
 		pad.sens = v
-		vl.text = "%d%%" % roundi(v * 100.0)
+		sens_l.text = "%d%%" % roundi(v * 100.0)
 		pad.save_cfg())
 	list.add_child(sr)
 	inv_b = _row(list, "Инверсия обзора по вертикали", func():
@@ -68,6 +88,11 @@ func _init(m, p) -> void:
 		pad.apply_map()
 		pad.save_cfg()
 		refresh())
+	swap_pads_b = _row(list, "Поменять геймпады игроков", func():
+		root.swap_pads = not root.swap_pads
+		root.save_cfg()
+		root.apply_map()
+		refresh())
 	var fixed: Label = menu._subtitle("Левый стик — ходьба, правый — обзор. Start — пауза. В меню и окнах: левый стик — курсор, "
 		+ "A — клик, X — правый клик, B — назад, LB — повернуть предмет, правый стик — прокрутка.")
 	fixed.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -80,6 +105,14 @@ func _init(m, p) -> void:
 				if c[0] == a:
 					var act: String = a
 					rows[a] = _row(list, c[1], func(): _start(act))
+	Input.joy_connection_changed.connect(func(_d, _c): if is_inside_tree() and is_visible_in_tree(): refresh())
+	refresh()
+
+
+## Чьи настройки открыты: 1 — игрок 1 (menu.pad), 2 — игрок 2 в сплитскрине (menu.pad.p2).
+func _set_who(n: int) -> void:
+	stop()
+	pad = root.p2 if n == 2 and root.p2 else root
 	refresh()
 
 
@@ -121,14 +154,17 @@ func _set_preset(id: String) -> void:
 
 func refresh() -> void:
 	var custom: bool = pad.preset == "custom"
+	for n in who_btns:
+		menu._mark_btn(who_btns[n], (n == 2) == (pad != root))
+	sens_s.set_value_no_signal(pad.sens)
+	sens_l.text = "%d%%" % roundi(pad.sens * 100.0)
 	for id in preset_btns:
 		menu._mark_btn(preset_btns[id], id == pad.preset)
 	hint.text = ("Свой пресет: нажмите на ячейку, затем кнопку геймпада (Back + кнопка — сочетание). Delete — убрать, Esc — отмена."
 		if custom else "Стандартная раскладка — только просмотр. Выберите «Свой», чтобы настроить под себя.") + "\nСлот: нажать — в левую руку, задержать — в правую. Back — режим сброса, затем RT — из левой, LT — из правой (задержать — дальше)."
-	var names: Array = []
-	for d in Input.get_connected_joypads():
-		names.append(Input.get_joy_name(d))
-	pad_l.text = ("Подключено: " + ", ".join(names)) if not names.is_empty() else "Геймпад не подключён"
+	pad_l.text = _pads_text()
+	swap_pads_b.text = "вкл" if root.swap_pads else "выкл"
+	swap_pads_b.disabled = Input.get_connected_joypads().size() < 2
 	inv_b.text = "вкл" if pad.invert_y else "выкл"
 	swap_b.text = "вкл" if pad.swapped() else "выкл"
 	swap_b.disabled = not custom
@@ -138,6 +174,25 @@ func refresh() -> void:
 		b.text = "нажмите кнопку…" if a == waiting else Pad.spec_name(pad.spec_of(a))
 
 
+## Подключённые геймпады и чей каждый в сплитскрине (как network/split.gd: pad_device).
+func _pads_text() -> String:
+	var pads := Input.get_connected_joypads()
+	if pads.is_empty():
+		return "Геймпад не подключён. Для Split-Screen вдвоём: игрок 1 — клавиатура и мышь, игрок 2 — геймпад; или два геймпада."
+	var d1: int = Split.pad_device(false)
+	var d2: int = Split.pad_device(true)
+	var lines: Array = []
+	for i in pads.size():
+		var d: int = pads[i]
+		var who := "игрок 1" if d == d1 else ("игрок 2" if d == d2 else "не используется")
+		lines.append("%d. %s — %s" % [i + 1, Input.get_joy_name(d), who])
+	var tail := "
+В Split-Screen игрок 1 — клавиатура и мышь." if pads.size() == 1 else ""
+	return "Подключено (в Split-Screen):
+" + "
+".join(lines) + tail
+
+
 func _start(a: String) -> void:
 	if pad.preset != "custom":
 		return
@@ -145,15 +200,15 @@ func _start(a: String) -> void:
 	waiting = a
 	wait_since = Time.get_ticks_msec()
 	back_alone = false
-	pad.release_all()
-	pad.capturing = true
+	root.release_all()
+	root.capturing = true
 	refresh()
 
 
 func stop() -> void:
 	waiting = ""
 	back_alone = false
-	pad.capturing = false
+	root.capturing = false
 	if is_inside_tree():
 		refresh()
 

@@ -44,6 +44,10 @@ var swap_sticks := false     # только для «Своего»: ходьб�
 var invert_y := false
 var sens := 1.0
 var capturing := false       # настройки ждут кнопку — ничего не шлём
+var section := "pad"         # секция settings.cfg: "pad" — игрок 1, "pad2" — игрок 2 (сплитскрин)
+var profile := false         # true — только настройки игрока 2 (узел не в дереве, ввод не обрабатывает)
+var p2                       # gamepad.gd-профиль игрока 2: свой пресет, кнопки, чувствительность (промпт 20.11 14:49)
+var swap_pads := false       # сплитскрин: поменять геймпады игроков местами (network/split.gd: pad_device)
 
 var held := {}               # физическая кнопка ("b:N"/"t:L") -> [действия]
 var mod_down := false
@@ -63,9 +67,18 @@ var cursor_layer: CanvasLayer
 var cursor_dot: Control
 
 
-func _init() -> void:
+func _init(sec := "pad") -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	section = sec
+	profile = sec != "pad"
 	load_cfg()
+	if not profile:
+		p2 = get_script().new("pad2")
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and p2 and is_instance_valid(p2):
+		p2.free()
 
 
 func _ready() -> void:
@@ -110,27 +123,35 @@ func load_cfg() -> void:
 	var cf := ConfigFile.new()
 	if cf.load(CFG) != OK:
 		return
-	preset = str(cf.get_value("pad", "preset", "default"))
-	var c = cf.get_value("pad", "custom", {})
+	if not profile:
+		swap_pads = bool(cf.get_value("pad", "swap_pads", false))
+		Split.swap_pads = swap_pads
+	if not cf.has_section(section):
+		return
+	preset = str(cf.get_value(section, "preset", "default"))
+	var c = cf.get_value(section, "custom", {})
 	custom = c if c is Dictionary else {}
 	# новые действия (сброс) — в старый «Свой» пресет, если их кнопка там свободна
 	if not custom.is_empty():
 		for a in ["drop_mode"]:
 			if not custom.has(a) and not str(DEFAULT[a]) in custom.values():
 				custom[a] = DEFAULT[a]
-	swap_sticks = bool(cf.get_value("pad", "swap_sticks", false))
-	invert_y = bool(cf.get_value("pad", "invert_y", false))
-	sens = float(cf.get_value("pad", "sens", 1.0))
+	swap_sticks = bool(cf.get_value(section, "swap_sticks", false))
+	invert_y = bool(cf.get_value(section, "invert_y", false))
+	sens = float(cf.get_value(section, "sens", 1.0))
 
 
 func save_cfg() -> void:
 	var cf := ConfigFile.new()
 	cf.load(CFG)   # остальные секции (settings, controls, net) не трогаем
-	cf.set_value("pad", "preset", preset)
-	cf.set_value("pad", "custom", custom)
-	cf.set_value("pad", "swap_sticks", swap_sticks)
-	cf.set_value("pad", "invert_y", invert_y)
-	cf.set_value("pad", "sens", sens)
+	cf.set_value(section, "preset", preset)
+	cf.set_value(section, "custom", custom)
+	cf.set_value(section, "swap_sticks", swap_sticks)
+	cf.set_value(section, "invert_y", invert_y)
+	cf.set_value(section, "sens", sens)
+	if not profile:
+		cf.set_value("pad", "swap_pads", swap_pads)
+		Split.swap_pads = swap_pads
 	cf.save(CFG)
 
 
@@ -170,6 +191,8 @@ static func _btn_name(b: int) -> String:
 
 ## Оси ходьбы — в InputMap (вызывает и menu.gd после своих клавиш: он стирает события действий).
 func apply_map() -> void:
+	if profile:
+		return   # у игрока 2 оси читает сам split.gd
 	# сплитскрин (network/split.gd): у игрока 1 — первый геймпад, если их два; иначе только клавиатура и мышь
 	only_device = Split.pad_device(false) if Split.inst != null and is_instance_valid(Split.inst) else -1
 	var pads := not Input.get_connected_joypads().is_empty() and only_device != -2

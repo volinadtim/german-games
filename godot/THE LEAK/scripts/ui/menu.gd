@@ -1261,7 +1261,7 @@ func _mark_btn(b: Button, on: bool) -> void:
 ## «По умолчанию» — только для открытой категории.
 func _reset_cat() -> void:
 	if cat == "controls" and pad_page and pad_page.visible:
-		pad.reset_custom()   # «По умолчанию» на странице геймпада — «Свой» = стандартная раскладка
+		pad_page.pad.reset_custom()   # «По умолчанию» на странице геймпада (игрока, открытого на ней) — «Свой» = стандартная раскладка
 		pad_page.refresh()
 		return
 	if cat == "controls":

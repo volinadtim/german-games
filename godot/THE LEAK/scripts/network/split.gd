@@ -18,6 +18,7 @@ const RESPAWN_T := 10.0
 
 static var pending := false  # menu.gd: следующий запуск игры — сплитскрин
 static var inst: Node        # для gamepad.gd: какой геймпад у игрока 1
+static var swap_pads := false   # gamepad.gd (настройки): поменять геймпады игроков местами
 
 var main
 var game
@@ -59,9 +60,12 @@ class Target2:
 
 static func pad_device(for_p2: bool) -> int:
 	var pads := Input.get_connected_joypads()
+	if pads.size() >= 2:
+		var i1 := 1 if swap_pads else 0   # третий и следующие геймпады не используются
+		return pads[1 - i1] if for_p2 else pads[i1]
 	if for_p2:
-		return pads[1] if pads.size() >= 2 else (pads[0] if pads.size() == 1 else -1)
-	return pads[0] if pads.size() >= 2 else -2
+		return pads[0] if pads.size() == 1 else -1
+	return -2
 
 
 ## main.gd: игра создана — добавить второго игрока и разделить экран.
@@ -335,7 +339,7 @@ func _input(e: InputEvent) -> void:
 	var pressed := false
 	var menu = main.get("menu")
 	var pad = menu.pad if menu else null
-	if pad == null:
+	if pad == null or pad.capturing:
 		return
 	if e is InputEventJoypadButton:
 		if e.button_index == JOY_BUTTON_START:
@@ -357,7 +361,7 @@ func _input(e: InputEvent) -> void:
 		pressed = on
 	else:
 		return
-	for a in pad._actions(spec):
+	for a in pad.p2._actions(spec):   # у игрока 2 своя раскладка (gamepad.gd: p2)
 		_act2(a, pressed)
 
 
@@ -410,7 +414,7 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(pp) or not is_instance_valid(p1) or get_tree().paused:
 		return
 	var dev := _dev()
-	var pad = main.menu.pad if main.get("menu") else null
+	var pad = main.menu.pad.p2 if main.get("menu") and main.menu.pad else null   # настройки игрока 2
 	var swapped: bool = pad != null and pad.swapped()
 	var mv := Vector2.ZERO
 	var lk := Vector2.ZERO
