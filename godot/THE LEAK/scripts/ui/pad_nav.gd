@@ -1,28 +1,32 @@
 extends Node
-## Клетки в меню с геймпада (промпты 20.11 14:40–14:48). Создаёт ui/gamepad.gd (pad.nav), работает и на паузе.
-## В меню и окнах (курсор не захвачен) курсора по умолчанию нет: ↑ ← → и правый стик переключают активную клетку
-## (кнопка, ползунок, поле, слот, ячейка сетки), она обведена рамкой; A — клик по ней, X — правый клик.
-## Мышь всё равно ставим в центр клетки (warp) — подсказки и перетаскивание (A держать + стрелки) работают как от мыши.
-## ↓ — переключить «клетки ↔ свободный курсор» (курсор — правым стиком; левый — ходьба); ↑ ← → — тоже обратно к клеткам.
-## В игре (мышь захвачена) курсора с геймпада нет (промпт 20.11 15:03–15:04).
-## Геймпад подключён при запуске — клетки сразу, и в главном меню (промпт 14:55).
-## LB / RB — соседний раздел окна (крафт / снаряжение / лут — крупные панели слева направо).
-## Клетки ищем по всему интерфейсу; закрытое другой панелью (выше по отрисовке, ловит мышь) — пропускаем.
-## Мышь, клавиатура или касание выключают клетки до следующего нажатия на геймпаде.
+## Клетки (плитки) в меню и окнах — с геймпада и с клавиатуры (промпты 20.11 14:40–15:10). Создаёт ui/gamepad.gd (pad.nav),
+## работает и на паузе. Клетки ищем по всему интерфейсу (кнопка, ползунок, поле, слот, ячейка сетки) — каждое окно
+## и каждая страница меню работают без своей разметки; закрытое другой панелью (выше по отрисовке, ловит мышь) — пропускаем.
+## Активная клетка обведена рамкой, курсора мыши нет. Мышь всё равно ставим в центр клетки (warp) — подсказки
+## и перетаскивание (A держать + стрелки) работают как от мыши.
+## Клавиатура: стрелки — клетка (на ползунке ←/→ — значение), Enter — клик, Esc — назад (ui_cancel, как и было).
+## Геймпад: ↑ ← → и правый стик — клетка, A — клик, X — правый клик, B — назад, RB — крафт в инвентаре,
+## ↓ — переключить «клетки ↔ свободный курсор» (курсор — правым стиком). В игре (мышь захвачена) курсора с геймпада нет.
+## Геймпад подключён при запуске — клетки сразу, и в главном меню. Новый экран — рамка на первом пункте (сверху слева);
+## перестроилось то же окно / закрылось подменю — на прежнем месте.
+## Движение мыши, клик мышью или касание — клетки прячем, курсор возвращаем (до следующей стрелки / кнопки геймпада).
 
 const ST_ON := 0.55           # правый стик: отклонение для шага по клеткам
 const REP_DELAY := 0.32       # стрелку держат — повтор
 const REP_T := 0.1
-const SEC_MIN := Vector2(200, 150)   # панель от такого размера — отдельный раздел для LB/RB
+const SAME_PX := 24.0         # клетка на прежнем месте (окно перестроилось) — та же
 const FRAME_COL := Color(1.0, 0.82, 0.3)
-const PAD_HINT := "Стрелки — клетка  ·  %s — взять / положить (держать + стрелки — перетащить)  ·  %s — действия  ·  %s — использовать  ·  %s / %s — разделы  ·  %s + стрелка — в слот"
+const PAD_HINT := "Стрелки — клетка  ·  %s — взять / положить (держать + стрелки — перетащить)  ·  %s — действия  ·  %s — использовать  ·  %s — крафт  ·  %s + стрелка — в слот"
+const KB_DIR := {KEY_UP: Vector2.UP, KEY_DOWN: Vector2.DOWN, KEY_LEFT: Vector2.LEFT, KEY_RIGHT: Vector2.RIGHT}
 
 var pad                        # ui/gamepad.gd
-var pad_used := false          # последний ввод — с геймпада
-var cursor_mode := false       # свободный курсор (↓ переключает)
+var pad_used := false          # клетки включены: последний ввод — геймпад или стрелки клавиатуры
+var by_kb := false             # ...и это была клавиатура (подсказки — клавиши, не кнопки геймпада)
+var cursor_mode := false       # свободный курсор геймпада (↓ переключает)
 var target: Control            # активная клетка
 var trect := Rect2()           # её прямоугольник в target (ячейка сетки или весь контрол)
-var last_pt := Vector2(-1, -1) # центр последней клетки (холст) — после закрытия окна берём ближайшую
+var last_pt := Vector2(-1, -1) # центр последней клетки (холст)
+var _hist: Array = []          # прежние центры клеток (новые в конце) — вернуться после закрытия подменю
 var _warp_ms := 0              # когда геймпад двигал мышь (её «настоящие» движения после warp не считаем)
 var _layer: CanvasLayer
 var _frame: Control
@@ -55,22 +59,71 @@ func _input(e: InputEvent) -> void:
 	if e is InputEventJoypadButton:
 		if e.pressed:
 			pad_used = true
+			by_kb = false
 	elif e is InputEventJoypadMotion:
 		if absf(e.axis_value) > 0.5:
 			pad_used = true
+			by_kb = false
 	elif e.device != pad.SYNTH:
-		if e is InputEventMouseMotion:
+		if e is InputEventKey:
+			if e.pressed:
+				_key(e)
+		elif e is InputEventMouseMotion:
 			if Time.get_ticks_msec() - _warp_ms > 150 and e.relative.length() > 3.0:
 				_off()
-		elif (e is InputEventMouseButton and e.pressed) or (e is InputEventKey and e.pressed) or e is InputEventScreenTouch:
+		elif (e is InputEventMouseButton and e.pressed) or e is InputEventScreenTouch:
 			_off()
 
 
-## Мышь/клавиатура — клетки и рамку прячем, курсор возвращаем.
+## Клавиатура в меню / окне: стрелки — клетка, Enter — клик. Поле ввода, ожидание клавиши в «Управлении»,
+## выпадающий список (у него свои стрелки) — не трогаем.
+func _key(e: InputEventKey) -> void:
+	if not pad._ui_mode() or pad.capturing:
+		return
+	var k: int = e.keycode
+	var enter := k == KEY_ENTER or k == KEY_KP_ENTER
+	if not enter and not KB_DIR.has(k):
+		return
+	var m = pad.get_parent()
+	if m != null and str(m.get("waiting_action")) != "" and str(m.get("waiting_action")) != "<null>":
+		return
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is TextEdit or (fo is LineEdit and (fo as LineEdit).is_editing()):
+		return
+	if popup_open():
+		return
+	get_viewport().set_input_as_handled()
+	if fo != null:
+		fo.release_focus()   # фокус Godot не нужен: рамка — наша
+	pad_used = true
+	by_kb = true
+	cursor_mode = false
+	if enter:
+		if not e.is_echo() and _valid(target):
+			before_click()
+			pad._mouse_btn(MOUSE_BUTTON_LEFT, true)
+			pad._mouse_btn(MOUSE_BUTTON_LEFT, false)
+		return
+	if not _valid(target):
+		_repick()
+	else:
+		_step(KB_DIR[k])
+
+
+## Открыт выпадающий список / всплывающее окно Godot (OptionButton) — у него своя навигация (ui_up / ui_accept).
+func popup_open() -> bool:
+	for w in get_tree().root.get_embedded_subwindows():
+		if w.visible:
+			return true
+	return false
+
+
+## Мышь / касание — клетки и рамку прячем, курсор возвращаем.
 func _off() -> void:
 	if not pad_used and not cursor_mode:
 		return
 	pad_used = false
+	by_kb = false
 	cursor_mode = false
 	target = null
 	_dir_b = -1
@@ -89,6 +142,7 @@ func _process(delta: float) -> void:
 		target = null
 		cursor_mode = false
 		last_pt = Vector2(-1, -1)
+		_hist.clear()
 		_dir_b = -1
 		_show(false)
 		_restore_mouse()
@@ -102,7 +156,7 @@ func _process(delta: float) -> void:
 	if _sec_wait > 0.0:
 		_sec_wait -= delta
 		if _sec_wait <= 0.0:
-			section(0)
+			_craft_pick()
 	if _warp_wait > 0:
 		_warp_wait -= 1
 		if _warp_wait == 0:
@@ -115,7 +169,7 @@ func _process(delta: float) -> void:
 		if _ui_t > 0.12 and (not _valid(target) or _check_t <= 0.0):
 			_check_t = 0.25
 			if not _target_ok():
-				_pick_near(last_pt)
+				_repick()
 		var ok := _valid(target)
 		_show(ok)
 		if ok:
@@ -140,6 +194,7 @@ func dpad(b: int, pressed: bool) -> void:
 			_dir_b = -1
 		return
 	pad_used = true
+	by_kb = false
 	if b == JOY_BUTTON_DPAD_DOWN:
 		_dir_b = -1
 		if cursor_mode:
@@ -156,7 +211,7 @@ func dpad(b: int, pressed: bool) -> void:
 		_pick_near(_mouse_canvas())   # из курсора — к ближайшей клетке
 		return
 	if not _valid(target):
-		_pick_near(last_pt)
+		_repick()
 		return
 	_step(_dir_vec(b))
 
@@ -170,6 +225,7 @@ func stick(v: Vector2, delta: float) -> void:
 		_st_dir = Vector2.ZERO
 		return
 	pad_used = true
+	by_kb = false
 	if d != _st_dir:
 		_st_dir = d
 		_st_t = REP_DELAY
@@ -179,59 +235,43 @@ func stick(v: Vector2, delta: float) -> void:
 			return
 		_st_t = REP_T
 	if not _valid(target):
-		_pick_near(last_pt)
+		_repick()
 	else:
 		_step(d)
 
 
-## Перед кликом A/X — мышь точно в центр активной клетки (окно могло перестроиться).
+## Перед кликом A/X/Enter — мышь точно в центр активной клетки (окно могло перестроиться).
 func before_click() -> void:
 	pad_used = true
 	if not cursor_mode and _valid(target):
 		_warp()
 
 
-## LB / RB: соседний раздел (dirn -1 / +1; 0 — выбрать первую клетку в разделе, куда ехали).
-func section(dirn: int) -> void:
+## RB: в инвентаре — выкатить / спрятать крафт (промпт 20.11 15:10). false — инвентарь не открыт.
+func toggle_craft() -> bool:
+	var inv = _inv()
+	if inv == null or not bool(inv.get("open")) or not inv.has_method("set_craft"):
+		return false
 	pad_used = true
 	cursor_mode = false
-	var cs := _collect()
-	if cs.is_empty():
-		return
-	var secs := {}
-	for cd in cs:
-		if not secs.has(cd.sec):
-			secs[cd.sec] = []
-		secs[cd.sec].append(cd)
-	var keys: Array = secs.keys()
-	var cx := {}
-	for k in keys:
-		var sx := 0.0
-		for cd in secs[k]:
-			sx += cd.p.x
-		cx[k] = sx / float(secs[k].size())
-	keys.sort_custom(func(a, b): return cx[a] < cx[b])
+	var on := not bool(inv.get("craft_shown"))
+	inv.set_craft(on)
+	if on:
+		_sec_wait = 0.35   # клетку в крафте выберем, когда панель доедет
+	return true
+
+
+## Первая клетка в выехавшем крафте.
+func _craft_pick() -> void:
 	var inv = _inv()
-	var want = null
-	if dirn == 0:
-		want = inv.craft_panel if inv != null and inv.get("craft_panel") != null else null
-		if not secs.has(want):
-			return
-	else:
-		var cur = _section(target) if _valid(target) else null
-		var i := keys.find(cur)
-		# крафт спрятан — ещё один раздел справа: выкатываем панель, клетку в ней выберем, когда доедет
-		if inv != null and bool(inv.get("open")) and not bool(inv.get("craft_shown")) \
-				and dirn > 0 and (i < 0 or i == keys.size() - 1) and inv.has_method("set_craft"):
-			inv.set_craft(true)
-			_sec_wait = 0.35
-			return
-		if keys.size() < 2 and i >= 0:
-			return
-		want = keys[posmod(i + dirn, keys.size())] if i >= 0 else keys[0 if dirn > 0 else keys.size() - 1]
+	var cp = inv.get("craft_panel") if inv != null else null
+	if not (cp is Control):
+		return
 	var best = null
 	var bs := INF
-	for cd in secs[want]:
+	for cd in _collect():
+		if not (cp as Control).is_ancestor_of(cd.c):
+			continue
 		var s: float = cd.p.y + cd.p.x * 0.25
 		if s < bs:
 			bs = s
@@ -273,6 +313,19 @@ func _step(dir: Vector2) -> void:
 			best = cd
 	if best != null:
 		_select(best)
+
+
+## Новый экран — первая клетка (сверху слева); перестроилось то же окно / закрылось подменю —
+## клетка на одном из прежних мест (последние сначала).
+func _repick() -> void:
+	var cs := _collect()
+	for i in range(_hist.size() - 1, -1, -1):
+		var hp: Vector2 = _hist[i]
+		for cd in cs:
+			if (cd.p as Vector2).distance_to(hp) < SAME_PX:
+				_select(cd)
+				return
+	_pick_near(Vector2(-1, -1))
 
 
 ## Ближайшая к точке клетка; точки нет (-1) — первая по порядку чтения (сверху слева).
@@ -318,6 +371,10 @@ func _warp() -> void:
 		return
 	var p := _tpoint()
 	last_pt = p
+	if _hist.is_empty() or (_hist[-1] as Vector2).distance_to(p) > 1.0:
+		_hist.append(p)
+		if _hist.size() > 6:
+			_hist.pop_front()
 	pad.mouse_to(get_tree().root.get_final_transform() * p)
 
 
@@ -352,7 +409,7 @@ func _valid(c) -> bool:
 	return true
 
 
-## Все доступные клетки: {c, r — прямоугольник в c, p — центр на холсте, sc — ScrollContainer, если клетка за краем, sec — раздел}.
+## Все доступные клетки: {c, r — прямоугольник в c, p — центр на холсте, sc — ScrollContainer, если клетка за краем}.
 func _collect() -> Array:
 	var cands := []
 	var stops := []
@@ -369,7 +426,6 @@ func _collect() -> Array:
 			sr = sc.get_global_transform_with_canvas() * Rect2(Vector2.ZERO, sc.size)
 			if not vr.intersects(sr):
 				continue
-		var sec = _section(c)
 		for r in _rects(c):
 			var p: Vector2 = xf * (r as Rect2).get_center()
 			var clipped := sc != null and not sr.has_point(p)
@@ -378,7 +434,7 @@ func _collect() -> Array:
 			var q := p.clamp(sr.position + Vector2(4, 4), sr.end - Vector2(4, 4)) if clipped else p
 			if _occluded(q, ord, c, stops):
 				continue
-			out.append({"c": c, "r": r, "p": p, "sc": sc if clipped else null, "sec": sec})
+			out.append({"c": c, "r": r, "p": p, "sc": sc if clipped else null})
 	return out
 
 
@@ -466,20 +522,6 @@ func _scroll_of(c: Control) -> ScrollContainer:
 	return null
 
 
-## Раздел для LB/RB — ближайшая крупная панель вокруг клетки.
-func _section(c: Control) -> Node:
-	var p: Node = c.get_parent()
-	var last: Node = c
-	while p != null:
-		if (p is PanelContainer or p is Panel) and (p as Control).size.x >= SEC_MIN.x and (p as Control).size.y >= SEC_MIN.y:
-			return p
-		if p is CanvasLayer:
-			return p
-		last = p
-		p = p.get_parent()
-	return last
-
-
 ## Подсказки внизу инвентаря — под геймпад, пока играют с него (исходный текст — в meta).
 func _inv_hint() -> void:
 	var inv = _inv()
@@ -489,7 +531,7 @@ func _inv_hint() -> void:
 	if not l.has_meta("kb"):
 		l.set_meta("kb", l.text)
 	var t: String = PAD_HINT % [pad.spec_name("b:0"), pad.spec_name("b:2"), pad.spec_name("b:8"),
-		pad.spec_name("b:9"), pad.spec_name("b:10"), pad.spec_name("b:4")] if pad_used else str(l.get_meta("kb"))
+		pad.spec_name("b:10"), pad.spec_name("b:4")] if pad_used and not by_kb else str(l.get_meta("kb"))
 	if l.text != t:
 		l.text = t
 

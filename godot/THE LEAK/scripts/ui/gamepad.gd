@@ -5,7 +5,7 @@ extends Node
 ## В InputMap идут только оси левого стика (ходьба, аналогово) — и только пока геймпад подключён,
 ## чтобы не мешать антизалипанию клавиш (player.gd: _unstick_moves).
 ## Когда курсор виден (меню, инвентарь, магазин…): клетки (ui/pad_nav.gd) — крестовина переключает активную,
-## A — ЛКМ по ней, X — ПКМ, B — назад (ui_cancel), LB/RB — раздел окна (при перетаскивании LB — повернуть предмет),
+## A — ЛКМ по ней, X — ПКМ, B — назад (ui_cancel), RB — крафт в инвентаре, при перетаскивании LB — повернуть предмет,
 ## правый стик — тоже по клеткам; ↓ — клетки / свободный курсор (правым стиком), левый стик — ходьба. В игре курсора нет. Start — пауза всегда.
 ## Back + стрелка в инвентаре — привязать предмет под рамкой к слоту (как раньше просто стрелка).
 ## Руки (промпт 20.11 11:43): кнопка слота (крестовина) — нажать: в левую руку, задержать: в правую.
@@ -240,7 +240,7 @@ static func is_ps(dev: int) -> bool:
 ## Подсказка на экране (hud.gd prompt/toast): последний ввод с геймпада — «[F]» и «ЛКМ/ПКМ» меняем
 ## на кнопки геймпада по текущей раскладке; ввод с клавиатуры/мыши — текст как есть (промпт 20.11 14:49).
 static func pad_text(s: String) -> String:
-	if inst == null or not is_instance_valid(inst) or inst.nav == null or not inst.nav.pad_used:
+	if inst == null or not is_instance_valid(inst) or inst.nav == null or not inst.nav.pad_used or inst.nav.by_kb:
 		return s
 	return inst._pad_text(s)
 
@@ -414,6 +414,10 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 func _ui_button(b: int, pressed: bool) -> bool:
 	match b:
 		JOY_BUTTON_A:
+			if pressed and nav.popup_open():
+				_send("ui_accept", true, last_dev)   # выпадающий список: выбрать пункт
+				_send("ui_accept", false, last_dev)
+				return true
 			if pressed:
 				nav.before_click()
 			_mouse_btn(MOUSE_BUTTON_LEFT, pressed)
@@ -430,23 +434,31 @@ func _ui_button(b: int, pressed: bool) -> bool:
 					mod_used = true
 					_tap("hot_%d" % UI_HOT[b], last_dev)
 				return true
+			if nav.popup_open():
+				if pressed:   # выпадающий список: у него своя навигация (ui_up / ui_down)
+					var ua: String = {JOY_BUTTON_DPAD_UP: "ui_up", JOY_BUTTON_DPAD_DOWN: "ui_down",
+						JOY_BUTTON_DPAD_LEFT: "ui_left", JOY_BUTTON_DPAD_RIGHT: "ui_right"}[b]
+					_send(ua, true, last_dev)
+					_send(ua, false, last_dev)
+				return true
 			nav.dpad(b, pressed)
 			return true
 		JOY_BUTTON_RIGHT_SHOULDER:
-			if pressed and mod_down:
+			# RB: в инвентаре — крафт (промпт 20.11 15:10); вне инвентаря — как в игре (лут: «забрать всё»)
+			if not pressed:
+				return true
+			if mod_down:
 				mod_used = true
 				_tap("hot_5", last_dev)
-			elif pressed:
-				nav.section(1)
-			return true
+				return true
+			return nav.toggle_craft()
 		JOY_BUTTON_B:
 			if pressed:
 				_tap("ui_cancel", last_dev)
 			return true
 		JOY_BUTTON_LEFT_SHOULDER:
-			# LB: тащим предмет — повернуть (пробел), иначе — предыдущий раздел окна
+			# LB: тащим предмет — повернуть (пробел); разделов окна больше нет (промпт 20.11 15:10)
 			if pressed and not get_viewport().gui_is_dragging():
-				nav.section(-1)
 				return true
 			if not pressed and not lb_space:
 				return true
