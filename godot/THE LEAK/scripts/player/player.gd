@@ -245,7 +245,7 @@ func _physics_process(delta: float) -> void:
 		crouched = false
 		if on_floor and stamina.can_jump():
 			velocity.y = JUMP * slide_node.JUMP_UP_MULT
-			stamina.jump()
+			stamina.jump(stamina.JUMP_COST)
 			make_noise(NOISE_JUMP)
 			on_floor = false
 		jump_now = false

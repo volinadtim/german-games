@@ -8,7 +8,8 @@ extends Node
 ## Звука дыхания нет (убран, промпт 04:14).
 
 const DRAIN := 1.0 / 7.0        # полная полоска — ~7 с бега
-const JUMP_COST := 0.15      # 18.11 02:18: прыжки тратят больше
+const JUMP_COST := 0.15      # прыжок после слайда (как было)
+const JUMP_COST_PLAIN := 0.11  # обычный прыжок чуть дешевле (14:36)
 const DASH_COST := 0.2     # рывок (dash.gd)
 const REGEN_WALK := 1.25 / 10.0 # на ходу — ~8 с до полной (+25%, 14:36)
 const REGEN_IDLE := 1.25 / 5.0  # стоя — ~4 с (+25%)
@@ -47,11 +48,11 @@ func can_sprint() -> bool:
 
 
 func can_jump() -> bool:
-	return not exhausted and value >= JUMP_COST
+	return not exhausted and value >= JUMP_COST_PLAIN
 
 
-func jump() -> void:
-	value = maxf(value - JUMP_COST, 0.0)
+func jump(cost: float = JUMP_COST_PLAIN) -> void:
+	value = maxf(value - cost, 0.0)
 	delay = REGEN_DELAY
 	if value < UNLOCK:
 		exhausted = true
