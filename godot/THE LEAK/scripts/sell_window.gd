@@ -366,10 +366,7 @@ class Cell extends Button:
 		if n > 1:
 			draw_string_outline(f, Vector2(4, size.y - 10), str(n), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 16, 4, Color(0, 0, 0, 0.8))
 			draw_string(f, Vector2(4, size.y - 10), str(n), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 16, Color(0.92, 0.9, 0.84))
-		if side == "sell":
-			var t := "%d" % price
-			draw_string_outline(f, Vector2(4, 17), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 4, Color(0, 0, 0, 0.85))
-			draw_string(f, Vector2(4, 17), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1.0, 0.82, 0.4))
+		# цену в левом верхнем углу не пишем (промпт 20.11 15:18) — она в подсказке и в сумме внизу
 		if equipped:
 			draw_string_outline(f, Vector2(4, 15), "надето", HORIZONTAL_ALIGNMENT_LEFT, size.x - 8, 12, 4, Color(0, 0, 0, 0.9))
 			draw_string(f, Vector2(4, 15), "надето", HORIZONTAL_ALIGNMENT_LEFT, size.x - 8, 12, Color(0.55, 0.9, 0.6))
