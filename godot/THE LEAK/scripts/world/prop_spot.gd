@@ -16,6 +16,11 @@ extends Marker3D
 	set(v):
 		editor_light = v
 		_show()
+## Только редактор: спрятать поверхность над бункером (рельеф, будку, лестницу, небо), чтобы видеть бункер сверху.
+@export var editor_hide_surface := false:
+	set(v):
+		editor_hide_surface = v
+		_show()
 
 
 func _ready() -> void:
@@ -38,6 +43,11 @@ func _show() -> void:
 	add_child(n)   # без owner — в сцену не сохраняется
 	if editor_light:
 		_light_up(n)
+	if editor_hide_surface:
+		for c in n.find_children("*", "Node3D", true, false):
+			var s: Script = c.get_script()
+			if s != null and s.resource_path.ends_with("bunker/surface.gd"):
+				(c as Node3D).visible = false
 
 
 ## Редактор: заменить тёмное игровое окружение превью на светлое и добавить свет сверху.
