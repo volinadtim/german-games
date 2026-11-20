@@ -13,6 +13,10 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
+# git on Windows asks "Unlink of file '...' failed. Should I try again? (y/n)" when Godot holds a file open,
+# and the window hangs forever. Answer "no" automatically and never prompt.
+$env:GIT_ASK_YESNO = "false"
+$env:GIT_TERMINAL_PROMPT = "0"
 $Host.UI.RawUI.WindowTitle = "german-games auto-pull"
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -91,6 +95,27 @@ Enable-GodotAutoReload
 
 Set-Location $Dir
 
+# Is a Godot editor (or a game started from it) open with a project from this folder?
+# Updating files under an open editor broke a scene once, so we wait until it is closed.
+function Get-GodotOpen {
+    $root = ((Resolve-Path $Dir).Path -replace '/', '\').TrimEnd('\').ToLower()
+    $procs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "godot*" })
+    foreach ($p in $procs) {
+        $cl = "$($p.CommandLine)"
+        if (-not $cl) { return "Godot (pid $($p.ProcessId), its folder is unknown)" }   # cannot read it -> be careful
+        if (($cl -replace '/', '\').ToLower().Contains($root)) { return "Godot (pid $($p.ProcessId))" }
+    }
+    # Opened from the project manager: the command line has no path, but the editor holds .godot\editor files.
+    foreach ($p in $procs) {
+        if ("$($p.CommandLine)" -match '(?i)--path|\.godot\b|project\.godot') { continue }
+        foreach ($lock in @(Get-ChildItem -ErrorAction SilentlyContinue "$Dir\godot\*\.godot\editor\project_metadata.cfg")) {
+            if (((Get-Date) - $lock.LastWriteTime).TotalHours -lt 12) { return "Godot project manager/editor (pid $($p.ProcessId))" }
+        }
+    }
+    return $null
+}
+$script:WarnedOpen = $false
+
 # Commit local changes and send everything to GitHub. Clash with the update -> separate branch german-<date>.
 function Sync-Local([string]$stamp) {
     if (git status --porcelain) {
@@ -125,6 +150,8 @@ function Sync-Local([string]$stamp) {
 
 git checkout --quiet $Branch 2>$null
 if ($Once) {
+    $open = Get-GodotOpen
+    if ($open) { Write-Host "$open is open with this project. Close Godot first, then run again." -ForegroundColor Red; exit 1 }
     git fetch --quiet origin $Branch
     Sync-Local (Get-Date -Format "HH:mm:ss")
     exit 0
@@ -137,7 +164,17 @@ while ($true) {
     if ($LASTEXITCODE -eq 0) {
         $local  = (git rev-parse HEAD).Trim()
         $remote = (git rev-parse "origin/$Branch").Trim()
-        if ($local -ne $remote) {
+        $open = if ($local -ne $remote) { Get-GodotOpen } else { $null }
+        if ($open) {
+            if (-not $script:WarnedOpen) {
+                $n = (git rev-list --count "HEAD..origin/$Branch" 2>$null)
+                Write-Host "[$(Get-Date -Format HH:mm:ss)] UPDATE WAITING ($n new commits): $open is open with this project." -ForegroundColor Yellow
+                Write-Host "    Close Godot (save your work first) - the update will be pulled right after." -ForegroundColor Yellow
+                [console]::Beep(440, 300)
+                $script:WarnedOpen = $true
+            }
+        } elseif ($local -ne $remote) {
+            $script:WarnedOpen = $false
             $stamp = Get-Date -Format "HH:mm:ss"
             Sync-Local $stamp
             Write-Host "[$stamp] Updated:" -ForegroundColor Green
