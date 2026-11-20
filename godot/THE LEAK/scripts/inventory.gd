@@ -41,7 +41,7 @@ const SLOT := 76.0
 const CELL := 58.0               # ячейка сетки сумки
 const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left", "right", "gps", "holster", "hook1", "hook2"]
 ## тела, на которые крепится GPS (лучшая куртка деревни и выше тиром, промпт 20.11 18:38)
-const GPS_BODIES := ["bushlat", "vest", "plate_vest"]
+const GPS_BODIES := ["bushlat", "vest", "plate_vest", "riot_armor"]
 const EQUIP_NAMES := {"gps": "Крепление GPS", "holster": "Кобура", "hook1": "Крючок", "hook2": "Крючок", "head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
 	"left": "Левая", "right": "Правая"}
 ## Слоты вплотную в форме тела, без фигуры и подписей (промпт 04:23; вид со спины: левая рука слева).

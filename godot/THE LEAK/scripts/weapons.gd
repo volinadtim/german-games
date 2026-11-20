@@ -24,6 +24,8 @@ const WEAPONS := {
 	"sledge": {"mult": 4.0, "reach": 1.5, "price": 170},
 	# тир 2 — следующая локация
 	"fire_axe": {"mult": 4.4, "reach": 1.5, "price": 240},
+	# тир 3 — город (промпт 20.11 18:44)
+	"katana": {"mult": 5.2, "reach": 1.6, "price": 420},
 }
 
 ## Новые предметы без своей модели берут модель/форму у похожего (промпт 20.11 17:59): id -> базовый id.
@@ -32,7 +34,9 @@ const ALIAS := {"wrench": "steel_hammer", "tea": "water", "cap": "ushanka", "swe
 	"sapper": "hatchet", "sledge": "steel_hammer", "energy": "soda", "ration": "canned", "ammo_box": "ammo",
 	"bushlat": "jacket", "berets": "boots",
 	"fire_axe": "hatchet", "medkit_army": "medkit", "kevlar_helmet": "moto_helmet", "plate_vest": "vest",
-	"scuba": "backpack", "dive_light": "flashlight"}
+	"scuba": "backpack", "dive_light": "flashlight",
+	"trauma_kit": "medkit", "stim": "soda", "mre": "canned", "assault_helmet": "moto_helmet", "riot_armor": "vest",
+	"kevlar_pants": "wpants", "combat_boots": "boots", "katana": "machete"}
 
 ## Удар предметом в руке; не оружие (любой предмет с пола, промпт 18.11 00:27) — чуть сильнее кулака.
 static func stats(id: String) -> Dictionary:
@@ -51,6 +55,7 @@ const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["g
 	["sapper", 110], ["sledge", 170], ["bushlat", 95], ["berets", 75],
 	["fire_axe", 240], ["kevlar_helmet", 180], ["plate_vest", 220],
 	["scuba", 260], ["dive_light", 90],
+	["katana", 420], ["assault_helmet", 320], ["riot_armor", 420], ["kevlar_pants", 200], ["combat_boots", 160],   # тир 3 — город
 	["gps", 150], ["holster", 60], ["bag_hooks", 45],
 	["sketch_map", 120]]   # карта-зарисовывалка, лагерь у озера (промпт 20.11 18:42)
 

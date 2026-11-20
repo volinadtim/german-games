@@ -20,8 +20,8 @@ var content: VBoxContainer    # содержимое вкладки — пере
 const TABS := ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"]
 ## подвкладки «Расходников» во всех магазинах (промпт 16.11 02:57); цены — CONSUMABLES
 const CONS_SUBS := [
-	["Пропитание", ["water", "tea", "soda", "energy", "choco", "canned", "ration"]],
-	["Медицина", ["pills", "bandage", "medkit", "medkit_army"]],
+	["Пропитание", ["water", "tea", "soda", "energy", "choco", "canned", "ration", "mre"]],
+	["Медицина", ["pills", "bandage", "medkit", "medkit_army", "stim", "trauma_kit"]],
 	["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]],
 	["Патроны", ["ammo", "ammo_box", "mag"]],   # только в деревне (TIER1_HIDE), промпт 20.11 14:27
 ]
@@ -40,15 +40,16 @@ const CONSUMABLES := [["battery", 3], ["water", 10], ["soda", 30], ["choco", 15]
 	["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80],
 	["tea", 18], ["pills", 15],   # тир 0 (промпт 20.11 17:59)
 	["energy", 40], ["ration", 70], ["ammo_box", 90],   # тир 1
-	["medkit_army", 180]]   # тир 2
+	["medkit_army", 180],   # тир 2
+	["trauma_kit", 320], ["stim", 120], ["mre", 150]]   # тир 3 — город
 ## подвкладки «Одежды» (промпт 14.11 21:14): [название, товары]. Цены — Weapons.SHOP / CONSUMABLES (_price).
 ## Обувь — отдельная подвкладка «Ботинки»; ремкомплект одежды — в «Расходниках»; фонарик и метла — в «Инструментах»
 ## (промпт 16.11 02:42). «Снаряжение» — последняя (CLOTHES[-1]).
 const CLOTHES := [
-	["Голова", ["cap", "ushanka", "helmet", "moto_helmet", "kevlar_helmet"]],
-	["Верх", ["sweater", "kurtka", "jacket", "bushlat", "vest", "plate_vest"]],
-	["Низ", ["jeans", "pants", "wpants"]],
-	["Ботинки", ["sneakers", "boots", "berets"]],
+	["Голова", ["cap", "ushanka", "helmet", "moto_helmet", "kevlar_helmet", "assault_helmet"]],
+	["Верх", ["sweater", "kurtka", "jacket", "bushlat", "vest", "plate_vest", "riot_armor"]],
+	["Низ", ["jeans", "pants", "wpants", "kevlar_pants"]],
+	["Ботинки", ["sneakers", "boots", "berets", "combat_boots"]],
 	["Перчатки", ["gloves", "tac_gloves"]],
 	["Снаряжение", ["gasmask", "filter", "backpack", "gps", "holster", "bag_hooks", "sketch_map", "scuba", "dive_light"]],
 ]
@@ -60,11 +61,15 @@ const TIER := {"medkit": 1, "canned": 1, "soda": 1, "moto_helmet": 1, "vest": 1,
 	# новые (промпт 20.11 17:59)
 	"energy": 1, "ration": 1, "ammo_box": 1, "bushlat": 1, "berets": 1, "sapper": 1, "sledge": 1,
 	"gps": 1, "holster": 1, "bag_hooks": 1,   # промпт 20.11 18:38
-	"medkit_army": 2, "kevlar_helmet": 2, "plate_vest": 2, "fire_axe": 2, "scuba": 2, "dive_light": 2, "sketch_map": 2}
+	"medkit_army": 2, "kevlar_helmet": 2, "plate_vest": 2, "fire_axe": 2, "scuba": 2, "dive_light": 2, "sketch_map": 2,
+	# тир 3 — город (city_shop.gd, промпт 20.11 18:44)
+	"trauma_kit": 3, "stim": 3, "mre": 3, "assault_helmet": 3, "riot_armor": 3, "kevlar_pants": 3, "combat_boots": 3, "katana": 3}
 
 
-## Тир этого магазина: бункер — 0, деревня (village_shop.gd) — 1, лагерь у озера (lake_shop.gd) — 2.
+## Тир этого магазина: бункер — 0, деревня (village_shop.gd) — 1, лагерь у озера (lake_shop.gd) — 2, город (city_shop.gd) — 3.
 func shop_tier() -> int:
+	if "city_shop" in self:
+		return 3
 	if "lake_shop" in self:
 		return 2
 	return 1 if "main_shop" in self else 0

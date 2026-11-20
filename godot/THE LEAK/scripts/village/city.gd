@@ -40,6 +40,16 @@ func _ready() -> void:
 	_sign(Vector3(32.0, G, 1411.0))
 	_skyline()
 	_smog()
+	# Trinkets Market #4 (тир 3) и автомат «РАДИАЦИЯ» у въезда (промпт 20.11 18:44)
+	var shop: Node3D = preload("res://scripts/village/city_shop.gd").new()
+	shop.name = "CityShop"
+	shop.position = Vector3(22.0, G, 1407.0)
+	shop.rotation.y = PI / 2.0
+	add_child(shop)
+	var slot: Node3D = preload("res://scripts/village/city_slot.gd").new()
+	slot.position = Vector3(51.0, G, 1407.0)
+	slot.rotation.y = -PI / 2.0
+	add_child(slot)
 
 
 ## Точка в городе (тут воздух хуже всего).

@@ -191,6 +191,23 @@ const ITEMS := {
 		"icon": "vest", "color": Color(0.22, 0.26, 0.2), "equip": "body", "armor": 0.32, "dur": 180, "speed": -0.03},
 	"fire_axe": {"name": "Пожарный топор", "desc": "Красный, с длинной рукоятью. Урон ×4.4.", "stack": 1,
 		"icon": "hatchet", "color": Color(0.7, 0.12, 0.08), "weapon": true, "dur": 70},
+	# тир 3 — город (промпт 20.11 18:44, city_shop.gd)
+	"trauma_kit": {"name": "Хирургический набор", "desc": "4 применения, каждое восстанавливает 100 здоровья.", "stack": 1,
+		"icon": "medkit", "color": Color(0.85, 0.85, 0.88), "heal": 100.0, "uses": true, "dur": 4},
+	"stim": {"name": "Стимулятор", "desc": "Укол: +60% к скорости на 50 с. Один шприц — один раз.", "stack": 3,
+		"icon": "pills", "color": Color(0.3, 0.85, 0.95), "buff": "speed", "power": 0.60, "time": 50.0},
+	"mre": {"name": "Армейский ИРП", "desc": "Еда: −50% входящего урона на 180 с. На 3 раза.", "stack": 1,
+		"icon": "canned", "color": Color(0.5, 0.42, 0.26), "buff": "resist", "power": 0.50, "time": 180.0, "uses": true, "dur": 3},
+	"assault_helmet": {"name": "Штурмовой шлем", "desc": "Голова: −30% урона. С забралом. Изнашивается от ударов.", "stack": 1,
+		"icon": "moto_helmet", "color": Color(0.12, 0.13, 0.12), "equip": "head", "armor": 0.30, "dur": 220},
+	"riot_armor": {"name": "Штурмовая броня", "desc": "Тело: −42% урона, −4% к скорости. Плиты и наплечники. Изнашивается от ударов.", "stack": 1,
+		"icon": "vest", "color": Color(0.1, 0.11, 0.12), "equip": "body", "armor": 0.42, "dur": 280, "speed": -0.04},
+	"kevlar_pants": {"name": "Кевларовые штаны", "desc": "Ноги: −22% урона. Лёгкие, с наколенниками. Изнашиваются от ударов.", "stack": 1,
+		"icon": "wpants", "color": Color(0.18, 0.2, 0.16), "equip": "legs", "armor": 0.22, "dur": 180},
+	"combat_boots": {"name": "Штурмовые ботинки", "desc": "Обувь: +15% к скорости, стекло не ранит. Изнашиваются от ударов и стекла.", "stack": 1,
+		"icon": "boots", "color": Color(0.16, 0.14, 0.1), "equip": "feet", "glassproof": true, "dur": 240, "speed": 0.15},
+	"katana": {"name": "Катана", "desc": "Самодельная, из рессоры. Урон ×5.2, длинная.", "stack": 1,
+		"icon": "machete", "color": Color(0.75, 0.78, 0.82), "weapon": true, "dur": 90},
 	# снаряжение для дайвинга — тир 2, лагерь у озера (промпт 20.11 18:33, village/lake_dive.gd)
 	"scuba": {"name": "Акваланг", "desc": "Баллон, маска и регулятор. Лежит в сумке — у озера [F]: нырнуть на дно за находками, воздуха на 60 с.", "stack": 1,
 		"icon": "backpack", "color": Color(0.85, 0.75, 0.15)},
@@ -235,6 +252,7 @@ const SIZES := {
 	"tea": [1, 2], "cap": [2, 1], "sweater": [2, 2], "wrench": [1, 2],
 	"bushlat": [2, 2], "berets": [2, 2], "sapper": [1, 2], "sledge": [1, 3],
 	"medkit_army": [2, 2], "kevlar_helmet": [2, 2], "plate_vest": [2, 2], "fire_axe": [1, 3],
+	"trauma_kit": [2, 2], "assault_helmet": [2, 2], "riot_armor": [2, 2], "kevlar_pants": [2, 2], "combat_boots": [2, 2], "katana": [1, 3],
 }
 
 ## Отдельные ячейки хранения у одежды (промпт 16.11 02:42): [ширина, высота] блока карманов.
@@ -242,7 +260,7 @@ const SIZES := {
 const POCKETS := {
 	"kurtka": [2, 1], "jacket": [2, 2], "vest": [3, 1],
 	"jeans": [2, 1], "pants": [2, 1], "rag_pants": [2, 1], "wpants": [1, 2], "tshirt": [2, 1],
-	"bushlat": [2, 2], "plate_vest": [3, 1],
+	"bushlat": [2, 2], "plate_vest": [3, 1], "riot_armor": [3, 1], "kevlar_pants": [2, 1],
 }
 
 
