@@ -20,7 +20,7 @@ const Sfx := preload("res://scripts/core/sfx.gd")
 const COST := 20
 const SYMS := ["cherry", "plum", "grape", "diamond", "seven", "bonus", "jack"]   # лимона нет (промпт 20.11 14:34)
 ## веса и выплаты под 3×3 и 5 линий (отдача ~100%, как была у ФОРТУНЫ)
-const WEIGHT := {"cherry": 18.0, "plum": 14.0, "grape": 12.0, "diamond": 9.0, "seven": 6.0, "bonus": 6.0, "jack": 6.0}
+const WEIGHT := {"cherry": 18.0, "plum": 14.0, "grape": 12.0, "diamond": 9.0, "seven": 6.0, "bonus": 3.5, "jack": 6.0}
 const PAY := {"cherry": 30, "plum": 50, "grape": 80, "diamond": 200, "seven": 500}
 ## клетка поля = барабан*3 + ряд; линии — три ряда и две диагонали
 const LINES := [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
