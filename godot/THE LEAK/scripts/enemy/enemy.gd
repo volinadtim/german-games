@@ -44,11 +44,17 @@ func _ready() -> void:
 	body_snd.max_distance = 16.0
 	body_snd.position.y = 1.0
 	add_child(body_snd)
+	if spawn_rise:
+		_set_state("rise")
+		_rise_pose(0.0)
 
 
 func _physics_process(delta: float) -> void:
 	if net_puppet:
 		_puppet_tick(delta)
+		return
+	if state == "rise":
+		_rise_tick(delta)
 		return
 	if game.net:
 		tg = game.net.pick_target(self)
@@ -298,6 +304,8 @@ func net_apply(pos: Vector3, rot: float, s: String, h: float) -> void:
 		bar_fg.scale.x = maxf(hp / max_hp, 0.0)
 	if s == state:
 		return
+	if state == "rise":
+		_rise_pose(RISE_T)   # хост закончил подъём — сразу стоим
 	if s == "dead":
 		var back := global_transform.basis.z
 		_die(Vector3(back.x, 0, back.z).normalized())
@@ -311,6 +319,10 @@ func net_apply(pos: Vector3, rot: float, s: String, h: float) -> void:
 
 func _puppet_tick(delta: float) -> void:
 	if state == "dead":
+		return
+	if state == "rise":
+		global_position = net_pos
+		_rise_tick(delta)
 		return
 	st += delta
 	bar_t -= delta
@@ -328,3 +340,45 @@ func _puppet_tick(delta: float) -> void:
 		_dash(delta)
 	_animate(delta, spd)
 	_footsteps(delta)
+
+
+# ---------- появление: встаёт из пола (промпт 20.11 14:31) ----------
+
+## Анимация появления: лежит на спине прозрачный, проявляется, всплывает грудью вверх чуть над полом
+## и резко встаёт на ноги. На хосте по окончании — в "idle"; у копии клиента ждёт состояние с хоста.
+func _rise_tick(delta: float) -> void:
+	st += delta
+	bar.visible = false
+	if not rise_thud and st >= RISE_DROP:
+		rise_thud = true
+		_play(body_snd, game.snd["thud"], -4.0 if kind == "heavy" else -8.0, 0.75 if kind == "heavy" else 1.1)
+	_rise_pose(st)
+	if not net_puppet and st >= RISE_T:
+		_set_state("idle")
+
+
+## Поза подъёма в момент t: поворот модели вокруг ступней, высота и прозрачность всех частей.
+func _rise_pose(t: float) -> void:
+	var a := 1.0 - smoothstep(0.0, RISE_FADE, t)             # 1 — полностью прозрачный
+	var lift := 0.2 + 0.5 * smoothstep(RISE_FADE * 0.6, RISE_UP, t)   # всплывает над полом
+	var rx := PI / 2.0 - 0.12 * smoothstep(RISE_FADE, RISE_UP, t)    # лёжа на спине, грудью вверх
+	var y := lift
+	if t >= RISE_UP:
+		var k := clampf((t - RISE_UP) / (RISE_DROP - RISE_UP), 0.0, 1.0)
+		k = k * k                                            # резко, с ускорением
+		rx = lerpf(rx, 0.0, k)
+		y = lerpf(lift, 0.0, k)
+	if t >= RISE_DROP:
+		var q := clampf((t - RISE_DROP) / (RISE_T - RISE_DROP), 0.0, 1.0)
+		y = -0.12 * sin(q * PI)                              # пружинит на ногах
+		rx = 0.0
+	vis.rotation.x = rx
+	vis.position.y = y
+	_rise_alpha(vis, a)
+
+
+func _rise_alpha(n: Node, a: float) -> void:
+	for c in n.get_children():
+		if c is GeometryInstance3D:
+			c.transparency = a
+		_rise_alpha(c, a)

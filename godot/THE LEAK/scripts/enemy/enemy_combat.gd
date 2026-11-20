@@ -235,7 +235,7 @@ func _growl() -> void:
 
 ## Попадание кулаком игрока.
 func take_hit(dmg: float, dir: Vector3) -> void:
-	if state == "dead" or calm:
+	if state == "dead" or state == "rise" or calm:
 		return
 	game.weapon_hit()
 	dmg = _sneak_dmg(dmg, dir)
@@ -273,7 +273,7 @@ func _hit_fx(dmg: float, dir: Vector3) -> void:
 
 ## Урон (у хоста — и от ударов других игроков по сети, net.gd).
 func apply_hit(dmg: float, dir: Vector3) -> void:
-	if state == "dead" or calm:
+	if state == "dead" or state == "rise" or calm:
 		return
 	hp -= dmg
 	bar_t = 4.0

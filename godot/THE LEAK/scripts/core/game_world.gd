@@ -267,8 +267,9 @@ func _bunker_chest_spot() -> Array:
 	return [pos, rot + randf_range(-0.06, 0.06)]
 
 
-func _spawn_enemy(pos: Vector3) -> void:
+func _spawn_enemy(pos: Vector3, rise := false) -> void:
 	var e := Enemy.new()
+	e.spawn_rise = rise   # возрождение — встаёт из пола (промпт 20.11 14:31)
 	e.game = self
 	e.kind = "fast" if randf() < FAST_SHARE else "heavy"   # смешанные типы (промпт 14.11 18:08)
 	e.position = pos
@@ -281,7 +282,7 @@ func _respawn_enemy_later(pos: Vector3) -> void:
 	await get_tree().create_timer(RESPAWN).timeout
 	while is_instance_valid(player) and player.global_position.distance_to(pos) < 8.0:
 		await get_tree().create_timer(5.0).timeout
-	_spawn_enemy(pos)
+	_spawn_enemy(pos, true)
 
 
 func _spawn_stone_piles() -> void:

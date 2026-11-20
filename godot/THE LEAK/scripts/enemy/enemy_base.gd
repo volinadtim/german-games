@@ -100,6 +100,12 @@ var crawl_t := 0.0
 var crawl_wait := false     # заблудший до кат-сцены (intro.gd): копошится на месте, игрока не замечает
 var calm := false           # до конца кат-сцены (intro.gd): не агрится ни на что и неуязвим
 var crawl_speed := 0.6      # скорость ползания (intro.gd)
+var spawn_rise := false   # выставить до add_child: появляется анимацией подъёма из пола (state "rise")
+var rise_thud := false
+const RISE_FADE := 0.55   # проявление
+const RISE_UP := 1.45     # всплыл грудью вверх
+const RISE_DROP := 1.7    # резко встал на ноги
+const RISE_T := 2.0
 var hunter := false   # всегда гонится, спускается в бункер
 var hp := MAX_HP   # выставляет _apply_kind
 var state := "idle"
@@ -161,6 +167,8 @@ func _part(parent: Node3D, mesh: Mesh, pos: Vector3, m: Material) -> MeshInstanc
 
 
 func _set_state(s: String) -> void:
+	if state == "rise" and s not in ["idle", "dead"]:
+		return   # пока встаёт из пола — не отвлекается
 	if s == "chase" and state in ["idle", "return", "investigate", "crawl"] and tg != null and tg.player != null:
 		last_known = tg.player.global_position   # заметил / ударили — знает, где игрок
 		mem_t = 0.0
