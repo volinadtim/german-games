@@ -32,6 +32,7 @@ func _ready() -> void:
 		pass   # масштаб интерфейса теперь ставит menu.gd (_apply_ui_scale, ползунок «Размер интерфейса»)
 
 	# уровень (и освещение/окружение) — узел Level в main.tscn, он виден и в редакторе
+	_ensure_level()
 	add_child(Ambience.new())
 
 	# игровой автомат — часть сцены меню (фон), в игре game.gd берёт его же
@@ -102,6 +103,23 @@ func _ready() -> void:
 		menu.visible = false
 		in_game = true
 		_enter_game.call_deferred()
+
+
+## Узел Level без скрипта бункера (редактор пересохранил main.tscn со старым путём после переноса скриптов) — пересоздаём его,
+## иначе бункер без стен и пола, игрок падает (промпт 19:20).
+func _ensure_level() -> void:
+	var lv := get_node_or_null("Level")
+	if lv != null and lv.get_script() != null:
+		return
+	push_warning("main.tscn: у узла Level нет скрипта уровня — создаю заново (locations/bunker/level.gd)")
+	if lv != null:
+		remove_child(lv)
+		lv.free()
+	var n := Node3D.new()
+	n.name = "Level"
+	n.set_script(load("res://scripts/locations/bunker/level.gd"))
+	add_child(n)
+	move_child(n, 0)
 
 
 func _process(delta: float) -> void:
