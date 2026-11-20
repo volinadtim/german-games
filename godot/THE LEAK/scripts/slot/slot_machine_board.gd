@@ -145,7 +145,7 @@ func _draw_board(ci: Control) -> void:
 	ci.draw_line(Vector2(x0 - 4, 40), Vector2(x0 - 4, ci.size.y - 40), Color(0.85, 0.62, 0.25, 0.5), 2.0)
 	_fit(ci, Vector2(x0, 82), "ЛИНИИ", cw, 44, Color(1.0, 0.82, 0.4), HORIZONTAL_ALIGNMENT_CENTER)
 	_fit(ci, Vector2(x0, 120), "окно %s · линий: %d" % [level_name(level), lines_for(level).size()], cw, 20, Color(0.8, 0.72, 0.6), HORIZONTAL_ALIGNMENT_CENTER)
-	var names := {"row": "ряд", "v": "галочка", "diag": "диагональ", "bridge": "мостик"}
+	var names := {"row": "ряд", "v": "галочка", "diag": "диагональ", "bridge": "мостик", "hill": "горка"}
 	var cell := 17.0
 	var lines := lines_for(level)
 	for li in lines.size():
@@ -166,7 +166,7 @@ func _draw_board(ci: Control) -> void:
 			ci.draw_line(pa, pb, Color(1.0, 0.85, 0.4), 2.0)
 		_fit(ci, Vector2(gx, gy + 3 * cell + 20), "%d %s" % [li + 1, names[lines[li][1]]], 5 * cell + 6, 14, Color(0.85, 0.8, 0.7))
 	var ry := 146.0 + 5 * 100.0 + 14
-	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Под заслонками не играет.", "Пара — +2 (вишни +1),", "только на 1×3.", "Гаранты — в магазине.", "Гнилое яблоко спасёт от 666."]:
+	for t_ in ["Ряды: 3–5 одинаковых подряд.", "Галочки, диагонали: все 3.", "Мостики: только все 4.", "Горки (3×5): все 5.", "Под заслонками не играет.", "Пара — +2 (вишни +1),", "только на 1×3.", "Гаранты — в магазине.", "Гнилое яблоко спасёт от 666."]:
 		_fit(ci, Vector2(x0 + 10, ry), t_, cw - 10, 20, Color(0.9, 0.84, 0.72))
 		ry += 28.0
 	if dark6 > 0.0:   # перед шестёрками доска на миг темнеет
