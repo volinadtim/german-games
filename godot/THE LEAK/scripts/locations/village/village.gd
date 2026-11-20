@@ -598,7 +598,7 @@ func _quest(text: String) -> void:
 
 ## Подсказка по центру снизу на time секунд.
 func hint(text: String, time := 5.0) -> void:
-	hint_l.text = preload("res://scripts/ui/gamepad.gd").pad_text(text)   # с геймпада — кнопки геймпада
+	hint_l.text = preload("res://scripts/controls/gamepad.gd").pad_text(text)   # с геймпада — кнопки геймпада
 	hint_l.modulate.a = 1.0
 	hint_l.set_meta("t", time)
 

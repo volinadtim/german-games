@@ -71,11 +71,7 @@ func _ready() -> void:
 	for v in 4:
 		coughs.append(_cough_sound(v))
 	_breath_bus()
-	if not InputMap.has_action("gasmask"):
-		InputMap.add_action("gasmask")
-		var ev := InputEventKey.new()
-		ev.physical_keycode = KEY_V
-		InputMap.action_add_event("gasmask", ev)
+	# действие «gasmask» и его клавиша — из data/controls/bindings.cfg (Controls)
 
 
 ## Своя шина для дыхания: фильтр + эквалайзер, каждый вдох — чуть другой тембр.

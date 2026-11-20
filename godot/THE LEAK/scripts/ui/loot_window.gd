@@ -215,11 +215,7 @@ class LwSlot extends Inv.Slot:
 func _ready() -> void:
 	layer = 4
 	visible = false
-	if not InputMap.has_action("loot_all"):
-		InputMap.add_action("loot_all")
-		var ev := InputEventKey.new()
-		ev.physical_keycode = KEY_R
-		InputMap.action_add_event("loot_all", ev)
+	# действие «loot_all» и его клавиша — из data/controls/bindings.cfg (Controls)
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.35)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -307,14 +303,14 @@ func _ready() -> void:
 	hb.add_theme_constant_override("separation", 10)
 	v.add_child(hb)
 	all_b = Button.new()
-	preload("res://scripts/ui/key_hint.gd").attach(all_b, "Забрать всё [R]", "Забрать всё [{loot_all}]")   # промпт 20.11 15:14
+	preload("res://scripts/controls/key_hint.gd").attach(all_b, "Забрать всё [R]", "Забрать всё [{loot_all}]")   # промпт 20.11 15:14
 	all_b.focus_mode = Control.FOCUS_NONE
 	all_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	all_b.add_theme_font_size_override("font_size", 20)
 	all_b.pressed.connect(take_all)
 	hb.add_child(all_b)
 	var close_b := Button.new()
-	preload("res://scripts/ui/key_hint.gd").attach(close_b, "Закрыть [Esc]", "Закрыть [{b:1}]")
+	preload("res://scripts/controls/key_hint.gd").attach(close_b, "Закрыть [Esc]", "Закрыть [{b:1}]")
 	close_b.focus_mode = Control.FOCUS_NONE
 	close_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	close_b.add_theme_font_size_override("font_size", 20)

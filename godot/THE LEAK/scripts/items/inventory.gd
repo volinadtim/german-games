@@ -612,19 +612,9 @@ func _ready() -> void:
 	layer = 2
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	slots.resize(TOTAL)
-	for k in 5:
-		_add_key("hot_%d" % (k + 1), KEY_1 + k)
+	# hot_1..hot_5 — из data/controls/bindings.cfg (Controls)
 	_build_ui()
 	root.visible = false
-
-
-func _add_key(action: String, key: Key) -> void:
-	if InputMap.has_action(action):
-		return
-	InputMap.add_action(action)
-	var ev := InputEventKey.new()
-	ev.physical_keycode = key
-	InputMap.action_add_event(action, ev)
 
 
 func _build_ui() -> void:
@@ -945,7 +935,7 @@ func _rebuild_craft() -> void:
 		head.flat = not opened
 		head.custom_minimum_size = Vector2(52, 52)
 		head.tooltip_text = "%s
-%s" % [Items.item_name(out), preload("res://scripts/ui/gamepad.gd").pad_text(String(Items.ITEMS[out].get("desc", "")))]
+%s" % [Items.item_name(out), preload("res://scripts/controls/gamepad.gd").pad_text(String(Items.ITEMS[out].get("desc", "")))]
 		head.pressed.connect(func():
 			craft_open = -1 if craft_open == r else r
 			_rebuild_craft())
@@ -1753,7 +1743,7 @@ func set_hover(k) -> void:
 	if id != "":
 		# при наведении — только название (промпт 03:50: без «×количество» и «[F — использовать]»)
 		info_name.text = Items.item_name(id)
-		var desc: String = preload("res://scripts/ui/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]) + _size_note(id)   # с геймпада — кнопки геймпада
+		var desc: String = preload("res://scripts/controls/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]) + _size_note(id)   # с геймпада — кнопки геймпада
 		if id in ["pistol", "sawnoff", "rifle", "smg"]:
 			desc += Gun.mods_text(get_dur(k))   # слоты модулей (промпт 20.11 18:43)
 		info_desc.text = desc

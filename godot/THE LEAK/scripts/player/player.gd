@@ -133,16 +133,9 @@ func look(rel: Vector2) -> void:
 
 
 ## Поворот камеры стрелками — для тачпада, который Windows глушит, пока зажаты клавиши.
-## Клавиши приседа (физические, как в main.gd): Ctrl — удерживать, C — переключить.
+## Клавиши приседа (Ctrl — удерживать, C — переключить) — из data/controls/bindings.cfg (Controls).
 func _add_crouch_keys() -> void:
-	for a in [["crouch", [KEY_CTRL]], ["crouch_toggle", [KEY_C]]]:
-		if InputMap.has_action(a[0]):
-			continue
-		InputMap.add_action(a[0])
-		for k in a[1]:
-			var ev := InputEventKey.new()
-			ev.physical_keycode = k
-			InputMap.action_add_event(a[0], ev)
+	pass
 
 
 ## Встать (по бегу или прыжку): переключатель снимаем, удержание Ctrl игнорируем до отпускания.

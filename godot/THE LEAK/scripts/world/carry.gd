@@ -29,11 +29,7 @@ var _ov_on: Material = null
 func _ready() -> void:
 	_ov_red = _ov_mat(Color(1.0, 0.1, 0.08, 0.45))
 	_ov_green = _ov_mat(Color(0.2, 1.0, 0.3, 0.14))
-	if not InputMap.has_action("carry"):
-		InputMap.add_action("carry")
-		var ev := InputEventKey.new()
-		ev.physical_keycode = KEY_B
-		InputMap.action_add_event("carry", ev)
+	# действие «carry» и его клавиша — из data/controls/bindings.cfg (Controls)
 
 
 ## Ключ переносимого объекта ("" — нельзя переносить).

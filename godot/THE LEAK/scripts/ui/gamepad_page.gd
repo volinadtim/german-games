@@ -5,7 +5,7 @@ extends VBoxContainer
 ## Два игрока (промпт 20.11 14:49): «Игрок 1 / Игрок 2» — у каждого свой пресет, кнопки, чувствительность
 ## (игрок 2 — menu.pad.p2, для сплитскрина); список подключённых геймпадов с игроками и «Поменять геймпады».
 
-const Pad := preload("res://scripts/ui/gamepad.gd")
+const Pad := preload("res://scripts/controls/gamepad.gd")
 const Split := preload("res://scripts/network/split.gd")
 
 var menu      # menu.gd
@@ -238,10 +238,9 @@ func _input(e: InputEvent) -> void:
 		return
 	if e is InputEventKey and e.pressed and not e.is_echo():
 		get_viewport().set_input_as_handled()
-		var k: int = e.physical_keycode if e.physical_keycode != 0 else e.keycode
-		if k == KEY_ESCAPE:
+		if e.is_action_pressed("ui_cancel"):
 			stop()
-		elif k == KEY_DELETE or k == KEY_BACKSPACE:
+		elif e.is_action_pressed("ui_text_delete") or e.is_action_pressed("ui_text_backspace"):
 			_assign("")
 		return
 	if Time.get_ticks_msec() - wait_since < 200:

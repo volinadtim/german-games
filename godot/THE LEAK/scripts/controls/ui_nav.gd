@@ -63,17 +63,7 @@ func _ready() -> void:
 	_frame.draw.connect(_draw_frame)
 	_layer.add_child(_frame)
 	pad_used = not Input.get_connected_joypads().is_empty()
-	# пробел — прыжок и поворот предмета (LB), а не «нажать кнопку с фокусом»: ui_accept — только Enter
-	for a in ["ui_accept", "ui_select"]:
-		if InputMap.has_action(a):
-			for ev in InputMap.action_get_events(a):
-				if ev is InputEventKey and (ev.keycode == KEY_SPACE or ev.physical_keycode == KEY_SPACE):
-					InputMap.action_erase_event(a, ev)
-	if not InputMap.has_action("toggle_cursor"):   # menu.gd переставит клавишу из настроек
-		InputMap.add_action("toggle_cursor")
-		var k := InputEventKey.new()
-		k.physical_keycode = KEY_F2
-		InputMap.action_add_event("toggle_cursor", k)
+	# пробел убран из ui_accept/ui_select, toggle_cursor (F2) — всё это делает Controls (scripts/controls/controls.gd: apply)
 
 
 func _input(e: InputEvent) -> void:
@@ -173,8 +163,7 @@ func _key(e: InputEventKey) -> void:
 		get_viewport().set_input_as_handled()
 		toggle_cursor(true)
 		return
-	var k: int = e.keycode
-	var enter := k == KEY_ENTER or k == KEY_KP_ENTER
+	var enter := e.is_action_pressed("ui_text_submit", true)
 	var dir := Vector2.ZERO
 	for a in DIRS:
 		if e.is_action_pressed(a, true):

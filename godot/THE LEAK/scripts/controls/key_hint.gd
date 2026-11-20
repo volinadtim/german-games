@@ -4,7 +4,7 @@ extends Node
 ## Текст для геймпада: «{действие}» или «{b:N}» — имя кнопки по текущей раскладке; пустой — Gamepad.pad_text(текст клавиатуры).
 ## attach() вешает узел-ребёнок на контрол: он сам обновляет text / tooltip_text при смене ввода.
 
-const Pad := preload("res://scripts/ui/gamepad.gd")
+const Pad := preload("res://scripts/controls/gamepad.gd")
 
 var kb := ""
 var pad_t := ""
@@ -38,9 +38,9 @@ static func fmt(kb_text: String, pad_text := "") -> String:
 ## Повесить подсказку на контрол c: prop — "text" или "tooltip_text". Обновляется сама.
 static func attach(c: Node, kb_text: String, pad_text := "", property := "text") -> void:
 	for ch in c.get_children():
-		if ch.get_script() == load("res://scripts/ui/key_hint.gd"):
+		if ch.get_script() == load("res://scripts/controls/key_hint.gd"):
 			ch.queue_free()
-	var n = load("res://scripts/ui/key_hint.gd").new()
+	var n = load("res://scripts/controls/key_hint.gd").new()
 	n.kb = kb_text
 	n.pad_t = pad_text
 	n.prop = property

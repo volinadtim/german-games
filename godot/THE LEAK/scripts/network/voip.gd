@@ -25,11 +25,7 @@ var heard := {}               # peer_id -> сколько ещё подсвеч�
 func _ready() -> void:
 	net = get_parent()
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	if not InputMap.has_action("voice"):
-		InputMap.add_action("voice")
-		var ev := InputEventKey.new()
-		ev.physical_keycode = KEY_X
-		InputMap.action_add_event("voice", ev)
+	# действие «voice» и его клавиша — из data/controls/bindings.cfg (Controls)
 	var bi := AudioServer.get_bus_index(BUS)
 	if bi < 0:
 		AudioServer.add_bus()

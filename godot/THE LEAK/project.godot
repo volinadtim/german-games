@@ -20,7 +20,8 @@ driver/enable_input=true
 
 [autoload]
 
-UiNav="*res://scripts/ui/ui_nav.gd"
+Controls="*res://scripts/controls/controls.gd"
+UiNav="*res://scripts/controls/ui_nav.gd"
 
 [display]
 

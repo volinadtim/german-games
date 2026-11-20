@@ -180,10 +180,10 @@ func _enter_game() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and InputMap.has_action("hide_ui") and event.is_action_pressed("hide_ui"):
+	if event is InputEventKey and Controls.event(event, "hide_ui"):
 		_toggle_ui()   # F10 (переназначается) — скрыть/показать весь интерфейс (кроме меню)
 		return
-	if event.is_action_pressed("toggle_fullscreen"):
+	if Controls.event(event, "toggle_fullscreen"):
 		if menu:
 			menu.toggle_fullscreen()   # режим экрана хранится в настройках меню
 		else:
@@ -218,23 +218,9 @@ static func toggle_fullscreen() -> void:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 
+## Действия и клавиши создаёт autoload Controls (scripts/controls/controls.gd) по data/controls/bindings.cfg.
 func _setup_input() -> void:
-	_add_keys("move_forward", [KEY_W])
-	_add_keys("move_back", [KEY_S])
-	_add_keys("move_left", [KEY_A])
-	_add_keys("move_right", [KEY_D])
-	_add_keys("sprint", [KEY_SHIFT])
-	_add_keys("jump", [KEY_SPACE])
-	_add_keys("toggle_fullscreen", [KEY_F11])
-
-
-func _add_keys(action: String, keys: Array) -> void:
-	if not InputMap.has_action(action):
-		InputMap.add_action(action)
-	for k in keys:
-		var ev := InputEventKey.new()
-		ev.physical_keycode = k
-		InputMap.action_add_event(action, ev)
+	pass
 
 
 ## Доска выплат автомата — дочерний узел, стоящий в BOARD_POS.

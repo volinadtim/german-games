@@ -58,11 +58,7 @@ var _sb_focus: StyleBoxFlat
 func _ready() -> void:
 	layer = 20
 	visible = false
-	if not InputMap.has_action("skills"):
-		InputMap.add_action("skills")
-		var ev := InputEventKey.new()
-		ev.physical_keycode = KEY_K
-		InputMap.action_add_event("skills", ev)
+	# действие «skills» и его клавиша — из data/controls/bindings.cfg (Controls)
 	add_section("АКТИВНЫЕ НАВЫКИ", [
 		{"id": "slide", "name": "Подкат", "cost": 30,
 			"desc": "Присед на бегу — скольжение, прыжок из него даёт рывок вперёд"},

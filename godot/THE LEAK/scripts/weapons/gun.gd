@@ -399,7 +399,7 @@ func _process(delta: float) -> void:
 	if count_l.visible:
 		var r := rounds()
 		if not loaded():
-			count_l.text = preload("res://scripts/ui/key_hint.gd").fmt("НЕТ МАГАЗИНА  [R]")
+			count_l.text = preload("res://scripts/controls/key_hint.gd").fmt("НЕТ МАГАЗИНА  [R]")
 		elif eject_t > 0.0:
 			count_l.text = "ИЗВЛЕЧЬ… %d%%" % int(eject_t / EJECT_T * 100.0)
 		elif dual():
@@ -691,7 +691,7 @@ func _is_arm_ready_to_shoot(arm: int) -> bool:
 
 ## Сам выстрел из руки h с разбросом spread (патрон уже есть).
 func _shoot(h: int, spread: float) -> void:
-	preload("res://scripts/ui/gamepad.gd").rumble(0.3, 0.7, 0.09)   # отдача — вибрация геймпада
+	preload("res://scripts/controls/gamepad.gd").rumble(0.3, 0.7, 0.09)   # отдача — вибрация геймпада
 	var p = game.player
 	var q := hand_mult(h, "noise")   # глушитель (модули) — тише
 	var fl := hand_mult(h, "flash")

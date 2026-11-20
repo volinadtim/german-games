@@ -250,13 +250,13 @@ var redirect: Callable   # Split-Screen (network/split.gd): HUD, куда отд
 
 
 func prompt(text: String) -> void:
-	text = preload("res://scripts/ui/gamepad.gd").pad_text(text)   # с геймпада — кнопки геймпада
+	text = preload("res://scripts/controls/gamepad.gd").pad_text(text)   # с геймпада — кнопки геймпада
 	if prompt_l.text != text:
 		prompt_l.text = text
 
 
 func hurt_flash(amount := 0.75) -> void:
-	preload("res://scripts/ui/gamepad.gd").rumble(amount * 0.6, amount, 0.12 + amount * 0.25)   # удар — вибрация
+	preload("res://scripts/controls/gamepad.gd").rumble(amount * 0.6, amount, 0.12 + amount * 0.25)   # удар — вибрация
 	hurt = maxf(hurt, amount)
 	hit_edge = maxf(hit_edge, clampf(amount * 1.2, 0.5, 1.0))
 
@@ -297,7 +297,7 @@ func toast(text: String, col := Color(0.88, 0.86, 0.8), important = null) -> voi
 		_big_toast(text, col)
 		return
 	var l := Label.new()
-	l.text = preload("res://scripts/ui/gamepad.gd").pad_text(text)
+	l.text = preload("res://scripts/controls/gamepad.gd").pad_text(text)
 	l.add_theme_font_size_override("font_size", 20)
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))

@@ -176,21 +176,9 @@ func play_at(name_: String, pos: Vector3, db: float, pitch := 1.0) -> void:
 	p.play()
 
 
+## Действия и клавиши — autoload Controls (data/controls/bindings.cfg).
 func _setup_input() -> void:
-	_add_keys("interact", [KEY_F])
-	_add_keys("inventory", [KEY_TAB, KEY_I])
-	_add_keys("lean_left", [KEY_Q])
-	_add_keys("lean_right", [KEY_E])
-
-
-func _add_keys(action: String, keys: Array) -> void:
-	if InputMap.has_action(action):
-		return
-	InputMap.add_action(action)
-	for k in keys:
-		var ev := InputEventKey.new()
-		ev.physical_keycode = k
-		InputMap.action_add_event(action, ev)
+	pass
 
 
 # ---------- стекло и кровотечение (промпт 20:02) ----------

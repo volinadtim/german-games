@@ -18,27 +18,9 @@ const CFG := "user://settings.cfg"
 const MOD := JOY_BUTTON_BACK     # модификатор сочетаний «Back + кнопка»
 
 ## Спецификация кнопки: "b:N" — кнопка N, "c:N" — Back + кнопка N, "t:L"/"t:R" — курок, "" — нет.
-const DEFAULT := {
-	# раскладка Германа (промпт 20.11 15:29): A — прыжок, B — присед, X — взаимодействие, Y — инвентарь,
-	# LB — бег вкл/выкл, RB — режим сброса (в инвентаре RB — крафт), LT/RT — левая / правая рука
-	"jump": "b:0", "handbrake": "b:0",                 # A
-	"crouch_toggle": "b:1",                            # B — присед (как было)
-	"interact": "b:2",                                 # X — взаимодействие / поднять союзника
-	"inventory": "b:3",                                # Y
-	"sprint": "b:9",                                   # LB — бег (до остановки или повторного LB)
-	"attack_left": "t:L", "attack_right": "t:R",       # LT — левая рука / выстрел (ЛКМ), RT — правая / прицел (ПКМ)
-	"drop_mode": "b:10",                               # RB — режим сброса, потом LT — из левой, RT — из правой
-	"fists": "b:8", "inv_use": "b:8",                  # R3 — стойка; в инвентаре — использовать
-	# крестовина (промпты 20.11 14:51/14:54): ← держать — круговое меню хотбара (ui/pad_wheel.gd), → — перезарядка,
-	# ↑ ↓ в игре свободны (в окнах — ui_up / ui_down, ui/ui_nav.gd). hot_wheel ловит _button.
-	"hot_wheel": "b:13", "reload": "b:14",
-	"loot_all": "c:0",                                  # Back + A — забрать всё (в окне лута)
-	"hot_5": "c:11", "gasmask": "c:12", "carry": "c:13", "swap_hands": "c:14",
-	"mag_eject": "c:10", "crouch": "c:1", "toggle_ping": "c:3", "hide_ui": "c:9",
-	"seat_switch": "c:2",                               # Back + X — пересесть в машине
-	"skills": "c:7",                                    # Back + L3 — окно прокачки (промпт 20.11 18:54)
-	"toggle_cursor": "b:4",                             # Back коротко — в окнах рамка ↔ курсор (промпт 20.11 15:24)
-}
+## Раскладка «По умолчанию» — из таблицы data/controls/bindings.cfg (поле pad), «Свой» пресет — user://controls.cfg.
+var DEFAULT := {}
+const Glyphs := preload("res://scripts/controls/glyphs.gd")
 const SPRINT_HOLD := 0.2    # бег: держат кнопку бега во время бега — выключить (промпт 20.11 15:31)
 const SPRINT_STILL := 1.0   # ...или постоять на месте секунду
 const UI_DIR := {JOY_BUTTON_DPAD_UP: "ui_up", JOY_BUTTON_DPAD_DOWN: "ui_down", JOY_BUTTON_DPAD_LEFT: "ui_left", JOY_BUTTON_DPAD_RIGHT: "ui_right"}
@@ -97,6 +79,7 @@ var trig_ui := {}            # курки, нажатые в инвентаре 
 
 func _init(sec := "pad") -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	DEFAULT = Controls.pad_defaults()
 	section = sec
 	profile = sec != "pad"
 	load_cfg()
@@ -122,6 +105,7 @@ func _ready() -> void:
 			cursor_dot.draw_polyline(pts + PackedVector2Array([Vector2.ZERO]), Color(0, 0, 0), 2.0))
 		cursor_layer.add_child(cursor_dot)
 	inst = self
+	Controls.binds_changed.connect(apply_map)   # клавиши переназначили — Controls стёр события, оси заново
 	nav = get_node("/root/UiNav")
 	nav.pad = self
 	wheel = preload("res://scripts/ui/pad_wheel.gd").new()
@@ -167,14 +151,7 @@ func load_cfg() -> void:
 	if not cf.has_section(section):
 		return
 	preset = str(cf.get_value(section, "preset", "default"))
-	var c = cf.get_value(section, "custom", {})
-	custom = c if c is Dictionary else {}
-	# новые действия (сброс) — в старый «Свой» пресет, если их кнопка там свободна
-	if not custom.is_empty():
-		custom.erase("pad_cursor")   # курсор в игре убран (промпт 20.11 15:04)
-		for a in ["drop_mode", "hot_wheel", "toggle_cursor"]:
-			if not custom.has(a) and not str(DEFAULT[a]) in custom.values():
-				custom[a] = DEFAULT[a]
+	custom = Controls.pad_custom(section).duplicate()   # переназначения — user://controls.cfg (scripts/controls/bindings.gd)
 	swap_sticks = bool(cf.get_value(section, "swap_sticks", false))
 	invert_y = bool(cf.get_value(section, "invert_y", false))
 	vibration = bool(cf.get_value(section, "vibration", true))
@@ -185,7 +162,6 @@ func save_cfg() -> void:
 	var cf := ConfigFile.new()
 	cf.load(CFG)   # остальные секции (settings, controls, net) не трогаем
 	cf.set_value(section, "preset", preset)
-	cf.set_value(section, "custom", custom)
 	cf.set_value(section, "swap_sticks", swap_sticks)
 	cf.set_value(section, "invert_y", invert_y)
 	cf.set_value(section, "vibration", vibration)
@@ -194,6 +170,7 @@ func save_cfg() -> void:
 		cf.set_value("pad", "swap_pads", swap_pads)
 		Split.swap_pads = swap_pads
 	cf.save(CFG)
+	Controls.set_pad_custom(section, custom)
 
 
 func set_preset(p: String) -> void:
@@ -214,27 +191,12 @@ func reset_custom() -> void:
 
 
 static func spec_name(spec: String) -> String:
-	if spec == "":
-		return "—"
-	var p := spec.split(":")
-	if p.size() != 2:
-		return "?"
-	if p[0] == "t":
-		if ps:
-			return "L2" if p[1] == "L" else "R2"
-		return "LT" if p[1] == "L" else "RT"
-	var n := _btn_name(int(p[1]))
-	return (_btn_name(MOD) + " + " + n) if p[0] == "c" else n
+	return Glyphs.pad_name(spec, Glyphs.PS if ps else Glyphs.XBOX)
 
 
-## Имя кнопки: раскладка Xbox (Flydigi в XInput и прочие) или PlayStation (DualSense/DualShock — ps).
-## Godot (SDL) нумерует по положению: 0 — нижняя (A / ✕), 1 — правая (B / ○), 2 — левая (X / □), 3 — верхняя (Y / △).
+## Имя кнопки: раскладка Xbox (Flydigi в XInput и прочие) или PlayStation (DualSense/DualShock — ps) — scripts/controls/glyphs.gd.
 static func _btn_name(b: int) -> String:
-	if ps:
-		return {0: "✕", 1: "○", 2: "□", 3: "△", 4: "Create", 5: "PS", 6: "Options", 7: "L3", 8: "R3",
-			9: "L1", 10: "R1", 11: "↑", 12: "↓", 13: "←", 14: "→", 15: "Mute", 20: "Тачпад"}.get(b, "Кнопка %d" % b)
-	return {0: "A", 1: "B", 2: "X", 3: "Y", 4: "Back", 5: "Guide", 6: "Start", 7: "L3", 8: "R3",
-		9: "LB", 10: "RB", 11: "↑", 12: "↓", 13: "←", 14: "→", 15: "Share"}.get(b, "Кнопка %d" % b)
+	return Glyphs.btn_name(b, Glyphs.PS if ps else Glyphs.XBOX)
 
 
 ## Геймпад PlayStation? Сначала производитель Sony (054C = 1356; на Android get_joy_info пуст), потом имя.
@@ -253,11 +215,13 @@ static func is_ps(dev: int) -> bool:
 ## Подсказка на экране (hud.gd prompt/toast): последний ввод с геймпада — «[F]» и «ЛКМ/ПКМ» меняем
 ## на кнопки геймпада по текущей раскладке; ввод с клавиатуры/мыши — текст как есть (промпт 20.11 14:49).
 static func pad_text(s: String) -> String:
+	s = Controls.hint(s)   # «{interact}» и «[F]» -> кнопка по таблице и переназначениям (scripts/controls/controls.gd)
 	if inst == null or not is_instance_valid(inst) or inst.nav == null or not inst.nav.pad_used or inst.nav.by_kb:
 		return s
 	return inst._pad_text(s)
 
 
+## Остаток для геймпада: «[буква]», которой нет в таблице подсказок, — по клавише в InputMap; ЛКМ/ПКМ — курки.
 func _pad_text(s: String) -> String:
 	if _tok_re == null:
 		_tok_re = RegEx.create_from_string("\\[([^\\[\\]]{1,12})\\]")
@@ -318,8 +282,11 @@ func apply_map() -> void:
 	var pads := not Input.get_connected_joypads().is_empty() and only_device != -2
 	var sx := JOY_AXIS_RIGHT_X if swapped() else JOY_AXIS_LEFT_X
 	var sy := JOY_AXIS_RIGHT_Y if swapped() else JOY_AXIS_LEFT_Y
-	var axes := {"move_left": [sx, -1.0], "move_right": [sx, 1.0], "move_forward": [sy, -1.0], "move_back": [sy, 1.0],
-		"sprint": [JoyAxis.JOY_AXIS_INVALID, 1.0]}   # sprint: ось-заглушка, чтобы _unstick_moves не отпускал бег с геймпада
+	# оси — из таблицы (pad_axis); sprint: ось-заглушка «none», чтобы _unstick_moves не отпускал бег с геймпада
+	var axes := {}
+	var ta: Dictionary = Controls.pad_axes()
+	for a in ta:
+		axes[a] = [{"lx": sx, "ly": sy}.get(ta[a][0], JoyAxis.JOY_AXIS_INVALID), ta[a][1]]
 	for a in axes:
 		if not InputMap.has_action(a):
 			InputMap.add_action(a)

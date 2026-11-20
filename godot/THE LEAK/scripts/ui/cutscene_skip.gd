@@ -118,7 +118,7 @@ func _process(delta: float) -> void:
 			hold_t = 0.0
 			t.skip_cut()
 			return
-	var txt: String = preload("res://scripts/ui/key_hint.gd").fmt("Пропустить — держи Пробел", "Пропустить — держи {jump}")
+	var txt: String = preload("res://scripts/controls/key_hint.gd").fmt("Пропустить — держи Пробел", "Пропустить — держи {jump}")
 	if shared:
 		var n := _need()
 		txt += "  (%d/%d)" % [mini(votes.size(), n), n]
@@ -155,7 +155,7 @@ func _split_vote(t: Node, delta: float, down: bool, down2: bool) -> void:
 		voted2 = false
 		t.skip_cut()
 		return
-	label.text = preload("res://scripts/ui/key_hint.gd").fmt("Пропустить — держи Пробел", "Пропустить — держи {jump}") + "  (%d/2)" % (int(voted) + int(voted2))
+	label.text = preload("res://scripts/controls/key_hint.gd").fmt("Пропустить — держи Пробел", "Пропустить — держи {jump}") + "  (%d/2)" % (int(voted) + int(voted2))
 	ring.progress = (clampf(hold_t / HOLD, 0.0, 1.0) + clampf(hold2 / HOLD, 0.0, 1.0)) * 0.5
 
 

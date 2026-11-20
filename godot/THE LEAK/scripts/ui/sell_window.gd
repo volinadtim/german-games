@@ -473,7 +473,7 @@ func _ready() -> void:
 
 	var x := Button.new()
 	x.focus_mode = Control.FOCUS_NONE
-	preload("res://scripts/ui/key_hint.gd").attach(x, "Закрыть (F / Esc)", "Закрыть ({b:1})", "tooltip_text")
+	preload("res://scripts/controls/key_hint.gd").attach(x, "Закрыть (F / Esc)", "Закрыть ({b:1})", "tooltip_text")
 	x.custom_minimum_size = Vector2(34, 34)
 	x.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var x_sb := func(bg: Color, brd: Color) -> StyleBoxFlat:
@@ -572,7 +572,7 @@ func _ready() -> void:
 	sell_b = _button("Продать", sell_all)
 	sc.add_child(sell_b)
 
-	info_l = _label(preload("res://scripts/ui/key_hint.gd").fmt(DEFAULT_INFO, PAD_INFO), 15, Color(0.7, 0.68, 0.62))
+	info_l = _label(preload("res://scripts/controls/key_hint.gd").fmt(DEFAULT_INFO, PAD_INFO), 15, Color(0.7, 0.68, 0.62))
 	info_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_l.custom_minimum_size = Vector2(1, 0)
 	v.add_child(info_l)
@@ -653,7 +653,7 @@ func _label(t: String, size: int, col: Color) -> Label:
 func _set_info(msg: String, temporary := false) -> void:
 	if info_l == null:
 		return
-	info_l.text = preload("res://scripts/ui/key_hint.gd").fmt(msg, PAD_INFO) if msg == DEFAULT_INFO else msg
+	info_l.text = preload("res://scripts/controls/key_hint.gd").fmt(msg, PAD_INFO) if msg == DEFAULT_INFO else msg
 	_info_t = 4.0 if temporary else 0.0
 
 

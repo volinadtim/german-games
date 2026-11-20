@@ -86,7 +86,7 @@ func _build_ui() -> void:
 	awning.add_child(head)
 	var x := Button.new()
 	x.focus_mode = Control.FOCUS_NONE
-	preload("res://scripts/ui/key_hint.gd").attach(x, "Закрыть (F / Esc)", "Закрыть ({b:1})", "tooltip_text")
+	preload("res://scripts/controls/key_hint.gd").attach(x, "Закрыть (F / Esc)", "Закрыть ({b:1})", "tooltip_text")
 	x.custom_minimum_size = Vector2(34, 34)
 	x.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	x.position = Vector2(600 - 42, 6)
@@ -337,7 +337,7 @@ func _item_cell(grid: GridContainer, id: String, price: int) -> void:
 	if not _can_pay(price):
 		reason = "Не хватает монет."
 	_cell(grid, func(ci: Control, r: Rect2): Items.draw_icon(ci, id, r), price,
-		Items.item_name(id) + (" ×%d" % AMMO_PACK if id in ["ammo", "shells", "rifle_ammo"] else ""), preload("res://scripts/ui/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]), reason, func(): _buy(id, price))
+		Items.item_name(id) + (" ×%d" % AMMO_PACK if id in ["ammo", "shells", "rifle_ammo"] else ""), preload("res://scripts/controls/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]), reason, func(): _buy(id, price))
 
 
 ## Замочек на закрытом товаре.

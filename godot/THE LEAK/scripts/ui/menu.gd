@@ -82,7 +82,6 @@ const RESOLUTIONS := [
 ]
 var net_box: Control              # страница «Сетевая игра» (net_lobby.gd, промпт 14.11 19:37)
 var ctl_rows := {}                # действие -> [кнопка основной клавиши, кнопка альтернативной]
-var binds := {}                   # действие -> [основная, альтернативная]: "k:<physical_keycode>" | "m:<кнопка мыши>" | "" (только изменённые)
 var waiting_action := ""          # ждём клавишу для этого действия
 var pad                           # ui/gamepad.gd — ввод с геймпада, пресеты
 var pad_page: Control             # «Управление» → «Геймпад» (ui/gamepad_page.gd)
@@ -90,62 +89,10 @@ var kb_nodes: Array = []          # «Управление» → «Клавиа�
 var dev_btns := {}
 var waiting_idx := 0              # 0 — основная, 1 — альтернативная (промпт 16.11 02:15)
 
-## Переназначаемые действия: [действие InputMap, подпись, клавиши по умолчанию].
-## «k:N» — физическая клавиша, «m:N» — кнопка мыши. Действия создаются здесь заранее,
-## остальные скрипты (game.gd, inventory.gd, loot_window.gd…) видят, что действие есть, и не трогают его.
-const CONTROLS := [
-	["move_forward", "Вперёд", ["k:87"]],          # W
-	["move_back", "Назад", ["k:83"]],              # S
-	["move_left", "Влево", ["k:65"]],              # A
-	["move_right", "Вправо", ["k:68"]],            # D
-	["sprint", "Бег", ["k:4194325"]],              # Shift
-	["jump", "Прыжок", ["k:32"]],                  # Пробел
-	["crouch", "Присесть (держать)", ["k:4194326"]],     # Ctrl
-	["crouch_toggle", "Присесть (переключить)", ["k:67"]],   # C
-	["attack_left", "Удар левой / выстрел", ["m:1"]],        # ЛКМ
-	["attack_right", "Удар правой / прицел", ["m:2"]],      # ПКМ
-	["fists", "Боевая стойка", ["m:3"]],           # СКМ (V больше нет, промпт 16.11 02:15)
-	["interact", "Взаимодействие", ["k:70"]],      # E
-	["carry", "Взять в руки / поставить", ["k:66"]],   # B (world/carry.gd)
-	["inventory", "Инвентарь", ["k:4194306"]],     # Tab
-	["skills", "Прокачка", ["k:75"]],              # K (systems/skills.gd)
-	["loot_all", "Забрать всё", ["k:82"]],         # R
-	["reload", "Перезарядка", ["k:82"]],           # R — в мире (в окне лута R — «забрать всё»)
-	["mag_eject", "Извлечь магазин (держать)", ["k:4194309"]],   # Enter (gun.gd)
-	["swap_hands", "Поменять руки (левая ↔ правая)", ["m:4", "m:5"]],   # колесо вверх/вниз (game_items.gd)
-	["drop_mode", "Режим сброса (потом кнопка руки)", ["k:71"]],   # только G (H убрана)
-	["hand_right", "Слот — в правую руку (держать)", ["k:4194325"]],   # Shift + 1–5 (game.gd)
-	["lean_left", "Наклон влево (держать)", ["k:81"]],    # Q
-	["lean_right", "Наклон вправо (держать)", ["k:69"]],  # E
-	["gasmask", "Нюхич (противогаз)", ["k:86"]],           # V
-	["inv_use", "Использовать (навести в инвентаре)", ["k:70"]],   # F (inventory.gd, промпт 02:19)
-	["hot_1", "Слот 1", ["k:49"]],
-	["hot_2", "Слот 2", ["k:50"]],
-	["hot_3", "Слот 3", ["k:51"]],
-	["hot_4", "Слот 4", ["k:52"]],
-	["hot_5", "Слот 5", ["k:53"]],
-	["toggle_fullscreen", "Полный экран", ["k:4194342"]],   # F11
-	["hide_ui", "Скрыть интерфейс", ["k:4194341"]],        # F10 (main.gd)
-	["toggle_cursor", "Курсор ↔ рамка в меню", ["k:4194333"]],   # F2 (ui/ui_nav.gd; F1 — консоль; на геймпаде Back)
-	["toggle_ping", "Скрыть/показать пинг", ["k:96"]],     # ~ (net_world.gd)
-	["chat", "Чат", ["k:84"]],                             # T (ui/chat.gd)
-	["voice", "Голосовой чат (держать)", ["k:88"]],        # X (network/voip.gd)
-	["handbrake", "Ручник (машина)", ["k:32"]],            # Пробел (car_drive.gd)
-	["seat_switch", "Пересесть на соседнее место", ["k:90"]],   # Z (car_drive.gd, промпт 18.11 01:00)
-	["car_lean", "Высунуться из окна (держать)", ["k:86"]],     # V (car_drive.gd, промпт 18.11 01:20)
-	["journal", "Журнал заданий", ["k:74"]],   # J (locations/village/village.gd)
-	["world_map", "Карта (зарисовывалка)", ["k:77"]],   # M (ui/sketch_map.gd, промпт 20.11 18:42)
-]
-
-## Разделы страницы «Управление» (промпт 22:53). Обзора стрелками больше нет (20.11 11:43).
-const CTL_GROUPS := [
-	["Движение", ["move_forward", "move_back", "move_left", "move_right", "sprint", "jump", "crouch", "crouch_toggle"]],
-	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject", "swap_hands", "drop_mode"]],
-	["Действия", ["interact", "carry", "loot_all", "gasmask", "lean_left", "lean_right"]],
-	["Инвентарь", ["inventory", "inv_use", "hand_right", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
-	["Интерфейс", ["skills", "journal", "world_map", "toggle_fullscreen", "hide_ui", "toggle_ping", "chat", "voice", "toggle_cursor"]],
-	["Машина", ["handbrake", "seat_switch", "car_lean"]],
-]
+## Переназначаемые действия и разделы страницы «Управление» — из таблицы data/controls/bindings.cfg (Controls).
+## CONTROLS: [действие, подпись, клавиши по умолчанию]; CTL_GROUPS: [раздел, [действия]].
+var CONTROLS: Array = Controls.menu_rows()
+var CTL_GROUPS: Array = Controls.menu_groups()
 
 
 func _ready() -> void:
@@ -153,7 +100,7 @@ func _ready() -> void:
 	# игра называется THE LEAK (промпт 16.11 21:58); config/name в project.godot прежний — от него зависит папка сейвов
 	get_tree().root.title = "THE LEAK"
 	get_tree().root.size_changed.connect(_apply_ui_scale)
-	pad = preload("res://scripts/ui/gamepad.gd").new()   # геймпад (промпт 18.11 00:41)
+	pad = preload("res://scripts/controls/gamepad.gd").new()   # геймпад (промпт 18.11 00:41)
 	add_child(pad)
 	_load()
 	_apply_binds()
@@ -375,9 +322,9 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.is_echo():
 		get_viewport().set_input_as_handled()
 		var k: int = event.physical_keycode if event.physical_keycode != 0 else event.keycode
-		if k == KEY_ESCAPE:
+		if event.is_action_pressed("ui_cancel"):
 			_stop_wait()
-		elif k == KEY_DELETE or k == KEY_BACKSPACE:
+		elif event.is_action_pressed("ui_text_delete") or event.is_action_pressed("ui_text_backspace"):
 			_assign(waiting_action, "", waiting_idx)   # Delete/Backspace — убрать клавишу
 		else:
 			_assign(waiting_action, "k:%d" % k, waiting_idx)
@@ -1074,115 +1021,38 @@ func _load() -> void:
 		var lo := Graphics.preset(0)
 		for k in lo:
 			values[k] = lo[k]
-	binds.clear()
-	if ok and cf.has_section("controls"):
-		for a in cf.get_section_keys("controls"):
-			var v = cf.get_value("controls", a)
-			if v is Array and not v.is_empty():
-				binds[a] = v
-	# миграция (промпт 18:57): «Удар» → «Удар левой»; стойка была на кнопке мыши — теперь по умолчанию V
-	if binds.has("attack"):
-		if not binds.has("attack_left"):
-			binds["attack_left"] = binds["attack"]
-		binds.erase("attack")
-	# стойка теперь на СКМ (промпт 16.11 02:15): сохранённая V и старые «fists_down»/«throw_stone» сбрасываются
-	if binds.has("fists") and "k:86" in binds["fists"]:
-		binds.erase("fists")
-	binds.erase("fists_down")
-	# противогаз перенесён с G на V, сброс — H и G (промпт 18:13): старые сохранённые значения сбрасываем
-	if binds.get("gasmask", []) == ["k:71"]:
-		binds.erase("gasmask")
-	if binds.has("drop_mode") and "k:72" in binds["drop_mode"]:
-		binds.erase("drop_mode")   # старый бинд с H -> дефолт G
-	binds.erase("throw_stone")
-	for a in binds.keys():
-		if _default_binds(a).is_empty():
-			binds.erase(a)   # действия, которых больше нет
+	# переназначения клавиш читает Controls (scripts/controls/bindings.gd: user://controls.cfg, старые — из [controls] тут)
 
 
 func _save() -> void:
 	var cf := ConfigFile.new()
 	cf.load(CFG)   # другие секции (имя в сети — [net]) не теряем
-	for sec in ["settings", "controls"]:
-		if cf.has_section(sec):
-			cf.erase_section(sec)
+	if cf.has_section("settings"):
+		cf.erase_section("settings")
 	for key in values:
 		cf.set_value("settings", key, values[key])
-	for a in binds:
-		cf.set_value("controls", a, binds[a])
-	cf.save(CFG)
+	cf.save(CFG)   # секцию [controls] не трогаем: переназначения теперь в user://controls.cfg (Controls)
 
 
 # ---------- управление ----------
 
-## По умолчанию — только основная клавиша, альтернативная пустая.
+## По умолчанию — из таблицы (Controls): [основная, альтернативная].
 func _default_binds(action: String) -> Array:
-	for c in CONTROLS:
-		if c[0] == action:
-			return [c[2][0] if not c[2].is_empty() else "", c[2][1] if c[2].size() > 1 else ""]
-	return []
+	return Controls.kb_default(action)
 
 
 ## Всегда два элемента: [основная, альтернативная] ("" — нет).
 func _binds_of(action: String) -> Array:
-	var b: Array = binds.get(action, _default_binds(action)).duplicate()
-	while b.size() < 2:
-		b.append("")
-	return b.slice(0, 2)
+	return Controls.kb_of(action).slice(0, 2)
 
 
-## Создать все действия и выставить им клавиши (по умолчанию или сохранённые).
+## Действия и клавиши ставит Controls (по таблице и переназначениям); оси геймпада — gamepad.gd по Controls.binds_changed.
 func _apply_binds() -> void:
-	for c in CONTROLS:
-		var a: String = c[0]
-		if not InputMap.has_action(a):
-			InputMap.add_action(a)
-		InputMap.action_erase_events(a)
-		for spec in _binds_of(a):
-			var ev := _spec_event(spec)
-			if ev:
-				InputMap.action_add_event(a, ev)
-	if pad:
-		pad.apply_map()   # оси стика (action_erase_events выше их стёр)
-
-
-func _spec_event(spec: String) -> InputEvent:
-	var p := spec.split(":")
-	if p.size() != 2:
-		return null
-	if p[0] == "k":
-		var ev := InputEventKey.new()
-		ev.physical_keycode = int(p[1]) as Key
-		return ev
-	if p[0] == "m":
-		var mb := InputEventMouseButton.new()
-		mb.button_index = int(p[1]) as MouseButton
-		return mb
-	return null
+	Controls.apply()
 
 
 func _spec_name(spec: String) -> String:
-	var p := spec.split(":")
-	if p.size() != 2:
-		return "—"
-	var n := int(p[1])
-	if p[0] == "m":
-		return {MOUSE_BUTTON_LEFT: "ЛКМ", MOUSE_BUTTON_RIGHT: "ПКМ", MOUSE_BUTTON_MIDDLE: "Колёсико",
-			MOUSE_BUTTON_WHEEL_UP: "Колесо вверх", MOUSE_BUTTON_WHEEL_DOWN: "Колесо вниз",
-			MOUSE_BUTTON_XBUTTON1: "Мышь 4", MOUSE_BUTTON_XBUTTON2: "Мышь 5"}.get(n, "Мышь %d" % n)
-	match n:
-		KEY_SPACE: return "Пробел"
-		KEY_SHIFT: return "Shift"
-		KEY_CTRL: return "Ctrl"
-		KEY_ALT: return "Alt"
-		KEY_TAB: return "Tab"
-		KEY_LEFT: return "←"
-		KEY_RIGHT: return "→"
-		KEY_UP: return "↑"
-		KEY_DOWN: return "↓"
-	# физический код = клавиша на американской раскладке (латинские буквы при любой раскладке)
-	var s := OS.get_keycode_string(n as Key)
-	return s if s != "" else "?"
+	return preload("res://scripts/controls/glyphs.gd").kb_name(spec)
 
 
 func _bind_text(action: String, idx: int) -> String:
@@ -1248,22 +1118,21 @@ func _assign(action: String, spec: String, idx := 0) -> void:
 			var k := ob.find(spec)
 			if k >= 0:
 				ob[k] = old
-				binds[other] = ob
+				Controls.kb_user()[other] = ob
 		if mine[1 - idx] == spec:
 			mine[1 - idx] = ""
 	mine[idx] = spec
-	binds[action] = mine
+	Controls.set_kb(action, mine)   # сохраняет в user://controls.cfg и обновляет InputMap
 	_refresh_binds()
 
 
 func _reset_binds() -> void:
 	waiting_action = ""
-	binds.clear()
+	Controls.reset_kb()
 	_refresh_binds()
 
 
 func _refresh_binds() -> void:
-	_apply_binds()
 	for a in ctl_rows:
 		for idx in 2:
 			ctl_rows[a][idx].text = _bind_text(a, idx)
