@@ -14,13 +14,13 @@ config/name="THE LEAK"
 run/main_scene="uid://0xqylsct450j"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
-[autoload]
-
-UiNav="*res://scripts/ui/ui_nav.gd"
-
 [audio]
 
 driver/enable_input=true
+
+[autoload]
+
+UiNav="*res://scripts/ui/ui_nav.gd"
 
 [display]
 
