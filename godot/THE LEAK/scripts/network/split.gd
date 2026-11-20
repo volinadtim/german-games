@@ -70,6 +70,9 @@ var prompt2 := ""
 var acting := false          # идёт код игры от лица игрока 2 (_as_p2)
 var routing := false         # перенос новых слоёв уже запланирован (_on_node_added)
 var ui_p2 := false           # открытое окно (магазин, лут, инвентарь…) — игрока 2: в его половине, водит его геймпад
+var drop2 := false           # режим сброса игрока 2 (кнопка сброса, потом курок руки) — свой, не game._drop_mode игрока 1
+var drop2_side := ""
+var drop2_t := 0             # мс, когда зажали курок руки в режиме сброса (держать — кинуть дальше)
 
 
 ## Ввод игрока 2 для player.gd вместо Input: те же методы (is_action_pressed, is_action_just_pressed, get_vector),
@@ -80,8 +83,16 @@ class PadInput:
 	var seen := {}             # действие|контекст → номер кадра, в котором нажатие прочитано
 	var move := Vector2.ZERO   # левый стик (ходьба)
 	var sprint_latch := false  # бег: нажал — бежит, пока не отпустит стик (как раньше у игрока 2)
+	var sprint_hold := -1      # мс: во время бега снова зажали бег — держат SPRINT_HOLD — бег выключается (как у игрока 1)
 
 	func press(a: String, on: bool) -> void:
+		if a == "sprint":
+			if not on:
+				sprint_hold = -1
+			elif sprint_latch:
+				sprint_hold = Time.get_ticks_msec()
+				held[a] = true
+				return
 		if on and not held.get(a, false):
 			var t := Time.get_ticks_msec()
 			pend[a + "|p"] = t
@@ -94,11 +105,12 @@ class PadInput:
 		held.clear()
 		pend.clear()
 		sprint_latch = false
+		sprint_hold = -1
 		move = Vector2.ZERO
 
 	func is_action_pressed(a: StringName, _exact := false) -> bool:
-		if a == &"sprint" and sprint_latch:
-			return true
+		if a == &"sprint":
+			return sprint_latch   # бег — только защёлка: зажатый во время бега бег её выключает
 		return held.get(String(a), false)
 
 	func is_action_just_pressed(a: StringName, _exact := false) -> bool:
@@ -790,7 +802,11 @@ func _act2(a: String, pressed: bool) -> void:
 			wheel2.release()   # отпустил ← — выбранное в левую руку
 			return
 		if a == "attack_left" or a == "attack_right":
-			pp.charge_release(0 if a == "attack_left" else 1)
+			var arm := 0 if a == "attack_left" else 1
+			if drop2 and drop2_side == ("left" if arm == 0 else "right"):
+				_drop2_go(drop2_side)
+			elif not _hand2(arm, false):
+				_as_p2(pp.charge_release.bind(arm))
 		return
 	if not alive or mirrored or get_tree().paused or ui_p2:
 		return
@@ -812,6 +828,22 @@ func _act2(a: String, pressed: bool) -> void:
 	if a == "swap_hands":
 		_as_p2(game.swap_hands)
 		return
+	if a == "drop_mode" and not game.window_open():
+		_drop2_toggle()
+		return
+	if drop2 and (a == "attack_left" or a == "attack_right"):
+		var sd := "left" if a == "attack_left" else "right"
+		if drop2_side == "":
+			if str(inv2.equip.get(sd, "")) == "":
+				hud_p2.toast("В %s руке пусто" % ("левой" if sd == "left" else "правой"), Color(0.9, 0.5, 0.4))
+				drop2 = false
+			else:
+				drop2_side = sd
+				drop2_t = Time.get_ticks_msec()
+		return
+	if (a == "attack_left" or a == "attack_right") and not pp.carrying and _hand2(0 if a == "attack_left" else 1, true):
+		pi.press(a, true)
+		return
 	pi.press(a, true)
 	match a:
 		"fists":
@@ -820,7 +852,53 @@ func _act2(a: String, pressed: bool) -> void:
 				pp.toggle_fists()
 		"attack_left", "attack_right":
 			if not pp.carrying:
-				pp.charge_begin(0 if a == "attack_left" else 1)
+				_as_p2(pp.charge_begin.bind(0 if a == "attack_left" else 1))
+
+
+## Кнопка сброса игрока 2: режим сброса (потом курок руки — выкинуть из неё, держать — дальше), ещё раз — отмена.
+func _drop2_toggle() -> void:
+	if drop2:
+		drop2 = false
+		drop2_side = ""
+		hud_p2.toast("Сброс отменён", Color(0.75, 0.72, 0.65))
+		return
+	if str(inv2.equip.get("left", "")) == "" and str(inv2.equip.get("right", "")) == "":
+		hud_p2.toast("В руках пусто", Color(0.75, 0.72, 0.65))
+		return
+	drop2 = true
+	drop2_side = ""
+	hud_p2.toast("Сброс: курок руки — выкинуть из неё (держать — дальше), кнопка сброса — отмена", Color(0.95, 0.9, 0.8))
+
+
+## Отпустили курок в режиме сброса игрока 2: game._drop_execute от его лица; режим сброса игрока 1 не сбивается.
+func _drop2_go(side: String) -> void:
+	var t: float = minf((Time.get_ticks_msec() - drop2_t) / 1000.0, game.DROP_MAX_CHARGE)
+	drop2 = false
+	drop2_side = ""
+	var keep := [game._drop_mode, game._drop_side, game._drop_charge]
+	_as_p2(game._drop_execute.bind(side, t))
+	if keep[0]:
+		game._drop_mode = true
+		game._drop_side = keep[1]
+		game._drop_charge = keep[2]
+		if game._drop_ui:
+			game._drop_ui.visible = true
+
+
+## Курок руки игрока 2 с предметом в ней (еда, аптечка, фонарик…): применить сразу, без полоски (её ведёт revive.gd
+## за игроком 1); true — предмет есть, удара нет.
+func _hand2(arm: int, pressed: bool) -> bool:
+	var r := [""]
+	_as_p2(func(): r[0] = game.hb_item(arm))
+	var id: String = r[0]
+	if id == "":
+		return false
+	if pressed:
+		if id == "flashlight":
+			_as_p2(game.hb_press.bind(arm))
+		else:
+			_as_p2(game.use_item.bind("left" if arm == 0 else "right", true))
+	return true
 
 
 func _stick(dev: int, x: JoyAxis, y: JoyAxis) -> Vector2:
@@ -841,6 +919,8 @@ func _physics_process(delta: float) -> void:
 	pp.set_lock("split", not can)
 	if can != can_was:
 		can_was = can
+		drop2 = false
+		drop2_side = ""
 		pi.release_all()
 		pp.charging = -1
 	if not can:
@@ -851,6 +931,9 @@ func _physics_process(delta: float) -> void:
 	pi.move = mv
 	if mv.length() < 0.05:
 		pi.sprint_latch = false
+	if pi.sprint_hold >= 0 and Time.get_ticks_msec() - pi.sprint_hold >= int((pad.SPRINT_HOLD if pad else 0.2) * 1000.0):
+		pi.sprint_latch = false   # держат бег во время бега — выключить (промпт 20.11 18:18)
+		pi.sprint_hold = -1
 	var sens: float = (pad.sens if pad else 1.0) * PlayerScript.look_sens
 	if wheel2.is_open:
 		wheel2.aim(lk)   # круговое меню: правый стик выбирает слот, обзор стоит
