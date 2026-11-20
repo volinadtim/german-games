@@ -17,6 +17,7 @@ const REP_T := 0.1
 const SAME_PX := 24.0         # клетка на прежнем месте (окно перестроилось) — та же
 const MOUSE_OFF_PX := 40.0    # настоящая мышь проехала столько — рамку прячем, курсор возвращаем
 const PAD_QUIET_MS := 400     # после кнопки / стика геймпада столько мс движения мыши не считаем (Steam / драйвер дублирует стик мышью)
+const DUP_MS := 120           # Steam («раскладка рабочего стола») дублирует крестовину стрелками, A — Enter: такие пары считаем одним нажатием
 const FRAME_COL := Color(1.0, 0.82, 0.3)
 const PAD_HINT := "Крестовина / правый стик — клетка  ·  %s — взять / положить  ·  держать левый курок — перетащить, правый курок — повернуть  ·  %s — действия  ·  %s — использовать  ·  %s — крафт  ·  держать ← (или %s + стрелка) — в слот хотбара  ·  %s — курсор"
 const Split := preload("res://scripts/network/split.gd")
@@ -33,6 +34,8 @@ var _hist: Array = []          # прежние центры клеток (но�
 var _warp_ms := 0              # когда геймпад двигал мышь (её «настоящие» движения после warp не считаем)
 var _pad_ms := -100000         # последний ввод с геймпада / стрелок: мышь сразу после него — не «пользователь взял мышь»
 var _mouse_acc := 0.0          # сколько пикселей проехала настоящая мышь подряд (дрожание и сдвиг на 1–2 px не считаем)
+var _btn_ms := -100000         # последнее нажатие кнопки геймпада (DUP_MS)
+var _kb_ms := -100000          # последний шаг / клик со стрелок или Enter (DUP_MS)
 var _layer: CanvasLayer
 var _frame: Control
 var _hold := Vector2.ZERO      # направление, зажатое на геймпаде (ui_* от gamepad.gd) — повтор
@@ -80,6 +83,7 @@ func _input(e: InputEvent) -> void:
 		if e.pressed:
 			pad_used = true
 			by_kb = false
+			_btn_ms = Time.get_ticks_msec()
 			_pad_input()
 	elif e is InputEventJoypadMotion:
 		if absf(e.axis_value) > 0.25:
@@ -147,6 +151,8 @@ func _action(e: InputEventAction) -> void:
 		if d == _hold:
 			_hold = Vector2.ZERO
 		return
+	if Time.get_ticks_msec() - _kb_ms < DUP_MS:
+		return   # Steam прислал стрелку раньше кнопки — шаг уже сделан
 	pad_used = true
 	by_kb = false
 	_hold = d
@@ -176,6 +182,10 @@ func _key(e: InputEventKey) -> void:
 	if (not enter and dir == Vector2.ZERO) or popup_open():
 		return
 	get_viewport().set_input_as_handled()
+	var now := Time.get_ticks_msec()
+	if _hold != Vector2.ZERO or now - _btn_ms < DUP_MS:
+		return   # копия кнопки геймпада от Steam / драйвера — шаг / клик уже сделал геймпад
+	_kb_ms = now
 	pad_used = true
 	by_kb = true
 	_pad_input()
@@ -533,7 +543,10 @@ func _walk(n: Node, lay: int, cands: Array, stops: Array, idx: Array) -> void:
 		if ch is SubViewport and ch == _ui_vp():
 			_walk(ch, lay, cands, stops, idx)   # Split-Screen: окна в половине того, у кого окно открыто
 			continue
-		if ch is Node3D or ch is SubViewport or ch is Window or ch == _layer:
+		if ch is Node3D:
+			_walk_3d(ch, cands, stops, idx)   # Main (корень игры), магазин, автомат — Node3D, окна в их CanvasLayer
+			continue
+		if ch is SubViewport or ch is Window or ch == _layer:
 			continue
 		if ch is CanvasLayer:
 			if (ch as CanvasLayer).visible:
@@ -550,6 +563,23 @@ func _walk(n: Node, lay: int, cands: Array, stops: Array, idx: Array) -> void:
 				if _is_target(c):
 					cands.append([c, ord])
 		_walk(ch, lay, cands, stops, idx)
+
+
+## Под 3D-узлом весь мир не обходим: только верхние CanvasLayer (find_children — в движке, быстро). Раньше Node3D
+## пропускался целиком, а корень игры Main — Node3D: клеток не находилось вовсе, рамка и стрелки не работали.
+func _walk_3d(n: Node, cands: Array, stops: Array, idx: Array) -> void:
+	for cl: Node in n.find_children("*", "CanvasLayer", true, false):
+		if not (cl as CanvasLayer).visible:
+			continue
+		var top := true
+		var p: Node = cl.get_parent()
+		while p != null and p != n:
+			if p is CanvasLayer or p is SubViewport or p is Window:
+				top = false   # вложенный: до него дойдёт _walk внешнего слоя (половина сплитскрина — тоже через него)
+				break
+			p = p.get_parent()
+		if top:
+			_walk(cl, (cl as CanvasLayer).layer, cands, stops, idx)
 
 
 ## Точку q закрывает контрол, нарисованный позже (выше) и ловящий мышь, — кроме детей самой клетки.
