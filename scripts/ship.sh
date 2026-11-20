@@ -3,15 +3,20 @@
 #   scripts/ship.sh "сообщение" [файлы...]      (без файлов — git add -A)
 # Модель в Co-Authored-By: переменная SHIP_MODEL (по умолчанию "Claude Opus 5.5").
 #   ANSWER="что сделано; что проверить" ANSWER_AT="ЧЧ:ММ" scripts/ship.sh ...  — заодно раздел сверху в ANSWER.md
-# Если в коммите есть godot/eskiness — сначала scripts/gd-check.sh; ошибки -> ничего не коммитит, печатает их.
+# Для каждого godot-проекта (папка с project.godot) из коммита — сначала scripts/gd-check.sh <проект>; ошибки -> ничего не коммитит, печатает их.
 MSG="$1"; shift
 cd "$(git rev-parse --show-toplevel)" || exit 1
 if [ $# -gt 0 ]; then git add -- "$@"; else git add -A; fi
-if git diff --cached --name-only | grep -q '^godot/eskiness/'; then
-  if ! OUT=$(bash scripts/gd-check.sh 2>&1); then
-    git reset -q; echo "НЕ ОТПРАВЛЕНО — gd-check:"; echo "$OUT"; exit 1
+# проекты Godot, затронутые коммитом: поднимаемся от файла до папки с project.godot
+PROJS=$(git diff --cached --name-only | grep '^godot/' | while IFS= read -r f; do
+  d=$(dirname "$f"); while [ "$d" != "." ] && [ "$d" != "godot" ] && [ ! -f "$d/project.godot" ]; do d=$(dirname "$d"); done
+  [ -f "$d/project.godot" ] && echo "$d"; done | sort -u)
+while IFS= read -r P; do
+  [ -z "$P" ] && continue
+  if ! OUT=$(bash scripts/gd-check.sh "$P" 2>&1); then
+    git reset -q; echo "НЕ ОТПРАВЛЕНО — gd-check ($P):"; echo "$OUT"; exit 1
   fi
-fi
+done <<< "$PROJS"
 if [ -n "${ANSWER:-}" ]; then
   { printf '## %s — %s\n\n%s\n\n' "${ANSWER_AT:-??:??}" "$MSG" "$ANSWER"; cat ANSWER.md 2>/dev/null; } > ANSWER.md.tmp && mv ANSWER.md.tmp ANSWER.md
   git add ANSWER.md
