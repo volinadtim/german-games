@@ -44,6 +44,7 @@ func _ready() -> void:
 	register_cheat("get", "/get [предмет] [кол-во] — выдать предмет (Tab — подсказки, места нет — под ноги)", _cmd_get)
 	register_cheat("noclip", "/noclip — полёт сквозь стены вкл/выкл (WASD, Пробел — вверх, Ctrl — вниз, Shift — быстрее)", _cmd_noclip)
 	register_cheat("ncspeed", "/ncspeed [x] — скорость полёта в noclip (по умолчанию 8; также колёсико мыши)", _cmd_ncspeed)
+	register_cheat("where", "/where — координаты игрока и объекта под прицелом (для правки расстановки)", _cmd_where)
 	register_cheat("tp", "/tp бункер|деревня|озеро|город — телепорт (Tab — список мест)", _cmd_tp)
 	register_cheat("god", "/god — неуязвимость (урон и отравление не берут) вкл/выкл", _cmd_god)
 	register_cheat("freecam", "/freecam — свободная камера вкл/выкл (WASD, Пробел/Ctrl, Shift, Колёсико — скорость)", _cmd_freecam)
@@ -420,6 +421,21 @@ func _tp_ground(p: Vector3) -> Vector3:
 	if not hit.is_empty():
 		return hit.position + Vector3(0, 0.3, 0)
 	return p + Vector3(0, 0.3, 0)
+
+
+## /where — где игрок и что под прицелом (scripts/systems/bug_report.gd); то же пишется в отчёт по F8.
+func _cmd_where(_a: PackedStringArray) -> void:
+	if game == null or game.player == null:
+		return
+	var BR := preload("res://scripts/systems/bug_report.gd")
+	var p: Node3D = game.player
+	print_line("[color=#9e9]Место: %s, игрок %s, поворот %.0f°[/color]" % [BR.location_of(game), BR._v(p.global_position), rad_to_deg(p.rotation.y)])
+	var hit := BR.aim_hit(game)
+	if hit.is_empty():
+		print_line("[color=#bbb]Под прицелом ничего (60 м)[/color]")
+	else:
+		print_line("[color=#9e9]Под прицелом: %s[/color]" % BR.node_desc(hit[0]))
+		print_line("[color=#bbb]точка %s, %.1f м[/color]" % [BR._v(hit[1]), hit[2]])
 
 
 ## /tp — телепорт игрока в одну из локаций.

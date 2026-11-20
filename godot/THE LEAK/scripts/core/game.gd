@@ -243,6 +243,9 @@ func setup(p: Player) -> void:
 	else:
 		_start_intro()
 		save_now()
+	var br := get_tree().root.get_node_or_null("BugReport")   # подсказка, если геймпад перехватил Steam Input
+	if br:
+		br.game_started()
 
 
 ## Новая игра: пробуждение в северо-западной комнате и заблудший монстрик (world/intro.gd, промпт 16.11 03:13).

@@ -75,6 +75,7 @@ func _run() -> void:
 	stats["slot_symbols"] = _slot_symbols()
 	stats["shops"] = _shop_goods()
 	_check_controls()
+	await _check_tools()
 	await _check_windows()
 	await _check_split()
 	_finish()
@@ -216,6 +217,26 @@ func _check_controls() -> void:
 		con.call("close")
 	if not c.allowed("jump"):
 		_fail("управление: после консоли прыжок заглушен (режим %s)" % c.mode())
+
+
+## Отчёт (F8) и /where: файлы отчёта появились, команда не падает.
+func _check_tools() -> void:
+	var br = get_tree().root.get_node_or_null("BugReport")
+	if br == null:
+		_fail("нет autoload BugReport")
+		return
+	var before := DirAccess.get_directories_at("user://reports").size() if DirAccess.dir_exists_absolute("user://reports") else 0
+	await br.save_report()
+	var dirs := DirAccess.get_directories_at("user://reports") if DirAccess.dir_exists_absolute("user://reports") else PackedStringArray()
+	if dirs.size() <= before:
+		_fail("отчёт F8 не сохранился")
+	else:
+		var last := "user://reports/" + dirs[dirs.size() - 1]
+		if not FileAccess.file_exists(last + "/report.txt"):
+			_fail("в отчёте нет report.txt")
+	var con := _console()
+	if con:
+		con.call("_cmd_where", PackedStringArray())
 
 
 ## Инвентарь, магазин, настройки — открыть и закрыть.
