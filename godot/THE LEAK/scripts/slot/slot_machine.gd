@@ -44,6 +44,7 @@ func _ready() -> void:
 ## Питание (world/intro.gd, промпт 16.11 03:42): в начале новой игры автомат выключен — экран, лампы
 ## и свет погашены, крутить нельзя; после убийства заблудшего монстрика включается со звуком.
 var powered := true
+var _bulb_mask := -1   # последний выставленный узор лампочек (-1 — выставить заново)
 var _glow_e := {}     # материал → яркость свечения до выключения
 
 
@@ -263,6 +264,7 @@ static func pity(g) -> void:
 
 func _process(delta: float) -> void:
 	if not powered:
+		_bulb_mask = -1   # после включения свет выставится заново
 		return
 	t += delta
 	# бегущая строка «ОБЧИЩЕНО...» на экране, пока касса обчищена (промпт 18.11 02:13)
@@ -285,13 +287,20 @@ func _process(delta: float) -> void:
 	# лампочки: бегущий огонёк, при выигрыше — быстро мигают все
 	party = maxf(party - delta, 0.0)
 	_update_highlight(delta)
+	# узор лампочек меняется 3–10 раз в секунду — материалы трогаем только при смене узла
+	var mask := 0
 	for k in bulbs.size():
 		var on: bool
 		if party > 0.0:
 			on = int(t * 10.0) % 2 == k % 2
 		else:
 			on = int(t * 3.0) % 3 != k % 3
-		bulbs[k].emission_energy_multiplier = 1.6 if on else 0.15
+		if on:
+			mask |= 1 << (k % 62)
+	if mask != _bulb_mask:
+		_bulb_mask = mask
+		for k in bulbs.size():
+			bulbs[k].emission_energy_multiplier = 1.6 if mask & (1 << (k % 62)) else 0.15
 	# цветные огни: волна снизу вверх, при выигрыше — вспышки
 	for i in leds.size():
 		@warning_ignore("integer_division")

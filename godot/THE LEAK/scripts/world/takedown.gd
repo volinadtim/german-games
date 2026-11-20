@@ -33,17 +33,20 @@ func candidate() -> Node:
 	var best_d := REACH
 	for g in ["enemies", "mutants"]:
 		for e in game.get_tree().get_nodes_in_group(g):
-			if not is_instance_valid(e) or float(e.get("height")) >= SMALL_H:
+			if not is_instance_valid(e):
 				continue
-			var s := String(e.get("state"))
-			if s in BUSY or not (p.crouched or s in UNAWARE):
-				continue
+			# сначала дешёвая проверка расстояния — дальние враги отсеиваются без строк и get()
 			var to: Vector3 = (e as Node3D).global_position - pp
 			if absf(to.y) > 1.0:
 				continue
 			to.y = 0.0
 			var d := to.length()
 			if d > best_d or d < 0.05:
+				continue
+			if float(e.get("height")) >= SMALL_H:
+				continue
+			var s := String(e.get("state"))
+			if s in BUSY or not (p.crouched or s in UNAWARE):
 				continue
 			var n := to / d
 			var efwd: Vector3 = -(e as Node3D).global_transform.basis.z

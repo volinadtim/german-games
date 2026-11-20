@@ -794,14 +794,15 @@ func _send_mutants(delta: float) -> void:
 	_mut_n += 1
 	var net = game.net if game else null
 	var full: bool = net == null or _mut_n % net.NET_FULL == 0
-	var arr: Array = []
+	var buf := PackedFloat32Array()
+	var xs := {}
 	for m in mutants:
 		if not is_instance_valid(m) or not m.is_inside_tree():
 			continue
 		if not full and not net.near_player(m.global_position, net.NET_FAR):
 			continue
-		arr.append([int(m.get_meta("nid")), m.kind, m.global_position, m.rotation.y, m.state, m.hp])
-	vn.rpc("v_mut", arr, full)
+		preload("res://scripts/network/mob_pack.gd").put(buf, xs, int(m.get_meta("nid")), String(m.kind), m.global_position, m.rotation.y, m.state, m.hp)
+	vn.rpc("v_mut", buf, xs, full)
 
 
 ## Клиент: копии мутантов по данным хоста. full = false — только те, кто рядом с игроками.

@@ -148,9 +148,9 @@ func v_fuel(f: float) -> void:
 # ---------- мутанты ----------
 
 @rpc("authority", "call_remote", "unreliable_ordered", 3)
-func v_mut(arr: Array, full := true) -> void:
+func v_mut(buf: PackedFloat32Array, xs: Dictionary, full := true) -> void:
 	if game and is_instance_valid(game) and game.village:
-		game.village.net_mutants(arr, full)
+		game.village.net_mutants(preload("res://scripts/network/mob_pack.gd").rows(buf, xs), full)
 
 
 @rpc("any_peer", "call_remote", "reliable")

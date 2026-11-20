@@ -562,6 +562,7 @@ const MM_FORGET := 1.5
 var mm_vp: SubViewport
 var mm_cam: Camera3D
 var mm_seen := {}              # instance_id → оставшееся время показа
+var mm_ray_t := 0.0            # до следующей проверки видимости врагов лучами
 var mm_layer_t := 0.0
 
 
@@ -636,6 +637,11 @@ func _draw_minimap(sz: Vector2) -> void:
 		ex.append((pl as CollisionObject3D).get_rid())
 	var space := cam.get_world_3d().direct_space_state
 	var yaw := atan2(fw.x, fw.z)
+	# лучи видимости — 10 раз в секунду, а не каждый кадр (метка гаснет за MM_FORGET, разницы не видно)
+	mm_ray_t -= dt
+	var do_rays := mm_ray_t <= 0.0
+	if do_rays:
+		mm_ray_t = 0.1
 	for grp in [["enemies", Color(1.0, 0.25, 0.2)], ["mutants", Color(1.0, 0.6, 0.15)]]:
 		for n in get_tree().get_nodes_in_group(grp[0]):
 			if not (n is Node3D) or not n.is_inside_tree():
@@ -643,7 +649,7 @@ func _draw_minimap(sz: Vector2) -> void:
 			var id: int = n.get_instance_id()
 			var alive: bool = (n as Node3D).visible and not ("hp" in n and float(n.hp) <= 0.0)
 			var tp: Vector3 = (n as Node3D).global_position + Vector3(0, 1.1, 0)
-			if alive and cam.is_position_in_frustum(tp) and cp.distance_to(tp) < 60.0:
+			if do_rays and alive and cp.distance_squared_to(tp) < 3600.0 and cam.is_position_in_frustum(tp):
 				var q := PhysicsRayQueryParameters3D.create(cp, tp)
 				q.exclude = ex
 				var hit := space.intersect_ray(q)

@@ -107,10 +107,12 @@ func _make_trails() -> void:
 ## След: основной штрих и тонкий параллельный, сужаются к хвосту и прозрачные — как росчерк кистью.
 func _draw_trail(i: int) -> void:
 	var im := trail_mesh[i]
-	im.clear_surfaces()
 	var pts: Array = trail_pts[i]
 	if pts.size() < 3 or trail_alpha[i] <= 0.0:
+		if im.get_surface_count() > 0:
+			im.clear_surfaces()   # пустой след не пересоздаём каждый кадр
 		return
+	im.clear_surfaces()
 	var view := -cam.global_transform.basis.z
 	var wide := 1.8 if weapon_ids[i] != "" else 1.0
 	for stroke in [[0.0, 0.01 * wide, 0.2], [0.03 * wide, 0.004 * wide, 0.12]]:

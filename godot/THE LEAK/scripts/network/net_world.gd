@@ -546,7 +546,8 @@ func near_player(pos: Vector3, r: float) -> bool:
 func _send_enemies() -> void:
 	es_n += 1
 	var full := es_n % NET_FULL == 0
-	var arr: Array = []
+	var buf := PackedFloat32Array()
+	var xs := {}
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.net_puppet or not e.is_inside_tree():
 			continue
@@ -556,16 +557,19 @@ func _send_enemies() -> void:
 			enemy_seq += 1
 		if not full and not near_player(e.global_position, NET_FAR):
 			continue
-		arr.append([e.get_meta("nid"), 0 if e.kind == "heavy" else 1, e.global_position, e.rotation.y, e.state, e.hp, e.hunter])
-	rpc("es", arr, full)
+		MobPack.put(buf, xs, int(e.get_meta("nid")), "heavy" if e.kind == "heavy" else "fast", e.global_position, e.rotation.y, e.state, e.hp, bool(e.hunter))
+	rpc("es", buf, xs, full)
+
+
+const MobPack := preload("res://scripts/network/mob_pack.gd")
 
 
 @rpc("authority", "unreliable_ordered", "call_remote", 2)
-func es(arr: Array, full := true) -> void:
+func es(buf: PackedFloat32Array, xs: Dictionary, full := true) -> void:
 	if game == null or not is_instance_valid(game):
 		return
 	var seen := {}
-	for a in arr:
+	for a in MobPack.rows(buf, xs):
 		var nid: int = a[0]
 		seen[nid] = true
 		var e = enemy_map.get(nid)
@@ -574,7 +578,7 @@ func es(arr: Array, full := true) -> void:
 				continue
 			e = EnemyScript.new()
 			e.game = game
-			e.kind = "heavy" if a[1] == 0 else "fast"
+			e.kind = a[1]
 			e.net_puppet = true
 			e.hunter = a[6]
 			e.position = a[2]
