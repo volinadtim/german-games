@@ -2,7 +2,8 @@ extends Node
 ## Split-Screen в одной игре (промпт 18.11 00:41, переделка 00:58): одно окно, экран пополам —
 ## слева игрок 1 (клавиатура+мышь; при двух геймпадах ещё и первый геймпад), справа игрок 2 (свой геймпад).
 ## Без второй копии игры и без лобби: обычная одиночная игра из слота, в которой появляется второй игрок.
-## Как в сетевой игре: игрок 2 — модель player.gd (puppet), которую водит этот узел; враги выбирают
+## Игрок 2 — такой же player.gd, как игрок 1 (промпт 20.11 15:00: звуки, заряд ударов, бег, подкат…), только ввод
+## у него не Input, а PadInput: этот узел пишет туда кнопки и стик его геймпада (player_base.gd: ia). Враги выбирают
 ## ближайшего живого (enemy.gd / mutant.gd → pick_target); кат-сцены и машина показываются в обеих половинах,
 ## после них игрок 2 встаёт рядом с игроком 1.
 ## Свой HUD у игрока 1 (все слои интерфейса игры переносятся в левую половину), у игрока 2 — такой же hud.gd
@@ -27,8 +28,8 @@ static var swap_pads := false   # gamepad.gd (настройки): поменя�
 var main
 var game
 var p1                       # player.gd игрока 1
-var pp                       # player.gd (puppet) игрока 2
-var body: CharacterBody3D    # физика игрока 2 (невидимая капсула)
+var pp                       # player.gd игрока 2 (не puppet: сам ходит, бьёт, звучит)
+var pi: PadInput             # его ввод
 var svs: Array = []          # [левый, правый] SubViewport
 var cams: Array = []
 var screens: CanvasLayer
@@ -37,19 +38,58 @@ var hud_p2                   # hud.gd игрока 2 — тот же интер�
 var info_l: Label
 var tgt: Target2
 
-var yaw := 0.0
-var pitch := 0.0
 var hp := MAX_HP
 var alive := true
 var dead_t := 0.0
-var crouch := false
-var crouch_hold := false
-var sprint_latch := false
-var jump_q := false
+var can_was := false
 var mirrored := true
 var sweep_t := 0.0
 var head_paths: Array = []
+var head_paths2: Array = []
 var jump_down := false       # игрок 2 держит прыжок — голос за пропуск кат-сцены
+
+
+## Ввод игрока 2 для player.gd вместо Input: те же методы (is_action_pressed, is_action_just_pressed, get_vector),
+## состояние пишет split.gd с геймпада игрока 2. «Только что нажато» — отдельно для физического и обычного кадра.
+class PadInput:
+	var held := {}
+	var pend := {}             # действие|p или |f → время нажатия, мс (ещё не прочитано в этом контексте)
+	var seen := {}             # действие|контекст → номер кадра, в котором нажатие прочитано
+	var move := Vector2.ZERO   # левый стик (ходьба)
+	var sprint_latch := false  # бег: нажал — бежит, пока не отпустит стик (как раньше у игрока 2)
+
+	func press(a: String, on: bool) -> void:
+		if on and not held.get(a, false):
+			var t := Time.get_ticks_msec()
+			pend[a + "|p"] = t
+			pend[a + "|f"] = t
+			if a == "sprint":
+				sprint_latch = true
+		held[a] = on
+
+	func release_all() -> void:
+		held.clear()
+		pend.clear()
+		sprint_latch = false
+		move = Vector2.ZERO
+
+	func is_action_pressed(a: StringName, _exact := false) -> bool:
+		if a == &"sprint" and sprint_latch:
+			return true
+		return held.get(String(a), false)
+
+	func is_action_just_pressed(a: StringName, _exact := false) -> bool:
+		var phys := Engine.is_in_physics_frame()
+		var key := String(a) + ("|p" if phys else "|f")
+		var fr: int = Engine.get_physics_frames() if phys else Engine.get_process_frames()
+		if pend.has(key):
+			if Time.get_ticks_msec() - int(pend[key]) < 300:
+				seen[key] = fr
+			pend.erase(key)
+		return seen.get(key, -1) == fr
+
+	func get_vector(neg_x: StringName, _px: StringName, _ny: StringName, _py: StringName, _dz := -1.0) -> Vector2:
+		return move if neg_x == &"move_left" else Vector2.ZERO   # обзор крутит split.gd сам
 
 
 ## Цель для врагов (как RemoteTarget в net_base.gd): player, alive, damage_player.
@@ -223,18 +263,20 @@ func _copy_cam(dst: Camera3D, src: Camera3D, hide_mask: int) -> void:
 	dst.cull_mask = src.cull_mask & ~hide_mask
 
 
-## Все слои интерфейса игры (HUD, инвентарь, окна…) — в левую половину. Меню, затемнения main и кат-сцены — на весь экран.
+## Все слои интерфейса игры (HUD, инвентарь, окна…) — в левую половину, слои игрока 2 — в правую. Меню, затемнения main и кат-сцены — на весь экран.
 func _sweep_layers() -> void:
 	for n in main.find_children("*", "CanvasLayer", true, false):
 		if n.get_parent() == main or n.has_meta("split_moved") or _keep_full(n):
 			continue
 		n.set_meta("split_moved", true)
 		n.set_meta("split_owner", n.get_parent())
-		n.reparent(svs[0], false)
+		# слои игрока 2 (заряд удара, выносливость) — в его половину
+		n.reparent(svs[1] if is_instance_valid(pp) and pp.is_ancestor_of(n) else svs[0], false)
 	# хозяин слоя удалён (машина, окно…) — удаляем и слой, раньше он ушёл бы вместе с хозяином
-	for n in svs[0].get_children():
-		if n.has_meta("split_owner") and not is_instance_valid(n.get_meta("split_owner")):
-			n.queue_free()
+	for sv in svs:
+		for n in sv.get_children():
+			if n.has_meta("split_owner") and not is_instance_valid(n.get_meta("split_owner")):
+				n.queue_free()
 
 
 func _keep_full(n: Node) -> bool:
@@ -249,50 +291,40 @@ func _keep_full(n: Node) -> bool:
 	return false
 
 
-## Голова игрока 1 (у себя только тень) — видимой для камеры игрока 2; голову игрока 2 прячем от его камеры.
+## Голова каждого игрока (у себя только тень) — видимой для камеры другого: игрок 1 на слое HEAD1, игрок 2 — HEAD2.
 func _heads() -> void:
-	if head_paths.is_empty():
-		for m in p1.find_children("*", "GeometryInstance3D", true, false):
+	_head_of(p1, HEAD1, head_paths)
+	if is_instance_valid(pp):
+		_head_of(pp, HEAD2, head_paths2)
+
+
+func _head_of(pl: Node, layer: int, paths: Array) -> void:
+	if paths.is_empty():
+		for m in pl.find_children("*", "GeometryInstance3D", true, false):
 			if (m as GeometryInstance3D).cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
-				head_paths.append(p1.get_path_to(m))
-	for path in head_paths:
-		var m = p1.get_node_or_null(path)
+				paths.append(pl.get_path_to(m))
+	for path in paths:
+		var m = pl.get_node_or_null(path)
 		if m and m.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
 			m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-			m.layers = HEAD1
-		var m2 = pp.get_node_or_null(path) if pp else null
-		if m2:
-			m2.layers = HEAD2
+			m.layers = layer
 
 
 # ---------- игрок 2 ----------
 
 func _spawn_p2() -> void:
 	var at: Vector3 = p1.global_position + p1.global_transform.basis.x * 1.0
-	yaw = p1.rotation.y
-	body = CharacterBody3D.new()
-	var cs := CollisionShape3D.new()
-	var cap := CapsuleShape3D.new()
-	cap.radius = 0.3
-	cap.height = 1.8
-	cs.shape = cap
-	cs.position.y = 0.9
-	body.add_child(cs)
-	body.collision_layer = 0
-	body.collision_mask = p1.collision_mask
-	game.get_parent().add_child(body)
-	body.global_position = at
+	pi = PadInput.new()
 	pp = PlayerScript.new()
-	pp.puppet = true
+	pp.ia = pi
 	pp.name = "Player2"
 	pp.position = at
-	pp.rotation.y = yaw
-	pp.net_pos = at
-	pp.net_yaw = yaw
+	pp.rotation.y = p1.rotation.y
 	game.get_parent().add_child(pp)
 	pp.cam.current = false
 	pp.collision_layer = PUPPET_LAYER
-	pp.collision_mask = 0
+	pp.collision_mask = p1.collision_mask
+	pp.active = true
 	hud_p2.mm_player = pp
 	tgt = Target2.new()
 	tgt.player = pp
@@ -331,6 +363,7 @@ func damage2(amount: float, _from: Vector3) -> void:
 		dead_t = RESPAWN_T
 		pp.visible = false
 		pp.collision_layer = 0
+		pp.charging = -1
 
 
 func _respawn() -> void:
@@ -346,12 +379,10 @@ func _respawn() -> void:
 ## Поставить игрока 2 рядом с игроком 1 (после кат-сцены, машины, смерти, отставания).
 func _to_p1() -> void:
 	var at: Vector3 = p1.global_position - p1.global_transform.basis.z * -1.2 + p1.global_transform.basis.x * 0.8
-	body.global_position = at
-	body.velocity = Vector3.ZERO
 	pp.global_position = at
-	pp.net_pos = at
-	yaw = p1.rotation.y
-	pitch = 0.0
+	pp.velocity = Vector3.ZERO
+	pp.rotation.y = p1.rotation.y
+	pp.head.rotation.x = 0.0
 
 
 func _dev() -> int:
@@ -392,42 +423,28 @@ func _input(e: InputEvent) -> void:
 		_act2(a, pressed)
 
 
+## Кнопка игрока 2 → его player.gd: как _unhandled_input игрока 1 (стойка, заряд удара), остальное — через PadInput.
 func _act2(a: String, pressed: bool) -> void:
 	if a == "jump":
 		jump_down = pressed
-	if a == "crouch":
-		crouch_hold = pressed
-	if not pressed or not alive or mirrored or get_tree().paused:
+	if not is_instance_valid(pp):
 		return
+	if not pressed:
+		pi.press(a, false)
+		if a == "attack_left" or a == "attack_right":
+			pp.charge_release(0 if a == "attack_left" else 1)
+		return
+	if not alive or mirrored or get_tree().paused:
+		return
+	pi.press(a, true)
 	match a:
-		"jump":
-			jump_q = true
-		"crouch_toggle":
-			crouch = not crouch
-		"sprint":
-			sprint_latch = true
-			crouch = false
 		"fists":
-			pp.toggle_fists()
-		"attack_left", "attack_right":
-			var arm := 0 if a == "attack_left" else 1
-			if not pp.fists:
+			if not pp.carrying:
+				pp.charging = -1
 				pp.toggle_fists()
-			elif not pp.punching:
-				pp.punch(arm)
-				get_tree().create_timer(0.17).timeout.connect(_land_punch.bind(arm))
-
-
-## Удар игрока 2: у puppet урон не считается (как в сети) — считаем здесь лучом из его головы.
-func _land_punch(arm: int) -> void:
-	if not is_instance_valid(pp) or not alive:
-		return
-	var reach := 1.0 * (1.0 + 0.75 * clampf(-pitch, 0.0, 1.0))
-	var hit: Dictionary = pp._hit_scan(pp.cam.global_position, reach)
-	if hit.is_empty() or hit.collider == pp or hit.collider == body:
-		return
-	if hit.collider.has_method("take_hit") and hit.collider != p1:
-		hit.collider.take_hit(pp.PUNCH_BASE * pp.HAND_DMG[arm], -pp.cam.global_transform.basis.z)
+		"attack_left", "attack_right":
+			if not pp.carrying:
+				pp.charge_begin(0 if a == "attack_left" else 1)
 
 
 func _stick(dev: int, x: JoyAxis, y: JoyAxis) -> Vector2:
@@ -444,44 +461,28 @@ func _physics_process(delta: float) -> void:
 		return
 	var dev := _dev()
 	var pad = main.menu.pad.p2 if main.get("menu") and main.menu.pad else null   # настройки игрока 2
+	var can := dev >= 0 and alive and not mirrored
+	pp.set_lock("split", not can)
+	if can != can_was:
+		can_was = can
+		pi.release_all()
+		pp.charging = -1
+	if not can:
+		return
 	var swapped: bool = pad != null and pad.swapped()
-	var mv := Vector2.ZERO
-	var lk := Vector2.ZERO
-	if dev >= 0 and alive and not mirrored:
-		mv = _stick(dev, JOY_AXIS_RIGHT_X if swapped else JOY_AXIS_LEFT_X, JOY_AXIS_RIGHT_Y if swapped else JOY_AXIS_LEFT_Y)
-		lk = _stick(dev, JOY_AXIS_LEFT_X if swapped else JOY_AXIS_RIGHT_X, JOY_AXIS_LEFT_Y if swapped else JOY_AXIS_RIGHT_Y)
+	var mv := _stick(dev, JOY_AXIS_RIGHT_X if swapped else JOY_AXIS_LEFT_X, JOY_AXIS_RIGHT_Y if swapped else JOY_AXIS_LEFT_Y)
+	var lk := _stick(dev, JOY_AXIS_LEFT_X if swapped else JOY_AXIS_RIGHT_X, JOY_AXIS_LEFT_Y if swapped else JOY_AXIS_RIGHT_Y)
+	pi.move = mv
+	if mv.length() < 0.05:
+		pi.sprint_latch = false
 	var sens: float = (pad.sens if pad else 1.0) * PlayerScript.look_sens
 	if pad and pad.invert_y:
 		lk.y = -lk.y
 	lk = lk * lk.length()
-	yaw -= lk.x * 3.3 * sens * delta
-	pitch = clampf(pitch - lk.y * 2.4 * sens * delta, -1.5, 1.4)
-	if mv.length() < 0.05:
-		sprint_latch = false
-	var crouched := crouch or crouch_hold
-	var speed: float = PlayerScript.WALK * (0.5 if crouched else 1.0)
-	if sprint_latch and not crouched and mv.y < -0.1:
-		speed = PlayerScript.SPRINT
-	var basis := Basis(Vector3.UP, yaw)
-	var hv := basis * Vector3(mv.x, 0, mv.y) * speed
-	body.velocity.x = hv.x
-	body.velocity.z = hv.z
-	if body.is_on_floor():
-		if jump_q and not crouched:
-			body.velocity.y = PlayerScript.JUMP
-	else:
-		body.velocity.y -= PlayerScript.GRAVITY * delta
-	jump_q = false
-	body.move_and_slide()
-	# модель игрока 2 — как у сетевого игрока
-	pp.net_pos = body.global_position
-	pp.net_yaw = yaw
-	pp.net_pitch = pitch
-	pp.net_vel = body.velocity
-	pp.net_sprint = Vector2(body.velocity.x, body.velocity.z).length() > PlayerScript.WALK + 0.4
-	pp.net_crouch = crouched
+	pp.rotate_y(-lk.x * 3.3 * sens * delta)
+	pp.head.rotation.x = clampf(pp.head.rotation.x - lk.y * 2.4 * sens * delta, -1.5, 1.4)
 	# отстал (упал, застрял) — к игроку 1
-	if not mirrored and body.global_position.distance_to(p1.global_position) > 40.0:
+	if pp.global_position.distance_to(p1.global_position) > 40.0:
 		_to_p1()
 
 
@@ -506,7 +507,7 @@ func _process(delta: float) -> void:
 	if mirrored:
 		_copy_cam(cams[1], src, HEAD1)
 	else:
-		if was and body.global_position.distance_to(p1.global_position) > 6.0:
+		if was and pp.global_position.distance_to(p1.global_position) > 6.0:
 			_to_p1()
 		_copy_cam(cams[1], pp.cam, HEAD2)
 	# HUD игрока 2 — как у игрока 1

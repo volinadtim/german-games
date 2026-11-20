@@ -65,7 +65,7 @@ func _notification(what: int) -> void:
 const _MOVE_ACTIONS := ["move_forward", "move_back", "move_left", "move_right", "sprint"]
 
 func _unstick_moves() -> void:
-	if OS.has_feature("mobile") or "--touch" in OS.get_cmdline_user_args():
+	if ia != Input or OS.has_feature("mobile") or "--touch" in OS.get_cmdline_user_args():
 		return
 	for a in _MOVE_ACTIONS:
 		if not InputMap.has_action(a) or not Input.is_action_pressed(a):
@@ -88,6 +88,8 @@ func _unstick_moves() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if ia != Input:
+		return   # игрок 2 в Split-Screen: кнопки шлёт split.gd
 	if not active:
 		return
 	# Пока открыт выбор выброса на G — не бьём, не стреляем и не заряжаем удар
@@ -142,14 +144,14 @@ func _add_crouch_keys() -> void:
 ## Встать (по бегу или прыжку): переключатель снимаем, удержание Ctrl игнорируем до отпускания.
 func _stand_request() -> void:
 	crouch_toggled = false
-	if Input.is_action_pressed("crouch"):
+	if ia.is_action_pressed("crouch"):
 		crouch_hold_block = true
 
 
 func _key_look(delta: float) -> void:
 	if not active:
 		return
-	var v := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+	var v: Vector2 = ia.get_vector("look_left", "look_right", "look_up", "look_down")
 	if v == Vector2.ZERO:
 		return
 	rotate_y(-v.x * KEY_TURN * look_sens * delta)
@@ -181,16 +183,16 @@ func _noclip_tick(delta: float) -> void:
 	velocity = Vector3.ZERO
 	if not active:
 		return
-	var inp := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var inp: Vector2 = ia.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var b: Basis = cam.global_transform.basis
 	var dir: Vector3 = b.x * inp.x + b.z * inp.y
-	if Input.is_action_pressed("jump"):
+	if ia.is_action_pressed("jump"):
 		dir += Vector3.UP
-	if Input.is_action_pressed("crouch"):
+	if ia.is_action_pressed("crouch"):
 		dir += Vector3.DOWN
 	if dir.length() > 1.0:
 		dir = dir.normalized()
-	var spd := 8.0 * (3.0 if Input.is_action_pressed("sprint") else 1.0)
+	var spd: float = 8.0 * (3.0 if ia.is_action_pressed("sprint") else 1.0)
 	global_position += dir * spd * delta
 
 
@@ -215,19 +217,19 @@ func _physics_process(delta: float) -> void:
 		add_child(slide_node)
 	var inp := Vector2.ZERO
 	if active:
-		inp = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		inp = ia.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := transform.basis * Vector3(inp.x, 0, inp.y)
 	var moving := dir.length() > 0.01
 	var sprinting: bool = active and not carrying and moving and inp.y < -0.1 \
-		and Input.is_action_pressed("sprint") and (dash == null or dash.hold_t > 0.12)
+		and ia.is_action_pressed("sprint") and (dash == null or dash.hold_t > 0.12)
 	if sprinting and not stamina.can_sprint():
 		sprinting = false
 
 	# Проверяем подкат до прыжка и приседа
 	var want_crouch: bool = active and (
-		(Input.is_action_pressed("crouch") and not crouch_hold_block)
+		(ia.is_action_pressed("crouch") and not crouch_hold_block)
 		or crouch_toggled
-		or Input.is_action_just_pressed("crouch_toggle")
+		or ia.is_action_just_pressed("crouch_toggle")
 	)
 	
 	slide_node.poll(delta, active and not carrying, sprinting, want_crouch, dir)
@@ -236,7 +238,7 @@ func _physics_process(delta: float) -> void:
 		sprinting = false
 
 	var on_floor := is_on_floor()
-	var jump_now: bool = active and not carrying and Input.is_action_just_pressed("jump") \
+	var jump_now: bool = active and not carrying and ia.is_action_just_pressed("jump") \
 		and not (game != null and game.inv != null and game.inv.open and get_viewport().gui_is_dragging())
 
 	if jump_now and slide_node.active:

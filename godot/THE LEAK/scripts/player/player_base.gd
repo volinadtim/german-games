@@ -332,6 +332,8 @@ var throw_flick := 0.0   # 1 → 0 после броска: рука выбра�
 @warning_ignore("unused_private_class_variable")
 var _whip_lmb := false   # ЛКМ с пистолетом без ПКМ — удар рукоятью рукой с пистолетом (player_combat.gd)
 var game   # game.gd (ставит game.gd): пока открыто окно — клик не захватывает мышь
+## Источник ввода: Input у игрока 1; у игрока 2 в Split-Screen — network/split.gd (PadInput с теми же методами).
+var ia: Object = Input
 var aim_w: Array[float] = [0.0, 0.0]   # насколько рука в ударе следует за взглядом по вертикали
 var head_bone := -1
 var THUMB_CURL := [0.0, 0.0, 22.0, 26.0]   # промпт 03:38: меньше — кончик не уходит в пальцы; обхватывает кулак поперёк, поверх пальцев (цель — снаружи средних фаланг)

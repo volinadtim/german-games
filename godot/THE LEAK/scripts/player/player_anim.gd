@@ -4,13 +4,13 @@ const GunS := preload("res://scripts/gun.gd")
 
 
 func _update_crouch(delta: float) -> void:
-	if active and Input.is_action_just_pressed("crouch_toggle"):
+	if active and ia.is_action_just_pressed("crouch_toggle"):
 		crouch_toggled = not crouch_toggled
-	if active and Input.is_action_just_pressed("crouch"):
+	if active and ia.is_action_just_pressed("crouch"):
 		crouch_hold_block = false
-	if not Input.is_action_pressed("crouch"):
+	if not ia.is_action_pressed("crouch"):
 		crouch_hold_block = false
-	var want := force_crouch or active and (crouch_toggled or (Input.is_action_pressed("crouch") and not crouch_hold_block))
+	var want: bool = force_crouch or active and (crouch_toggled or (ia.is_action_pressed("crouch") and not crouch_hold_block))
 	if puppet:
 		want = net_crouch
 	if want:
@@ -30,9 +30,9 @@ func _update_crouch(delta: float) -> void:
 func _lean_tick(delta: float) -> void:
 	var want := 0.0
 	if active and not puppet and not dying:
-		if Input.is_action_pressed("lean_right"):
+		if ia.is_action_pressed("lean_right"):
 			want += 1.0
-		if Input.is_action_pressed("lean_left"):
+		if ia.is_action_pressed("lean_left"):
 			want -= 1.0
 	lean = move_toward(lean, want, delta * 6.0)
 	if lean != 0.0:

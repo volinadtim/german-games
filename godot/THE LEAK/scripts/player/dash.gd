@@ -25,12 +25,12 @@ func _ready() -> void:
 ## move_dir — текущее горизонтальное направление движения в мировых координатах.
 func poll(delta: float, can: bool, move_dir: Vector3) -> void:
 	cd = maxf(cd - delta, 0.0)
-	if Input.is_action_just_pressed("sprint"):
+	if player.ia.is_action_just_pressed("sprint"):
 		holding = true
 		hold_t = 0.0
 
 	if holding:
-		if Input.is_action_pressed("sprint"):
+		if player.ia.is_action_pressed("sprint"):
 			hold_t += delta
 		else:
 			holding = false
