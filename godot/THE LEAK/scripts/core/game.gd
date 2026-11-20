@@ -647,6 +647,11 @@ func _drop_execute(side: String, hold_t: float) -> void:
 	var right := player.cam.global_transform.basis.x.normalized() * (-1.0 if side == "left" else 1.0)
 	var pk = _make_pickup(id, 1, player.cam.global_position + fwd * 0.45 + right * 0.15 - Vector3(0, 0.1, 0), fwd * lerpf(4.0, 14.0, power) + Vector3.UP * lerpf(1.5, 4.5, power))
 	if pk != null and dur >= 0.0: pk.set_meta("dur", dur)
+	# брошенное холодное оружие ранит того, в кого попадёт (промпт 20.11 18:31): урон удара оружием, сильнее с зарядом
+	var W := preload("res://scripts/weapons.gd")
+	if pk != null and W.WEAPONS.has(id):
+		pk.throw_dmg = player.PUNCH_BASE * float(W.stats(id)["mult"]) * lerpf(0.7, 1.3, power)
+		pk.thrower = player
 	play_ui("whoosh" if power > 0.5 else "pickup", -12.0, 1.1)
 
 func _drop_ui_draw() -> void:

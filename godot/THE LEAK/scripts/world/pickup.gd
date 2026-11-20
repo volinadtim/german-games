@@ -23,7 +23,9 @@ var model: Node3D
 var model_base := Vector3.ZERO   # положение визуала без подъёма
 var lift := 0.0                  # подъём визуала над полом — по мировой вертикали, как бы предмет ни лёг
 var box: CollisionShape3D
-var settled := false             # улёгся: выровнен на грань по полу и заморожен (не качается, не толкается)
+var throw_dmg := 0.0             # брошен на G с зарядом: урон при попадании (game.gd: _drop_execute), не в сейве
+var thrower: Node3D               # кто бросил (не ранит сам себя)
+var settled := false            # улёгся: выровнен на грань по полу и заморожен (не качается, не толкается)
 var slow_t := 0.0
 var last_ok := Vector3.INF       # последняя точка, где под предметом была земля (на случай провала сквозь неё)
 var ok_check := 0
@@ -75,6 +77,8 @@ func _physics_process(delta: float) -> void:
 		if age > 0.3 and (slow_t > 0.25 or age > 4.0):
 			_settle()
 		_guard_fall()
+	if throw_dmg > 0.0:
+		_throw_hit(delta)
 	if not taken and id != "car_key":
 		life -= delta
 		if life <= 0.0:
@@ -97,6 +101,49 @@ func _physics_process(delta: float) -> void:
 			_fly_to(game)
 		else:
 			n = left
+
+
+## Брошенное оружие в полёте: луч по ходу движения; попал во врага/манекен/ящик — урон один раз, дальше просто падает.
+func _throw_hit(delta: float) -> void:
+	var v := linear_velocity
+	if settled or taken or v.length() < 3.0:
+		throw_dmg = 0.0
+		return
+	var from := global_position
+	var q := PhysicsRayQueryParameters3D.create(from, from + v * delta * 2.0 + v.normalized() * 0.25)
+	q.collision_mask = 1
+	var ex: Array[RID] = [get_rid()]
+	if is_instance_valid(thrower):
+		ex.append(thrower.get_rid())
+	q.exclude = ex
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return
+	var col = hit.collider
+	throw_dmg_hit(col, hit.position, v)
+
+
+## Нанести урон брошенным оружием цели col (кроме игроков); после удара урон гасится.
+func throw_dmg_hit(col, at: Vector3, v: Vector3) -> void:
+	var dmg := throw_dmg
+	throw_dmg = 0.0
+	if col == null or not col.has_method("take_hit") or col is CharacterBody3D and col.has_method("set_weapon"):
+		return
+	var Fx := preload("res://scripts/core/fx.gd")
+	var la = null
+	if is_instance_valid(thrower):
+		Fx.by = thrower
+		la = thrower.get("last_arm")
+		thrower.set("last_arm", -1)   # износ оружия в руке не трогаем (как у камня)
+	col.take_hit(dmg, v.normalized())
+	if la != null:
+		thrower.set("last_arm", la)
+	Fx.by = null
+	if col.has_method("_set_state") and col.get("state") in ["idle", "return", "investigate"]:
+		col._set_state("chase")
+	if game:
+		game.play_at("thud", at, -4.0, 1.0)
+	linear_velocity = -v * 0.15 + Vector3.UP * 1.0
 
 
 ## Проскочил сквозь землю (быстрое падение тонкой вещи на склон поляны) — вернуть туда, где земля была под ним.
