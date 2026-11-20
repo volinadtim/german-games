@@ -301,7 +301,7 @@ func use_item(key, no_channel := false) -> void:
 ## Надеть предмет из ячейки idx в слот (что было в слоте — встаёт на его место в сумке).
 func equip(idx: int, slot_: String) -> void:
 	var s = inv.slots[idx]
-	if s == null or not Items.fits(s["id"], slot_):
+	if s == null or not inv.can_fit(s["id"], slot_):
 		return
 	if not can_take_hand(slot_):
 		return
@@ -429,7 +429,7 @@ func unequip(slot_: String, to := -1) -> bool:
 	if id == "":
 		return false
 	var o: int = inv.owner_at(to) if to >= 0 else -1
-	if o >= 0 and Items.fits(inv.slots[o]["id"], slot_):
+	if o >= 0 and inv.can_fit(inv.slots[o]["id"], slot_):
 		equip(o, slot_)       # обмен
 		return true
 	# сетка: вещь — в ячейку to (или куда поместится); рюкзак/куртка/штаны — их блок пропадает,
@@ -509,8 +509,13 @@ func _apply_equip(slot_: String) -> void:
 			hud.knuckles = id == "knuckles"
 			if id != "" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
+		"gps":
+			if id != "" and not loading:
+				hud.toast("GPS закреплён на куртке — миникарта работает", Color(0.9, 0.85, 0.7))
 		"body", "legs", "feet":
 			inv.update_blocks()   # карманы куртки / штанов
+			if slot_ == "body" and inv.equip["gps"] != "" and not inv.slot_open("gps") and not loading:
+				unequip("gps")   # куртка без крепления — GPS в ячейки (некуда — на пол)
 			if id != "" and not loading:
 				hud.toast("Надето: %s" % Items.item_name(id), Color(0.9, 0.85, 0.7))
 

@@ -39,13 +39,15 @@ const START_GEAR := {"body": "tshirt", "legs": "rag_pants", "back": "sack"}   # 
 const COLS := 5
 const SLOT := 76.0
 const CELL := 58.0               # ячейка сетки сумки
-const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left", "right"]
-const EQUIP_NAMES := {"head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
+const EQUIP := ["head", "face", "back", "body", "hands", "legs", "feet", "left", "right", "gps"]
+## тела, на которые крепится GPS (лучшая куртка деревни и выше тиром, промпт 20.11 18:38)
+const GPS_BODIES := ["bushlat", "vest", "plate_vest"]
+const EQUIP_NAMES := {"gps": "Крепление GPS", "head": "Голова", "face": "Лицо", "back": "Спина", "body": "Тело", "hands": "Руки", "legs": "Ноги", "feet": "Обувь",
 	"left": "Левая", "right": "Правая"}
 ## Слоты вплотную в форме тела, без фигуры и подписей (промпт 04:23; вид со спины: левая рука слева).
 ## В пустом слоте — полупрозрачная иконка части тела (Slot._draw_part). Перчатки — на обеих кистях (HANDS2 —
 ## второй квадратик того же слота).
-const DOLL_POS := {"head": Vector2(64, 0), "face": Vector2(64, 64), "back": Vector2(128, 64), "body": Vector2(64, 128),
+const DOLL_POS := {"gps": Vector2(0, 64), "head": Vector2(64, 0), "face": Vector2(64, 64), "back": Vector2(128, 64), "body": Vector2(64, 128),
 	"hands": Vector2(128, 128), "left": Vector2(0, 192), "right": Vector2(128, 192), "legs": Vector2(64, 192), "feet": Vector2(64, 256)}
 const HANDS2 := Vector2(0, 128)
 const HOLD_TIME := 0.4                  # Shift + держать ПКМ столько — выбросить всю стопку
@@ -53,7 +55,7 @@ const TOUCH_HOLD := 0.5                 # палец: столько держа�
 
 var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
-var equip := {"head": "", "face": "", "back": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": ""}
+var equip := {"head": "", "face": "", "back": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": "", "gps": ""}
 var hotbar: Array = ["bandage", "water", "choco", "", ""]   # по умолчанию: 1 — бинт, 2 — вода, 3 — шоколадка (сухарей больше нет, 20.11 14:22)
 var equip_dur := {}             # прочность надетого: слот -> значение
 var open := false
@@ -117,6 +119,10 @@ class Slot extends Control:
 		size = Vector2(px, px)
 		mouse_entered.connect(func(): inv.set_hover(key))
 		mouse_exited.connect(func(): inv.set_hover(null))
+
+	func _process(_d: float) -> void:
+		if key is String:
+			visible = inv.slot_open(key)   # крепление GPS — только на хорошей куртке
 
 	func item_id() -> String:
 		if key is String:
@@ -1777,6 +1783,23 @@ func _size_note(_id: String) -> String:
 	return ""
 
 
+## Слот снаряжения доступен: крепление GPS — только на бушлате / бронежилете (GPS_BODIES).
+func slot_open(k: String) -> bool:
+	if k == "gps":
+		return String(equip.get("body", "")) in GPS_BODIES
+	return true
+
+
+## Предмет подходит в слот и слот доступен (Items.fits + slot_open).
+func can_fit(id: String, k: String) -> bool:
+	return slot_open(k) and Items.fits(id, k)
+
+
+## GPS работает (миникарта, hud.gd): в руке или в креплении на куртке.
+func gps_on() -> bool:
+	return equip.get("left", "") == "gps" or equip.get("right", "") == "gps" or (equip.get("gps", "") == "gps" and slot_open("gps"))
+
+
 func _refresh() -> void:
 	for n in slot_nodes:
 		n.queue_redraw()
@@ -1832,7 +1855,7 @@ func move(from, to) -> void:
 		var s = slots[from]
 		if s == null:
 			return
-		if not Items.fits(s["id"], to):
+		if not can_fit(s["id"], to):
 			message.emit("%s сюда не надеть" % Items.item_name(s["id"]))
 			return
 		equip_requested.emit(from, to)
@@ -1885,7 +1908,7 @@ func _swap_equip(a: String, b: String) -> void:
 	var ib: String = equip[b]
 	if ia == "":
 		return
-	if not Items.fits(ia, b) or (ib != "" and not Items.fits(ib, a)):
+	if not can_fit(ia, b) or (ib != "" and not can_fit(ib, a)):
 		message.emit("%s сюда не надеть" % Items.item_name(ia))
 		return
 	var da = equip_dur.get(a)

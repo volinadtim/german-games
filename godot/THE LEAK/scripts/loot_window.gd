@@ -714,7 +714,7 @@ func drop_on_equip(slot: String) -> void:
 		return
 	var it: Array = src.contents.get(drag_idx)
 	var id := String(it.get(0))
-	if not Items.fits(id, slot):
+	if not game.inv.can_fit(id, slot):
 		game.hud.toast("%s сюда не надеть" % Items.item_name(id), Color(0.9, 0.5, 0.4))
 		return
 	if not game.can_take_hand(slot):   # за рулём — одна рука (game_items.gd)

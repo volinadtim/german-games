@@ -220,7 +220,7 @@ func _process(delta: float) -> void:
 	var hot_want := 1.0 if not hot_tab_only or (inv != null and bool(inv.get("open"))) else 0.0
 	hot_alpha = move_toward(hot_alpha, hot_want, delta * (2.0 if hot_want < hot_alpha else 6.0))
 	if mm_vp:   # карта не нужна в «Реализме» и в кат-сценах — не рендерим
-		mm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED if minimal or not paint.visible else SubViewport.UPDATE_ALWAYS
+		mm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED if minimal or not paint.visible or not _gps() else SubViewport.UPDATE_ALWAYS
 	paint.queue_redraw()
 	hot_paint.queue_redraw()
 	hot_paint.self_modulate.a = hot_alpha
@@ -493,7 +493,8 @@ func _paint() -> void:
 	paint.draw_string(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.9, 0.78, 0.5))
 	if minimal:
 		return   # реализм: без баффов, монет, хотбара и заряда фонарика
-	_draw_minimap(sz)
+	if _gps():
+		_draw_minimap(sz)
 	# баффы еды и напитков: значок предмета, сила и таймер
 	var bx0 := x
 	for k in buffs:
@@ -596,6 +597,11 @@ func _mm_hide_enemies() -> void:
 				var vi := m as VisualInstance3D
 				if vi.layers != MM_HIDE_LAYER:
 					vi.layers = MM_HIDE_LAYER
+
+
+## Миникарта только с GPS (промпт 20.11 18:38): в руке или в креплении на куртке (inventory.gd: gps_on).
+func _gps() -> bool:
+	return inv != null and inv.has_method("gps_on") and inv.gps_on()
 
 
 func _draw_minimap(sz: Vector2) -> void:

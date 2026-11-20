@@ -196,6 +196,9 @@ const ITEMS := {
 		"icon": "backpack", "color": Color(0.85, 0.75, 0.15)},
 	"dive_light": {"name": "Подводный фонарь", "desc": "Герметичный фонарь. Лежит в сумке — под водой светит сам, на дне видно куда лучше.", "stack": 1,
 		"icon": "flashlight", "color": Color(0.95, 0.6, 0.1)},
+	# GPS (промпт 20.11 18:38): без него миникарты нет. Работает в руке; на бушлате / бронежилете — в креплении на груди
+	"gps": {"name": "GPS", "desc": "Навигатор: пока работает — в углу миникарта. Работает в руке; на бушлате, бронежилете или лучше — крепится на грудь (слот слева от лица) и работает без рук.", "stack": 1,
+		"icon": "gps", "color": Color(0.85, 0.8, 0.2)},
 }
 
 
@@ -279,6 +282,8 @@ static func equip_slot(id: String) -> String:
 ## Подходит ли предмет в слот экипировки (left/right/head/hands).
 static func fits(id: String, slot: String) -> bool:
 	var k := equip_slot(id)
+	if slot == "gps":
+		return id == "gps"
 	if slot == "left" or slot == "right":
 		return k == "hand" or holdable(id)
 	return k != "" and k == slot
@@ -347,6 +352,13 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
 		return
 	match String(ITEMS[id]["icon"]):
+		"gps":
+			ci.draw_rect(Rect2(c - Vector2(s * 0.2, s * 0.32), Vector2(s * 0.4, s * 0.64)), col.darkened(0.6))
+			ci.draw_rect(Rect2(c - Vector2(s * 0.15, s * 0.25), Vector2(s * 0.3, s * 0.3)), Color(0.3, 0.6, 0.4))
+			ci.draw_circle(c + Vector2(0, -s * 0.1), s * 0.05, Color(1.0, 0.3, 0.2))
+			ci.draw_rect(Rect2(c + Vector2(s * 0.1, -s * 0.44), Vector2(s * 0.05, s * 0.13)), col)
+			for i in 3:
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.13 + i * s * 0.1, s * 0.13), Vector2(s * 0.06, s * 0.06)), col)
 		"fuel":
 			var body := Rect2(c - Vector2(s * 0.28, s * 0.3), Vector2(s * 0.56, s * 0.66))
 			ci.draw_rect(body, dark)
