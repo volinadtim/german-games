@@ -48,6 +48,8 @@ func _ready() -> void:
 	box.offset_right = -20
 	box.offset_top = -64
 	box.offset_bottom = -20
+	box.grow_horizontal = Control.GROW_DIRECTION_BEGIN   # длинная надпись («(0/2)» в Split-Screen) растёт влево, а не за край
+	box.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.visible = false
 	add_child(box)

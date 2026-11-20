@@ -67,6 +67,7 @@ var jump_down := false       # игрок 2 держит прыжок — гол
 var focus2: Object           # цель «Взаимодействия» игрока 2 (game.update_focus от его лица)
 var prompt2 := ""
 var acting := false          # идёт код игры от лица игрока 2 (_as_p2)
+var routing := false         # перенос новых слоёв уже запланирован (_on_node_added)
 var ui_p2 := false           # открытое окно (магазин, лут, инвентарь…) — игрока 2: в его половине, водит его геймпад
 
 
@@ -167,6 +168,7 @@ func _ready() -> void:
 	game.set_meta("split", self)
 	Input.set_ignore_joypad_on_unfocused_application(false)
 	Input.joy_connection_changed.connect(func(_d, _c): _pad_changed())
+	get_tree().node_added.connect(_on_node_added)
 	_build_screens()
 	_spawn_p2()
 	_pad_changed()
@@ -190,6 +192,20 @@ func _exit_tree() -> void:
 			g1.mm_size = 180.0
 			g1.mm_range = 50.0
 	_pad_changed()
+
+
+## Новый слой интерфейса (магазин, лут…) — сразу в свою половину, в том же кадре, а не через 0.3 с на весь экран.
+func _on_node_added(n: Node) -> void:
+	if n is CanvasLayer and not routing:
+		routing = true
+		_route_now.call_deferred()
+
+
+## отложенный перенос новых слоёв (во время node_added переносить нельзя)
+func _route_now() -> void:
+	routing = false
+	if is_instance_valid(p1) and is_instance_valid(pp):
+		_route_windows()
 
 
 func _pad_changed() -> void:
@@ -224,6 +240,7 @@ func _build_screens() -> void:
 		sv.world_3d = world
 		sv.audio_listener_enable_3d = i == 0   # звук — от игрока 1
 		sv.handle_input_locally = true
+		sv.msaa_2d = Viewport.MSAA_4X   # ужатый интерфейс: рамки и края не пропадают и без лесенки (_fit_ui)
 		cont.add_child(sv)
 		var c := Camera3D.new()
 		sv.add_child(c)
@@ -314,7 +331,11 @@ func _fit_ui() -> void:
 		if s.x < 2.0 or s.y < 2.0:
 			continue
 		var k := clampf(minf(s.x / 1100.0, s.y / 620.0), 0.6, 1.0) * pct
-		var want := Vector2i((s / maxf(k, 0.3)).round())
+		if absf(k - 1.0) < 0.1:
+			k = 1.0   # почти 1:1 — без ужатия, чётко пиксель в пиксель
+		k = maxf(k, 0.3)
+		sv.oversampling_override = k   # шрифты растеризуются под реальный размер, а не ужимаются из крупных
+		var want := Vector2i((s / k).round())
 		if want == Vector2i(s):
 			want = Vector2i.ZERO   # масштаб 1 — без подмены
 		if sv.size_2d_override != want:
