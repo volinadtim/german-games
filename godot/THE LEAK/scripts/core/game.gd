@@ -473,6 +473,7 @@ func begin_escape() -> void:
 ## Кат-сцена кончилась (village.gd): снова игра — игрок уже сидит в машине.
 func end_cinematic() -> void:
 	alive = true
+	won = false   # иначе на 2-й локации экран смерти с кнопками не появлялся (revive.gd)
 	inv.enabled = true
 	hud.set_cinematic(false)
 	player.cinematic_stance(false)
