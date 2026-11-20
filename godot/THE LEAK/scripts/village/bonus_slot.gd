@@ -90,6 +90,8 @@ var blink := 0.0
 # показ выигрыша
 var tier := 0                # 0 — мимо, 1 — мелкий, 2 — крупный/бонус, 3 — джекпот
 var win_amount := 0
+const PROFIT_CAP := 10000   # лимит чистой прибыли автомата (как у KILLBOX)
+var profit := 0
 var win_t := 99.0
 var count_shown := 0
 var banner := ""
@@ -595,6 +597,7 @@ func interact(g) -> void:
 			g.hud.toast("Не хватает монет")
 			return
 		g.inv.remove("coin", COST * bet)
+		profit -= COST * bet
 	var res: Array = []
 	for i in 9:
 		res.append(_roll())
@@ -869,6 +872,8 @@ func _payout() -> void:
 		tier = 2 if win >= 40 * bet else 1
 		if tier == 2 and banner == "":
 			banner = "КРУПНЫЙ ВЫИГРЫШ"
+	win = clampi(win, 0, maxi(PROFIT_CAP - profit, 0))
+	profit += win
 	win_amount = win
 	count_shown = 0
 	win_t = 0.0
