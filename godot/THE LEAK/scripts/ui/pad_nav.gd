@@ -15,6 +15,7 @@ const REP_DELAY := 0.32       # стрелку держат — повтор
 const REP_T := 0.1
 const SEC_MIN := Vector2(200, 150)   # панель от такого размера — отдельный раздел для LB/RB
 const FRAME_COL := Color(1.0, 0.82, 0.3)
+const PAD_HINT := "Стрелки — клетка  ·  %s — взять / положить (держать + стрелки — перетащить)  ·  %s — действия  ·  %s — использовать  ·  %s / %s — разделы  ·  %s + стрелка — в слот"
 
 var pad                        # ui/gamepad.gd
 var pad_used := false          # последний ввод — с геймпада
@@ -120,6 +121,7 @@ func _process(delta: float) -> void:
 		if get_tree().paused or (g != null and g.has_method("window_open") and g.window_open()):
 			summoned = false   # поверх вызванного курсора открылось окно / пауза — дальше обычные клетки
 			cursor_mode = false
+	_inv_hint()
 	if not pad_used:
 		_show(false)
 		_restore_mouse()
@@ -481,6 +483,20 @@ func _section(c: Control) -> Node:
 		last = p
 		p = p.get_parent()
 	return last
+
+
+## Подсказки внизу инвентаря — под геймпад, пока играют с него (исходный текст — в meta).
+func _inv_hint() -> void:
+	var inv = _inv()
+	if inv == null or not bool(inv.get("open")) or inv.get("hint_l") == null:
+		return
+	var l: Label = inv.hint_l
+	if not l.has_meta("kb"):
+		l.set_meta("kb", l.text)
+	var t: String = PAD_HINT % [pad.spec_name("b:0"), pad.spec_name("b:2"), pad.spec_name("b:8"),
+		pad.spec_name("b:9"), pad.spec_name("b:10"), pad.spec_name("b:4")] if pad_used else str(l.get_meta("kb"))
+	if l.text != t:
+		l.text = t
 
 
 func _game():

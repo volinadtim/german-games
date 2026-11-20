@@ -538,6 +538,7 @@ func _is_arm_ready_to_shoot(arm: int) -> bool:
 
 ## Сам выстрел из руки h с разбросом spread (патрон уже есть).
 func _shoot(h: int, spread: float) -> void:
+	preload("res://scripts/ui/gamepad.gd").rumble(0.3, 0.7, 0.09)   # отдача — вибрация геймпада
 	var p = game.player
 	p.make_noise(p.NOISE_SHOT)   # выстрел слышно далеко и сквозь стены (enemy.gd _hears)
 	var r := rounds_in(h)

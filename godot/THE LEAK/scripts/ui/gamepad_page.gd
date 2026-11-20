@@ -21,6 +21,7 @@ var pad_l: Label
 var rows := {}               # действие -> кнопка
 var swap_b: Button
 var inv_b: Button
+var vib_b: Button
 var waiting := ""
 var wait_since := 0
 var back_alone := false      # Back нажата одна — ждём отпускания (назначить «Back»)
@@ -79,6 +80,10 @@ func _init(m, p) -> void:
 	list.add_child(sr)
 	inv_b = _row(list, "Инверсия обзора по вертикали", func():
 		pad.invert_y = not pad.invert_y
+		pad.save_cfg()
+		refresh())
+	vib_b = _row(list, "Вибрация", func():
+		pad.vibration = not pad.vibration
 		pad.save_cfg()
 		refresh())
 	swap_b = _row(list, "Поменять стики (только «Свой»)", func():
@@ -167,6 +172,7 @@ func refresh() -> void:
 	swap_pads_b.text = "вкл" if root.swap_pads else "выкл"
 	swap_pads_b.disabled = Input.get_connected_joypads().size() < 2
 	inv_b.text = "вкл" if pad.invert_y else "выкл"
+	vib_b.text = "вкл" if pad.vibration else "выкл"
 	swap_b.text = "вкл" if pad.swapped() else "выкл"
 	swap_b.disabled = not custom
 	for a in rows:

@@ -71,6 +71,12 @@ var vpos := Vector2(200, 200)
 var cursor_layer: CanvasLayer
 var cursor_dot: Control
 var nav                      # ui/pad_nav.gd — клетки в меню
+static var inst              # главный узел (menu.pad) — для pad_text / rumble
+static var ps := false       # последний геймпад — PlayStation (DualSense): другие имена кнопок
+var vibration := true        # вибрация (settings.cfg [pad] vibration)
+var _ps_dev := -99
+var _tok_re: RegEx
+var _tok_cache := {}
 var wheel                    # ui/pad_wheel.gd — круговое меню хотбара
 var lb_space := false
 
@@ -101,13 +107,18 @@ func _ready() -> void:
 			cursor_dot.draw_colored_polygon(pts, Color(1, 1, 1))
 			cursor_dot.draw_polyline(pts + PackedVector2Array([Vector2.ZERO]), Color(0, 0, 0), 2.0))
 		cursor_layer.add_child(cursor_dot)
+	inst = self
 	nav = preload("res://scripts/ui/pad_nav.gd").new()
 	nav.pad = self
 	add_child(nav)
 	wheel = preload("res://scripts/ui/pad_wheel.gd").new()
 	wheel.pad = self
 	add_child(wheel)
-	Input.joy_connection_changed.connect(func(_d, _c): apply_map())
+	Input.joy_connection_changed.connect(func(d, c):
+		apply_map()
+		if c and d == _ps_dev:
+			ps = is_ps(d)
+		_tok_cache.clear())
 	# убираем геймпад из ui_*: иначе B в игре = Esc (пауза), A жмёт кнопку с фокусом дважды
 	for a in ["ui_accept", "ui_select", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right",
 			"ui_focus_next", "ui_focus_prev", "ui_page_up", "ui_page_down"]:
@@ -152,6 +163,7 @@ func load_cfg() -> void:
 				custom[a] = DEFAULT[a]
 	swap_sticks = bool(cf.get_value(section, "swap_sticks", false))
 	invert_y = bool(cf.get_value(section, "invert_y", false))
+	vibration = bool(cf.get_value(section, "vibration", true))
 	sens = float(cf.get_value(section, "sens", 1.0))
 
 
@@ -162,6 +174,7 @@ func save_cfg() -> void:
 	cf.set_value(section, "custom", custom)
 	cf.set_value(section, "swap_sticks", swap_sticks)
 	cf.set_value(section, "invert_y", invert_y)
+	cf.set_value(section, "vibration", vibration)
 	cf.set_value(section, "sens", sens)
 	if not profile:
 		cf.set_value("pad", "swap_pads", swap_pads)
@@ -193,18 +206,97 @@ static func spec_name(spec: String) -> String:
 	if p.size() != 2:
 		return "?"
 	if p[0] == "t":
+		if ps:
+			return "L2" if p[1] == "L" else "R2"
 		return "LT" if p[1] == "L" else "RT"
 	var n := _btn_name(int(p[1]))
-	return ("Back + " + n) if p[0] == "c" else n
+	return (_btn_name(MOD) + " + " + n) if p[0] == "c" else n
 
 
+## Имя кнопки: раскладка Xbox (Flydigi в XInput и прочие) или PlayStation (DualSense/DualShock — ps).
+## Godot (SDL) нумерует по положению: 0 — нижняя (A / ✕), 1 — правая (B / ○), 2 — левая (X / □), 3 — верхняя (Y / △).
 static func _btn_name(b: int) -> String:
+	if ps:
+		return {0: "✕", 1: "○", 2: "□", 3: "△", 4: "Create", 5: "PS", 6: "Options", 7: "L3", 8: "R3",
+			9: "L1", 10: "R1", 11: "↑", 12: "↓", 13: "←", 14: "→", 15: "Mute", 20: "Тачпад"}.get(b, "Кнопка %d" % b)
 	return {0: "A", 1: "B", 2: "X", 3: "Y", 4: "Back", 5: "Guide", 6: "Start", 7: "L3", 8: "R3",
 		9: "LB", 10: "RB", 11: "↑", 12: "↓", 13: "←", 14: "→", 15: "Share"}.get(b, "Кнопка %d" % b)
 
 
+## Геймпад PlayStation? Сначала производитель Sony (054C = 1356; на Android get_joy_info пуст), потом имя.
+static func is_ps(dev: int) -> bool:
+	var info := Input.get_joy_info(dev)
+	var vid := str(info.get("vendor_id", "")).to_lower()
+	if vid == "1356" or vid == "054c" or vid == "0x054c":
+		return true
+	var n := (Input.get_joy_name(dev) + " " + str(info.get("raw_name", ""))).to_lower()
+	for w in ["ps5", "ps4", "ps3", "dualsense", "dualshock", "playstation", "sony"]:
+		if w in n:
+			return true
+	return false
+
+
+## Подсказка на экране (hud.gd prompt/toast): последний ввод с геймпада — «[F]» и «ЛКМ/ПКМ» меняем
+## на кнопки геймпада по текущей раскладке; ввод с клавиатуры/мыши — текст как есть (промпт 20.11 14:49).
+static func pad_text(s: String) -> String:
+	if inst == null or not is_instance_valid(inst) or inst.nav == null or not inst.nav.pad_used:
+		return s
+	return inst._pad_text(s)
+
+
+func _pad_text(s: String) -> String:
+	if _tok_re == null:
+		_tok_re = RegEx.create_from_string("\\[([^\\[\\]]{1,12})\\]")
+	var ms := _tok_re.search_all(s)
+	for i in range(ms.size() - 1, -1, -1):
+		var m: RegExMatch = ms[i]
+		var n := _key_to_pad(m.get_string(1))
+		if n != "":
+			s = s.substr(0, m.get_start()) + "[" + n + "]" + s.substr(m.get_end())
+	if "ЛКМ" in s or "ПКМ" in s:
+		s = s.replace("ЛКМ", spec_name(spec_of("attack_left"))).replace("ПКМ", spec_name(spec_of("attack_right")))
+	return s
+
+
+## Клавиша (как в «[F]») -> кнопка геймпада того действия, что на ней висит; "" — не нашли.
+func _key_to_pad(tok: String) -> String:
+	var t := tok.strip_edges().to_upper()
+	if _tok_cache.has(t):
+		return _tok_cache[t]
+	var out := ""
+	var bd := binds()
+	for a in bd:
+		if out != "" or str(bd[a]) == "" or not InputMap.has_action(a):
+			continue
+		for ev in InputMap.action_get_events(a):
+			if ev is InputEventKey:
+				var k := OS.get_keycode_string(ev.physical_keycode if ev.physical_keycode != 0 else ev.keycode)
+				if k.to_upper() == t:
+					out = spec_name(str(bd[a]))
+					break
+	_tok_cache[t] = out
+	return out
+
+
+## Вибрация последнего геймпада (если играют с него): weak/strong 0..1, dur — секунды.
+static func rumble(weak: float, strong: float, dur: float) -> void:
+	if inst == null or not is_instance_valid(inst) or inst.nav == null or not inst.nav.pad_used:
+		return
+	if not bool(inst.get("vibration")):
+		return
+	Input.start_joy_vibration(inst.last_dev, clampf(weak, 0.0, 1.0), clampf(strong, 0.0, 1.0), dur)
+
+
 ## Оси ходьбы — в InputMap (вызывает и menu.gd после своих клавиш: он стирает события действий).
 func apply_map() -> void:
+	_tok_cache.clear()
+	if not profile:
+		for d in Input.get_connected_joypads():
+			if Input.has_joy_light(d):
+				Input.set_joy_light(d, Color(1.0, 0.42, 0.08))   # подсветка DualSense — в тон игре
+		if not Input.get_connected_joypads().is_empty() and _ps_dev == -99:
+			_ps_dev = Input.get_connected_joypads()[0]
+			ps = is_ps(_ps_dev)
 	if profile:
 		return   # у игрока 2 оси читает сам split.gd
 	# сплитскрин (network/split.gd): у игрока 1 — первый геймпад, если их два; иначе только клавиатура и мышь
@@ -242,6 +334,10 @@ func _input(e: InputEvent) -> void:
 		return
 	if e is InputEventJoypadButton:
 		last_dev = e.device
+		if e.device != _ps_dev:
+			_ps_dev = e.device
+			ps = is_ps(e.device)
+			_tok_cache.clear()
 		_button("b:%d" % e.button_index, e.button_index, e.pressed, e.device)
 	elif e is InputEventJoypadMotion and (e.axis == JOY_AXIS_TRIGGER_LEFT or e.axis == JOY_AXIS_TRIGGER_RIGHT):
 		last_dev = e.device
