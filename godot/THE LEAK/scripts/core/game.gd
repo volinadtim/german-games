@@ -138,6 +138,9 @@ func setup(p: Player) -> void:
 	loot_window = LootWindow.new()
 	loot_window.game = self
 	add_child(loot_window)
+	skills = preload("res://scripts/systems/skills.gd").new()   # древо прокачки (промпт 20.11 18:06)
+	skills.game = self
+	add_child(skills)
 	# сундук-хранилище: складывать вещи (промпт 00:08) — у южной стены слева от магазина, рядом с манекеном (16.11 03:13)
 	storage = Chest.new()
 	storage.game = self
@@ -352,7 +355,7 @@ func _aimed_pickup(from: Vector3, fwd: Vector3) -> Node:
 ## Одно окно за раз: пока открыт инвентарь или магазин, другие окна не открываются.
 func window_open() -> bool:
 	return invs.any(func(i): return is_instance_valid(i) and i.open) or (shop != null and shop.opened) or (slot != null and slot.pack_open) \
-		or (loot_window != null and loot_window.open)
+		or (loot_window != null and loot_window.open) or (skills != null and skills.open)
 
 
 ## Закрыть все окна (инвентарь, магазин с продажей, наборы KILLBOX, лут) — перед кат-сценой (промпт 16.11 21:40).
@@ -367,6 +370,8 @@ func close_windows() -> void:
 		slot.close_packs()
 	if loot_window != null and loot_window.open:
 		loot_window.close()
+	if skills != null and skills.open:
+		skills.close()
 
 
 ## Открыть окно лута: obj с полем contents [[id, n], ...] (ящик, сейф, сундук, кувшин…).

@@ -67,6 +67,7 @@ func save_state() -> Dictionary:
 		"version": 1,
 		"mode": mode,
 		"coins": inv.coins,
+		"skills": skills.to_save() if skills else {},
 		"bag": bag,
 		"bag_layout": inv.BAG_LAYOUT,
 		"equip": inv.equip.duplicate(),
@@ -127,6 +128,8 @@ func load_state(d: Dictionary) -> void:
 	loading = true
 	p2_save = d.get("p2", {})
 	inv.coins = int(d.get("coins", 0))
+	if skills:
+		skills.from_save(d.get("skills", {}))
 	var bag: Array = d.get("bag", [])
 	var eq: Dictionary = d.get("equip", {}).duplicate()
 	var ed: Dictionary = d.get("equip_dur", {}).duplicate()

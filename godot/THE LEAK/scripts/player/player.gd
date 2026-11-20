@@ -232,7 +232,7 @@ func _physics_process(delta: float) -> void:
 		or ia.is_action_just_pressed("crouch_toggle")
 	)
 	
-	slide_node.poll(delta, active and not carrying, sprinting, want_crouch, dir)
+	slide_node.poll(delta, active and not carrying and has_skill("slide"), sprinting, want_crouch, dir)
 	if slide_node.active:
 		crouched = true
 		sprinting = false
@@ -253,6 +253,14 @@ func _physics_process(delta: float) -> void:
 		jump_now = false
 
 
+	if on_floor:
+		air_jumped = false
+	elif jump_now and not air_jumped and has_skill("double_jump") and stamina.can_jump():
+		air_jumped = true   # двойной прыжок (древо прокачки)
+		velocity.y = JUMP
+		stamina.jump()
+		make_noise(NOISE_JUMP)
+		jump_now = false
 	if not on_floor:
 		velocity.y -= GRAVITY * (FALL_MULT if velocity.y < 0.0 else 1.0) * delta
 	elif jump_now and stamina.can_jump():

@@ -381,6 +381,12 @@ func _payout() -> void:
 	# множитель серии: применяется к выигрышу этой крутки; выигрыш продлевает серию, проигрыш — сброс
 	var mult := chain_mult(streak)
 	win = roundi(win * mult)
+	# навык «двойной выигрыш» (древо прокачки): удваивает награду своего спина, перезарядка — 10 наград
+	var dbl := false
+	if spin_mine and win > 0 and game.get("skills") != null:
+		dbl = game.skills.on_reward()
+		if dbl:
+			win *= 2
 	# лимит 1500 (промпт 18.11 01:03): после него выплата не больше вложенного банка
 	if capped and win > bank:
 		win = bank       # подсказок про остаток в кассе нет — только бегущая строка «ОБЧИЩЕНО...»
@@ -399,7 +405,11 @@ func _payout() -> void:
 		if mult > 1.0:
 			msg += " (СЕРИЯ ×%s)" % _mult_str(mult)
 		# выигрыш со звоном высыпается в лоток-«пасть», забирать на E (промпт 14.11 17:53)
+		if dbl:
+			msg += " (НАВЫК ×2)"
 		_pour(win)
+		if dbl:
+			send("k_tray", [tray_coins])   # у других игроков в лотке без удвоения — выровнять
 		game.hud.toast_all("KILLBOX: +%d — монеты в лотке" % win, Color(1.0, 0.8, 0.4))   # в сплитскрине — обоим
 	if sevens or win >= 30:
 		party = 2.5

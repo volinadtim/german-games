@@ -299,6 +299,7 @@ var cam_step := 0.0     # сглаживание камеры по высоте 
 var step_lift := 0.0    # нога поднимается выше, когда переступаем уступ
 var air_t := 0.0   # сколько секунд не на полу: у стены is_on_floor мигает — короткие «отрывы» не считаем полётом (промпт 23:34)
 var land_speed := 0.0
+var air_jumped := false   # двойной прыжок уже потрачен в этом полёте (навык double_jump)
 
 var steps: Array[AudioStreamWAV] = []
 var whooshes: Array[AudioStreamWAV] = []
@@ -532,3 +533,8 @@ func _ground_kind() -> String:
 	if hit.is_empty():
 		return ""
 	return str(hit.collider.get_meta("ground", ""))
+
+
+## Изучен ли навык из древа прокачки (game.skills, systems/skills.gd).
+func has_skill(id: String) -> bool:
+	return game != null and game.get("skills") != null and game.skills.has(id)
