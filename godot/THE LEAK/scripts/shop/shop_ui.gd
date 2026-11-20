@@ -64,7 +64,7 @@ func _build_ui() -> void:
 	root.add_child(awning)
 	# вывеска: «#1» — бункер, «#2» — подвал деревни (промпт 04:36); шрифт ужимается, чтобы надпись
 	# целиком влезала в табличку (SIGN_W); остальное окно масштабирует ui_fit, пропорции сохраняются
-	var head := _label("TRINKETS MARKET #%d" % (2 if "main_shop" in self else 1), 30, _tint(Color(0.75, 1.0, 0.72)))
+	var head := _label("TRINKETS MARKET #%d" % (shop_tier() + 1), 30, _tint(Color(0.75, 1.0, 0.72)))
 	head.add_theme_font_override("font", sign_font())
 	head.add_theme_color_override("font_outline_color", _tint(Color(0.02, 0.08, 0.03)))
 	head.add_theme_constant_override("outline_size", 6)

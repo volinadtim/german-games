@@ -31,7 +31,8 @@ const WEAPONS := {
 const ALIAS := {"wrench": "steel_hammer", "tea": "water", "cap": "ushanka", "sweater": "kurtka",
 	"sapper": "hatchet", "sledge": "steel_hammer", "energy": "soda", "ration": "canned", "ammo_box": "ammo",
 	"bushlat": "jacket", "berets": "boots",
-	"fire_axe": "hatchet", "medkit_army": "medkit", "kevlar_helmet": "moto_helmet", "plate_vest": "vest"}
+	"fire_axe": "hatchet", "medkit_army": "medkit", "kevlar_helmet": "moto_helmet", "plate_vest": "vest",
+	"scuba": "backpack", "dive_light": "flashlight"}
 
 ## Удар предметом в руке; не оружие (любой предмет с пола, промпт 18.11 00:27) — чуть сильнее кулака.
 static func stats(id: String) -> Dictionary:
@@ -48,7 +49,8 @@ const SHOP := [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["g
 	["wrench", 35], ["cap", 8], ["sweater", 18],
 	# тир 1 — деревня, тир 2 — пока нигде (shop_model.gd: TIER)
 	["sapper", 110], ["sledge", 170], ["bushlat", 95], ["berets", 75],
-	["fire_axe", 240], ["kevlar_helmet", 180], ["plate_vest", 220]]
+	["fire_axe", 240], ["kevlar_helmet", 180], ["plate_vest", 220],
+	["scuba", 260], ["dive_light", 90]]   # дайвинг, тир 2 (промпт 20.11 18:33)
 
 
 static func _m(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:

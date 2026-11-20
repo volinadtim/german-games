@@ -15,6 +15,10 @@ const CAR_YAW := 0.0
 const LAKE_C := Vector3(31.0, G, 1240.0)
 const LAKE_R := 15.0
 const FIRE := Vector3(20.0, G, 1210.0)
+const LakeDive := preload("res://scripts/village/lake_dive.gd")
+const LakeShop := preload("res://scripts/village/lake_shop.gd")
+## Trinkets Market #3 (тир 2, промпт 20.11 18:33) — у тропинки, витриной к костру
+const SHOP_POS := Vector3(44.0, G, 1198.0)
 
 var rng := RandomNumberGenerator.new()
 var fire_light: OmniLight3D
@@ -33,6 +37,11 @@ func _ready() -> void:
 		_tent(t[0], t[1], t[2])
 	_boat(Vector3(47.5, G, 1229.0), 0.9)
 	_sign(Vector3(35.5, G, 1185.0))
+	var shop := LakeShop.new()
+	shop.name = "LakeShop"
+	shop.position = SHOP_POS
+	shop.rotation.y = -PI / 2.0
+	add_child(shop)
 	_trees()
 	_hidden_safe()
 
@@ -178,7 +187,8 @@ func _lake() -> void:
 	var wm := _mat(Color(0.1, 0.22, 0.27), 0.05)
 	wm.metallic = 0.35
 	_mesh(water, wm, LAKE_C + Vector3(0, 0.04, 0))
-	var body := StaticBody3D.new()
+	var body := LakeDive.new()   # [F] у воды — нырнуть с аквалангом (lake_dive.gd)
+	body.center = LAKE_C
 	body.position = LAKE_C + Vector3(0, 1.5, 0)
 	var cs := CollisionShape3D.new()
 	var cy := CylinderShape3D.new()
