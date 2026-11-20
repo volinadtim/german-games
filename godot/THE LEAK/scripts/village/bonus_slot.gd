@@ -18,13 +18,14 @@ const Sym := preload("res://scripts/slot/slot_symbols.gd")
 const Items := preload("res://scripts/items.gd")
 const Sfx := preload("res://scripts/core/sfx.gd")
 const COST := 20
-const SYMS := ["cherry", "lemon", "plum", "grape", "diamond", "seven", "bonus", "jack"]
+const SYMS := ["cherry", "plum", "grape", "diamond", "seven", "bonus", "jack"]   # лимона нет (промпт 20.11 14:34)
 ## веса и выплаты под 3×3 и 5 линий (отдача ~100%, как была у ФОРТУНЫ)
-const WEIGHT := {"cherry": 18.0, "lemon": 16.0, "plum": 14.0, "grape": 12.0, "diamond": 9.0, "seven": 6.0, "bonus": 6.0, "jack": 6.0}
-const PAY := {"cherry": 20, "lemon": 30, "plum": 50, "grape": 80, "diamond": 200, "seven": 500}
+const WEIGHT := {"cherry": 18.0, "plum": 14.0, "grape": 12.0, "diamond": 9.0, "seven": 6.0, "bonus": 6.0, "jack": 6.0}
+const PAY := {"cherry": 30, "plum": 50, "grape": 80, "diamond": 200, "seven": 500}
 ## клетка поля = барабан*3 + ряд; линии — три ряда и две диагонали
 const LINES := [[0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]]
-const FREE_2 := 3             # две бонуски — бесплатные крутки
+const FREE_2 := 2             # две бонуски — бесплатные крутки (вне бонус-игры)
+const FREE_2_BONUS := 3       # две бонуски во время бонус-игры
 const FREE_3 := 8             # три бонуски — бонус-игра
 const BONUS_BUY := 20         # покупка бонус-игры: столько круток по ставке (промпт 20.11 11:53)
 const MINI_JACK := 100
@@ -41,6 +42,10 @@ const SlotSounds := preload("res://scripts/slot/slot_sounds.gd")   # общие 
 const SPIN_T := 0.88
 const STEP_T := 0.3
 const TEASE_T := 1.2          # «интрига»: третий барабан крутится дольше
+const REEL_V := 11.25         # скорость ленты, клеток/с
+const DEC_T := 0.45           # торможение барабана (плавно, с лёгким перекатом)
+const DEC_T_TEASE := 1.4      # торможение третьего барабана в «интриге» — медленно доползает
+const EASE_C1 := 1.3          # перекат при остановке (easeOutBack)
 const W := 480
 const H := 450
 ## экран 3×3: барабаны с X0, клетка CW×CH, сверху полоса названия и банка, снизу — табло
@@ -63,13 +68,20 @@ var busy := false
 var spin_mine := true        # эту крутку дёрнул я (иначе — другой игрок по сети)
 var net_queue: Array = []    # чужие крутки, пришедшие пока крутились барабаны
 var t := 0.0
-var result := ["cherry", "lemon", "plum", "grape", "seven", "diamond", "lemon", "cherry", "plum"]
+var result := ["cherry", "grape", "plum", "grape", "seven", "diamond", "plum", "cherry", "plum"]
 var shown := ["seven", "seven", "seven", "seven", "seven", "seven", "seven", "seven", "seven"]
 var strip := [0, 0, 0]                 # лента крутящегося барабана (индекс в SYMS)
 var win_lines: Array = []              # выигравшие линии (индексы LINES)
-var reel_off := [0.0, 0.0, 0.0]
+var reel_p := [0.0, 0.0, 0.0]          # пройдено лентой, клеток (0 — старое поле, reel_end — новое)
+var reel_end := [3, 3, 3]
+var reel_v := [REEL_V, REEL_V, REEL_V]  # скорость до торможения
+var reel_dec := [0.0, 0.0, 0.0]        # когда начинает тормозить
+var reel_d := [DEC_T, DEC_T, DEC_T]    # сколько тормозит
+var reel_vel := [0.0, 0.0, 0.0]        # текущая скорость (для размытия)
+var reel_clunk := [false, false, false]
+var fast := false                      # быстрые крутки ×3 (тумблер слева, slot/fast_switch.gd)
+var spin_sp := 1.0
 var reel_done := [true, true, true]
-var bounce := [9.0, 9.0, 9.0]          # время с остановки барабана (пружинка)
 var tease := false
 var win_mask := [false, false, false, false, false, false, false, false, false]
 var msg := "CASHY BOX · 5 ЛИНИЙ · СПИН 20"
@@ -202,6 +214,7 @@ func _ready() -> void:
 	var sm2 := StandardMaterial3D.new()
 	sm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	sm2.albedo_texture = vp.get_texture()
+	sm2.albedo_color = Color(0.8, 0.8, 0.8)   # приглушён — не слепит (промпт 20.11 14:19)
 	scr.material_override = sm2
 	scr.position = Vector3(0, 1.38, 0.212)
 	add_child(scr)
@@ -290,6 +303,11 @@ func _ready() -> void:
 	for i in 9:
 		shown[i] = _roll()
 	_build_bet_button(gold)
+	# тумблер быстрых круток на левой стенке (промпт 20.11 14:35)
+	var sw := preload("res://scripts/slot/fast_switch.gd").new()
+	sw.setup(self, 0.03)
+	sw.position = Vector3(-0.475, 0.74, 0.05)
+	add_child(sw)
 
 
 ## Кнопка ставки — отдельное тело перед корпусом (луч взгляда попадает в неё раньше автомата).
@@ -621,14 +639,12 @@ func _spin_start(res: Array, free_used: bool, mine: bool) -> void:
 	for i in 9:
 		result[i] = String(res[i]) if i < res.size() else _roll()
 		win_mask[i] = false
-	for i in 3:
-		reel_done[i] = false
-		strip[i] = randi() % SYMS.size()
 	# интрига: две бонуски на первых барабанах или начало линии из корон/семёрок — третий крутится дольше
 	tease = result.slice(0, 6).count("bonus") >= 2
 	for l in LINES:
 		if result[l[0]] == result[l[1]] and result[l[0]] in ["jack", "seven"]:
 			tease = true
+	_plan_reels()
 	msg = "БОНУС-ИГРА: ×2.0  (осталось %d)" % free_spins if bonus_game else "..."
 	msg_col = Color(0.95, 0.85, 0.5)
 	lever_t = 0.0
@@ -640,42 +656,79 @@ func _spin_start(res: Array, free_used: bool, mine: bool) -> void:
 
 
 func _stop_at(i: int) -> float:
-	return SPIN_T + i * STEP_T + (TEASE_T if tease and i == 2 else 0.0)
+	return (SPIN_T + i * STEP_T + (TEASE_T if tease and i == 2 else 0.0)) / spin_sp
+
+
+## План крутки: лента едет с постоянной скоростью, потом плавно тормозит (easeOutBack) ровно на клетку
+## reel_end, где лежат новые символы. Скорость подогнана, чтобы торможение начиналось без рывка.
+func _plan_reels() -> void:
+	spin_sp = 3.0 if fast else 1.0
+	var k := EASE_C1 + 3.0   # f'(0) у easeOutBack
+	for i in 3:
+		reel_done[i] = false
+		reel_clunk[i] = false
+		reel_p[i] = 0.0
+		reel_vel[i] = 0.0
+		strip[i] = randi() % SYMS.size()
+		var d := (DEC_T_TEASE if tease and i == 2 else DEC_T) / spin_sp
+		var cruise := _stop_at(i) - d
+		var v := REEL_V * (2.0 if fast else 1.0)
+		reel_end[i] = maxi(ceili(v * cruise + v * d / k), 3)
+		reel_v[i] = float(reel_end[i]) / (cruise + d / k)
+		reel_d[i] = d
+		reel_dec[i] = cruise
+
+
+## Положение ленты барабана i в момент tt крутки.
+func _reel_pos(i: int, tt: float) -> float:
+	var v: float = reel_v[i]
+	if tt < reel_dec[i]:
+		return v * tt
+	var y := clampf((tt - reel_dec[i]) / reel_d[i], 0.0, 1.0) - 1.0
+	var f := 1.0 + (EASE_C1 + 1.0) * y * y * y + EASE_C1 * y * y
+	var p0: float = v * reel_dec[i]
+	return p0 + (float(reel_end[i]) - p0) * f
+
+
+## Символ клетки ленты k: у конца — новое поле, у начала — старое, между — заполнитель.
+func _reel_sym(i: int, k: int) -> String:
+	var e: int = reel_end[i]
+	if k <= e and k >= e - 2:
+		return String(result[i * 3 + e - k])
+	if k <= 0 and k >= -2:
+		return String(shown[i * 3 - k])
+	return String(SYMS[posmod(k * 3 + int(strip[i]), SYMS.size())])
 
 
 func _process(delta: float) -> void:
 	jack_l.text = "ДЖЕКПОТ %d" % _get_jackpot(bet)
 	blink += delta
 	win_t += delta
-	bounce[0] += delta
-	bounce[1] += delta
-	bounce[2] += delta
 	# рычаг: рывок вниз и пружиной назад
 	lever_t += delta
 	var lk := clampf(lever_t / 0.5, 0.0, 1.0)
 	lever.rotation.x = sin(PI * lk) * 1.1 * (1.0 - lk * 0.3) if lever_t < 0.5 else 0.0
 	if busy:
 		t += delta
-		var teasing: bool = tease and reel_done[1] and not reel_done[2]
 		for i in 3:
 			if reel_done[i]:
 				continue
-			var spd := 11.25 * (0.6 if teasing and i == 2 and t > _stop_at(2) - 0.4 else 1.0)
-			var nv: float = reel_off[i] + delta * spd
-			if nv >= 1.0:   # лента сдвинулась на клетку
-				strip[i] = (int(strip[i]) + int(nv)) % SYMS.size()
-			reel_off[i] = fmod(nv, 1.0)
-			if t > _stop_at(i):
-				reel_done[i] = true
-				reel_off[i] = 0.0
-				bounce[i] = 0.0
-				for r in 3:
-					shown[i * 3 + r] = result[i * 3 + r]
+			var prev: float = reel_p[i]
+			reel_p[i] = _reel_pos(i, t)
+			reel_vel[i] = (float(reel_p[i]) - prev) / maxf(delta, 0.0001)
+			var x: float = (t - float(reel_dec[i])) / float(reel_d[i])
+			if not reel_clunk[i] and x >= 1.0 - EASE_C1 / (EASE_C1 + 1.0):   # символы встали на место — «клац»
+				reel_clunk[i] = true
 				_sfx("stop", -4.0, 0.9 + i * 0.08)
 				if i == 1 and tease:
 					_sfx("tease", -6.0)
 					msg = "?!  ?!  ?!"
 					msg_col = Color(1.0, 0.5, 0.3)
+			if x >= 1.0:
+				reel_done[i] = true
+				reel_p[i] = float(reel_end[i])
+				for r in 3:
+					shown[i * 3 + r] = result[i * 3 + r]
 		if reel_done[2]:
 			busy = false
 			snd.stop()
@@ -717,14 +770,14 @@ func _lights(delta: float) -> void:
 				col = Color.from_hsv(fmod(blink * 1.5 + k / 30.0, 1.0), 0.8, 1.0)
 		bulbs[k].emission = col
 		bulbs[k].albedo_color = col if on else col.darkened(0.6)
-		bulbs[k].emission_energy_multiplier = 2.4 if on else 0.15
+		bulbs[k].emission_energy_multiplier = 1.2 if on else 0.12
 	for k in top_bulbs.size():
 		var on := (k + (head >> 1)) % 2 == 0 if not showing else fmod(blink * 8.0 + k * 0.5, 1.0) < 0.5
 		top_bulbs[k].emission = base if k % 2 == 0 else alt
-		top_bulbs[k].emission_energy_multiplier = 2.0 if on else 0.2
-	var pulse := 0.9 + (0.6 * sin(blink * 9.0) if busy else 0.1 * sin(blink * 2.0))
+		top_bulbs[k].emission_energy_multiplier = 1.0 if on else 0.15
+	var pulse := 0.7 + (0.2 * sin(blink * 9.0) if busy else 0.08 * sin(blink * 2.0))
 	if showing:
-		pulse = 1.0 + (1.6 if fmod(blink * (5.0 if tier < 3 else 14.0), 1.0) < 0.5 else 0.2) * (0.6 if tier == 1 else 1.0)
+		pulse = 0.8 + (0.7 if fmod(blink * (5.0 if tier < 3 else 14.0), 1.0) < 0.5 else 0.15) * (0.6 if tier == 1 else 1.0)
 	lamp.light_energy = pulse
 	lamp.light_color = base if not (showing and tier == 3) else Color.from_hsv(fmod(blink, 1.0), 0.6, 1.0)
 	var sign_c := Color(1.0, 0.82, 0.35)
@@ -732,10 +785,10 @@ func _lights(delta: float) -> void:
 	jack_l.modulate = Color(0.55, 1.0, 0.7) if not (showing and tier == 3) else Color.from_hsv(fmod(blink * 2.0, 1.0), 0.7, 1.0)
 	var beacon_on := bonus_game or free_spins > 0 or (showing and tier >= 2)
 	beacon.rotation.y += delta * (9.0 if beacon_on else 0.0)
-	beacon_l.light_energy = lerpf(beacon_l.light_energy, 4.0 if beacon_on else 0.0, 1.0 - exp(-6.0 * delta))
+	beacon_l.light_energy = lerpf(beacon_l.light_energy, 2.5 if beacon_on else 0.0, 1.0 - exp(-6.0 * delta))
 	beacon_l.light_color = Color(0.7, 0.3, 1.0) if bonus_game or free_spins > 0 else Color(0.2, 1.0, 0.45)
 	beacon_l.rotation.x = -0.5
-	beacon_mat.emission_energy_multiplier = 2.5 if beacon_on else 0.2
+	beacon_mat.emission_energy_multiplier = 1.5 if beacon_on else 0.15
 
 
 ## Выплата: три одинаковых в любой из 5 линий — PAY за линию; короны в линию — джекпот, три по полю — мини;
@@ -798,11 +851,12 @@ func _payout() -> void:
 		if banner == "":
 			banner = "БОНУС-ИГРА!"
 	elif bonus == 2:
-		free_spins += FREE_2
-		lines.append("БОНУС: +%d крутки" % FREE_2)
+		var f2 := FREE_2_BONUS if bonus_game else FREE_2
+		free_spins += f2
+		lines.append("БОНУС: +%d крутки" % f2)
 		tier = maxi(tier, 2)
 		if banner == "":
-			banner = "+%d КРУТКИ" % FREE_2
+			banner = "+%d КРУТКИ" % f2
 	if bonus >= 2:
 		for i in 9:
 			win_mask[i] = win_mask[i] or r[i] == "bonus"
@@ -960,7 +1014,6 @@ func _draw_screen() -> void:
 	var goldc := Color(0.95, 0.76, 0.32)
 	var font := ThemeDB.fallback_font
 	var reel_h := CH * 3.0
-	var n := SYMS.size()
 	c.draw_rect(Rect2(0, 0, W, H), bg)
 	# фон — тонкая золотая «гильоширная» сетка, как на купюре
 	for k in 14:
@@ -977,31 +1030,32 @@ func _draw_screen() -> void:
 	for i in 3:
 		var x := X0 + i * (CW + GAP)
 		var box := Rect2(x, TOP, CW, reel_h)
-		var face := Color(0.97, 0.94, 0.86)
+		var face := Color(0.78, 0.74, 0.64)
 		var teasing: bool = tease and i == 2 and not reel_done[2] and reel_done[1]
 		if teasing:
-			face = face.lerp(Color(0.6, 1.0, 0.7), 0.3 + 0.3 * sin(blink * 18.0))
+			face = face.lerp(Color(0.55, 0.85, 0.6), 0.15 + 0.15 * sin(blink * 18.0))
 		c.draw_rect(box, face)
 		if not reel_done[i]:
 			# крутится: лента едет вниз, поверх — полосы «размытия»
-			var off: float = reel_off[i] * CH
+			var pp: float = reel_p[i]
+			var base := floori(pp)
+			var off := (pp - base) * CH
+			var blur := clampf(absf(float(reel_vel[i])) / REEL_V, 0.0, 1.0)   # к остановке размытие уходит
 			for j in range(-1, 3):
-				var sid: String = SYMS[posmod((int(strip[i]) - j) * 5, n)]
-				_sym(c, sid, _sym_rect(Rect2(x, TOP + j * CH + off, CW, CH)), 1.0, Color(1, 1, 1, 0.75))
-			for s in 9:
-				var yy := fmod(off * 1.7 + s * 37.0, reel_h)
-				c.draw_rect(Rect2(x, TOP + yy, CW, 6), Color(1, 1, 1, 0.22))
+				_sym(c, _reel_sym(i, base - j), _sym_rect(Rect2(x, TOP + j * CH + off, CW, CH)), 1.0, Color(1, 1, 1, 1.0 - 0.3 * blur))
+			if blur > 0.05:
+				for s in 9:
+					var yy := fmod(pp * CH * 1.7 + s * 37.0, reel_h)
+					c.draw_rect(Rect2(x, TOP + yy, CW, 6), Color(1, 1, 1, 0.12 * blur))
 		else:
-			# остановился: пружинит; выигрышные клетки пульсируют и светятся
-			var b: float = bounce[i]
-			var dy := sin(b * 22.0) * exp(-b * 9.0) * 14.0
+			# остановился: выигрышные клетки пульсируют и светятся
 			for r in 3:
 				var k := i * 3 + r
-				var cell := _cell_rect(k, dy)
+				var cell := _cell_rect(k)
 				var sc := 1.0
 				if showing and win_mask[k]:
 					sc = 1.0 + 0.09 * absf(sin(win_t * 7.0))
-					c.draw_rect(cell.grow(-4), Color(1.0, 0.85, 0.3, 0.35 + 0.25 * sin(win_t * 10.0)))
+					c.draw_rect(cell.grow(-4), Color(1.0, 0.85, 0.3, 0.22 + 0.12 * sin(win_t * 10.0)))
 				_sym(c, String(shown[k]), _sym_rect(cell), sc)
 		# объём барабана: тени сверху и снизу, тонкие разделители клеток
 		for s in 6:
@@ -1026,7 +1080,7 @@ func _draw_screen() -> void:
 		if showing:
 			for r in 3:
 				if win_mask[i * 3 + r]:
-					var fc := Color(1.0, 0.97, 0.6) if fmod(win_t * 6.0, 1.0) < 0.5 else Color(0.3, 1.0, 0.5)
+					var fc := Color(0.95, 0.82, 0.45) if fmod(win_t * 6.0, 1.0) < 0.5 else Color(0.35, 0.75, 0.48)
 					c.draw_rect(_cell_rect(i * 3 + r).grow(-2), fc, false, 5.0)
 	# выигравшие линии — золотые ломаные через клетки
 	if showing:
@@ -1077,7 +1131,7 @@ func _draw_screen() -> void:
 			c.draw_string(font, Vector2(0, by + 58 if banner != "" else by + 44), tx, HORIZONTAL_ALIGNMENT_CENTER, W, 24 if banner != "" else 36, Color(1.0, 0.95, 0.6, a))
 	# джекпот — стробоскоп по всему экрану
 	if showing and tier == 3 and win_t < 3.0 and fmod(win_t * 8.0, 1.0) < 0.3:
-		c.draw_rect(Rect2(0, 0, W, H), Color(1.0, 1.0, 0.9, 0.25))
+		c.draw_rect(Rect2(0, 0, W, H), Color(1.0, 1.0, 0.9, 0.1))
 	# нижнее табло: сообщение и ставка
 	var my := TOP + reel_h + 10.0
 	c.draw_line(Vector2(0, my), Vector2(W, my), goldc, 2.0)
@@ -1088,7 +1142,7 @@ func _draw_screen() -> void:
 	c.draw_string(font, Vector2(0, my + 60), "5 ЛИНИЙ  ·  СТАВКА ×%d  ·  КРУТКА %d" % [bet, COST * bet], HORIZONTAL_ALIGNMENT_CENTER, W, 15, Color(goldc, 0.75))
 
 
-## Символ в квадрате r: бонуска, корона и лимон — свои (элитные), остальные — slot_symbols.gd.
+## Символ в квадрате r: бонуска и корона — свои (элитные), остальные — slot_symbols.gd.
 func _sym(ci: CanvasItem, id: String, r: Rect2, sc := 1.0, tint := Color(1, 1, 1, 1)) -> void:
 	var ctr := r.get_center()
 	var s := r.size.x
@@ -1130,26 +1184,6 @@ func _sym(ci: CanvasItem, id: String, r: Rect2, sc := 1.0, tint := Color(1, 1, 1
 			for k in [1, 3, 5]:
 				ci.draw_circle(crown[k], s * 0.06, INK * tint)
 				ci.draw_circle(crown[k], s * (0.04 + 0.008 * sin(blink * 6.0 + k)), Color(1.0, 0.97, 0.82) * tint)
-		"lemon":   # спелый глянцевый лимон с листиком
-			var pts := PackedVector2Array()
-			for k in 32:
-				var a := TAU * k / 32.0
-				var rx := s * 0.36 * (1.0 + 0.14 * pow(absf(cos(a)), 12.0))
-				pts.append(ctr + Vector2(cos(a) * rx, sin(a) * s * 0.26).rotated(-0.3))
-			ci.draw_polyline(pts + PackedVector2Array([pts[0]]), INK * tint, 5.0)
-			ci.draw_colored_polygon(pts, Color(0.9, 0.66, 0.06) * tint)
-			ci.draw_colored_polygon(Sym._scaled(pts, ctr + Vector2(-s * 0.05, -s * 0.05), 0.8), Color(1.0, 0.86, 0.18) * tint)
-			ci.draw_colored_polygon(Sym._scaled(pts, ctr + Vector2(-s * 0.13, -s * 0.1), 0.32), Color(1.0, 0.97, 0.62) * tint)
-			for p in [Vector2(0.1, 0.08), Vector2(0.18, -0.02), Vector2(0.02, 0.14), Vector2(-0.12, 0.1), Vector2(0.22, 0.06)]:
-				ci.draw_circle(ctr + p * s, s * 0.012, Color(0.78, 0.55, 0.04) * tint)
-			var la := ctr + Vector2(s * 0.28, -s * 0.15)
-			var lb := la + Vector2(s * 0.14, -s * 0.16)
-			var nrm := (lb - la).orthogonal().normalized() * s * 0.065
-			var leaf := PackedVector2Array([la, (la + lb) / 2.0 + nrm, lb, (la + lb) / 2.0 - nrm])
-			ci.draw_polyline(leaf + PackedVector2Array([la]), INK * tint, 3.0)
-			ci.draw_colored_polygon(leaf, Color(0.2, 0.6, 0.22) * tint)
-			ci.draw_line(la, lb, Color(0.1, 0.35, 0.1) * tint, 1.5)
-			ci.draw_rect(Rect2(ctr + Vector2(-s * 0.2, -s * 0.13), Vector2(s * 0.06, s * 0.04)), Color(1, 1, 1, 0.85) * tint)
 		_:
 			Sym.draw(ci, id, r)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

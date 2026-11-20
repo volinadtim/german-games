@@ -20,6 +20,11 @@ func _ready() -> void:
 	_build()
 	_build_board()
 	_build_buff_panel()
+	# тумблер быстрых круток на левой стенке (промпт 20.11 14:35)
+	var sw := preload("res://scripts/slot/fast_switch.gd").new()
+	sw.setup(self, 0.07)
+	sw.position = Vector3(-(0.4 + EX) * K, PED + 0.9 * K, RIG_Z + 0.1 * K)
+	add_child(sw)
 	snd = AudioStreamPlayer3D.new()
 	snd.position = Vector3(0, 1.0, 0.3)
 	snd.unit_size = 4.0
@@ -156,14 +161,15 @@ func _spin_start(mine: bool, nstops: Array = [], nstrips: Array = []) -> void:
 	_set_screen("КРУТИТСЯ...")
 	if game and game.has_method("save_now"):
 		game.save_now()      # крутка уже списана — перезагрузка не вернёт её
+	var sp := 3.0 if fast else 1.0   # быстрые крутки (fast_switch.gd)
 	if nstops.is_empty():
-		_roll_stops()
+		_roll_stops(sp)
 	else:   # крутит другой игрок — барабаны встанут так же, как у него
 		for i in mini(REELS, nstops.size()):
 			stops[i] = int(nstops[i])
 		for i in mini(REELS, nstrips.size()):
 			strips[i] = nstrips[i]
-		get_tree().create_timer(0.24).timeout.connect(_redraw_strips)
+		get_tree().create_timer(0.24 / sp).timeout.connect(_redraw_strips)
 	for k in luck.keys():
 		if int(luck[k]["left"]) <= 0:
 			var q: Array = luck[k].get("q", [])
@@ -196,15 +202,15 @@ func _spin_start(mine: bool, nstops: Array = [], nstrips: Array = []) -> void:
 		var turns := 3.0 + i
 		target += TAU * ceil((cur - target) / TAU + turns)
 		var rt := create_tween()
-		rt.tween_interval(0.12 + i * 0.04)   # крутка ×0.8 (промпт 16.11 04:18)
-		rt.tween_property(reels[i], "rotation:x", target, 1.04 + i * 0.32).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		rt.tween_interval((0.12 + i * 0.04) / sp)   # крутка ×0.8 (промпт 16.11 04:18)
+		rt.tween_property(reels[i], "rotation:x", target, (1.04 + i * 0.32) / sp).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		rt.tween_callback(_reel_stopped.bind(i))
 
 
 ## Розыгрыш окна (roll_window) с гарантированными символами; потом в ленту каждого барабана
 ## вокруг новой остановки «впечатываем» выпавшие 3 символа (остальная лента — по весам).
 ## Ленты перерисовываются, когда барабаны уже разогнались.
-func _roll_stops() -> void:
+func _roll_stops(sp := 1.0) -> void:
 	var guar := {}
 	for k in luck:
 		guar[k] = int(luck[k]["k"])
@@ -222,7 +228,7 @@ func _roll_stops() -> void:
 			keep.append(idx)
 		limit_sevens(strip, level, keep)
 		strips[i] = strip
-	get_tree().create_timer(0.24).timeout.connect(_redraw_strips)
+	get_tree().create_timer(0.24 / sp).timeout.connect(_redraw_strips)
 
 
 ## Видимое окно: 3 ряда по 5 символов (сверху вниз), включая закрытые клетки.
