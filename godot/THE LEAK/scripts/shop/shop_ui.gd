@@ -252,7 +252,7 @@ func _rebuild_tab() -> void:
 			for e in Weapons.SHOP:
 				if Items.ITEMS[String(e[0])].get("weapon", false):
 					melee.append(String(e[0]))
-			var subs := shown_subs([["Огнестрел", GUN_IDS], ["Холодное оружие", melee]])
+			var subs := shown_subs([["Огнестрел", GUN_IDS], ["Модули", MOD_IDS], ["Холодное оружие", melee]])
 			sub_g = clampi(sub_g, 0, subs.size() - 1)
 			if subs.size() > 1:
 				_sub_tabs(subs, sub_g, func(i: int): sub_g = i)

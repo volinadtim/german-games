@@ -14,7 +14,8 @@ const Items := preload("res://scripts/items.gd")
 const Weapons := preload("res://scripts/weapons.gd")
 ## рыночные цены вещей, которых нет в магазине и которые не хлам
 const EXTRA_MARKET := {"wallet": 10, "knuckles": 30, "twine": 4,
-	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20, "pistol": 120, "mag": 20, "ammo": 3}
+	"hammer": 16, "shiv": 30, "spiked_club": 50, "knife": 20, "pistol": 120, "mag": 20, "ammo": 3,
+	"mod_reddot": 70, "mod_scope": 130, "mod_silencer": 110, "mod_comp": 60, "mod_stock": 80, "mod_grip": 56, "mod_laser": 90}
 const NO_SELL := ["coin", "car_key"]   # монеты — это деньги, ключ — сюжетный
 ## мусор раньше не брали; теперь продаётся всё (промпт 20.11 11:57) — список пуст
 const TRASH := []
@@ -99,11 +100,14 @@ static func unit_price(id: String, dur := -1.0) -> int:
 	var fr := 1.0 if mx <= 0.0 or dur < 0.0 or Items.ITEMS[id].has("rounds") else clampf(dur / mx, 0.0, 1.0)
 	var base := maxi(1, ceili(m * fr / 2.0))
 	# Если это пистолет с магазином — прибавляем цену магазина и патронов в нём
-	if id == "pistol" and dur >= 1.0:
-		base += unit_price("mag", -1.0)
-		var rounds := maxi(0, roundi(dur) - 1)
-		if rounds > 0:
-			base += unit_price("ammo", -1.0) * rounds
+	if id == "pistol" and dur >= 0.0:
+		var G = preload("res://scripts/gun.gd")
+		if G.has_mag(dur):
+			base += unit_price("mag", -1.0)
+			base += unit_price("ammo", -1.0) * G.mag_rounds(dur)
+		for md in G.mods_of(dur):   # модули на пистолете (промпт 20.11 18:43)
+			if md != "":
+				base += unit_price(md, -1.0)
 	return base
 
 func _item_tooltip(id: String, dur := -1.0) -> String:

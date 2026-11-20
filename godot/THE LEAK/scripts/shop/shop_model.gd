@@ -33,6 +33,10 @@ const AMMO_SHOP := [["ammo", 50]]   # набор из AMMO_PACK патронов
 const AMMO_PACK := 10
 const MAG_SHOP := [["mag", 55]]   # магазин с 8 патронами (было 30; дороже — промпт 18.11 00:56)
 const GUN_SHOP := [["pistol", 320]]   # пистолет без магазина (промпт 18.11 01:52)
+## модули огнестрела (промпт 20.11 18:43, gun.gd: MOD_SLOTS) — подвкладка «Модули» во «Вкладке оружия»
+const MOD_IDS := ["mod_reddot", "mod_scope", "mod_silencer", "mod_comp", "mod_stock", "mod_grip", "mod_laser"]
+const MOD_SHOP := [["mod_reddot", 140], ["mod_scope", 260], ["mod_silencer", 220], ["mod_comp", 120],
+	["mod_stock", 160], ["mod_grip", 110], ["mod_laser", 180]]
 ## «Инструменты» (промпт 16.11 02:42): фонарик, метла, нормальный молоток, топорик (рубит деревья на поляне — surface.gd)
 const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55], ["lockpick", 20000]]   # отмычка — вскрыть сейф у озера (промпт 20.11 18:35)
 ## расходники: [id, цена] (промпты 20.11 14:22, 14:27; аптечка — 4 применения, вода/газировка/тушёнка — по нескольку)
@@ -61,6 +65,7 @@ const TIER := {"medkit": 1, "canned": 1, "soda": 1, "moto_helmet": 1, "vest": 1,
 	# новые (промпт 20.11 17:59)
 	"energy": 1, "ration": 1, "ammo_box": 1, "bushlat": 1, "berets": 1, "sapper": 1, "sledge": 1,
 	"gps": 1, "holster": 1, "bag_hooks": 1,   # промпт 20.11 18:38
+	"mod_reddot": 1, "mod_comp": 1, "mod_grip": 1, "mod_stock": 1, "mod_laser": 1, "mod_scope": 2, "mod_silencer": 2,   # модули огнестрела, 18:43
 	"medkit_army": 2, "kevlar_helmet": 2, "plate_vest": 2, "fire_axe": 2, "scuba": 2, "dive_light": 2, "sketch_map": 2,
 	# тир 3 — город (city_shop.gd, промпт 20.11 18:44)
 	"trauma_kit": 3, "stim": 3, "mre": 3, "assault_helmet": 3, "riot_armor": 3, "kevlar_pants": 3, "combat_boots": 3, "katana": 3}
@@ -378,7 +383,7 @@ static func _price(id: String) -> int:
 	for e in CONSUMABLES:
 		if e[0] == id:
 			return int(e[1])
-	for e in TOOLS + AMMO_SHOP + MAG_SHOP + GUN_SHOP:
+	for e in TOOLS + AMMO_SHOP + MAG_SHOP + GUN_SHOP + MOD_SHOP:
 		if e[0] == id:
 			return int(e[1])
 	return 0

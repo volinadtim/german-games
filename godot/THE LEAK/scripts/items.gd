@@ -3,6 +3,7 @@ const Weapons := preload("res://scripts/weapons.gd")
 ## Справочник предметов (тестовые механики): название, описание, размер стака, иконка и 3D-модель.
 ## Иконки и модели рисуются кодом, файлов нет.
 
+const MOD_HINT := " Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."
 const ITEMS := {
 	"coin": {"name": "Монета", "desc": "Старая монета. Её ест игровой автомат.", "stack": 999,
 		"icon": "coin", "color": Color(0.86, 0.66, 0.3)},
@@ -106,12 +107,27 @@ const ITEMS := {
 	"knife": {"name": "Ножик", "desc": "Самодельный: деревяшка, осколок стекла, изолента. Урон ×2.2.", "stack": 1,
 		"icon": "knife", "color": Color(0.55, 0.7, 0.68), "weapon": true, "dur": 15},
 	# пистолет из сейфа (промпт 14.11 19:49, gun.gd): dur — патроны в нём / в магазине (rounds)
-	"pistol": {"name": "Пистолет", "desc": "Старый обшарпанный пистолет. ПКМ держать — от бедра, ПКМ клик — прицел, с ПКМ ЛКМ — выстрел, без — удар рукоятью. Два пистолета стреляют по очереди. [R] — сменить магазин, [Enter] (держать) — вынуть магазин. Магазин можно перетащить на пистолет. Прочность — 60 выстрелов, чинится ремкомплектом огнестрела.", "stack": 1,
+	"pistol": {"name": "Пистолет", "desc": "Старый обшарпанный пистолет. ПКМ держать — от бедра, ПКМ клик — прицел, с ПКМ ЛКМ — выстрел, без — удар рукоятью. Два пистолета стреляют по очереди. [R] — сменить магазин, [Enter] (держать) — вынуть магазин. Магазин можно перетащить на пистолет. Слоты модулей: прицел, дуло, приклад, цевьё (по умолчанию — мушка, без коллиматора). Прочность — 60 выстрелов, чинится ремкомплектом огнестрела.", "stack": 1,
 		"icon": "pistol", "color": Color(0.24, 0.24, 0.23), "weapon": true, "gun": true, "rounds": true, "dur": 9},   # dur: 0 — без магазина, 1+n — n патронов (gun.gd)
 	"mag": {"name": "Магазин", "desc": "Пистолетный магазин на 8 патронов. Перетащи на пистолет или [R] с пистолетом в руке — вставить. Перетащи на него патроны — зарядить.", "stack": 1,
 		"icon": "mag", "color": Color(0.2, 0.2, 0.2), "rounds": true, "dur": 8},
 	"ammo": {"name": "Патроны", "desc": "Пистолетные патроны. Перетащи на магазин — зарядить его.", "stack": 40,
 		"icon": "ammo", "color": Color(0.78, 0.6, 0.25)},
+	# модули огнестрела (промпт 20.11 18:43, gun.gd: MOD_SLOTS): "mod" — слот, "ms" — множители статов
+	"mod_reddot": {"name": "Коллиматор", "desc": "Модуль, слот «Прицел». Красная точка: в прицеле разброс −45%." + MOD_HINT, "stack": 1,
+		"icon": "mod_reddot", "color": Color(0.22, 0.22, 0.24), "mod": "sight", "ms": {"aim": 0.55}},
+	"mod_scope": {"name": "Оптика 2×", "desc": "Модуль, слот «Прицел». В прицеле зум сильнее, разброс −70%; от бедра разброс +20%." + MOD_HINT, "stack": 1,
+		"icon": "mod_scope", "color": Color(0.16, 0.17, 0.2), "mod": "sight", "ms": {"aim": 0.3, "fov": 0.6, "hip": 1.2}},
+	"mod_silencer": {"name": "Глушитель", "desc": "Модуль, слот «Дуло». Выстрел тихий, без вспышки: враги слышат втрое ближе. Урон −10%." + MOD_HINT, "stack": 1,
+		"icon": "mod_silencer", "color": Color(0.15, 0.15, 0.15), "mod": "muzzle", "ms": {"noise": 0.35, "flash": 0.0, "dmg": 0.9}},
+	"mod_comp": {"name": "Компенсатор", "desc": "Модуль, слот «Дуло». Отдача −45%, разброс от бедра −10%." + MOD_HINT, "stack": 1,
+		"icon": "mod_comp", "color": Color(0.35, 0.35, 0.37), "mod": "muzzle", "ms": {"recoil": 0.55, "hip": 0.9}},
+	"mod_stock": {"name": "Приклад", "desc": "Модуль, слот «Приклад». Складной, проволочный: отдача −30%, разброс от бедра и в стойке −20%, в прицеле −15%." + MOD_HINT, "stack": 1,
+		"icon": "mod_stock", "color": Color(0.25, 0.25, 0.25), "mod": "stock", "ms": {"recoil": 0.7, "hip": 0.8, "stance": 0.8, "aim": 0.85}},
+	"mod_grip": {"name": "Передняя рукоятка", "desc": "Модуль, слот «Цевьё». Разброс от бедра −25%, в стойке −15%, отдача −20%." + MOD_HINT, "stack": 1,
+		"icon": "mod_grip", "color": Color(0.2, 0.18, 0.16), "mod": "grip", "ms": {"hip": 0.75, "stance": 0.85, "recoil": 0.8}},
+	"mod_laser": {"name": "ЛЦУ", "desc": "Модуль, слот «Цевьё». Лазерный целеуказатель: разброс от бедра −45%, в стойке −35%." + MOD_HINT, "stack": 1,
+		"icon": "mod_laser", "color": Color(0.2, 0.2, 0.22), "mod": "grip", "ms": {"hip": 0.55, "stance": 0.65}},
 	# материалы для крафта
 	# камень — с каменных кучек (stone_pile.gd, E), бечёвка — из кувшинов и врагов (промпт 14.11 19:22)
 	"stone": {"name": "Камень", "desc": "Увесистый булыжник. Нужен для молотка. Возьми в руку: ПКМ держать — прицел с траекторией, ЛКМ — бросить (отвлечь врагов); без ПКМ — бить камнем.", "stack": 10,
@@ -388,6 +404,9 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 	var dark := col.darkened(0.45)
 	if String(ITEMS[id]["icon"]) in ["bat", "pipe", "crowbar", "machete", "knife", "gasmask", "filter", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol"]:
 		Weapons.draw_icon(ci, String(ITEMS[id]["icon"]), r, col)
+		return
+	if ITEMS[id].has("mod"):
+		_mod_icon(ci, id, c, s, col)
 		return
 	match String(ITEMS[id]["icon"]):
 		"holster":
@@ -784,8 +803,52 @@ static func draw_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
 
 
 ## Маленькая 3D-модель предмета (для лежащих на полу вещей).
+## Иконка модуля огнестрела (промпт 20.11 18:43): c — центр, s — размер ячейки.
+static func _mod_icon(ci: CanvasItem, id: String, c: Vector2, s: float, col: Color) -> void:
+	var lt := col.lightened(0.35)
+	var red := Color(1.0, 0.2, 0.12)
+	var w := maxf(1.5, s * 0.05)
+	match id:
+		"mod_reddot":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.3, s * 0.12), Vector2(s * 0.6, s * 0.1)), col)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.22, -s * 0.22), Vector2(s * 0.44, s * 0.34)), lt, false, w)
+			ci.draw_circle(c + Vector2(0, -s * 0.05), s * 0.05, red)
+		"mod_scope":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.34, -s * 0.1), Vector2(s * 0.64, s * 0.18)), lt)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.4, -s * 0.13), Vector2(s * 0.08, s * 0.24)), col)
+			ci.draw_rect(Rect2(c + Vector2(s * 0.28, -s * 0.16), Vector2(s * 0.12, s * 0.3)), col)
+			for x in [-0.15, 0.1]:
+				ci.draw_rect(Rect2(c + Vector2(s * x, s * 0.08), Vector2(s * 0.06, s * 0.12)), col)
+		"mod_silencer":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.38, -s * 0.11), Vector2(s * 0.76, s * 0.22)), lt)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.44, -s * 0.06), Vector2(s * 0.06, s * 0.12)), col)
+		"mod_comp":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.22, -s * 0.12), Vector2(s * 0.44, s * 0.24)), lt)
+			for k in 3:
+				ci.draw_rect(Rect2(c + Vector2(-s * 0.15 + k * s * 0.11, -s * 0.12), Vector2(s * 0.05, s * 0.1)), col.darkened(0.5))
+		"mod_stock":
+			ci.draw_line(c + Vector2(s * 0.32, -s * 0.15), c + Vector2(-s * 0.3, -s * 0.2), lt, w)
+			ci.draw_line(c + Vector2(s * 0.32, s * 0.15), c + Vector2(-s * 0.3, s * 0.2), lt, w)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.38, -s * 0.32), Vector2(s * 0.1, s * 0.64)), col.darkened(0.2))
+		"mod_grip":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.3, -s * 0.3), Vector2(s * 0.6, s * 0.1)), lt)
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.1, -s * 0.22), Vector2(s * 0.2, s * 0.52)), col.lightened(0.15))
+		"mod_laser":
+			ci.draw_rect(Rect2(c + Vector2(-s * 0.32, -s * 0.12), Vector2(s * 0.5, s * 0.24)), lt)
+			ci.draw_line(c + Vector2(s * 0.18, 0), c + Vector2(s * 0.44, 0), red, w * 0.8)
+			ci.draw_circle(c + Vector2(s * 0.18, 0), s * 0.04, red)
+
+
 static func make_mesh(id: String) -> Node3D:
 	var own_col: Color = ITEMS[id]["color"] if ITEMS.has(id) else Color.WHITE
+	if ITEMS.has(id) and ITEMS[id].has("mod"):
+		# модуль огнестрела: та же модель, что на пистолете (weapons.gd: add_mod), сдвинутая к центру
+		var mw := Node3D.new()
+		var g := Weapons.add_mod(mw, id)
+		var off := {"mod_stock": Vector3(0.12, -0.04, 0), "mod_silencer": Vector3(-0.19, -0.1, 0), "mod_comp": Vector3(-0.157, -0.1, 0),
+			"mod_grip": Vector3(-0.11, -0.05, 0), "mod_laser": Vector3(-0.11, -0.06, 0)}
+		g.position = off.get(id, Vector3(-0.072, -0.13, 0))
+		return mw
 	id = model_of(id)
 	# армейские версии (деревня) — те же модели, что у обычных
 	if id == "gasmask2" or id == "snyuhatel5088":

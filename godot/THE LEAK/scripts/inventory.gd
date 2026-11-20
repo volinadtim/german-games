@@ -1220,7 +1220,7 @@ func _special_target(from: int, t: int) -> bool:
 	var tid: String = b["id"]
 	if Items.ITEMS[fid].has("repair") and Items.repairable(tid) != "":
 		return true
-	if (fid == "mag" and tid == "pistol") or (fid == "ammo" and tid == "mag"):
+	if (fid == "mag" and tid == "pistol") or (fid == "ammo" and tid == "mag") or (Items.ITEMS[fid].has("mod") and tid == "pistol"):
 		return true
 	return fid == tid and int(Items.ITEMS[fid]["stack"]) > 1 and int(b["n"]) < int(Items.ITEMS[fid]["stack"])
 
@@ -1376,6 +1376,8 @@ func open_menu(key, at: Vector2) -> void:
 			acts.append([ul_eq, "use_eq"])
 		if eq_id == "pistol" and Gun.has_mag(get_dur(key)):
 			acts.append(["Извлечь магазин", "eject"])
+		if eq_id == "pistol":
+			_mod_acts(acts, get_dur(key))
 		acts.append(["Снять", "unequip"])
 		acts.append(["Выбросить", "drop_eq"])
 	else:
@@ -1392,6 +1394,10 @@ func open_menu(key, at: Vector2) -> void:
 			acts.append([ul, "use"])
 		if id == "pistol" and Gun.has_mag(get_dur(key)):
 			acts.append(["Извлечь магазин", "eject"])
+		if id == "pistol":
+			_mod_acts(acts, get_dur(key))
+		if Items.ITEMS[id].has("mod") and (equip["right"] == "pistol" or equip["left"] == "pistol"):
+			acts.append(["Поставить на пистолет", "install_mod"])
 		if id == "mag" and (equip["right"] == "pistol" or equip["left"] == "pistol"):
 			acts.append(["Вставить в пистолет", "insert_mag"])
 		if n > 1:
@@ -1451,9 +1457,24 @@ func close_menu() -> void:
 		_press_key = null
 
 
+## Пункты меню «Снять: <модуль>» для пистолета с dur d (gun.gd: MOD_SLOTS).
+func _mod_acts(acts: Array, d: float) -> void:
+	var ms := Gun.mods_of(d)
+	for k in ms.size():
+		if ms[k] != "":
+			acts.append(["Снять: " + Items.item_name(ms[k]), "unmod_%d" % k])
+
+
 func _menu_pick(key, act: String) -> void:
 	close_menu()
+	if act.begins_with("unmod_"):
+		if game and game.gun:
+			game.gun.remove_mod(key, int(act.substr(6)))
+		return
 	match act:
+		"install_mod":
+			if game and game.gun and key is int:
+				game.gun.install_mod(key, "right" if equip["right"] == "pistol" else "left")
 		"use":
 			if key is int and slots[key] != null:
 				use_requested.emit(key)
@@ -1733,6 +1754,8 @@ func set_hover(k) -> void:
 		# при наведении — только название (промпт 03:50: без «×количество» и «[F — использовать]»)
 		info_name.text = Items.item_name(id)
 		var desc: String = preload("res://scripts/ui/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]) + _size_note(id)   # с геймпада — кнопки геймпада
+		if id == "pistol":
+			desc += Gun.mods_text(get_dur(k))   # слоты модулей (промпт 20.11 18:43)
 		info_desc.text = desc
 		# ширина окошка подстраивается под длину текста: короче описание — уже окно (промпт 18.11 02:33)
 		var tw := _tip_width(desc.length())
@@ -1838,6 +1861,9 @@ func move(from, to) -> void:
 			tid2 = slots[to]["id"]
 		if fid == "mag" and tid2 == "pistol":
 			game.gun.insert_mag(from, to)
+			return
+		if Items.ITEMS[fid].has("mod") and tid2 == "pistol":   # модуль на пистолет (промпт 20.11 18:43)
+			game.gun.install_mod(from, to)
 			return
 		if fid == "ammo" and tid2 == "mag" and to is int:
 			game.gun.fill_mag(to)

@@ -93,6 +93,88 @@ static func _box(root: Node3D, size: Vector3, pos: Vector3, m: Material) -> Mesh
 	return mi
 
 
+## Модули огнестрела на модели пистолета (промпт 20.11 18:43, gun.gd: MOD_SLOTS): старые убираем, ставим mods
+## (id по слотам, "" — пусто).
+static func set_mods(root: Node3D, mods: Array) -> void:
+	for c in root.get_children():
+		if c.has_meta("mod"):
+			root.remove_child(c)
+			c.queue_free()
+	for m in mods:
+		if String(m) != "":
+			add_mod(root, String(m))
+
+
+## Один модуль в координатах модели пистолета (+X — ствол, +Y — вверх, дуло ~ (0.14, 0.11)); узел с meta "mod".
+static func add_mod(root: Node3D, id: String) -> Node3D:
+	var g := Node3D.new()
+	g.set_meta("mod", id)
+	root.add_child(g)
+	var frame := _m(Color(0.17, 0.17, 0.18), 0.6, 0.45)
+	var dot := _m(Color(1.0, 0.15, 0.1))
+	dot.emission_enabled = true
+	dot.emission = Color(1.0, 0.2, 0.12)
+	dot.emission_energy_multiplier = 3.0
+	dot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	match id:
+		"mod_reddot":
+			# коллиматор (промпт 18.11 01:23): рамка, почти прозрачное стекло и красная точка; центр линзы —
+			# на высоте gun.gd: OPTIC_H, по ней целится персонаж в режиме прицела
+			_box(g, Vector3(0.042, 0.007, 0.026), Vector3(0.072, 0.129, 0), frame)   # основание
+			for sz in [-1.0, 1.0]:
+				_box(g, Vector3(0.038, 0.024, 0.004), Vector3(0.072, 0.1435, 0.012 * sz), frame)
+			_box(g, Vector3(0.038, 0.004, 0.026), Vector3(0.072, 0.1575, 0), frame)   # перекладина сверху
+			var lens := _m(Color(0.72, 0.85, 0.9, 0.07), 0.5, 0.05)
+			lens.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			lens.cull_mode = BaseMaterial3D.CULL_DISABLED
+			lens.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			lens.disable_receive_shadows = true
+			var gl := _box(g, Vector3(0.002, 0.022, 0.024), Vector3(0.087, 0.1435, 0), lens)
+			gl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_box(g, Vector3(0.004, 0.004, 0.004), Vector3(0.08, 0.1435, 0), dot)
+		"mod_scope":
+			# оптика 2×: труба без торцов (смотрим сквозь неё), ось — на OPTIC_H, два кольца на затворе
+			var tm := _m(Color(0.12, 0.12, 0.13), 0.6, 0.4)
+			tm.cull_mode = BaseMaterial3D.CULL_DISABLED
+			var tube := _cyl(g, 0.013, 0.013, 0.1, 0.0, tm)
+			(tube.mesh as CylinderMesh).cap_top = false
+			(tube.mesh as CylinderMesh).cap_bottom = false
+			(tube.mesh as CylinderMesh).radial_segments = 16
+			tube.rotation.z = PI / 2
+			tube.position = Vector3(0.07, 0.1435, 0)
+			var bell := _cyl(g, 0.016, 0.016, 0.022, 0.0, tm)   # объектив шире трубы
+			(bell.mesh as CylinderMesh).cap_top = false
+			(bell.mesh as CylinderMesh).cap_bottom = false
+			bell.rotation.z = PI / 2
+			bell.position = Vector3(0.115, 0.1435, 0)
+			for x in [0.045, 0.095]:
+				_box(g, Vector3(0.008, 0.006, 0.02), Vector3(x, 0.131, 0), frame)
+		"mod_silencer":
+			var sm := _cyl(g, 0.011, 0.011, 0.09, 0.0, _m(Color(0.1, 0.1, 0.1), 0.5, 0.6))
+			sm.rotation.z = PI / 2
+			sm.position = Vector3(0.19, 0.11, 0)
+		"mod_comp":
+			var cm := _cyl(g, 0.009, 0.009, 0.03, 0.0, _m(Color(0.32, 0.32, 0.33), 0.8, 0.35))
+			cm.rotation.z = PI / 2
+			cm.position = Vector3(0.157, 0.11, 0)
+			for x in [0.149, 0.157, 0.165]:
+				_box(g, Vector3(0.004, 0.004, 0.02), Vector3(x, 0.118, 0), _m(Color(0.04, 0.04, 0.04)))
+		"mod_stock":
+			# складной проволочный приклад от низа рукояти назад
+			var st := _m(Color(0.2, 0.2, 0.2), 0.7, 0.5)
+			_box(g, Vector3(0.19, 0.008, 0.008), Vector3(-0.115, 0.085, 0), st)
+			_box(g, Vector3(0.19, 0.008, 0.008), Vector3(-0.115, 0.0, 0), st)
+			_box(g, Vector3(0.012, 0.1, 0.03), Vector3(-0.212, 0.04, 0), _m(Color(0.1, 0.09, 0.08), 0.0, 0.8))
+		"mod_grip":
+			_box(g, Vector3(0.05, 0.006, 0.02), Vector3(0.105, 0.075, 0), frame)   # планка под стволом
+			var gr := _cyl(g, 0.01, 0.011, 0.06, 0.0, _m(Color(0.13, 0.12, 0.11), 0.0, 0.85))
+			gr.position = Vector3(0.11, 0.042, 0)
+		"mod_laser":
+			_box(g, Vector3(0.045, 0.02, 0.02), Vector3(0.105, 0.068, 0), frame)
+			_box(g, Vector3(0.003, 0.006, 0.006), Vector3(0.129, 0.068, 0), dot)
+	return g
+
+
 static func make(id: String) -> Node3D:
 	var root := Node3D.new()
 	id = String(ALIAS.get(id, id))
@@ -134,29 +216,11 @@ static func make(id: String) -> Node3D:
 			var tg := _box(root, Vector3(0.04, 0.006, 0.01), Vector3(0.035, 0.062, 0), blk)
 			tg.rotation.z = 0.2
 			_box(root, Vector3(0.006, 0.02, 0.01), Vector3(0.03, 0.072, 0), worn)        # спуск
-			# коллиматор на затворе (промпт 18.11 01:23): рамка, стекло и красная точка; центр линзы —
-			# на высоте gun.gd: OPTIC_H над рукоятью, по ней целится персонаж в режиме прицела
-			var frame := _m(Color(0.17, 0.17, 0.18), 0.6, 0.45)
-			# 18.11 01:33: приземистый, над затвором всего ~2 см
-			_box(root, Vector3(0.042, 0.007, 0.026), Vector3(0.072, 0.129, 0), frame)   # основание
+			# механический прицел (промпт 20.11 18:43: коллиматора по умолчанию больше нет — он модуль, add_mod):
+			# целик из двух столбиков и мушка, верх — на высоте gun.gd: IRON_H
 			for sz in [-1.0, 1.0]:
-				_box(root, Vector3(0.038, 0.024, 0.004), Vector3(0.072, 0.1435, 0.012 * sz), frame)
-			_box(root, Vector3(0.038, 0.004, 0.026), Vector3(0.072, 0.1575, 0), frame)   # перекладина сверху
-			# 18.11 01:42: стекло почти чистое (было alpha 0.35 — через прицел ничего не видно):
-			# еле заметный блик, без тени и без самозатенения, окно линзы чуть шире
-			var lens := _m(Color(0.72, 0.85, 0.9, 0.07), 0.5, 0.05)
-			lens.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			lens.cull_mode = BaseMaterial3D.CULL_DISABLED
-			lens.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			lens.disable_receive_shadows = true
-			var gl := _box(root, Vector3(0.002, 0.022, 0.024), Vector3(0.087, 0.1435, 0), lens)
-			gl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			var dot := _m(Color(1.0, 0.15, 0.1))
-			dot.emission_enabled = true
-			dot.emission = Color(1.0, 0.2, 0.12)
-			dot.emission_energy_multiplier = 3.0
-			dot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-			_box(root, Vector3(0.004, 0.004, 0.004), Vector3(0.08, 0.1435, 0), dot)
+				_box(root, Vector3(0.006, 0.008, 0.005), Vector3(0.006, 0.134, 0.0065 * sz), blk)
+			_box(root, Vector3(0.005, 0.008, 0.004), Vector3(0.126, 0.133, 0), blk)
 		"hammer":
 			# палка, на конце камень, примотанный бечёвкой
 			_cyl(root, 0.016, 0.014, 0.42, 0.13, _m(Color(0.5, 0.36, 0.2)))
