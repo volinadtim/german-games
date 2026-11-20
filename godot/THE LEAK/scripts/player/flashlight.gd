@@ -7,9 +7,11 @@ extends Node
 const DRAIN := 1.0 / 225.0   # полный заряд ~3.75 мин (в казуальном — вдвое дольше)
 const ENERGY := 3.0
 const BLINK_FROM := 0.22     # с этого заряда свет мерцает — пора менять батарейку
+const BOUNCE := 0.045        # доля энергии фонаря у отражённого света (~0.13)
 
 var game  # game.gd
 var light: SpotLight3D
+var bounce: OmniLight3D   # слабый «отражённый» свет вокруг игрока, пока фонарь горит
 var on := false
 var charge := 0.6
 var blink := 0.0
@@ -26,6 +28,14 @@ func attach(cam: Camera3D) -> void:
 	light.shadow_enabled = true
 	light.visible = false
 	cam.add_child(light)
+	# 20.11 14:40: как в хоррорах — луч не только пятно впереди: рядом чуть видны стены и пол (отскок света)
+	bounce = OmniLight3D.new()
+	bounce.position = Vector3(0.0, 0.0, -0.7)
+	bounce.omni_range = 2.6
+	bounce.light_color = light.light_color
+	bounce.light_energy = ENERGY * BOUNCE
+	bounce.shadow_enabled = false
+	light.add_child(bounce)   # видимость — вместе с фонарём
 
 
 ## В какой руке фонарик: "left" / "right" / "" (не в руке — не светит).
@@ -84,6 +94,7 @@ func _process(delta: float) -> void:
 		return
 	if casual:
 		light.light_energy = ENERGY   # в казуальном свет ровный, без мерцаний и подсказок
+		bounce.light_energy = ENERGY * BOUNCE
 		return
 	var e := ENERGY * clampf(charge * 5.0, 0.4, 1.0)
 	if charge < BLINK_FROM:
@@ -93,3 +104,4 @@ func _process(delta: float) -> void:
 		if blink < 0.06:
 			e *= 0.15
 	light.light_energy = e
+	bounce.light_energy = e * BOUNCE
