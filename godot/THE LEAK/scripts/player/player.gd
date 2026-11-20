@@ -213,6 +213,9 @@ func _physics_process(delta: float) -> void:
 	if noclip:
 		_noclip_tick(delta)
 		return
+	for w in get_tree().get_nodes_in_group("lake_water"):   # в воде озера — плавание (locations/lake/lake_dive.gd)
+		if w.swim_tick(self, delta):
+			return
 	_unstick_moves()
 	if stamina == null:
 		stamina = preload("res://scripts/player/stamina.gd").new()

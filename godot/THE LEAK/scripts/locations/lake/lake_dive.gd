@@ -1,22 +1,28 @@
-extends StaticBody3D
-## Озеро в лагере (промпт 20.11 18:33): невидимая стенка по кромке воды и погружение.
-## С аквалангом (items.gd: scuba) в сумке — [F] у воды: игрок уходит на дно (отдельная «яма» глубоко под
-## лагерем, синий фильтр на экране), воздуха на AIR с. На дне — ценный лут (LOOT, пополняется раз в REGEN с).
-## [F] у троса буя или кончился воздух — всплыть на берег, где нырял. Подводный фонарь (dive_light) — свет на дне.
+extends Node3D
+## Озеро в лагере (промпт 20.11 18:33, переделано 20.11 19:07): настоящая чаша глубиной DEPTH прямо под водой.
+## Зашёл в воду — плывёшь (без телепорта), к берегу — вылезаешь сам (подтягивание у стенки).
+## Без акваланга — только по поверхности. С аквалангом (items.gd: scuba) — ныряешь куда смотришь
+## (Пробел — вверх, Ctrl — вниз), воздух AIR с тратится только пока голова под водой; в godmode не тратится.
+## Кончился воздух — выталкивает наверх; на поверхности и после выхода из воды всё сбрасывается.
+## Под водой — свой туман/свет камеры (_env), подводный фонарь (dive_light) — прожектор от камеры.
+## На дне — ценный лут (LOOT, пополняется раз в REGEN с). Игрок зовёт swim_tick из player.gd (группа lake_water).
 
 const AIR := 60.0
-const DEPTH := 60.0          # дно ниже воды на столько метров
-const FLOOR_R := 13.0
+const DEPTH := 7.0           # дно ниже воды на столько метров
+const LAKE_R := 15.0         # радиус воды (lake_camp.gd: LAKE_R)
+const FLOAT := 1.3           # на плаву ноги ниже воды на столько (голова над водой)
+const SWIM := 3.2
+const SWIM_FAST := 5.2
 const MAX_LOOT := 6
 const REGEN := 45.0          # раз в столько секунд на дне появляется новая находка
 ## [id, от, до, вес]
 const LOOT := [["coin", 15, 45, 30], ["ammo_box", 1, 1, 10], ["medkit_army", 1, 1, 6], ["filter2", 1, 2, 10],
 	["kevlar_helmet", 1, 1, 3], ["plate_vest", 1, 1, 2], ["fire_axe", 1, 1, 3], ["battery", 2, 4, 10], ["energy", 1, 2, 8]]
 
-var center := Vector3.ZERO   # центр воды (lake_camp.gd: LAKE_C)
+var center := Vector3.ZERO   # центр воды на уровне поверхности, мировые координаты (lake_camp.gd: LAKE_C + OFF)
 var game
-var bottom: Node3D           # подводная яма (строится при первом погружении)
-var divers := {}             # player -> {"air": сек, "back": Vector3, "light": OmniLight3D}
+var bottom: Node3D           # чаша озера (top_level, мировые координаты)
+var sw := {}                 # player -> {"air", "under", "light", "spot", "climb", "warned"}
 var loot: Array = []         # лежащие на дне pickup.gd
 var regen_t := 0.0
 var started := false
@@ -24,86 +30,166 @@ var tint: CanvasLayer
 var air_l: Label
 
 
-## Трос буя на дне: [F] — всплыть.
-class Rope extends StaticBody3D:
-	var dive
+func _ready() -> void:
+	add_to_group("lake_water")
+	_build_bottom()
 
-	func get_prompt(_g) -> String:
-		return "[F] Всплыть"
 
-	func interact(g) -> void:
-		dive.surface(g.player)
+## Уровень воды (мир).
+func surf() -> float:
+	return center.y + 0.04
 
 
 ## Центр дна.
 func bottom_c() -> Vector3:
-	return center - Vector3(0, DEPTH, 0)
+	return Vector3(center.x, surf() - DEPTH, center.z)
 
 
-func get_prompt(g) -> String:
-	if g.inv.count("scuba") > 0:
-		return "[F] Нырнуть с аквалангом"
-	return "Озеро. Нырнуть — нужен акваланг (Trinkets Market #3)"
+## Плавание игрока p за кадр. false — игрок не в воде (обычная физика player.gd).
+func swim_tick(p, delta: float) -> bool:
+	var pos: Vector3 = p.global_position
+	var sy := surf()
+	var inside := Vector2(pos.x - center.x, pos.z - center.z).length() < LAKE_R - 0.15 \
+		and pos.y < sy - 0.25 and pos.y > sy - DEPTH - 3.0
+	if not inside:
+		if sw.has(p):
+			_leave(p)
+		return false
+	if game == null:
+		game = p.game
+	if not sw.has(p):
+		sw[p] = {"air": AIR, "under": false, "light": null, "spot": null, "climb": 0.0, "warned": false}
+	var s: Dictionary = sw[p]
+	var scuba: bool = game != null and game.inv != null and game.inv.count("scuba") > 0
+	var can_dive: bool = scuba and float(s["air"]) > 0.0
+	var float_y := sy - FLOAT
+	var inp := Vector2.ZERO
+	var up := 0.0
+	var fast := false
+	if p.active:
+		inp = p.ia.get_vector("move_left", "move_right", "move_forward", "move_back")
+		if p.ia.is_action_pressed("jump"):
+			up += 1.0
+		if p.ia.is_action_pressed("crouch"):
+			up -= 1.0
+		fast = p.ia.is_action_pressed("sprint")
+	var dir: Vector3
+	if can_dive:
+		var b: Basis = p.cam.global_transform.basis
+		dir = b.x * inp.x + b.z * inp.y   # плывём куда смотрим
+	else:
+		dir = p.global_transform.basis * Vector3(inp.x, 0, inp.y)
+		if up < 0.0 and not s["warned"] and p == (game.player if game else null):
+			s["warned"] = true
+			_hint("Без акваланга не нырнуть — только плавать. Акваланг — Trinkets Market #3." if not scuba
+				else "Воздуха нет — всплыви, баллон наполнится.", 4.0)
+	dir.y += up
+	if dir.length() > 1.0:
+		dir = dir.normalized()
+	var target := dir * (SWIM_FAST if fast else SWIM)
+	if not can_dive:
+		target.y = clampf((float_y - pos.y) * 3.0, -2.0, 3.0)   # держит на поверхности / выталкивает
+	elif pos.y > float_y - 0.15 and target.y > -0.3:
+		target.y = minf(target.y, (float_y - pos.y) * 3.0)      # выше поверхности не выплыть
+	s["climb"] = maxf(0.0, float(s["climb"]) - delta)
+	if p.is_on_wall() and inp.length() > 0.1 and pos.y > float_y - 0.5:
+		s["climb"] = 0.35   # у стенки на поверхности — подтянуться на берег
+	if float(s["climb"]) > 0.0:
+		var push: Vector3 = p.global_transform.basis * Vector3(inp.x, 0, inp.y)
+		p.velocity = Vector3(push.x * 3.0, 6.5, push.z * 3.0)
+	else:
+		p.velocity = p.velocity.lerp(target, 1.0 - exp(-4.0 * delta))
+	p.move_and_slide()
+	p._animate(delta, p.global_transform.basis.inverse() * p.velocity, false)
+	# голова под водой: воздух, туман, фонарь
+	var under: bool = p.cam.global_position.y < sy
+	if under and can_dive and not (game != null and game.god):
+		s["air"] = float(s["air"]) - delta
+		if float(s["air"]) <= 0.0:
+			s["air"] = 0.0
+			s["warned"] = false
+			_hint("Воздух кончился — всплывай!", 3.0)
+	if not under and scuba:
+		s["air"] = AIR   # на поверхности баллон снова полный
+		s["warned"] = false
+	if under != bool(s["under"]):
+		s["under"] = under
+		_set_under(p, s, under)
+	return true
 
 
-## [F] у воды: нырнуть, если есть акваланг.
-func interact(g) -> void:
-	game = g
-	var p = g.player
-	if p == null or divers.has(p):
-		return
-	if g.inv.count("scuba") <= 0:
-		_hint("Нужен акваланг — продаётся в Trinkets Market #3, вкладка «Одежда» → «Снаряжение».")
-		g.play_ui("buzz", -14.0)
-		return
-	if bottom == null:
-		_build_bottom()
-	_top_up()
-	var d := {"air": AIR, "back": p.global_position, "light": null}
-	if g.inv.count("dive_light") > 0:
-		var l := OmniLight3D.new()
-		l.light_color = Color(0.85, 0.95, 1.0)
-		l.omni_range = 11.0
-		l.light_energy = 2.2
-		l.position = Vector3(0, 1.4, 0)
-		p.add_child(l)
-		d["light"] = l
-	divers[p] = d
-	p.global_position = bottom_c() + Vector3(2.0, 0.4, 0.0)
-	p.velocity = Vector3.ZERO
-	_hint("Под водой. Воздуха — %d с. Собирай находки на дне; [F] у троса буя — всплыть." % int(AIR), 6.0)
+## Голова ушла под воду / вынырнула: туман камеры и фонарь.
+func _set_under(p, s: Dictionary, on: bool) -> void:
+	if on:
+		p.cam.environment = _env(p)
+		if game and game.inv and game.inv.count("dive_light") > 0:
+			var sp := SpotLight3D.new()
+			sp.light_color = Color(0.85, 0.95, 1.0)
+			sp.spot_range = 18.0
+			sp.spot_angle = 32.0
+			sp.light_energy = 3.0
+			p.cam.add_child(sp)
+			s["spot"] = sp
+			var l := OmniLight3D.new()
+			l.light_color = Color(0.7, 0.9, 1.0)
+			l.omni_range = 5.0
+			l.light_energy = 0.8
+			p.cam.add_child(l)
+			s["light"] = l
+	else:
+		if is_instance_valid(p.cam):
+			p.cam.environment = null
+		for k in ["spot", "light"]:
+			if s[k] != null and is_instance_valid(s[k]):
+				s[k].queue_free()
+			s[k] = null
 
 
-## Всплыть на берег, где нырял.
-func surface(p, no_air := false) -> void:
-	if not divers.has(p):
-		return
-	var d: Dictionary = divers[p]
-	divers.erase(p)
-	if d["light"] != null and is_instance_valid(d["light"]):
-		d["light"].queue_free()
+## Подводное окружение: копия обычного, мутно-зелёный туман на ~25 м, рассеянный свет — видно и ночью.
+func _env(p) -> Environment:
+	var src: Environment = p.cam.get_world_3d().environment if p.cam.get_world_3d() else null
+	var e: Environment = src.duplicate() if src else Environment.new()
+	var fog := Color(0.16, 0.42, 0.46)
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = fog
+	e.fog_enabled = true
+	e.fog_light_color = fog
+	e.fog_light_energy = 1.0
+	e.fog_density = 0.03   # ~30 м видно (промпт 19:11 — светлее и дальше)
+	e.fog_height_density = 0.0
+	e.fog_sky_affect = 1.0
+	e.fog_aerial_perspective = 0.0
+	e.volumetric_fog_enabled = false
+	e.ssr_enabled = false
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color(0.6, 0.8, 0.82)
+	e.ambient_light_energy = 1.3
+	return e
+
+
+## Вышел из воды: фонарь, туман и воздух — как до озера.
+func _leave(p) -> void:
+	var s: Dictionary = sw[p]
+	sw.erase(p)
 	if is_instance_valid(p):
-		p.global_position = (d["back"] as Vector3) + Vector3(0, 0.3, 0)
-		p.velocity = Vector3.ZERO
-	_hint("Воздух кончился — пришлось всплыть." if no_air else "Всплыл.", 3.0)
+		_set_under(p, s, false)
 
 
 func _process(delta: float) -> void:
-	regen_t += delta
-	for p in divers.keys():
+	for p in sw.keys():
 		if not is_instance_valid(p):
-			divers.erase(p)
-			continue
-		divers[p]["air"] -= delta
-		if divers[p]["air"] <= 0.0:
-			surface(p, true)
+			sw.erase(p)
+	if game != null:
+		regen_t += delta
+		if not started or regen_t >= REGEN:
+			_top_up()
 	_overlay()
 
 
-## Синий фильтр и запас воздуха — пока под водой игрок этого экрана.
+## Лёгкий синий фильтр и запас воздуха — пока голова под водой у игрока этого экрана.
 func _overlay() -> void:
 	var me = game.player if game else null
-	var on := me != null and divers.has(me)
+	var on: bool = me != null and sw.has(me) and bool(sw[me]["under"])
 	if not on:
 		if tint:
 			tint.visible = false
@@ -112,7 +198,7 @@ func _overlay() -> void:
 		tint = CanvasLayer.new()
 		tint.layer = 3
 		var cr := ColorRect.new()
-		cr.color = Color(0.04, 0.22, 0.36, 0.38)
+		cr.color = Color(0.05, 0.3, 0.4, 0.08)
 		cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		cr.set_anchors_preset(Control.PRESET_FULL_RECT)
 		tint.add_child(cr)
@@ -125,9 +211,10 @@ func _overlay() -> void:
 		tint.add_child(air_l)
 		add_child(tint)
 	tint.visible = true
-	var a: float = divers[me]["air"]
-	air_l.text = "Воздух: %d с" % ceili(a)
-	air_l.modulate = Color(1.0, 0.35, 0.3) if a < 10.0 else Color(0.75, 0.95, 1.0)
+	var a: float = sw[me]["air"]
+	air_l.visible = game.inv != null and game.inv.count("scuba") > 0
+	air_l.text = "Воздух: ∞" if game.god else "Воздух: %d с" % ceili(a)
+	air_l.modulate = Color(1.0, 0.35, 0.3) if a < 10.0 and not game.god else Color(0.75, 0.95, 1.0)
 
 
 func _hint(text: String, t := 4.0) -> void:
@@ -135,7 +222,7 @@ func _hint(text: String, t := 4.0) -> void:
 		game.village.hint(text, t)
 
 
-## Разложить находки на дне: при первом погружении — полный набор, потом по одной раз в REGEN с.
+## Разложить находки на дне: в первый раз — полный набор, потом по одной раз в REGEN с.
 func _top_up() -> void:
 	loot = loot.filter(func(x): return is_instance_valid(x) and not x.taken)
 	var add := MAX_LOOT if not started else int(regen_t / REGEN)
@@ -155,7 +242,7 @@ func _top_up() -> void:
 				e = x
 				break
 		var a := randf() * TAU
-		var rad := randf_range(3.0, FLOOR_R - 1.5)
+		var rad := randf_range(2.0, LAKE_R - 2.0)
 		var pos := bottom_c() + Vector3(cos(a) * rad, 0.4, sin(a) * rad)
 		loot.append(game._make_pickup(String(e[0]), randi_range(int(e[1]), int(e[2])), pos, Vector3.ZERO))
 
@@ -190,89 +277,78 @@ func _solid(center_: Vector3, size: Vector3, yaw := 0.0) -> void:
 	bottom.add_child(b)
 
 
-## Дно озера: ил, стенки, «поверхность» над головой, камни, водоросли, затонувшая лодка, трос буя, свет.
+## Чаша озера под водой: дно, стенки (коллизия — толстые плиты до края дыры в земле лагеря, lake_camp.gd: _ground),
+## «потолок» воды снизу, камни, водоросли, затонувшая лодка, мутный свет.
 func _build_bottom() -> void:
 	bottom = Node3D.new()
 	bottom.name = "LakeBottom"
 	bottom.top_level = true   # center — в мировых координатах (лагерь сдвинут, lake_camp.gd: OFF)
-	get_parent().add_child(bottom)
+	add_child(bottom)
 	var c := bottom_c()
-	var h := 8.0
+	var sy := surf()
 	var fl := CylinderMesh.new()
-	fl.top_radius = FLOOR_R + 1.0
-	fl.bottom_radius = FLOOR_R + 1.0
+	fl.top_radius = LAKE_R + 0.5
+	fl.bottom_radius = LAKE_R + 0.5
 	fl.height = 0.2
-	_mesh(fl, _mat(Color(0.2, 0.22, 0.16)), c - Vector3(0, 0.1, 0))
-	_solid(c - Vector3(0, 0.6, 0), Vector3(FLOOR_R * 2.0 + 4.0, 1.0, FLOOR_R * 2.0 + 4.0))
+	fl.radial_segments = 40
+	_mesh(fl, _mat(Color(0.3, 0.3, 0.2)), c - Vector3(0, 0.1, 0))
+	_solid(c - Vector3(0, 0.6, 0), Vector3(LAKE_R * 2.0 + 24.0, 1.0, LAKE_R * 2.0 + 24.0))
 	var wall := CylinderMesh.new()
-	wall.top_radius = FLOOR_R + 0.5
-	wall.bottom_radius = FLOOR_R + 1.0
-	wall.height = h
+	wall.top_radius = LAKE_R
+	wall.bottom_radius = LAKE_R - 0.4
+	wall.height = DEPTH
 	wall.cap_top = false
 	wall.cap_bottom = false
-	wall.radial_segments = 40
-	_mesh(wall, _mat(Color(0.08, 0.2, 0.22)), c + Vector3(0, h / 2.0, 0))
-	for i in 20:
-		var a := TAU * float(i) / 20.0
-		_solid(c + Vector3(cos(a) * (FLOOR_R + 0.3), h / 2.0, sin(a) * (FLOOR_R + 0.3)), Vector3(1.0, h, 4.6), -a)
-	_solid(c + Vector3(0, h + 0.5, 0), Vector3(FLOOR_R * 2.0 + 4.0, 1.0, FLOOR_R * 2.0 + 4.0))
-	var top := PlaneMesh.new()
-	top.size = Vector2(FLOOR_R * 2.0 + 2.0, FLOOR_R * 2.0 + 2.0)
-	var tm := _mat(Color(0.3, 0.6, 0.7), 0.1)
-	tm.emission_enabled = true
-	tm.emission = Color(0.12, 0.3, 0.38)
-	_mesh(top, tm, c + Vector3(0, h - 0.05, 0))
+	wall.radial_segments = 48
+	_mesh(wall, _mat(Color(0.22, 0.26, 0.2)), c + Vector3(0, DEPTH / 2.0, 0))
+	# стенки: 32 плиты от кромки воды наружу на 10 м, верх — уровень земли (закрывают дыру в земле лагеря)
+	var top := sy - 0.04
+	for i in 32:
+		var a := TAU * float(i) / 32.0
+		var r := LAKE_R + 5.0
+		_solid(Vector3(c.x + cos(a) * r, (top + c.y - 1.0) / 2.0, c.z + sin(a) * r), Vector3(10.0, top - c.y + 1.0, 5.6), -a)
+	# поверхность снизу — светлая, видно куда всплывать
+	var ceil_m := StandardMaterial3D.new()
+	ceil_m.albedo_color = Color(0.35, 0.65, 0.72)
+	ceil_m.emission_enabled = true
+	ceil_m.emission = Color(0.18, 0.42, 0.5)
+	var cp := CylinderMesh.new()
+	cp.top_radius = LAKE_R
+	cp.bottom_radius = LAKE_R
+	cp.height = 0.01
+	cp.cap_top = false
+	cp.radial_segments = 48
+	_mesh(cp, ceil_m, Vector3(c.x, sy - 0.03, c.z))
 	# камни и водоросли
-	var rock_m := _mat(Color(0.25, 0.27, 0.25))
-	var weed_m := _mat(Color(0.16, 0.36, 0.18))
+	var rock_m := _mat(Color(0.32, 0.34, 0.3))
+	var weed_m := _mat(Color(0.2, 0.45, 0.22))
 	for i in 14:
 		var a := randf() * TAU
-		var r := randf_range(4.0, FLOOR_R - 0.5)
+		var r := randf_range(3.0, LAKE_R - 1.0)
 		var sm := SphereMesh.new()
 		sm.radius = randf_range(0.3, 0.9)
 		sm.height = sm.radius * 1.2
 		_mesh(sm, rock_m, c + Vector3(cos(a) * r, 0.1, sin(a) * r))
-	for i in 40:
+	for i in 50:
 		var a := randf() * TAU
-		var r := randf_range(2.5, FLOOR_R)
+		var r := randf_range(2.0, LAKE_R - 0.6)
 		var cm := CylinderMesh.new()
 		cm.top_radius = 0.0
 		cm.bottom_radius = 0.05
-		cm.height = randf_range(0.8, 2.4)
+		cm.height = randf_range(0.8, 3.0)
 		_mesh(cm, weed_m, c + Vector3(cos(a) * r, cm.height / 2.0, sin(a) * r), Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3)))
 	# затонувшая лодка
-	var boat_m := _mat(Color(0.28, 0.2, 0.12))
+	var boat_m := _mat(Color(0.34, 0.25, 0.15))
 	var bp := c + Vector3(-6.0, 0.0, 4.0)
 	var bb := BoxMesh.new()
 	bb.size = Vector3(1.4, 0.15, 3.6)
 	_mesh(bb, boat_m, bp + Vector3(0, 0.15, 0), Vector3(0, 0.6, 0.25))
 	_solid(bp + Vector3(0, 0.3, 0), Vector3(1.4, 0.6, 3.6), 0.6)
-	# трос буя — [F] всплыть
-	var rope := Rope.new()
-	rope.dive = self
-	rope.position = c + Vector3(0, h / 2.0, 0)
-	var rcs := CollisionShape3D.new()
-	var rs := CylinderShape3D.new()
-	rs.radius = 0.25
-	rs.height = h
-	rcs.shape = rs
-	rope.add_child(rcs)
-	bottom.add_child(rope)
-	var rm := CylinderMesh.new()
-	rm.top_radius = 0.04
-	rm.bottom_radius = 0.04
-	rm.height = h
-	var rope_m := _mat(Color(0.9, 0.55, 0.15))
-	rope_m.emission_enabled = true
-	rope_m.emission = Color(0.5, 0.25, 0.05)
-	_mesh(rm, rope_m, c + Vector3(0, h / 2.0, 0))
-	var anchor := BoxMesh.new()
-	anchor.size = Vector3(0.6, 0.4, 0.6)
-	_mesh(anchor, _mat(Color(0.3, 0.3, 0.32)), c + Vector3(0, 0.2, 0))
 	# мутный свет сверху
 	var l := OmniLight3D.new()
-	l.light_color = Color(0.45, 0.75, 0.9)
-	l.omni_range = FLOOR_R * 2.2
-	l.light_energy = 0.9
-	l.position = c + Vector3(0, h - 1.0, 0)
+	l.light_color = Color(0.5, 0.8, 0.9)
+	l.omni_range = LAKE_R * 1.6
+	l.light_energy = 2.0
+	l.shadow_enabled = false
+	l.position = Vector3(c.x, sy - 1.5, c.z)
 	bottom.add_child(l)

@@ -16,6 +16,7 @@ const CAR_POS := Vector3(31.0, G, 1182.0)
 const CAR_YAW := 0.0
 const LAKE_C := Vector3(31.0, G, 1240.0)
 const LAKE_R := 15.0
+const HOLE := 17.0   # полуширина дыры в земле под озером (lake_dive.gd: стенки чаши закрывают до 25 м от центра)
 const FIRE := Vector3(20.0, G, 1210.0)
 const LakeDive := preload("res://scripts/locations/lake/lake_dive.gd")
 const LakeShop := preload("res://scripts/shop/lake_shop.gd")
@@ -405,7 +406,17 @@ func _ground() -> void:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(X1 - X0 + 8.0, Z1 - Z0 + 8.0)   # дальше — общая земля мира (village_build.gd: _world)
 	_mesh(pm, _mat(Color(0.24, 0.3, 0.16)), Vector3((X0 + X1) / 2.0, G, (Z0 + Z1) / 2.0))
-	_solid(Vector3((X0 + X1) / 2.0, G - 1.0, (Z0 + Z1) / 2.0), Vector3(X1 - X0 + 4.0, 2.0, Z1 - Z0 + 4.0))
+	# земля с квадратной дырой под озером (±HOLE от центра) — там чаша lake_dive.gd (дно и стенки до краёв дыры)
+	var ax := X0 - 2.0
+	var bx := X1 + 2.0
+	var az := Z0 - 2.0
+	var bz := Z1 + 2.0
+	var hx0 := LAKE_C.x - HOLE
+	var hx1 := LAKE_C.x + HOLE
+	var hz0 := LAKE_C.z - HOLE
+	var hz1 := LAKE_C.z + HOLE
+	for r in [[ax, bx, az, hz0], [ax, bx, hz1, bz], [ax, hx0, hz0, hz1], [hx1, bx, hz0, hz1]]:
+		_solid(Vector3((r[0] + r[1]) / 2.0, G - 1.0, (r[2] + r[3]) / 2.0), Vector3(r[1] - r[0], 2.0, r[3] - r[2]))
 	# тропинка от машины к костру
 	var path := PlaneMesh.new()
 	path.size = Vector2(2.2, 26.0)
@@ -430,15 +441,9 @@ func _lake() -> void:
 	var wm := _mat(Color(0.1, 0.22, 0.27), 0.05)
 	wm.metallic = 0.35
 	_mesh(water, wm, LAKE_C + Vector3(0, 0.04, 0))
-	var body := LakeDive.new()   # [F] у воды — нырнуть с аквалангом (lake_dive.gd)
-	body.center = LAKE_C + OFF   # в мировых координатах (дно — top_level, lake_dive.gd)
-	body.position = LAKE_C + Vector3(0, 1.5, 0)
-	var cs := CollisionShape3D.new()
-	var cy := CylinderShape3D.new()
-	cy.radius = LAKE_R - 0.6
-	cy.height = 3.0
-	cs.shape = cy
-	body.add_child(cs)
+	var body := LakeDive.new()   # плавание и ныряние прямо в воде, чаша под ней (lake_dive.gd)
+	body.center = LAKE_C + OFF   # в мировых координатах (чаша — top_level, lake_dive.gd)
+	body.position = LAKE_C
 	add_child(body)
 	# камыши по берегу
 	var reed_m := _mat(Color(0.35, 0.4, 0.2))
