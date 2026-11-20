@@ -3,6 +3,9 @@
 # в своём worktree на зону (.claude\worktrees\disp-<зона>). Зоны работают параллельно, в одной зоне — очередь.
 # Worktree создаёт и удаляет только scripts\dispatch\wt.js: sparse без Blender/, создаётся под задачу и
 # удаляется сразу после неё (если чистый и запушен), не больше -MaxWt одновременно, очистка брошенных при старте и раз в 30 мин.
+# Место: wt.js не создаёт worktree, если на диске меньше minFreeGB или все worktree задач больше maxGB — сначала убирает,
+# потом задача ждёт в очереди (не падает). Лимит сессии Claude («hit your session limit») — не ошибка: задача
+# возвращается в очередь как продолжение, новые воркеры не стартуют 15 мин.
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dispatch\dispatch.ps1            # слушать TG
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dispatch\dispatch.ps1 -Task "…"  # одна задача без TG (по-настоящему правит и пушит!)
@@ -40,7 +43,12 @@ $HistFile = Join-Path $Dir "history.jsonl"   # все завершённые з�
 $LogFile = Join-Path $Dir "dispatch.log"
 $FlagFile = Join-Path $Dir "stop.flag"
 $HooksFile = Join-Path $Dir "hooks.json"
-$Zones = "slot","shop","items","player","enemy","ui","net","level","car","village","world","core","other"
+$Zones = "slot","shop","items","weapons","player","enemy","ui","net","level","car","village","lake","city","world","core","other"
+$ProbeOnly = $false     # после паузы по лимиту — сначала одна задача, остальные после её успеха
+$HoldUntil = $null      # лимит сессии Claude — до этого времени новые воркеры не стартуют
+$WtRetryAt = Get-Date   # worktree не создался (лимит/место) — следующая попытка не раньше
+$WtWhy = ""
+function Limit-Hit([string]$s) { $s -match '(?i)hit your (session|usage|weekly) limit|usage limit reached|limit .{0,3}resets' }
 
 # Хук воркеров: после каждого инструмента проверяет stop.flag (мягкая остановка) — см. stop-hook.js.
 $hookCmd = 'node "{0}" "{1}"' -f (Join-Path $PSScriptRoot "stop-hook.js"), $Dir
@@ -75,7 +83,8 @@ function Show {
     $run = @($Jobs | Where-Object { $_.status -eq "работает" }).Count
     $que = @($Jobs | Where-Object { $_.status -eq "очередь" }).Count
     $sm = Stop-Mode
-    $wait = if ($Task) { "" } elseif ($sm) { "СТОП ($sm) — новые задачи не стартуют" } elseif ($job) { "слушаю TG…" } else { "" }
+    $wait = if ($Task) { "" } elseif ($sm) { "СТОП ($sm) — новые задачи не стартуют" } elseif ($HoldUntil) { "ЛИМИТ Claude — пауза до $($HoldUntil.ToString('HH:mm'))" } elseif ($job) { "слушаю TG…" } else { "" }
+    if ($WtWhy -and $que) { $wait += "   worktree: $WtWhy" }
     $o.Add(("ДИСПЕТЧЕР  {0}   работают: {1}   в очереди: {2}   {3}" -f (Get-Date -Format "HH:mm:ss"), $run, $que, $wait))
     $o.Add((Cut ("КАЧЕСТВО  " + (Stats-Line)) $w))
     $o.Add("")
@@ -246,18 +255,23 @@ function Enqueue($zone, $agent, $effort, $mode, $text, $at, $title) {
 function Wt { $o = & node $WtJs @args 2>$null; $script:WtCode = $LASTEXITCODE; ($o | Select-Object -Last 1) }
 function Start-Worker($q) {
     $zone = $q.zone
-    $wa = @("create", "disp-$zone"); if ($q.text -match '(?i)blender|\.blend') { $wa += "--blender" }
+    $wa = @("create", "disp-$zone"); if ($q.text -match '(?i)blender|блендер|\.blend\b') { $wa += "--blender" }
     $wt = Wt @wa
-    if ($WtCode -eq 3) { if (-not $q.waitwt) { $q.waitwt = $true; Log "[$zone] ждёт: заняты все worktree" }; return }
-    if ($WtCode -ne 0 -or -not $wt) { $q.status = "упал"; $q.result = "нет worktree"; $q.finished = (Get-Date).ToString("o"); Log "[$zone] не удалось создать worktree disp-$zone"; return }
-    $q.waitwt = $null
-    if (Test-Path (Join-Path $wt ".git")) {
-        Run-Git -C $wt rebase --abort
-        Run-Git -C $wt fetch -q origin main
-        Run-Git -C $wt rebase -q --autostash origin/main
-        # Свежая карта кода (файл:строка функция — описание): агент ищет по ней, а не листает код.
-        try { & python (Join-Path $wt "scripts\codemap.py") (Join-Path $wt "godot\THE LEAK") *> $null } catch {}
-    } else { $q.status = "упал"; $q.result = "нет worktree"; $q.finished = (Get-Date).ToString("o"); Log "[$zone] не удалось создать worktree $wt"; return }
+    if ($WtCode -ne 0 -or -not $wt -or -not (Test-Path (Join-Path $wt ".git"))) {
+        # Лимит worktree, нет места или git упал — задача не падает, ждёт в очереди; повтор через 30 с (при ошибке — 2 мин).
+        $why = if ($WtCode -eq 3) { "$wt" -replace '^ждёт:\s*', '' } else { "не создан disp-$zone ($wt)" }
+        $script:WtRetryAt = (Get-Date).AddSeconds($(if ($WtCode -eq 3 -and $why -match '^заняты') { 30 } else { 120 }))
+        $script:WtWhy = $why; $script:WtCode = 3
+        $key = $why -replace '[\d.,]+', '#'   # одна причина с другими цифрами — не спамить лог
+        if ($q.waitwt -ne $key) { $q.waitwt = $key; Log "[$zone] ждёт worktree: $why" }
+        return
+    }
+    $q.waitwt = $null; $script:WtWhy = ""
+    Run-Git -C $wt rebase --abort
+    Run-Git -C $wt fetch -q origin main
+    Run-Git -C $wt rebase -q --autostash origin/main
+    # Свежая карта кода (файл:строка функция — описание): агент ищет по ней, а не листает код.
+    try { & python (Join-Path $wt "scripts\codemap.py") (Join-Path $wt "godot\THE LEAK") *> $null } catch {}
     $brief = if ($q.resume) {
         "Работу остановили ($($q.resume)). Продолжай свою задачу с того места, где остановился." +
         $(if (Test-Path (Join-Path $HandoffDir "$zone.md")) { " Твой handoff: $(Join-Path $HandoffDir "$zone.md")" } else { "" })
@@ -305,15 +319,21 @@ function Finish($q) {
         $e = ""; try { $e = ([IO.File]::ReadAllText($q.err, $Utf8) -replace '\s+', ' ').Trim() } catch {}
         if (-not $q.session) { $q.session = Find-Sid $q }
         if ((Stop-Mode) -eq "kill") { $q.status = "прерван"; $q.result = "жёсткая остановка" ; Log "[$zone] воркер прерван (kill)" }
+        elseif (Limit-Hit $e) { Requeue-Limit $q $e }
         else { $q.status = "упал"; $q.result = $e; Log "[$zone] воркер упал: $(Cut $e 300)" }
         Save-Jobs; Release-Wt $q; return
     }
     $res = "$($j.result)".Trim()
+    if ($j.is_error -and (Limit-Hit $res)) {
+        if ($j.session_id) { $q.session = $j.session_id }
+        $q.cost = $j.total_cost_usd; Requeue-Limit $q $res; Save-Jobs; Release-Wt $q; return
+    }
     $ctx = Get-Ctx $q.wt $j.session_id
     $q.session = $j.session_id; $q.ctx = $ctx; $q.cost = $j.total_cost_usd; $q.result = (($res -split "`n")[0])
     $hf = Join-Path $HandoffDir "$zone.md"
     $handoff = (Test-Path $hf) -and ((Get-Item $hf).LastWriteTime -ge [DateTime]$q.started)
     $q.status = if ($j.is_error) { "ошибка" } elseif ($res -match '^\s*СЛОЖНО') { "СЛОЖНО" } elseif ($handoff -and (Stop-Mode)) { "пауза" } else { "готово" }
+    $script:ProbeOnly = $false
     $State[$zone] = @{ session = $j.session_id; agent = $q.agent; effort = $q.effort; ctx = $ctx; last = $q.title; at = $q.at }
     if ($q.status -ne "пауза") {
         Hist-Add @{ t = "done"; id = $q.id; at = $q.at; zone = $zone; agent = $q.agent; effort = $q.effort; cost = [double]$j.total_cost_usd; status = $q.status; fix_of = $q.fix_of; title = $q.title }
@@ -324,6 +344,19 @@ function Finish($q) {
         Log "[$zone] sonnet не справился — отдаю opus/high"
         Enqueue $zone "opus" "high" "new" $q.text $q.at $q.title
     }
+}
+
+# Лимит сессии Claude: задача — не ошибка и не в историю; та же задача снова в очередь (продолжением своей сессии,
+# если она успела начаться), все новые воркеры ждут 15 мин, потом пробуем снова.
+function Requeue-Limit($q, [string]$msg) {
+    $q.status = "лимит"; $q.result = (Cut $msg 120)
+    $script:HoldUntil = (Get-Date).AddMinutes(15)
+    $script:Seq++
+    $n = @{ id = $script:Seq; zone = $q.zone; agent = (Norm-Agent $q.agent); effort = $q.effort; mode = $q.mode; text = $q.text; at = $q.at
+        title = $q.title; status = "очередь"; fix_of = $q.fix_of }
+    if ($q.session) { $n.mode = "continue"; $n.resume = "лимит сессии Claude"; $n.session = $q.session }
+    [void]$Jobs.Add($n)
+    Log ("[{0}] лимит Claude: {1} — #{2} снова в очереди, пауза до {3}" -f $q.zone, (Cut $msg 80), $n.id, $HoldUntil.ToString("HH:mm"))
 }
 
 function Handle([string]$raw, [string]$defAt = "?") {
@@ -404,11 +437,13 @@ while ($true) {
         if (-not (Alive $q)) { Finish $q }
         elseif (-not $q.session -and ((Get-Date) - [DateTime]$q.started).TotalSeconds -gt 10) { $q.session = Find-Sid $q; if ($q.session) { Save-Jobs } }
     }
-    if (-not $sm) {
+    if ($HoldUntil -and (Get-Date) -ge $HoldUntil) { $HoldUntil = $null; $ProbeOnly = $true; Log "пауза по лимиту Claude кончилась — пробую одну задачу"; $Dirty = $true }
+    if (-not $sm -and -not $HoldUntil -and (Get-Date) -ge $WtRetryAt) {
         foreach ($q in @($Jobs | Where-Object { $_.status -eq "очередь" })) {
             $busy = @($Jobs | Where-Object { $_.status -eq "работает" -and $_.zone -eq $q.zone }).Count
             $chat = Test-Path (Join-Path $Dir "chat-$($q.zone).lock")  # Герман сам в чате с агентом (TUI Ctrl+O)
-            if (-not $busy -and -not $chat) { Start-Worker $q; if ($WtCode -eq 3) { break } }
+            if ($ProbeOnly -and @($Jobs | Where-Object { $_.status -eq "работает" }).Count) { break }
+            if (-not $busy -and -not $chat) { $script:WtCode = 0; Start-Worker $q; if ($WtCode -eq 3) { break } }
         }
     }
     if ($Task -and -not @($Jobs | Where-Object { $_.status -in "работает", "очередь" }).Count) { break }

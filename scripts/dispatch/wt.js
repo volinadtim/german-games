@@ -15,8 +15,11 @@
 //  - одновременно не больше max (по умолчанию 4) worktree задач; остальные ждут;
 //  - удаляется только чистый worktree, все коммиты которого уже в origin (или их патчи в origin/main);
 //    иначе остаётся, причина пишется в .claude/dispatch/dispatch.log;
-//  - locked — не трогаем никогда.
-// Настройки: <репо>/.claude/dispatch/wt-config.json {"max":4,"staleHours":6,"waitSec":1800,"patterns":[...]}
+//  - locked — не трогаем никогда;
+//  - место: перед созданием проверяется свободное место на диске (minFreeGB) и общий размер worktree задач
+//    (maxGB, жёсткий предел). Не хватает — сначала уборка (законченные, потом брошенные дольше 1 ч), потом ждём (код 3).
+//    Неотслеживаемые *.uid (Godot создаёт сам) и удалённые ~временные файлы удалению не мешают.
+// Настройки: <репо>/.claude/dispatch/wt-config.json {"max":4,"staleHours":6,"waitSec":1800,"minFreeGB":8,"maxGB":6,"patterns":[...]}
 "use strict";
 const fs = require("fs"), path = require("path"), cp = require("child_process");
 
@@ -44,11 +47,13 @@ const LOG = path.join(DISP, "dispatch.log");
 fs.mkdirSync(REG, { recursive: true });
 
 const CFG = Object.assign(
-  { max: 4, staleHours: 6, waitSec: 1800, releaseDelaySec: 20,
+  { max: 4, staleHours: 6, waitSec: 1800, releaseDelaySec: 20, minFreeGB: 8, maxGB: 6, fullGB: 2.2, sparseGB: 0.2,
     patterns: ["^agent-", "^disp-", "^dispatcher-launch-"],     // какие чужие worktree считать брошенными задачами
     protect: ["dispatcher"] },                                    // не удалять никогда
   (() => { try { return JSON.parse(fs.readFileSync(path.join(DISP, "wt-config.json"), "utf8")); } catch { return {}; } })());
 if (process.env.WT_MAX) CFG.max = +process.env.WT_MAX;
+if (process.env.WT_MIN_FREE_GB) CFG.minFreeGB = +process.env.WT_MIN_FREE_GB;
+if (process.env.WT_MAX_GB) CFG.maxGB = +process.env.WT_MAX_GB;
 
 let HOOK = false;
 function log(s) {
@@ -126,7 +131,10 @@ function keepReason(w) {
     if (gd && fs.existsSync(path.join(gd, f))) return "незавершённый " + f;
   const s = git(["status", "--porcelain", "--untracked-files=all"], w.path);
   if (!s.ok) return "git status не работает: " + s.err.split("\n")[0];
-  if (s.out) { const l = s.out.split("\n"); return `незакоммиченные изменения (${l.length}): ` + l.slice(0, 3).map(x => x.trim()).join(", "); }
+  // Мусор, который удалению не мешает: неотслеживаемые *.uid (Godot) и удалённые временные ~файлы (Ziva держит ~lib*.dll).
+  const junk = x => /^\?\? .*\.uid"?$/.test(x) || /^D .*\/~[^\/]*"?$/.test(x);
+  const l = s.out.split("\n").map(x => x.trim()).filter(x => x && !junk(x));
+  if (l.length) { return `незакоммиченные изменения (${l.length}): ` + l.slice(0, 3).map(x => x.trim()).join(", "); }
   fetchMain();
   // Коммиты, которых нет ни в одной ветке origin; из них — те, чьего патча нет и в origin/main (после rebase хеши другие).
   const un = git(["rev-list", "HEAD", "--not", "--remotes=origin"], w.path).out.split("\n").filter(Boolean);
@@ -158,6 +166,43 @@ function removeWt(w, why) {
   return true;
 }
 
+// ---- место на диске ----
+const GB = 2 ** 30;
+function freeGB() { try { const s = fs.statfsSync(WTS); return s.bavail * s.bsize / GB; } catch { return Infinity; } }
+function dirBytes(d) {
+  let n = 0, es;
+  try { es = fs.readdirSync(d, { withFileTypes: true }); } catch { return 0; }
+  for (const e of es) {
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) n += dirBytes(p);
+    else { try { n += fs.lstatSync(p).size; } catch {} }
+  }
+  return n;
+}
+const isTask = name => !CFG.protect.includes(name) && CFG.patterns.some(s => new RegExp(s).test(name));
+// Общий размер worktree задач, созданных этим скриптом (agent-*, disp-*), ГБ. Чужие старые копии сюда не входят
+// (иначе навсегда блокируют предел) — их место учитывает проверка свободного места на диске.
+function tasksGB(all) {
+  return worktrees().filter(w => isTask(nameOf(w.path)) && (all || regGet(nameOf(w.path)))).reduce((a, w) => a + dirBytes(w.path), 0) / GB;
+}
+// "" — место есть; иначе причина, почему создавать нельзя.
+function spaceProblem(needGB) {
+  const free = freeGB();
+  if (free - needGB < CFG.minFreeGB) return `мало места на диске: свободно ${free.toFixed(1)} ГБ, нужно ${needGB.toFixed(1)} + запас ${CFG.minFreeGB} ГБ`;
+  const used = tasksGB();
+  if (used + needGB > CFG.maxGB) return `worktree задач занимают ${used.toFixed(1)} ГБ, предел ${CFG.maxGB} ГБ`;
+  return "";
+}
+// Освободить место: законченные, потом брошенные дольше 1 ч (только чистые и запушенные). Вызывать под lock.
+function makeRoom(needGB) {
+  let why = spaceProblem(needGB);
+  if (!why) return "";
+  log(`${why} — уборка`);
+  reapDone(); why = spaceProblem(needGB);
+  if (why) { reapInner(1); why = spaceProblem(needGB); }
+  return why;
+}
+
 // Сколько worktree задач занято: созданные нами, не законченные, существующие, тронутые за staleHours.
 function activeCount() {
   const live = new Set(worktrees().map(w => norm(w.path)));
@@ -172,7 +217,8 @@ function activeCount() {
   return n;
 }
 
-const wantBlender = text => /blender|\.blend\b/i.test(text || "");
+let waitReason = "";
+const wantBlender = text => /blender|блендер|\.blend\b/i.test(text || "");
 
 function create(name, o) {
   if (!/^[A-Za-z0-9._-]+$/.test(name)) throw new Error("плохое имя worktree: " + name);
@@ -186,13 +232,23 @@ function create(name, o) {
         const r = regGet(name) || { created: Date.now() };
         Object.assign(r, { done: false, counted, reused: Date.now() }); regPut(name, r);
         log(`снова в работе ${name} (остался с прошлой задачи)`);
+        // Старая полная копия, а Blender не нужен — убрать Blender/ (sparse), если там ничего не менялось.
+        if (!o.blender && git(["config", "--worktree", "core.sparseCheckout"], p).out !== "true") {
+          const s = git(["sparse-checkout", "set", "--no-cone", "/*", "!/Blender/"], p);
+          log(`${name}: ${s.ok ? "Blender/ убран (sparse)" : "sparse не встал: " + s.err.split("\n")[0]}`);
+        }
         return p;
       }
       if (fs.existsSync(p)) {
         if (fs.readdirSync(p).length) throw new Error(`${p} существует и это не worktree`);
         fs.rmdirSync(p);
       }
-      if (counted) { reapDone(); if (activeCount() >= CFG.max) return null; }
+      if (counted) {
+        reapDone();
+        if (activeCount() >= CFG.max) { waitReason = `заняты все ${CFG.max} worktree`; return null; }
+        const why = makeRoom(o.blender ? CFG.fullGB : CFG.sparseGB);
+        if (why) { waitReason = why; return null; }
+      }
       fetchMain();
       let branch = o.branch || null;
       if (branch && git(["rev-parse", "--verify", "-q", "refs/heads/" + branch], REPO).ok) branch = null;  // имя занято — detach
@@ -238,8 +294,9 @@ function reapDone() {
 }
 
 // Очистка: законченные + брошенные (не тронуты > hours) чистые worktree задач.
-function reap(hours) {
-  return lock(() => {
+function reap(hours) { return lock(() => reapInner(hours)); }
+function reapInner(hours) {
+  {
     git(["worktree", "prune"], REPO);
     const running = runningJobPaths();
     const me = norm(git(["rev-parse", "--show-toplevel"], process.cwd()).out || "-");
@@ -263,7 +320,7 @@ function reap(hours) {
     }
     log(`очистка: удалено ${removed}, оставлено ${kept}`);
     return { removed, kept };
-  });
+  }
 }
 
 function status() {
@@ -274,7 +331,7 @@ function status() {
     const sparse = git(["config", "--worktree", "core.sparseCheckout"], w.path).out === "true" ? "sparse" : "full";
     out.push(`${nameOf(w.path)}\t${w.branch || "detached"}\t${sparse}\t${age}ч\t${r ? (r.done ? "закончен" : "в работе") : "-"}${w.locked ? "\tlocked" : ""}`);
   }
-  out.push(`занято ${activeCount()}/${CFG.max}`);
+  out.push(`занято ${activeCount()}/${CFG.max}; worktree задач ${tasksGB().toFixed(2)} из ${CFG.maxGB} ГБ (все копии ${tasksGB(true).toFixed(1)} ГБ); свободно на диске ${freeGB().toFixed(1)} ГБ (запас ${CFG.minFreeGB})`);
   return out.join("\n");
 }
 
@@ -295,12 +352,13 @@ try {
   switch (cmd) {
     case "create": {
       const p = create(argv[1], { blender: argv.includes("--blender"), wait: +(opt("--wait") || 0), branch: opt("--branch"), by: "dispatch" });
-      if (!p) { console.log(`лимит: заняты ${CFG.max} worktree`); process.exit(3); }
+      if (!p) { console.log("ждёт: " + (waitReason || `заняты ${CFG.max} worktree`)); process.exit(3); }
       console.log(p); break;
     }
     case "release": release(argv[1], +(opt("--delay") || 0)); break;
     case "reap": { const r = reap(+(opt("--hours") || CFG.staleHours)); console.log(`удалено ${r.removed}, оставлено ${r.kept}`); break; }
     case "status": console.log(status()); break;
+    case "size": console.log((dirBytes(path.resolve(WTS, argv[1] || ".")) / 2 ** 20).toFixed(1) + " МБ"); break;
     case "blender": {
       const top = git(["rev-parse", "--show-toplevel"], process.cwd()).out;
       const r = git(["sparse-checkout", "disable"], top);
@@ -315,7 +373,7 @@ try {
         blender: wantBlender(lastAgentCall(j.transcript_path)), wait: task ? CFG.waitSec : 0,
         branch: task ? "worktree-" + name : "claude/" + name, counted: task, by: "hook",
       });
-      if (!p) { process.stderr.write(`лимит worktree (${CFG.max}) занят дольше ${CFG.waitSec} с`); process.exit(2); }
+      if (!p) { process.stderr.write(`нет worktree дольше ${CFG.waitSec} с: ${waitReason}`); process.exit(2); }
       process.stdout.write(p + "\n"); break;
     }
     case "hook-remove": {   // WorktreeRemove: {worktree_path}

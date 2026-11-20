@@ -98,7 +98,7 @@ def scan(path):
                 if name in ('Bash', 'PowerShell'):
                     cmd0 = inp.get('command', '')
                     cat = ('ритуал' if any(re.search(rx, cmd0, re.M) for _, rx in RITUAL) else
-                           'чтение кода' if bash_reads(cmd0, '') else 'grep/поиск' if re.search(r'grep', cmd0) else
+                           'чтение кода' if bash_reads(cmd0, '') else 'grep/поиск' if re.search(r'\bgrep\b', cmd0) else
                            'проверка/пуш' if re.search(r'gd-check|ship\.sh', cmd0) else 'прочие команды')
                 s['items'].append((cat, len(txt) // 3 + len(json.dumps(inp, ensure_ascii=False)) // 3, s['turns']))
                 if name == 'Read':
