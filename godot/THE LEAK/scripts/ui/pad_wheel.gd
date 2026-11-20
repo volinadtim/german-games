@@ -17,6 +17,7 @@ var sel := -1
 var _ui: Control
 var inv_src = null          # Split-Screen (network/split.gd): круг игрока 2 — его инвентарь
 var on_pick := Callable()   # ...и выбор слота (номер, в правую руку) — его хотбар вместо нажатий hot_N
+var assign := false         # открыт из инвентаря (держат ←): отпустить — предмет под рамкой в слот (gamepad.gd: _dl_button)
 
 
 func _ready() -> void:
@@ -43,6 +44,9 @@ func close() -> void:
 	is_open = false
 	visible = false
 	key = ""
+	if assign:
+		assign = false
+		inv_src = null
 
 
 ## Отпустили ← — выбранный слот в левую руку.
@@ -81,7 +85,7 @@ func aim(v: Vector2) -> void:
 
 func _process(_d: float) -> void:
 	if is_open:
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not assign:
 			close()   # открылось окно/меню
 		else:
 			_ui.queue_redraw()
@@ -123,6 +127,8 @@ func _draw_wheel() -> void:
 		_ui.draw_string_outline(f, r.position + Vector2(6, 18), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, 4, Color(0, 0, 0, 0.8))
 		_ui.draw_string(f, r.position + Vector2(6, 18), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0, 0.8, 0.45))
 	var t := "правый стик — выбрать · отпустить ← или %s — в левую · %s — в правую" % [pad.spec_name("t:L"), pad.spec_name("t:R")]
+	if assign:
+		t = "стик — выбрать слот · отпустить ← — положить предмет в слот"
 	if sel >= 0 and inv != null and str(inv.hotbar[sel]) != "":
 		t = Items.item_name(str(inv.hotbar[sel])) + "\n" + t
 	var lines := t.split("\n")

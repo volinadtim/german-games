@@ -115,12 +115,14 @@ class PadInput:
 		return move if neg_x == &"move_left" else Vector2.ZERO   # обзор крутит split.gd сам
 
 
-## Контейнер правой половины: ввод в неё (окна игрока 2) — только его геймпад / курсор и от его лица (split._feed2).
+## Контейнер половины: в правую (окна игрока 2) — только его геймпад / курсор и от его лица (split._feed2),
+## в левую — всё, кроме кнопок игрока 2, пока его окно открыто (split._feed1).
 class P2Box extends SubViewportContainer:
 	var split
+	var idx := 1
 
 	func _propagate_input_event(e: InputEvent) -> bool:
-		return split._feed2(e)
+		return split._feed2(e) if idx == 1 else split._feed1(e)
 
 
 ## Цель для врагов (как RemoteTarget в net_base.gd): player, alive, damage_player.
@@ -229,9 +231,9 @@ func _build_screens() -> void:
 	row.mouse_filter = Control.MOUSE_FILTER_PASS
 	screens.add_child(row)
 	for i in 2:
-		var cont: SubViewportContainer = P2Box.new() if i == 1 else SubViewportContainer.new()
-		if i == 1:
-			cont.split = self
+		var cont := P2Box.new()
+		cont.split = self
+		cont.idx = i
 		cont.stretch = true
 		cont.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		cont.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -465,6 +467,23 @@ func _feed2(e: InputEvent) -> bool:
 	var synth: int = pad.SYNTH if pad else -999
 	if e is InputEventMouse or e is InputEventScreenTouch or e is InputEventScreenDrag or e.device == _dev() or e.device == synth:
 		_as_p2(svs[1].push_input.bind(e))
+		if svs[1].is_input_handled():
+			get_tree().root.set_input_as_handled()   # B/Y закрыли его окно — пауза и игра это нажатие не видят
+	return false
+
+
+## P2Box левой половины: пока окно игрока 2 открыто, его кнопки (действия, курсор, клавиши от gamepad.gd) туда не идут —
+## иначе Y игрока 2 открывал инвентарь игрока 1 (промпт 20.11 17:07). Съеденное окном не доходит до паузы.
+func _feed1(e: InputEvent) -> bool:
+	var pad = main.menu.pad if main.get("menu") else null
+	var synth: int = pad.SYNTH if pad else -999
+	if ui_p2 and (e.device == synth or ((e is InputEventAction or e is InputEventJoypadButton or e is InputEventJoypadMotion) and e.device == _dev())):
+		return false
+	if e is InputEventMouse or e is InputEventScreenTouch or e is InputEventScreenDrag:
+		return true
+	svs[0].push_input(e)
+	if svs[0].is_input_handled():
+		get_tree().root.set_input_as_handled()
 	return false
 
 

@@ -90,6 +90,8 @@ var _tok_re: RegEx
 var _tok_cache := {}
 var wheel                    # ui/pad_wheel.gd — круговое меню хотбара
 var lb_space := false
+var dl_t := 0                # ← крестовины зажата в инвентаре (мс) — держать дольше HOLD_T: круг хотбара
+var trig_ui := {}            # курки, нажатые в инвентаре (LT — перетаскивание, RT — поворот)
 
 
 func _init(sec := "pad") -> void:
@@ -384,7 +386,9 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 				for a in _actions("b:%d" % MOD):
 					_tap(a, dev)
 		return
-	if wheel.is_open:
+	if key.begins_with("t:") and _ui_trigger(key, pressed):
+		return
+	if wheel.is_open and not wheel.assign:
 		if not pressed and key == wheel.key:
 			wheel.release()
 			return
@@ -452,6 +456,9 @@ func _ui_button(b: int, pressed: bool) -> bool:
 					mod_used = true
 					_tap("hot_%d" % UI_HOT[b], last_dev)
 				return true
+			if b == JOY_BUTTON_DPAD_LEFT and (dl_t > 0 or (pressed and _inv_open())):
+				_dl_button(pressed)
+				return true
 			_send(UI_DIR[b], pressed, last_dev)   # ui_* — UiNav двигает фокус (или листает выпадающий список)
 			return true
 		JOY_BUTTON_RIGHT_SHOULDER:
@@ -482,6 +489,53 @@ func _ui_button(b: int, pressed: bool) -> bool:
 			Input.parse_input_event(k)
 			return true
 	return false
+
+
+## Открыт инвентарь (у того, чьё меню водим) — для ← с кругом хотбара и курков.
+func _inv_open() -> bool:
+	var i = nav._inv() if nav else null
+	return i != null and bool(i.get("open"))
+
+
+## ← крестовины в инвентаре (промпт 20.11 17:07): коротко — рамка влево (на отпускании), держать — круг хотбара; отпустить — предмет под рамкой в выбранный слот.
+func _dl_button(pressed: bool) -> void:
+	if pressed:
+		dl_t = Time.get_ticks_msec()
+		return
+	dl_t = 0
+	if wheel.is_open and wheel.assign:
+		if wheel.sel >= 0:
+			_tap("hot_%d" % (wheel.sel + 1), last_dev)
+		wheel.close()
+	else:
+		_tap("ui_left", last_dev)
+
+
+## LT/RT в инвентаре (промпт 20.11 17:07): LT держать — перетаскивать (как зажатая ЛКМ), RT — повернуть перетаскиваемый предмет.
+func _ui_trigger(key: String, pressed: bool) -> bool:
+	if pressed and not (_ui_mode() and _inv_open()):
+		return false
+	if not pressed and not trig_ui.has(key):
+		return false
+	if pressed:
+		trig_ui[key] = true
+	else:
+		trig_ui.erase(key)
+	if key == "t:L":
+		if pressed:
+			nav.before_click()
+		_mouse_btn(MOUSE_BUTTON_LEFT, pressed)
+	elif pressed:
+		var inv = nav._inv()
+		if inv != null and inv.get_viewport().gui_is_dragging():
+			for on in [true, false]:
+				var k := InputEventKey.new()
+				k.physical_keycode = KEY_SPACE
+				k.keycode = KEY_SPACE
+				k.pressed = on
+				k.device = SYNTH
+				Input.parse_input_event(k)
+	return true
 
 
 func _actions(spec: String) -> Array:
@@ -591,6 +645,14 @@ func _process(delta: float) -> void:
 			_act(pending[i][0], false, int(pending[i][2]))
 			pending.remove_at(i)
 	_hot_tick()
+	if dl_t > 0:
+		if not _inv_open():
+			if wheel.assign:
+				wheel.close()
+		elif not wheel.is_open and now - dl_t >= int(HOLD_T * 1000.0):
+			wheel.assign = true
+			wheel.inv_src = nav._inv()
+			wheel.open("ui", last_dev)
 	if cursor_dot:
 		cursor_dot.visible = _ui_mode()
 		cursor_dot.position = get_tree().root.get_final_transform().affine_inverse() * vpos
@@ -605,6 +667,9 @@ func _process(delta: float) -> void:
 		var v := look
 		if _sticks_free() and move.length() > v.length():
 			v = move   # персонаж не управляется — левый стик тоже листает (во время ходьбы — нет)
+		if wheel.is_open and wheel.assign:
+			wheel.aim(look if look.length() >= move.length() else move)   # круг хотбара в инвентаре: любой стик
+			return
 		if nav.free_cursor():
 			_cursor(v, delta)   # свободный курсор (toggle_cursor)
 			return
