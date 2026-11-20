@@ -182,6 +182,8 @@ func _process(delta: float) -> void:
 func _noclip_tick(delta: float) -> void:
 	velocity = Vector3.ZERO
 	if not active:
+		nc_vel = Vector3.ZERO
+		_animate(delta, Vector3.ZERO, false)
 		return
 	var inp: Vector2 = ia.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var b: Basis = cam.global_transform.basis
@@ -194,6 +196,8 @@ func _noclip_tick(delta: float) -> void:
 		dir = dir.normalized()
 	var spd: float = 8.0 * (3.0 if ia.is_action_pressed("sprint") else 1.0)
 	global_position += dir * spd * delta
+	nc_vel = nc_vel.lerp(dir * spd, 1.0 - exp(-8.0 * delta))
+	_animate(delta, global_transform.basis.inverse() * nc_vel, false)   # поза полёта (player_anim.gd)
 
 
 func _physics_process(delta: float) -> void:

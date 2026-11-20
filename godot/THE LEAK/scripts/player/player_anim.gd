@@ -1,6 +1,8 @@
 extends "res://scripts/player/player_model.gd"
 # Часть player.gd: анимация тела и ног, повороты, idle, IK, следы ударов, копия игрока в сети.
 const GunS := preload("res://scripts/gun.gd")
+var fall_k := 0.0              # 0 на земле .. 1 падение/полёт: руки разведены и машут, ноги раскинуты (промпт 18:46)
+var nc_vel := Vector3.ZERO     # скорость полёта в ноуклипе (для анимации; в обычном режиме не используется)
 
 
 func _update_crouch(delta: float) -> void:
@@ -134,7 +136,12 @@ func _draw_trail(i: int) -> void:
 
 func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 	var spd := v_local.length()
-	var grounded := is_on_floor()
+	var grounded := is_on_floor() and not noclip
+	# падение/полёт: в ноуклипе всегда, иначе — чем быстрее падаем, тем сильнее поза
+	var fall_t := 0.0
+	if not grounded:
+		fall_t = 1.0 if noclip else clampf(-velocity.y / 6.0, 0.0, 1.0)
+	fall_k = move_toward(fall_k, fall_t, delta * (5.0 if fall_t > fall_k else 4.0))
 	_update_idle(delta, spd, grounded)
 	_animate_legs(delta, v_local, grounded)
 	var amt := clampf(spd / WALK, 0.0, 1.5) if grounded else 0.0
@@ -199,11 +206,16 @@ func _animate(delta: float, v_local: Vector3, sprinting: bool) -> void:
 		var gbob := sin(phase + float(i) * 0.6) * wk * (1.0 + run_k)
 		var g_x := gsw + deg_to_rad(2.5) * gbob - deg_to_rad(10.0) * run_k * fist_blend
 		var g_el := deg_to_rad(4.0) * gbob - gsw * 0.5 + deg_to_rad(8.0) * run_k * fist_blend
+		# падение/полёт: руки разведены в стороны и вперёд, машут, локти согнуты
+		var fa := fall_k * (1.0 - fist_blend)
+		var fl := sin(idle_time * 6.5 + float(i) * 1.7)
+		var fall_x := fa * (deg_to_rad(-25.0) + 0.18 * fl)
+		var fall_z := fa * (deg_to_rad(38.0) + 0.14 * sin(idle_time * 5.3 + float(i) * 2.4))
 		shoulders[i].rotation = Vector3(
-			deg_to_rad(p.x) + arm_swing + guard_bob + rest_sway + aim_lift + relax_x + g_x,
+			deg_to_rad(p.x) + arm_swing * (1.0 - fall_k) + guard_bob + rest_sway + aim_lift + relax_x + g_x + fall_x,
 			deg_to_rad(p.y) * side + relax_y * side,
-			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend) + relax_z * side + 0.05 * side * rka)
-		elbows[i].rotation.x = deg_to_rad(p.w) + relax_el + run_el + g_el
+			deg_to_rad(p.z) * side + 0.08 * side * (1.0 - fist_blend) + relax_z * side + 0.05 * side * rka + fall_z * side)
+		elbows[i].rotation.x = deg_to_rad(p.w) + relax_el + run_el + g_el + fa * deg_to_rad(35.0 + 12.0 * fl)
 		if not USE_MODEL:
 			shoulders[i].position.z = 0.13 - reach[i]
 	_gun_pose(delta)
@@ -508,6 +520,9 @@ func _animate_legs(delta: float, v_local: Vector3, grounded: bool) -> void:
 		stopping = false
 		for i in 2:
 			var tuck := Vector3(0, GROUND_Y + 0.24 + 0.04 * i, -0.14 + 0.2 * i)
+			# падение/полёт: ноги чуть разведены и болтаются вразнобой
+			var fw := sin(idle_time * 7.0 + float(i) * PI)
+			tuck += Vector3((-1.0 if i == 0 else 1.0) * 0.07 * fall_k, 0.06 * fall_k * fw, 0.12 * fall_k * fw)
 			foot[i] = foot[i].lerp(tuck, 1.0 - exp(-9.0 * delta))
 			foot_pitch[i] = lerpf(foot_pitch[i], -0.35, 1.0 - exp(-9.0 * delta))
 	elif slide_node != null and slide_node.active:
