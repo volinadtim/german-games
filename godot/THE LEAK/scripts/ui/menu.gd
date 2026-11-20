@@ -106,7 +106,6 @@ const CONTROLS := [
 	["swap_hands", "Поменять руки (левая ↔ правая)", ["m:4", "m:5"]],   # колесо вверх/вниз (game_items.gd)
 	["drop_mode", "Режим сброса (потом кнопка руки)", ["k:72"]],   # H (game.gd; была G — совпадала с Нюхичем, 20.11 11:43)
 	["hand_right", "Слот — в правую руку (держать)", ["k:4194325"]],   # Shift + 1–5 (game.gd)
-	["quick_heal", "Быстрое лечение", ["k:57"]],   # 9 (18.11 02:27: Q и E теперь наклоны)
 	["lean_left", "Наклон влево (держать)", ["k:81"]],    # Q
 	["lean_right", "Наклон вправо (держать)", ["k:69"]],  # E
 	["gasmask", "Нюхич (противогаз)", ["k:71"]],           # G
@@ -130,7 +129,7 @@ const CONTROLS := [
 const CTL_GROUPS := [
 	["Движение", ["move_forward", "move_back", "move_left", "move_right", "sprint", "jump", "crouch", "crouch_toggle"]],
 	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject", "swap_hands", "drop_mode"]],
-	["Действия", ["interact", "carry", "loot_all", "quick_heal", "gasmask", "lean_left", "lean_right"]],
+	["Действия", ["interact", "carry", "loot_all", "gasmask", "lean_left", "lean_right"]],
 	["Инвентарь", ["inventory", "inv_use", "hand_right", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
 	["Интерфейс", ["toggle_fullscreen", "hide_ui", "toggle_ping", "chat", "voice"]],
 	["Машина", ["handbrake", "seat_switch", "car_lean"]],

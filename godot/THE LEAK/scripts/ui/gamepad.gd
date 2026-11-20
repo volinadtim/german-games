@@ -9,7 +9,8 @@ extends Node
 ## правый стик — прокрутка; удержать ↓ — свободный курсор (правым стиком), левый стик — ходьба. Start — пауза всегда.
 ## Back + стрелка в инвентаре — привязать предмет под рамкой к слоту (как раньше просто стрелка).
 ## Руки (промпт 20.11 11:43): кнопка слота (крестовина) — нажать: в левую руку, задержать: в правую.
-## Сброс: Back (просто нажать) — режим сброса, потом RT — из левой, LT — из правой (задержать — кинуть дальше).
+## Сброс: Back (просто нажать) — режим сброса, потом LT — из левой, RT — из правой (задержать — кинуть дальше).
+## Курки (промпт 20.11 14:56): LT — левая рука (ЛКМ), RT — правая (ПКМ).
 
 const CFG := "user://settings.cfg"
 const MOD := JOY_BUTTON_BACK     # модификатор сочетаний «Back + кнопка»
@@ -17,21 +18,23 @@ const MOD := JOY_BUTTON_BACK     # модификатор сочетаний «B
 ## Спецификация кнопки: "b:N" — кнопка N, "c:N" — Back + кнопка N, "t:L"/"t:R" — курок, "" — нет.
 const DEFAULT := {
 	"jump": "b:0", "handbrake": "b:0",                 # A
-	"crouch_toggle": "b:1",                            # B
 	"interact": "b:2",                                 # X
 	"inventory": "b:3",                                # Y
-	"quick_heal": "b:9",                               # LB
+	"crouch_toggle": "b:9",                            # LB — присед (в окнах LB/RB — разделы, присед не срабатывает)
 	"reload": "b:10", "loot_all": "b:10",              # RB
-	"attack_right": "t:L", "attack_left": "t:R",       # LT — прицел/правая, RT — выстрел/левая
-	"sprint": "b:7",                                   # L3 — бег (до остановки)
+	"attack_left": "t:L", "attack_right": "t:R",       # LT — левая рука, RT — правая (у пистолета: RT — прицел, LT — выстрел)
+	"sprint": "b:7",                                   # L3 — бег (до остановки или повторного L3)
 	"fists": "b:8", "inv_use": "b:8",                  # R3 — стойка; в инвентаре — использовать
-	"hot_1": "b:11", "hot_2": "b:14", "hot_3": "b:12", "hot_4": "b:13",   # крестовина ↑ → ↓ ←
+	# крестовина (промпты 20.11 14:51/14:54): ← держать — круговое меню хотбара (ui/pad_wheel.gd),
+	# ↓ — показать/спрятать курсор (ui/pad_nav.gd); ↑ и → свободны. Это не действия InputMap — их ловит _button.
+	"hot_wheel": "b:13", "pad_cursor": "b:12",
 	"hot_5": "c:11", "gasmask": "c:12", "carry": "c:13", "swap_hands": "c:14",
 	"mag_eject": "c:10", "crouch": "c:1", "toggle_ping": "c:3", "hide_ui": "c:9",
 	"seat_switch": "c:2",                               # Back + X — пересесть в машине
 	"drop_mode": "b:4",                                 # Back (без второй кнопки) — режим сброса
 }
 const HOLD_T := 0.35         # кнопку слота держат дольше — предмет в правую руку
+const UI_HOT := {JOY_BUTTON_DPAD_UP: 1, JOY_BUTTON_DPAD_RIGHT: 2, JOY_BUTTON_DPAD_DOWN: 3, JOY_BUTTON_DPAD_LEFT: 4}
 
 const DZ := 0.18             # мёртвая зона стиков
 const LOOK_PX := 1500.0      # обзор: «пикселей мыши» в секунду при полном отклонении
@@ -68,6 +71,7 @@ var vpos := Vector2(200, 200)
 var cursor_layer: CanvasLayer
 var cursor_dot: Control
 var nav                      # ui/pad_nav.gd — клетки в меню
+var wheel                    # ui/pad_wheel.gd — круговое меню хотбара
 var lb_space := false
 
 
@@ -100,6 +104,9 @@ func _ready() -> void:
 	nav = preload("res://scripts/ui/pad_nav.gd").new()
 	nav.pad = self
 	add_child(nav)
+	wheel = preload("res://scripts/ui/pad_wheel.gd").new()
+	wheel.pad = self
+	add_child(wheel)
 	Input.joy_connection_changed.connect(func(_d, _c): apply_map())
 	# убираем геймпад из ui_*: иначе B в игре = Esc (пауза), A жмёт кнопку с фокусом дважды
 	for a in ["ui_accept", "ui_select", "ui_cancel", "ui_up", "ui_down", "ui_left", "ui_right",
@@ -140,7 +147,7 @@ func load_cfg() -> void:
 	custom = c if c is Dictionary else {}
 	# новые действия (сброс) — в старый «Свой» пресет, если их кнопка там свободна
 	if not custom.is_empty():
-		for a in ["drop_mode"]:
+		for a in ["drop_mode", "hot_wheel", "pad_cursor"]:
 			if not custom.has(a) and not str(DEFAULT[a]) in custom.values():
 				custom[a] = DEFAULT[a]
 	swap_sticks = bool(cf.get_value(section, "swap_sticks", false))
@@ -264,6 +271,13 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 				for a in _actions("b:%d" % MOD):
 					_tap(a, dev)
 		return
+	if wheel.is_open:
+		if not pressed and key == wheel.key:
+			wheel.release()
+			return
+		if pressed and key.begins_with("t:"):
+			wheel.pick(key == "t:R")   # RT — в правую руку, LT — в левую
+			return
 	if not pressed:
 		if ui_held.has(key):
 			_ui_button(b, false)
@@ -283,10 +297,15 @@ func _button(key: String, b: int, pressed: bool, dev: int) -> void:
 		return
 	var spec := key
 	if mod_down and b >= 0:
-		# в меню Back + стрелка = прежняя стрелка (привязка к слоту в инвентаре): сами стрелки водят клетки
-		spec = key if _ui_mode() and b >= JOY_BUTTON_DPAD_UP and b <= JOY_BUTTON_DPAD_RIGHT else "c:%d" % b
+		spec = "c:%d" % b
 		mod_used = true
 	var acts := _actions(spec)
+	if acts.has("hot_wheel"):
+		acts.erase("hot_wheel")
+		wheel.open(key, dev)
+	if acts.has("pad_cursor"):
+		acts.erase("pad_cursor")
+		nav.summon()   # вне меню — показать курсор (ещё раз ↓ — спрятать)
 	# слоты hot_N — на отпускании (коротко — левая) или по задержке (правая, _hot_tick)
 	var hots: Array = acts.filter(func(a): return str(a).begins_with("hot_"))
 	if not hots.is_empty() and not _ui_mode():
@@ -311,16 +330,23 @@ func _ui_button(b: int, pressed: bool) -> bool:
 			_mouse_btn(MOUSE_BUTTON_RIGHT, pressed)
 			return true
 		JOY_BUTTON_DPAD_UP, JOY_BUTTON_DPAD_DOWN, JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_DPAD_RIGHT:
-			if mod_down and pressed:
-				return false
+			if mod_down:
+				# Back + ↑ → ↓ ← — предмет под рамкой в слот 1–4 хотбара (Back + RB — в 5)
+				if pressed:
+					mod_used = true
+					_tap("hot_%d" % UI_HOT[b], last_dev)
+				return true
 			nav.dpad(b, pressed)
 			return true
 		JOY_BUTTON_RIGHT_SHOULDER:
-			if pressed:
+			if pressed and mod_down:
+				mod_used = true
+				_tap("hot_5", last_dev)
+			elif pressed:
 				nav.section(1)
 			return true
 		JOY_BUTTON_B:
-			if pressed:
+			if pressed and not nav.unsummon():   # курсор, вызванный ↓ в игре, — просто спрятать
 				_tap("ui_cancel", last_dev)
 			return true
 		JOY_BUTTON_LEFT_SHOULDER:
@@ -352,10 +378,18 @@ func _actions(spec: String) -> Array:
 
 func _act(a: String, pressed: bool, dev: int) -> void:
 	if a == "sprint":
-		if pressed:
-			sprint_latch = true   # L3: бежим, пока не остановишься
+		if not pressed:
+			return   # отпускание L3 не важно: бег защёлкнут
+		if sprint_latch:
+			sprint_latch = false   # L3 ещё раз — перестать бежать (промпт 20.11 14:49)
+			pressed = false
 		else:
-			return
+			sprint_latch = true   # L3: бежим, пока не остановишься или не нажмёшь L3 ещё раз
+	_send(a, pressed, dev)
+
+
+## Событие действия a в Input (без логики защёлки бега).
+func _send(a: String, pressed: bool, dev: int) -> void:
 	var ev := InputEventAction.new()
 	ev.action = a
 	ev.pressed = pressed
@@ -391,7 +425,7 @@ func release_all() -> void:
 	held.clear()
 	if sprint_latch:
 		sprint_latch = false
-		_act("sprint", false, last_dev)
+		_send("sprint", false, last_dev)
 
 
 func _mouse_btn(bi: MouseButton, pressed: bool) -> void:
@@ -446,7 +480,7 @@ func _process(delta: float) -> void:
 	var look := _stick(swapped())
 	if sprint_latch and move.length() < 0.05:
 		sprint_latch = false
-		_act("sprint", false, last_dev)
+		_send("sprint", false, last_dev)
 	if _ui_mode():
 		if nav.free_cursor():
 			_cursor(_stick(false), delta)   # свободный курсор — правым стиком (левый — ходьба)
@@ -458,6 +492,9 @@ func _process(delta: float) -> void:
 			var wb := MOUSE_BUTTON_WHEEL_DOWN if r.y > 0.0 else MOUSE_BUTTON_WHEEL_UP
 			_mouse_btn(wb, true)
 			_mouse_btn(wb, false)
+		return
+	if wheel.is_open:
+		wheel.aim(look)   # круговое меню: правый стик выбирает слот, обзор стоит
 		return
 	if look == Vector2.ZERO or get_tree().paused:
 		return

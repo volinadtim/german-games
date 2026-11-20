@@ -4,6 +4,8 @@ extends Node
 ## (кнопка, ползунок, поле, слот, ячейка сетки), она обведена рамкой; A — клик по ней, X — правый клик.
 ## Мышь всё равно ставим в центр клетки (warp) — подсказки и перетаскивание (A держать + стрелки) работают как от мыши.
 ## Удержать ↓ — свободный курсор (правым стиком; левый — ходьба); любая стрелка — обратно к клеткам.
+## Вне меню ↓ показывает курсор (summon), ещё раз ↓ или B — прячет (мышь снова захвачена).
+## Геймпад подключён при запуске — клетки сразу, и в главном меню (промпт 14:55).
 ## LB / RB — соседний раздел окна (крафт / снаряжение / лут — крупные панели слева направо).
 ## Клетки ищем по всему интерфейсу; закрытое другой панелью (выше по отрисовке, ловит мышь) — пропускаем.
 ## Мышь, клавиатура или касание выключают клетки до следующего нажатия на геймпаде.
@@ -17,6 +19,7 @@ const FRAME_COL := Color(1.0, 0.82, 0.3)
 var pad                        # ui/gamepad.gd
 var pad_used := false          # последний ввод — с геймпада
 var cursor_mode := false       # свободный курсор (удержание ↓)
+var summoned := false          # курсор вызван ↓ в игре (окна нет) — ↓ / B его прячут
 var target: Control            # активная клетка
 var trect := Rect2()           # её прямоугольник в target (ячейка сетки или весь контрол)
 var last_pt := Vector2(-1, -1) # центр последней клетки (холст) — после закрытия окна берём ближайшую
@@ -44,6 +47,28 @@ func _ready() -> void:
 	_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_frame.draw.connect(_draw_frame)
 	_layer.add_child(_frame)
+	pad_used = not Input.get_connected_joypads().is_empty()
+
+
+## ↓ в игре: показать свободный курсор.
+func summon() -> void:
+	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	pad_used = true
+	summoned = true
+	cursor_mode = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+## Спрятать курсор, вызванный ↓ (мышь снова захвачена). false — курсор не вызывали.
+func unsummon() -> bool:
+	if not summoned:
+		return false
+	summoned = false
+	cursor_mode = false
+	_restore_mouse()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	return true
 
 
 func _input(e: InputEvent) -> void:
@@ -83,12 +108,18 @@ func _process(delta: float) -> void:
 		_ui_t = 0.0
 		target = null
 		cursor_mode = false
+		summoned = false
 		last_pt = Vector2(-1, -1)
 		_dir_b = -1
 		_show(false)
 		_restore_mouse()
 		return
 	_ui_t += delta
+	if summoned:
+		var g = _game()
+		if get_tree().paused or (g != null and g.has_method("window_open") and g.window_open()):
+			summoned = false   # поверх вызванного курсора открылось окно / пауза — дальше обычные клетки
+			cursor_mode = false
 	if not pad_used:
 		_show(false)
 		_restore_mouse()
@@ -139,6 +170,8 @@ func dpad(b: int, pressed: bool) -> void:
 			_down_hold = false
 		return
 	pad_used = true
+	if b == JOY_BUTTON_DPAD_DOWN and unsummon():
+		return
 	_dir_b = b
 	_dir_t = 0.0
 	_rep = 0.0
@@ -450,12 +483,17 @@ func _section(c: Control) -> Node:
 	return last
 
 
-func _inv():
+func _game():
 	for c in get_tree().root.get_children():
 		for n in c.get_children():
 			if n.has_method("save_now") and n.get("inv") != null:
-				return n.inv
+				return n
 	return null
+
+
+func _inv():
+	var g = _game()
+	return g.inv if g != null else null
 
 
 # ---------- рамка и мышь ----------

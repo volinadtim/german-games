@@ -388,7 +388,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			_drop_cancel()
 			get_viewport().set_input_as_handled()
 			return
-		# кнопки рук — действия (ЛКМ/ПКМ, на геймпаде RT/LT, переназначаются в настройках)
+		# кнопки рук — действия (ЛКМ/ПКМ, на геймпаде LT/RT, переназначаются в настройках)
 		var side := ""
 		if e.is_action("attack_left"):
 			side = "left"
@@ -413,8 +413,8 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("interact") and not e.is_echo():
 		if focus != null and is_instance_valid(focus):
 			focus.interact(self)
-	elif e.is_action_pressed("quick_heal"):
-		_quick_heal()
+		elif revive:
+			revive.try_revive_with("")   # быстрого хила больше нет (промпт 20.11 14:56): поднять союзника — «Взаимодействие»
 	elif e.is_action_pressed("swap_hands") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		swap_hands()
 	elif e.is_action_pressed("drop_mode") and not e.is_echo():   # H (была G — совпадала с противогазом)
@@ -640,7 +640,7 @@ func _drop_ui_draw() -> void:
 	var cx := vp.x * 0.5
 	var y0 := vp.y * 0.74
 	var f := ThemeDB.fallback_font
-	_drop_ui.draw_string(f, Vector2(cx - 200.0, y0 - 12.0), "ЛКМ / ПКМ (RT / LT) — выбросить (держать — кинуть дальше) | ещё раз — отмена", HORIZONTAL_ALIGNMENT_CENTER, 400.0, 14, Color(0.95, 0.9, 0.8, 0.85))
+	_drop_ui.draw_string(f, Vector2(cx - 200.0, y0 - 12.0), "ЛКМ / ПКМ (LT / RT) — выбросить (держать — кинуть дальше) | ещё раз — отмена", HORIZONTAL_ALIGNMENT_CENTER, 400.0, 14, Color(0.95, 0.9, 0.8, 0.85))
 	for side_info in [["left", Rect2(cx - 98.0, y0, 92.0, 64.0), "Левая"], ["right", Rect2(cx + 6.0, y0, 92.0, 64.0), "Правая"]]:
 		var s_key: String = side_info.get(0)
 		var rect: Rect2 = side_info.get(1)

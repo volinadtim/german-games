@@ -389,7 +389,7 @@ func _process(delta: float) -> void:
 		if pp != null:
 			var med := best_med()
 			if med != "":
-				game.hud.prompt("E — поднять %s (%s)" % [_ally_name(pp), Items.item_name(med)])
+				game.hud.prompt("[F] Поднять %s (%s)" % [_ally_name(pp), Items.item_name(med)])
 			else:
 				game.hud.prompt("%s ранен — нужна медицина, чтобы поднять" % _ally_name(pp))
 

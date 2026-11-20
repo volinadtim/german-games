@@ -172,7 +172,6 @@ func play_at(name_: String, pos: Vector3, db: float, pitch := 1.0) -> void:
 func _setup_input() -> void:
 	_add_keys("interact", [KEY_F])
 	_add_keys("inventory", [KEY_TAB, KEY_I])
-	_add_keys("quick_heal", [KEY_0])   # промпт 18.11 02:27: быстрый хил/подъём союзника — с Q на F (Q/E заняты наклонами)
 	_add_keys("lean_left", [KEY_Q])
 	_add_keys("lean_right", [KEY_E])
 
