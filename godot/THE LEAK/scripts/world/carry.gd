@@ -84,7 +84,7 @@ func toggle() -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if who != null or not e.is_action_pressed("carry") or e.is_echo():
+	if who != null or not Controls.event(e, "carry") or e.is_echo():
 		return
 	if game == null or not game.alive or _pl() == null or not _pl().active or game.window_open():
 		return

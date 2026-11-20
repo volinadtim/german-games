@@ -1,4 +1,9 @@
 {
+ "controls": {
+  "actions": 56,
+  "kb_events": 57,
+  "menu_rows": 41
+ },
  "items": 106,
  "locations": {
   "bunker": {

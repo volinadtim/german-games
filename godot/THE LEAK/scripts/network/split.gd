@@ -824,7 +824,7 @@ func _act2(a: String, pressed: bool) -> void:
 		_as_p2(carry2.toggle)
 		return
 	if a.begins_with("hot_") and not game.window_open():
-		_as_p2(game.hotbar_use_hand.bind(int(a.substr(4)) - 1, "right" if pi.is_action_pressed(&"hand_right") else "left"))
+		_as_p2(game.hotbar_use_hand.bind(int(a.substr(4)) - 1, "right" if Controls.pressed(pp, "hand_right") else "left"))
 		return
 	if a == "swap_hands":
 		_as_p2(game.swap_hands)

@@ -380,11 +380,11 @@ func _process(delta: float) -> void:
 	_update_sway(delta)
 	_update_lag(delta)
 	# очередь (промпт 20.11 19:15): у автоматического ствола зажатая ЛКМ стреляет сама
-	if can and not reloading and cd <= 0.0 and InputMap.has_action("attack_left") and Input.is_action_pressed("attack_left") \
+	if can and not reloading and cd <= 0.0 and InputMap.has_action("attack_left") and Controls.pressed(null, "attack_left") \
 			and rounds() > 0 and _auto() and ready_to_fire():
 		fire()
 	# зажать Enter — извлечь магазин (с двумя — сначала из правого)
-	var ej: bool = InputMap.has_action("mag_eject") and Input.is_action_pressed("mag_eject")
+	var ej: bool = InputMap.has_action("mag_eject") and Controls.pressed(null, "mag_eject")
 	if can and loaded() and not reloading and ej and not _eject_lock:
 		eject_t += delta
 		if eject_t >= EJECT_T:
@@ -552,18 +552,18 @@ func _aim() -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if game == null or game.player == null:
 		return
-	if e.is_action_pressed("reload") and not e.is_echo() and armed() and (game.player.active or car_can()) and game.alive:
+	if Controls.event(e, "reload") and not e.is_echo() and armed() and (game.player.active or car_can()) and game.alive:
 		reload()
 	# в машине игрок выключен (car_drive.gd) — ЛКМ/ПКМ ловим сами: стрельба из окна
 	if game.get("_drop_mode") or car_seat() < 0 or not armed() or not game.alive or game.window_open() or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
-	if e.is_action_released("attack_right"):
+	if Controls.event_released(e, "attack_right"):
 		rmb_input(false)
 	elif not car_can():
 		return
-	elif e.is_action_pressed("attack_right") and not e.is_echo():
+	elif Controls.event(e, "attack_right") and not e.is_echo():
 		rmb_input(true)
-	elif e.is_action_pressed("attack_left") and not e.is_echo():
+	elif Controls.event(e, "attack_left") and not e.is_echo():
 		fire()
 	else:
 		return
@@ -586,8 +586,8 @@ func car_seat() -> int:
 ## Водитель держит руль двумя руками: крутит руль (A/D) или держит ручник.
 ## Газ и тормоз (W/S) — ноги, руки свободны: можно есть, лечиться, стрелять (промпт 18.11 01:20).
 static func steering() -> bool:
-	return absf(Input.get_axis("move_left", "move_right")) > 0.2 \
-			or Input.is_action_pressed("handbrake" if InputMap.has_action("handbrake") else "jump")
+	return absf(Controls.axis(null, "move_left", "move_right")) > 0.2 \
+			or Controls.pressed(null, "handbrake" if InputMap.has_action("handbrake") else "jump")
 
 
 ## Стрелять из машины можно в любом положении — и на ходу, и в повороте (промпт 18.11 01:20).

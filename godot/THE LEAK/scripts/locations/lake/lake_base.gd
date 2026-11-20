@@ -211,7 +211,7 @@ func _close_win(restore := true) -> void:
 func _input(e: InputEvent) -> void:
 	if not win_open:
 		return
-	if e.is_pressed() and not e.is_echo() and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory")):
+	if e.is_pressed() and not e.is_echo() and (Controls.event(e, "ui_cancel") or Controls.event(e, "interact") or Controls.event(e, "inventory")):
 		get_viewport().set_input_as_handled()
 		if Time.get_ticks_msec() - win_t > 300:
 			_close_win()

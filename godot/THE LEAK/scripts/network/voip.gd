@@ -59,7 +59,7 @@ func _typing() -> bool:
 
 func _process(delta: float) -> void:
 	_fade_nicks(delta)
-	var want := _in_game() and Input.is_action_pressed("voice") and not _typing() and not get_tree().paused
+	var want := _in_game() and Controls.pressed(null, "voice") and not _typing() and not get_tree().paused
 	if want and mic == null:
 		mic = AudioStreamPlayer.new()
 		mic.stream = AudioStreamMicrophone.new()

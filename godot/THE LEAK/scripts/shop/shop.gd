@@ -125,7 +125,7 @@ func _open() -> void:
 func _input(e: InputEvent) -> void:
 	if sell_win and sell_win.open:
 		return   # Esc / E закрывает сначала окно продажи (sell_window.gd)
-	if opened and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory")):
+	if opened and (Controls.event(e, "ui_cancel") or Controls.event(e, "interact") or Controls.event(e, "inventory")):
 		get_viewport().set_input_as_handled()
 		if e.is_echo() or Time.get_ticks_msec() - _last_toggle < 350:
 			return

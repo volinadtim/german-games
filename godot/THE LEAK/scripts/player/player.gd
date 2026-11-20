@@ -104,10 +104,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	# отпустил кнопку удара — удар с накопленным зарядом (отпускание ловим и без захвата мыши)
-	if event.is_action_released("attack_left"):
+	if Controls.event_released(event, "attack_left"):
 		charge_release(0)
 		return
-	if event.is_action_released("attack_right"):
+	if Controls.event_released(event, "attack_right"):
 		charge_release(1)
 		return
 	if event is InputEventMouseMotion and captured:
@@ -116,14 +116,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		# клик мимо кнопок инвентаря/лута/магазина не должен прятать курсор (баг 14.11 20:05)
 		if game == null or not game.window_open():
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	elif carrying and (event.is_action_pressed("fists") or event.is_action_pressed("attack_left") or event.is_action_pressed("attack_right")):
+	elif carrying and (Controls.event(event, "fists") or Controls.event(event, "attack_left") or Controls.event(event, "attack_right")):
 		pass   # руки заняты (carry.gd)
-	elif captured and event.is_action_pressed("fists") and not event.is_echo():
+	elif captured and Controls.event(event, "fists") and not event.is_echo():
 		charging = -1
 		toggle_fists()   # стойка — СКМ (промпт 16.11 02:15; V больше нет)
-	elif captured and event.is_action_pressed("attack_left") and not event.is_echo():
+	elif captured and Controls.event(event, "attack_left") and not event.is_echo():
 		charge_begin(0)
-	elif captured and event.is_action_pressed("attack_right") and not event.is_echo():
+	elif captured and Controls.event(event, "attack_right") and not event.is_echo():
 		charge_begin(1)
 
 ## Поворот обзора на смещение в пикселях (мышь, тачпад или свайп по экрану).
@@ -141,7 +141,7 @@ func _add_crouch_keys() -> void:
 ## Встать (по бегу или прыжку): переключатель снимаем, удержание Ctrl игнорируем до отпускания.
 func _stand_request() -> void:
 	crouch_toggled = false
-	if ia.is_action_pressed("crouch"):
+	if Controls.pressed(self, "crouch"):
 		crouch_hold_block = true
 
 
@@ -150,7 +150,7 @@ func _key_look(delta: float) -> void:
 		return
 	if not InputMap.has_action("look_left"):   # поворот стрелками убран (main.gd больше не создаёт look_*)
 		return
-	var v: Vector2 = ia.get_vector("look_left", "look_right", "look_up", "look_down")
+	var v: Vector2 = Controls.vector(self, "look_left", "look_right", "look_up", "look_down")
 	if v == Vector2.ZERO:
 		return
 	rotate_y(-v.x * KEY_TURN * look_sens * delta)
@@ -184,16 +184,16 @@ func _noclip_tick(delta: float) -> void:
 		nc_vel = Vector3.ZERO
 		_animate(delta, Vector3.ZERO, false)
 		return
-	var inp: Vector2 = ia.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var inp: Vector2 = Controls.vector(self, "move_left", "move_right", "move_forward", "move_back")
 	var b: Basis = cam.global_transform.basis
 	var dir: Vector3 = b.x * inp.x + b.z * inp.y
-	if ia.is_action_pressed("jump"):
+	if Controls.pressed(self, "jump"):
 		dir += Vector3.UP
-	if ia.is_action_pressed("crouch"):
+	if Controls.pressed(self, "crouch"):
 		dir += Vector3.DOWN
 	if dir.length() > 1.0:
 		dir = dir.normalized()
-	var spd: float = nc_speed * (3.0 if ia.is_action_pressed("sprint") else 1.0)
+	var spd: float = nc_speed * (3.0 if Controls.pressed(self, "sprint") else 1.0)
 	global_position += dir * spd * delta
 	nc_vel = nc_vel.lerp(dir * spd, 1.0 - exp(-8.0 * delta))
 	_animate(delta, global_transform.basis.inverse() * nc_vel, false)   # поза полёта (player_anim.gd)
@@ -223,19 +223,19 @@ func _physics_process(delta: float) -> void:
 		add_child(slide_node)
 	var inp := Vector2.ZERO
 	if active:
-		inp = ia.get_vector("move_left", "move_right", "move_forward", "move_back")
+		inp = Controls.vector(self, "move_left", "move_right", "move_forward", "move_back")
 	var dir := transform.basis * Vector3(inp.x, 0, inp.y)
 	var moving := dir.length() > 0.01
 	var sprinting: bool = active and not carrying and moving and inp.y < -0.1 \
-		and ia.is_action_pressed("sprint") and (dash == null or dash.hold_t > 0.07)
+		and Controls.pressed(self, "sprint") and (dash == null or dash.hold_t > 0.07)
 	if sprinting and not stamina.can_sprint():
 		sprinting = false
 
 	# Проверяем подкат до прыжка и приседа
 	var want_crouch: bool = active and (
-		(ia.is_action_pressed("crouch") and not crouch_hold_block)
+		(Controls.pressed(self, "crouch") and not crouch_hold_block)
 		or crouch_toggled
-		or ia.is_action_just_pressed("crouch_toggle")
+		or Controls.just_pressed(self, "crouch_toggle")
 	)
 	
 	slide_node.poll(delta, active and not carrying and has_skill("slide"), sprinting, want_crouch, dir)
@@ -244,7 +244,7 @@ func _physics_process(delta: float) -> void:
 		sprinting = false
 
 	var on_floor := is_on_floor()
-	var jump_now: bool = active and not carrying and ia.is_action_just_pressed("jump") \
+	var jump_now: bool = active and not carrying and Controls.just_pressed(self, "jump") \
 		and not (game != null and game.inv != null and game.inv.open and get_viewport().gui_is_dragging())
 
 	if jump_now and slide_node.active:

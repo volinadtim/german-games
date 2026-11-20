@@ -200,7 +200,7 @@ func _process(delta: float) -> void:
 			dmg_acc = 0.0
 	hp_lag = move_toward(hp_lag, hp, delta * 25.0) if hp_lag > hp else hp
 	# полоска пропадает: при полном здоровье через 2.5 с, при неполном и неизменном — через 9 с; Tab показывает снова
-	if Input.is_action_just_pressed("inventory") or hp != hp_seen:
+	if Controls.just_pressed(null, "inventory") or hp != hp_seen:
 		hp_full_t = 0.0
 		hp_still_t = 0.0
 	hp_seen = hp

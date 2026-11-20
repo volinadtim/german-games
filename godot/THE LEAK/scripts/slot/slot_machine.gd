@@ -587,7 +587,7 @@ func _open_safe_net() -> bool:
 
 
 func _input(e: InputEvent) -> void:
-	if pack_open and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory")):
+	if pack_open and (Controls.event(e, "ui_cancel") or Controls.event(e, "interact") or Controls.event(e, "inventory")):
 		get_viewport().set_input_as_handled()
 		if not e.is_echo():
 			close_packs()

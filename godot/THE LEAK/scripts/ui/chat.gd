@@ -74,11 +74,11 @@ func _input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo):
 		return
 	if open:
-		if e.keycode == KEY_ESCAPE:
+		if Controls.event(e, "ui_cancel"):
 			get_viewport().set_input_as_handled()
 			close()
 		return
-	if InputMap.has_action("chat") and e.is_action_pressed("chat") and _can_open():
+	if InputMap.has_action("chat") and Controls.event(e, "chat") and _can_open():
 		get_viewport().set_input_as_handled()
 		show_chat()
 
@@ -93,6 +93,7 @@ func _can_open() -> bool:
 
 func show_chat() -> void:
 	open = true
+	Controls.mode_on("console", self)   # поле ввода чата глушит игровые кнопки, как консоль
 	_prev_mouse = Input.mouse_mode
 	game.player.set_lock("chat", true)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -106,6 +107,7 @@ func close() -> void:
 	if not open:
 		return
 	open = false
+	Controls.mode_off("console", self)
 	edit.release_focus()
 	edit.visible = false
 	if game and game.player:

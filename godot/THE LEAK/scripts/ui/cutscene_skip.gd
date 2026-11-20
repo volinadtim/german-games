@@ -97,7 +97,7 @@ func _process(delta: float) -> void:
 	if t == null:
 		return
 	var console_open: bool = game != null and game.player != null and game.player.input_locks.has("console")
-	var down := Input.is_action_pressed("jump") and not console_open
+	var down := Controls.pressed(null, "jump") and not console_open
 	if not down:
 		armed = true
 	var sp = game.get_meta("split") if game and game.has_meta("split") else null

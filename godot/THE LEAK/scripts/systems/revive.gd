@@ -401,8 +401,8 @@ func _channel_tick(delta: float) -> void:
 		_stop("")
 		return
 	# бинт можно на ходу, но не на бегу (промпт 16.11 05:12); остальное — стоя
-	var walk_ok: bool = ch_walk and not Input.is_action_pressed("sprint") 			and Vector2(p.velocity.x, p.velocity.z).length() < p.WALK * maxf(1.0, float(p.speed_mult)) + 0.6   # с баффами скорости одежды (05:39)
-	var moving: bool = Input.get_vector("move_left", "move_right", "move_forward", "move_back").length() > 0.2 			or Vector2(p.velocity.x, p.velocity.z).length() > 1.2
+	var walk_ok: bool = ch_walk and not Controls.pressed(null, "sprint") 			and Vector2(p.velocity.x, p.velocity.z).length() < p.WALK * maxf(1.0, float(p.speed_mult)) + 0.6   # с баффами скорости одежды (05:39)
+	var moving: bool = Controls.vector(null, "move_left", "move_right", "move_forward", "move_back").length() > 0.2 			or Vector2(p.velocity.x, p.velocity.z).length() > 1.2
 	# в машине (car_drive.gd) игрок стоит, а едет машина: пассажиру ничего не мешает (бинтуется на ходу),
 	# водителю — руль, газ, ручник и пересадка за руль: начал рулить — перевязка отменяется (промпт 18.11 00:49)
 	var seat: int = p.get_meta("car_seat", -1)
@@ -412,7 +412,7 @@ func _channel_tick(delta: float) -> void:
 		moving = seat == 0 and (Gun.steering() or (car != null and is_instance_valid(car) and int(car.seat_dir) == 2))
 		if moving:
 			walk_ok = false
-	if seat < 0 and Input.is_action_just_pressed("jump") or (moving and not walk_ok):
+	if seat < 0 and Controls.just_pressed(null, "jump") or (moving and not walk_ok):
 		why = "Прервано: руль" if seat == 0 else ("Прервано: бег" if ch_walk else "Прервано: движение")
 	elif game.hp < ch_hp - 0.9:   # кровотечение капает понемногу — прерывает только настоящий урон
 		why = "Прервано: урон"
@@ -443,6 +443,6 @@ func _channel_tick(delta: float) -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if game == null or not game.alive or game.player == null or game.window_open():
 		return
-	if e.is_action_pressed("interact") and not e.is_echo() and not ch_on and game.focus == null:
+	if Controls.event(e, "interact") and not e.is_echo() and not ch_on and game.focus == null:
 		if try_revive_with(""):
 			get_viewport().set_input_as_handled()

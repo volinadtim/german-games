@@ -159,27 +159,25 @@ func _input(e: InputEvent) -> void:
 	if game != null and game.player != null and (game.player.input_locks.has("console") or game.player.input_locks.has("chat")):
 		return   # пока открыта консоль/чат, клавиши идут только в поле ввода
 	if open:
-		if e.is_action_pressed("skills") or e.is_action_pressed("ui_cancel") or e.is_action_pressed("inventory"):
+		if Controls.event(e, "skills") or Controls.event(e, "ui_cancel") or Controls.event(e, "inventory"):
 			close()
 			get_viewport().set_input_as_handled()
 			return
-		if e is InputEventKey:
-			match e.physical_keycode:
-				KEY_Q: _tab(-1)
-				KEY_E: _tab(1)
-				KEY_EQUAL, KEY_KP_ADD: _zoom_by(1.2, _view.size / 2)
-				KEY_MINUS, KEY_KP_SUBTRACT: _zoom_by(1.0 / 1.2, _view.size / 2)
-				KEY_HOME: _need_fit = true
-				_: return
+		if e is InputEventKey or e is InputEventJoypadButton:   # кнопки окна — data/controls/bindings.cfg (skills_*)
+			if Controls.event(e, "skills_tab_prev"):
+				_tab(-1)
+			elif Controls.event(e, "skills_tab_next"):
+				_tab(1)
+			elif Controls.event(e, "skills_zoom_in"):
+				_zoom_by(1.2, _view.size / 2)
+			elif Controls.event(e, "skills_zoom_out"):
+				_zoom_by(1.0 / 1.2, _view.size / 2)
+			elif Controls.event(e, "skills_fit"):
+				_need_fit = true
+			else:
+				return
 			get_viewport().set_input_as_handled()
-		elif e is InputEventJoypadButton:
-			match e.button_index:
-				JOY_BUTTON_LEFT_SHOULDER: _tab(-1)
-				JOY_BUTTON_RIGHT_SHOULDER: _tab(1)
-				JOY_BUTTON_RIGHT_STICK: _need_fit = true
-				_: return
-			get_viewport().set_input_as_handled()
-	elif e.is_action_pressed("skills"):
+	elif Controls.event(e, "skills"):
 		show_window()
 		if open:
 			get_viewport().set_input_as_handled()
@@ -191,15 +189,12 @@ func _process(delta: float) -> void:
 		return
 	if _need_fit and _view.size.x > 10:
 		_fit()
-	var mv := Vector2(float(Input.is_physical_key_pressed(KEY_A)) - float(Input.is_physical_key_pressed(KEY_D)),
-		float(Input.is_physical_key_pressed(KEY_W)) - float(Input.is_physical_key_pressed(KEY_S)))
+	var mv := -Controls.vector(null, "move_left", "move_right", "move_forward", "move_back")
 	if mv != Vector2.ZERO:
 		_pan_t += mv * 750.0 * delta
-	for d in Input.get_connected_joypads():
-		var zt := Input.get_joy_axis(d, JOY_AXIS_TRIGGER_RIGHT) - Input.get_joy_axis(d, JOY_AXIS_TRIGGER_LEFT)
-		if absf(zt) > 0.2:
-			_zoom_by(pow(2.0, zt * delta * 1.6), _view.size / 2)
-			break
+	var zt := Controls.trigger("R") - Controls.trigger("L")
+	if absf(zt) > 0.2:
+		_zoom_by(pow(2.0, zt * delta * 1.6), _view.size / 2)
 	var k := 1.0 - exp(-delta * 14.0)
 	_zoom = lerpf(_zoom, _zoom_t, k)
 	_pan = _pan.lerp(_pan_t, k)

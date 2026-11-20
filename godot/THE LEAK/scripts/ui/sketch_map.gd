@@ -112,7 +112,7 @@ func _unhandled_input(e: InputEvent) -> void:
 func _input(e: InputEvent) -> void:
 	if not open:
 		return
-	if _map_key(e) or (e.is_action_pressed("ui_cancel") and not e.is_echo()):
+	if _map_key(e) or (Controls.event(e, "ui_cancel") and not e.is_echo()):
 		close()
 		get_viewport().set_input_as_handled()
 
@@ -121,9 +121,7 @@ func _input(e: InputEvent) -> void:
 func _map_key(e: InputEvent) -> bool:
 	if e.is_echo() or not e.is_pressed():
 		return false
-	if InputMap.has_action("world_map"):
-		return e.is_action_pressed("world_map")
-	return e is InputEventKey and (e as InputEventKey).physical_keycode == KEY_M
+	return Controls.event(e, "world_map")
 
 
 ## Открыть окно карты — по центру игрок.

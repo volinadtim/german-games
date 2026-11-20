@@ -266,6 +266,9 @@ func shop_cue() -> void:
 ## Пока открыто любое окно (инвентарь, лут, магазин, продажа, автомат) — курсор всегда виден:
 ## кто бы ни вернул захват (закрытие подокна, клик, стойка), снимаем его (баг 14.11 20:05).
 func _process(_delta: float) -> void:
+	# режимы ввода (scripts/controls/modes.gd): открыто окно — «inventory», сидим в машине — «car»
+	Controls.mode_set("inventory", self, window_open())
+	Controls.mode_set("car", self, car != null and is_instance_valid(car) and int(car.get("my_seat")) >= 0)
 	if alive and window_open() and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif not alive and hud != null and hud.death_on and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -403,15 +406,15 @@ func open_loot_items(items: Array, pos: Vector3, title := "ЛУТ") -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if _drop_mode:
-		if not e.is_echo() and (e.is_action_pressed("drop_mode") or e.is_action_pressed("ui_cancel")):
+		if not e.is_echo() and (Controls.event(e, "drop_mode") or Controls.event(e, "ui_cancel")):
 			_drop_cancel()
 			get_viewport().set_input_as_handled()
 			return
 		# кнопки рук — действия (ЛКМ/ПКМ, на геймпаде LT/RT, переназначаются в настройках)
 		var side := ""
-		if e.is_action("attack_left"):
+		if Controls.is_event(e, "attack_left"):
 			side = "left"
-		elif e.is_action("attack_right"):
+		elif Controls.is_event(e, "attack_right"):
 			side = "right"
 		if side != "" and not e.is_echo():
 			if e.is_pressed() and _drop_side == "":
@@ -429,21 +432,21 @@ func _unhandled_input(e: InputEvent) -> void:
 
 	if not alive or player == null or window_open():
 		return
-	if e.is_action_pressed("interact") and not e.is_echo():
+	if Controls.event(e, "interact") and not e.is_echo():
 		if focus != null and is_instance_valid(focus):
 			focus.interact(self)
 		elif revive:
 			revive.try_revive_with("")   # быстрого хила больше нет (промпт 20.11 14:56): поднять союзника — «Взаимодействие»
-	elif e.is_action_pressed("swap_hands") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	elif Controls.event(e, "swap_hands") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		swap_hands()
-	elif e.is_action_pressed("drop_mode") and not e.is_echo():   # H (была G — совпадала с противогазом)
+	elif Controls.event(e, "drop_mode") and not e.is_echo():   # H (была G — совпадала с противогазом)
 		_drop_menu_open()
 		get_viewport().set_input_as_handled()
 	else:
 		for k in 5:
-			if e.is_action_pressed("hot_%d" % (k + 1)):
+			if Controls.event(e, "hot_%d" % (k + 1)):
 				# в правую — с «hand_right» (Shift; геймпад — задержать кнопку слота, ui/gamepad.gd)
-				var to_right: bool = InputMap.has_action("hand_right") and Input.is_action_pressed("hand_right")
+				var to_right: bool = InputMap.has_action("hand_right") and Controls.pressed(null, "hand_right")
 				hotbar_use_hand(k, "right" if to_right else "left")
 				break
 

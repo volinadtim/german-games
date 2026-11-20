@@ -373,10 +373,10 @@ func close() -> void:
 func _input(e: InputEvent) -> void:
 	if not open:
 		return
-	if e.is_action_pressed("loot_all"):
+	if Controls.event(e, "loot_all"):
 		get_viewport().set_input_as_handled()
 		take_all()
-	elif e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_SPACE:
+	elif e is InputEventKey and Controls.event(e, "inv_rotate"):
 		# пробел при перетаскивании — повернуть предмет, как в инвентаре
 		get_viewport().set_input_as_handled()
 		if get_viewport().gui_is_dragging():
@@ -390,8 +390,8 @@ func _input(e: InputEvent) -> void:
 			for g in bag_grids:
 				g.hint = []
 				g.queue_redraw()
-	elif e.is_action_pressed("ui_cancel") or e.is_action_pressed("inventory") \
-			or (e.is_action_pressed("interact") and not e.is_echo() and Time.get_ticks_msec() - _opened_at > 250):
+	elif Controls.event(e, "ui_cancel") or Controls.event(e, "inventory") \
+			or (Controls.event(e, "interact") and not e.is_echo() and Time.get_ticks_msec() - _opened_at > 250):
 		get_viewport().set_input_as_handled()
 		close()
 

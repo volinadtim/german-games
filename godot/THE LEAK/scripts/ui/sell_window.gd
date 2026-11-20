@@ -1093,7 +1093,7 @@ func sell_all() -> void:
 func _input(e: InputEvent) -> void:
 	if not open:
 		return
-	if e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_SPACE:
+	if e is InputEventKey and Controls.event(e, "inv_rotate"):
 		if get_viewport().gui_is_dragging():
 			get_viewport().set_input_as_handled()
 			var dd = get_viewport().gui_get_drag_data()
@@ -1103,7 +1103,7 @@ func _input(e: InputEvent) -> void:
 					g.hint = []
 					g.queue_redraw()
 			return
-	if e.is_action_pressed("ui_cancel") or e.is_action_pressed("interact") or e.is_action_pressed("inventory"):
+	if Controls.event(e, "ui_cancel") or Controls.event(e, "interact") or Controls.event(e, "inventory"):
 		get_viewport().set_input_as_handled()
 		close()
 

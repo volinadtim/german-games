@@ -73,6 +73,7 @@ func _run() -> void:
 	stats["items"] = _items_count()
 	stats["slot_symbols"] = _slot_symbols()
 	stats["shops"] = _shop_goods()
+	_check_controls()
 	await _check_windows()
 	await _check_split()
 	_finish()
@@ -170,6 +171,33 @@ func _shop_goods() -> Dictionary:
 					k += 1
 			out[String(n.name)] = k
 	return out
+
+
+## Управление (scripts/controls): все действия таблицы есть в InputMap, режимы глушат кнопки, подсказки собираются.
+func _check_controls() -> void:
+	var c = get_tree().root.get_node_or_null("Controls")
+	if c == null:
+		_fail("нет autoload Controls")
+		return
+	var n := 0
+	var ev := 0
+	for a in c.table.order:
+		if not InputMap.has_action(a):
+			_fail("управление: нет действия " + a)
+		else:
+			n += 1
+			ev += InputMap.action_get_events(a).size()
+	stats["controls"] = {"actions": n, "kb_events": ev, "menu_rows": c.menu_rows().size()}
+	if c.hint("[F] Открыть") != "[F] Открыть" or c.hint("{interact}") != "F":
+		_fail("управление: подсказка F не собралась: " + c.hint("{interact}"))
+	var con := _console()
+	if con:
+		con.call("show_console")
+		if c.allowed("jump") or c.mode() != "console":
+			_fail("управление: консоль не глушит прыжок")
+		con.call("close")
+	if not c.allowed("jump"):
+		_fail("управление: после консоли прыжок заглушен (режим %s)" % c.mode())
 
 
 ## Инвентарь, магазин, настройки — открыть и закрыть.

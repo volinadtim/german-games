@@ -67,12 +67,12 @@ func swim_tick(p, delta: float) -> bool:
 	var up := 0.0
 	var fast := false
 	if p.active:
-		inp = p.ia.get_vector("move_left", "move_right", "move_forward", "move_back")
-		if p.ia.is_action_pressed("jump"):
+		inp = Controls.vector(p, "move_left", "move_right", "move_forward", "move_back")
+		if Controls.pressed(p, "jump"):
 			up += 1.0
-		if p.ia.is_action_pressed("crouch"):
+		if Controls.pressed(p, "crouch"):
 			up -= 1.0
-		fast = p.ia.is_action_pressed("sprint")
+		fast = Controls.pressed(p, "sprint")
 	var dir: Vector3
 	if can_dive:
 		var b: Basis = p.cam.global_transform.basis

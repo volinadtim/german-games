@@ -605,7 +605,7 @@ func hint(text: String, time := 5.0) -> void:
 
 ## J — журнал заданий (не срабатывает при открытой консоли/чате).
 func _unhandled_input(e: InputEvent) -> void:
-	if game == null or game.player == null or not e.is_action_pressed("journal") or e.is_echo():
+	if game == null or game.player == null or not Controls.event(e, "journal") or e.is_echo():
 		return
 	if game.player.input_locks.has("console") or game.player.input_locks.has("chat"):
 		return

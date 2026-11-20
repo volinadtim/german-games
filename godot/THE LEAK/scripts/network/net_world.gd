@@ -370,7 +370,7 @@ func chat_msg(text: String) -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e is InputEventKey and e.pressed and not e.echo and InputMap.has_action("toggle_ping") and e.is_action_pressed("toggle_ping"):
+	if e is InputEventKey and e.pressed and not e.echo and InputMap.has_action("toggle_ping") and Controls.event(e, "toggle_ping"):
 		ping_shown = not ping_shown
 		if ping_l and is_instance_valid(ping_l):
 			ping_l.visible = ping_shown

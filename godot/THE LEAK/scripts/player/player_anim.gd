@@ -6,13 +6,13 @@ var nc_vel := Vector3.ZERO     # скорость полёта в ноуклип
 
 
 func _update_crouch(delta: float) -> void:
-	if active and ia.is_action_just_pressed("crouch_toggle"):
+	if active and Controls.just_pressed(self, "crouch_toggle"):
 		crouch_toggled = not crouch_toggled
-	if active and ia.is_action_just_pressed("crouch"):
+	if active and Controls.just_pressed(self, "crouch"):
 		crouch_hold_block = false
-	if not ia.is_action_pressed("crouch"):
+	if not Controls.pressed(self, "crouch"):
 		crouch_hold_block = false
-	var want: bool = force_crouch or active and (crouch_toggled or (ia.is_action_pressed("crouch") and not crouch_hold_block))
+	var want: bool = force_crouch or active and (crouch_toggled or (Controls.pressed(self, "crouch") and not crouch_hold_block))
 	if puppet:
 		want = net_crouch
 	if want:
@@ -32,9 +32,9 @@ func _update_crouch(delta: float) -> void:
 func _lean_tick(delta: float) -> void:
 	var want := 0.0
 	if active and not puppet and not dying:
-		if ia.is_action_pressed("lean_right"):
+		if Controls.pressed(self, "lean_right"):
 			want += 1.0
-		if ia.is_action_pressed("lean_left"):
+		if Controls.pressed(self, "lean_left"):
 			want -= 1.0
 	lean = move_toward(lean, want, delta * 6.0)
 	if lean != 0.0:

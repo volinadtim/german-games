@@ -335,7 +335,7 @@ func _fuel_ui_tick() -> void:
 ## Водитель при этом держит руль одной рукой — машину ведёт и может занести (промпт 18.11 01:20).
 func _lean_tick(delta: float) -> void:
 	var can: bool = my_seat >= 0 and seat_dir == 0 and game != null and game.alive 			and not game.window_open() and not game.inv.open and not ctl_locked()
-	lean_on = can and InputMap.has_action("car_lean") and Input.is_action_pressed("car_lean")
+	lean_on = can and InputMap.has_action("car_lean") and Controls.pressed(null, "car_lean")
 	lean = move_toward(lean, 1.0 if lean_on else 0.0, delta / LEAN_T)
 
 
@@ -523,16 +523,16 @@ func _unhandled_input(e: InputEvent) -> void:
 	if my_seat < 0 or game == null or ctl_locked():
 		return
 	# повернуть ключ зажигания на поляне — уехать (промпт 20.11 11:58)
-	if e.is_action_pressed("interact") and not e.is_echo() and can_depart() and _looking_at_key() and not game.window_open():
+	if Controls.event(e, "interact") and not e.is_echo() and can_depart() and _looking_at_key() and not game.window_open():
 		depart()
 		get_viewport().set_input_as_handled()
 		return
 	# пересесть за руль — E, когда не смотришь на дверь (если луч попал в машину, это делает interact)
-	if e.is_action_pressed("interact") and not e.is_echo() and game.focus != self and can_take_wheel() 			and not _looking_at_door() and not game.window_open():
+	if Controls.event(e, "interact") and not e.is_echo() and game.focus != self and can_take_wheel() 			and not _looking_at_door() and not game.window_open():
 		take_wheel()
 		get_viewport().set_input_as_handled()
 		return
-	if InputMap.has_action("seat_switch") and e.is_action_pressed("seat_switch") and not e.is_echo() \
+	if InputMap.has_action("seat_switch") and Controls.event(e, "seat_switch") and not e.is_echo() \
 			and not game.window_open() and game.alive:
 		var j := next_seat()
 		if j >= 0:
@@ -557,9 +557,9 @@ func _unhandled_input(e: InputEvent) -> void:
 func _drive_tick(delta: float) -> void:
 	bump_cd -= delta
 	if my_seat == 0 and seat_dir == 0 and game.alive and not game.window_open():
-		var thr := Input.get_axis("move_back", "move_forward")
-		var st_in := Input.get_axis("move_right", "move_left")
-		hand = Input.is_action_pressed("handbrake" if InputMap.has_action("handbrake") else "jump")
+		var thr := Controls.axis(null, "move_back", "move_forward")
+		var st_in := Controls.axis(null, "move_right", "move_left")
+		hand = Controls.pressed(null, "handbrake" if InputMap.has_action("handbrake") else "jump")
 		if ctl_locked():   # freecam/консоль: WASD летает камерой, машина катится сама
 			thr = 0.0
 			st_in = 0.0

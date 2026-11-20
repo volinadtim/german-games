@@ -265,7 +265,7 @@ func change_filter(fid := "filter") -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e.is_action_pressed("gasmask") and game and game.alive:
+	if Controls.event(e, "gasmask") and game and game.alive:
 		game.toggle_gasmask()
 
 

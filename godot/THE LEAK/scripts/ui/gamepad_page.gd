@@ -238,9 +238,9 @@ func _input(e: InputEvent) -> void:
 		return
 	if e is InputEventKey and e.pressed and not e.is_echo():
 		get_viewport().set_input_as_handled()
-		if e.is_action_pressed("ui_cancel"):
+		if Controls.event(e, "ui_cancel"):
 			stop()
-		elif e.is_action_pressed("ui_text_delete") or e.is_action_pressed("ui_text_backspace"):
+		elif Controls.event(e, "ui_text_delete") or Controls.event(e, "ui_text_backspace"):
 			_assign("")
 		return
 	if Time.get_ticks_msec() - wait_since < 200:

@@ -992,7 +992,7 @@ func _rebuild_craft() -> void:
 func _input(e: InputEvent) -> void:
 	if not enabled:
 		return
-	if e.is_action_pressed("inventory"):
+	if Controls.event(e, "inventory"):
 		if open:
 			close()
 		elif game and ((game.shop and game.shop.opened) or (game.has_method("window_open") and game.window_open())):
@@ -1013,10 +1013,10 @@ func _input(e: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 	elif open and menu_bg.visible:
 		# пока открыто меню действий — только Esc (клик мимо ловит подложка)
-		if e.is_action_pressed("ui_cancel"):
+		if Controls.event(e, "ui_cancel"):
 			close_menu()
 			get_viewport().set_input_as_handled()
-	elif open and e.is_action_pressed("ui_cancel"):
+	elif open and Controls.event(e, "ui_cancel"):
 		if _pick_hand_idx >= 0:
 			_pick_hand_idx = -1
 		elif dlg.visible:
@@ -1024,12 +1024,12 @@ func _input(e: InputEvent) -> void:
 		else:
 			close()
 		get_viewport().set_input_as_handled()
-	elif open and not dlg.visible and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode in [KEY_E, KEY_Q]:
+	elif open and not dlg.visible and e is InputEventKey and Controls.event(e, "inv_close_alt"):
 		close()
 		get_viewport().set_input_as_handled()
 	elif open and hold_key != null and e is InputEventMouseButton and not e.pressed and e.button_index == MOUSE_BUTTON_RIGHT:
 		_finish_hold()
-	elif open and e is InputEventKey and e.pressed and not e.echo and e.physical_keycode == KEY_SPACE:
+	elif open and e is InputEventKey and Controls.event(e, "inv_rotate"):
 		# пробел при перетаскивании — повернуть предмет (промпт 16.11 02:42); иначе — закрыть инвентарь
 		if get_viewport().gui_is_dragging() and drag_key != null:
 			rotate_drag()
@@ -1038,7 +1038,7 @@ func _input(e: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif open:
 		for k in 5:
-			if e.is_action_pressed("hot_%d" % (k + 1)):
+			if Controls.event(e, "hot_%d" % (k + 1)):
 				_bind_hover(k)
 				get_viewport().set_input_as_handled()
 		if e is InputEventMouseMotion and not dlg.visible:
@@ -1046,7 +1046,7 @@ func _input(e: InputEvent) -> void:
 			if not _same(hk, hover):
 				set_hover(hk)
 		# F (inv_use) на предмете под курсором — использовать / снять, или закрыть окно если курсор на пустом месте
-		if InputMap.has_action("inv_use") and e.is_action_pressed("inv_use") and not e.is_echo() and not dlg.visible:
+		if InputMap.has_action("inv_use") and Controls.event(e, "inv_use") and not e.is_echo() and not dlg.visible:
 			var uk = _slot_at()
 			if uk == null:
 				uk = hover

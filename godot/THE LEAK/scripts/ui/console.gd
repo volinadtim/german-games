@@ -59,15 +59,14 @@ func _process(delta: float) -> void:
 	if _freecam == null or not is_instance_valid(_freecam) or open:
 		return
 	var dir := Vector3.ZERO
-	if Input.is_key_pressed(KEY_W): dir.z -= 1.0
-	if Input.is_key_pressed(KEY_S): dir.z += 1.0
-	if Input.is_key_pressed(KEY_A): dir.x -= 1.0
-	if Input.is_key_pressed(KEY_D): dir.x += 1.0
-	if Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_E): dir.y += 1.0
-	if Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_Q): dir.y -= 1.0
+	var mv := Controls.vector(null, "move_left", "move_right", "move_forward", "move_back")
+	dir.x = mv.x
+	dir.z = mv.y
+	if Controls.pressed(null, "fly_up"): dir.y += 1.0
+	if Controls.pressed(null, "fly_down"): dir.y -= 1.0
 	if dir != Vector3.ZERO:
 		dir = dir.normalized()
-		var mult := 3.0 if Input.is_key_pressed(KEY_SHIFT) else 1.0
+		var mult := 3.0 if Controls.pressed(null, "sprint") else 1.0
 		var basis := _freecam.global_transform.basis
 		_freecam.global_position += (basis.x * dir.x + basis.z * dir.z + Vector3.UP * dir.y) * _freecam_speed * mult * delta
 
@@ -155,26 +154,31 @@ func _input(e: InputEvent) -> void:
 				return
 	if not (e is InputEventKey and e.pressed):
 		return
-	if e.keycode == KEY_F1 and not e.echo:
+	if Controls.event(e, "console"):
 		get_viewport().set_input_as_handled()
 		toggle()
 		return
 	if not open:
 		return
-	match e.keycode:
-		KEY_ESCAPE:
+	# кнопки поля ввода — встроенные действия ui_* (Esc, ↑, ↓, Tab, Enter)
+	var k := ""
+	for a in ["ui_cancel", "ui_up", "ui_down", "ui_focus_next", "ui_focus_prev", "ui_text_submit"]:
+		if Controls.event(e, a, true) and k == "":
+			k = a
+	match k:
+		"ui_cancel":
 			get_viewport().set_input_as_handled()
 			close()
-		KEY_UP:
+		"ui_up":
 			get_viewport().set_input_as_handled()
 			_hist(-1)
-		KEY_DOWN:
+		"ui_down":
 			get_viewport().set_input_as_handled()
 			_hist(1)
-		KEY_TAB:
+		"ui_focus_next", "ui_focus_prev":
 			get_viewport().set_input_as_handled()   # не уводить фокус с поля
 			_sugg_tab(-1 if e.shift_pressed else 1)
-		KEY_ENTER, KEY_KP_ENTER:
+		"ui_text_submit":
 			# подсказка выделена, а в поле ещё не она — сначала подставить, второй Enter выполнит
 			if sugg_l.visible and sugg_i >= 0 and _norm(edit.text) != _norm(_sugg_text(sugg_i)):
 				get_viewport().set_input_as_handled()
@@ -192,6 +196,7 @@ func show_console() -> void:
 	if open or game == null or game.player == null:
 		return
 	open = true
+	Controls.mode_on("console", self)   # консоль глушит все игровые кнопки (scripts/controls/modes.gd)
 	root.visible = true
 	_prev_mouse = Input.mouse_mode
 	game.player.set_lock("console", true)   # независимая блокировка: не перетирает кат-сцены (промпт 16.11 04:51)
@@ -206,6 +211,7 @@ func close() -> void:
 	if not open:
 		return
 	open = false
+	Controls.mode_off("console", self)
 	root.visible = false
 	edit.release_focus()
 	if game and game.player:

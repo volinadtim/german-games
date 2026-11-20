@@ -184,9 +184,10 @@ func just_pressed(who, action: String) -> bool:
 	return allowed(action) and InputMap.has_action(action) and _src(who).is_action_just_pressed(action)
 
 
+## Отпускания режим не фильтрует: иначе открыли консоль с зажатой ПКМ — прицел «залип».
 func just_released(who, action: String) -> bool:
 	var s := _src(who)
-	return allowed(action) and InputMap.has_action(action) and s.has_method("is_action_just_released") and s.is_action_just_released(action)
+	return InputMap.has_action(action) and s.has_method("is_action_just_released") and s.is_action_just_released(action)
 
 
 func strength(who, action: String) -> float:
@@ -196,6 +197,10 @@ func strength(who, action: String) -> float:
 	if s.has_method("get_action_strength"):
 		return s.get_action_strength(action)
 	return 1.0 if s.is_action_pressed(action) else 0.0
+
+
+func axis(who, neg: String, pos: String) -> float:
+	return strength(who, pos) - strength(who, neg)
 
 
 func vector(who, nx: String, px: String, ny: String, py: String) -> Vector2:
@@ -217,28 +222,11 @@ func event(e: InputEvent, action: String, allow_echo := false) -> bool:
 
 
 func event_released(e: InputEvent, action: String) -> bool:
-	return e != null and allowed(action) and InputMap.has_action(action) and e.is_action_released(action)
+	return e != null and InputMap.has_action(action) and e.is_action_released(action)
 
 
 func is_event(e: InputEvent, action: String) -> bool:
 	return e != null and InputMap.has_action(action) and e.is_action(action)
-
-
-## Клавиши действия физически зажаты (антизалипание player.gd: Windows «съедает» отпускания).
-func physically_held(action: String) -> bool:
-	if not InputMap.has_action(action):
-		return false
-	for ev in InputMap.action_get_events(action):
-		if ev is InputEventKey:
-			var k := ev as InputEventKey
-			if (k.physical_keycode != KEY_NONE and Input.is_physical_key_pressed(k.physical_keycode)) \
-					or (k.keycode != KEY_NONE and Input.is_key_pressed(k.keycode)):
-				return true
-		elif ev is InputEventMouseButton and Input.is_mouse_button_pressed((ev as InputEventMouseButton).button_index):
-			return true
-		elif ev is InputEventJoypadMotion or ev is InputEventJoypadButton:
-			return true   # с геймпада не трогаем
-	return false
 
 
 ## Курок геймпада 0..1 (любой подключённый, первый ненулевой): side "L" / "R".

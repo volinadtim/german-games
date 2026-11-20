@@ -100,6 +100,8 @@ func _ready() -> void:
 	# игра называется THE LEAK (промпт 16.11 21:58); config/name в project.godot прежний — от него зависит папка сейвов
 	get_tree().root.title = "THE LEAK"
 	get_tree().root.size_changed.connect(_apply_ui_scale)
+	visibility_changed.connect(func(): Controls.mode_set("menu", self, visible))   # пауза/меню — игровые кнопки молчат
+	Controls.mode_set("menu", self, visible)
 	pad = preload("res://scripts/controls/gamepad.gd").new()   # геймпад (промпт 18.11 00:41)
 	add_child(pad)
 	_load()
@@ -322,9 +324,9 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.is_echo():
 		get_viewport().set_input_as_handled()
 		var k: int = event.physical_keycode if event.physical_keycode != 0 else event.keycode
-		if event.is_action_pressed("ui_cancel"):
+		if Controls.event(event, "ui_cancel"):
 			_stop_wait()
-		elif event.is_action_pressed("ui_text_delete") or event.is_action_pressed("ui_text_backspace"):
+		elif Controls.event(event, "ui_text_delete") or Controls.event(event, "ui_text_backspace"):
 			_assign(waiting_action, "", waiting_idx)   # Delete/Backspace — убрать клавишу
 		else:
 			_assign(waiting_action, "k:%d" % k, waiting_idx)
@@ -334,7 +336,7 @@ func _input(event: InputEvent) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed("ui_cancel"):
+	if not Controls.event(event, "ui_cancel"):
 		return
 	get_viewport().set_input_as_handled()
 	if setup_box and setup_box.visible and setup_back != "":
