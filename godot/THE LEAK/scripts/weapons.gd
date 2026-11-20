@@ -16,6 +16,7 @@ const WEAPONS := {
 	"shiv": {"mult": 2.7, "reach": 1.25, "price": 0},      # молоток + металлолом ×2
 	"spiked_club": {"mult": 3.2, "reach": 1.5, "price": 0}, # молоток + деревяшка ×2 + гайки ×3
 	"pistol": {"mult": 1.6, "reach": 1.15, "price": 0},     # стреляет gun.gd; это — удар рукоятью
+	"knuckles": {"mult": 1.9, "reach": 1.05, "price": 0},   # кастет — оружие, а не перчатки (промпт 20.11 14:27)
 	"stone": {"mult": 1.4, "reach": 1.05, "price": 0},      # камень в руке: бросок — stone_throw.gd, это — удар
 }
 

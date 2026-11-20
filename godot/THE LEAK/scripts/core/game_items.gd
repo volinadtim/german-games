@@ -184,7 +184,7 @@ func _quick_heal() -> void:
 	if revive:
 		revive.heal_channel(pick)
 		return
-	inv.remove(pick, 1)
+	take_one(pick)   # аптечка — −1 применение, а не вся
 	heal(Items.ITEMS[pick]["heal"])
 	hud.toast("%s: +%d здоровья" % [Items.item_name(pick), int(Items.ITEMS[pick]["heal"])], Color(0.7, 0.9, 0.6))
 	play_ui("pickup", -12.0, 0.8)
@@ -315,6 +315,13 @@ func equip(idx: int, slot_: String) -> void:
 			extra[0].erase("_at")
 	else:
 		inv.slots[idx] = null
+	# снятое из руки докладываем в свою стопку, если в ней есть место (промпт 20.11 14:21)
+	if prev != "" and int(Items.ITEMS[prev]["stack"]) > 1 and Items.max_dur(prev) <= 0.0:
+		for t in inv.slots:
+			if t != null and String(t["id"]) == prev and int(t["n"]) < int(Items.ITEMS[prev]["stack"]):
+				t["n"] = int(t["n"]) + 1
+				extra.clear()
+				break
 	inv.equip[slot_] = id
 	inv.equip_dur[slot_] = new_d
 	inv.update_blocks()
@@ -629,7 +636,12 @@ func hb_after_use(id: String) -> void:
 
 ## Убрать одну штуку предмета: сначала из сумки, иначе из руки (там он тоже считается, inv.count).
 func take_one(id: String) -> bool:
-	if inv.remove(id, 1):
+	if Items.ITEMS.get(id, {}).has("uses"):
+		var bi := inv.bag_index(id)
+		if bi >= 0:
+			_use_take(bi)   # −1 применение (промпт 20.11 14:22)
+			return true
+	elif inv.remove(id, 1):
 		return true
 	for sl in ["right", "left"]:
 		if inv.equip[sl] == id:
@@ -640,6 +652,17 @@ func take_one(id: String) -> bool:
 
 ## Убрать одну штуку применённого предмета: из сумки (int) или из руки (слот — пустеет, модель убирает предмет).
 func _use_take(key) -> void:
+	# предмет на несколько применений (аптечка, вода, газировка, тушёнка) — −1, на нуле пропадает
+	var uid: String = String(inv.equip[key]) if key is String else (String(inv.slots[key]["id"]) if inv.slots[key] != null else "")
+	if Items.ITEMS.get(uid, {}).has("uses"):
+		var left: float = inv.get_dur(key) - 1.0
+		if left > 0.0:
+			if key is String:
+				inv.equip_dur[key] = left
+			else:
+				inv.slots[key]["dur"] = left
+			inv.notify()
+			return
 	if key is String:
 		inv.equip[key] = ""
 		inv.equip_dur.erase(key)

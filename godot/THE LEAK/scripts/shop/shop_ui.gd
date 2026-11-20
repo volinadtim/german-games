@@ -246,11 +246,19 @@ func _rebuild_tab() -> void:
 	var names := tab_names()
 	match String(names[tab]) if tab < names.size() else "":
 		"Оружие":
-			var grid := _grid()
+			# подвкладки «Огнестрел» (только деревня) и «Холодное оружие» (промпт 20.11 14:27)
+			var melee: Array = []
 			for e in Weapons.SHOP:
-				var id: String = e[0]
-				if Items.ITEMS[id].get("weapon", false) and sells(id):   # монтировка/мачете — не в бункере (04:35)
-					_item_cell(grid, id, int(e[1]))
+				if Items.ITEMS[String(e[0])].get("weapon", false):
+					melee.append(String(e[0]))
+			var subs := shown_subs([["Огнестрел", GUN_IDS], ["Холодное оружие", melee]])
+			sub_g = clampi(sub_g, 0, subs.size() - 1)
+			if subs.size() > 1:
+				_sub_tabs(subs, sub_g, func(i: int): sub_g = i)
+			var grid := _grid()
+			for id in subs[sub_g][1]:
+				if sells(String(id)):   # монтировка/мачете — не в бункере (04:35)
+					_item_cell(grid, String(id), _price(String(id)))
 		"Одежда":
 			_sub_tabs(CLOTHES, sub, func(i: int): sub = i)
 			var grid := _grid()
@@ -260,9 +268,11 @@ func _rebuild_tab() -> void:
 				_item_cell(grid, String(id), _price(String(id)))
 		"Расходники":
 			# подвкладки «Пропитание», «Медицина», «Починка» (промпт 16.11 02:57)
-			_sub_tabs(CONS_SUBS, sub_c, func(i: int): sub_c = i)
+			var csubs := shown_subs(CONS_SUBS)   # «Патроны» — только в деревне
+			sub_c = clampi(sub_c, 0, csubs.size() - 1)
+			_sub_tabs(csubs, sub_c, func(i: int): sub_c = i)
 			var grid := _grid()
-			for id in CONS_SUBS[sub_c][1]:
+			for id in csubs[sub_c][1]:
 				# аптечки, тушёнка, газировка — только в магазине деревни (промпты 16.11 02:47, 03:13)
 				if not sells(String(id)):
 					continue
@@ -271,12 +281,6 @@ func _rebuild_tab() -> void:
 			var grid := _grid()
 			for e in TOOLS:
 				_item_cell(grid, String(e[0]), _price(String(e[0])))
-		"Огнестрел":
-			# подвкладки «Оружие», «Патроны», «Магазины» (промпт 18.11 01:52)
-			_sub_tabs(GUN_SUBS, sub_g, func(i: int): sub_g = i)
-			var grid := _grid()
-			for id in GUN_SUBS[sub_g][1]:
-				_item_cell(grid, String(id), _price(String(id)))
 		"Слот-Машина":
 			_build_slot_tab()
 		"Чертежи":

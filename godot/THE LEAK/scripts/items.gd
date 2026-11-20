@@ -6,25 +6,28 @@ const Weapons := preload("res://scripts/weapons.gd")
 const ITEMS := {
 	"coin": {"name": "Монета", "desc": "Старая монета. Её ест игровой автомат.", "stack": 999,
 		"icon": "coin", "color": Color(0.86, 0.66, 0.3)},
-	"medkit": {"name": "Аптечка", "desc": "Восстанавливает 50 здоровья.", "stack": 3,
-		"icon": "medkit", "color": Color(0.72, 0.16, 0.12), "heal": 50.0},
+	# "uses" — предмет на несколько применений (промпты 20.11 14:22, 14:27): dur — сколько осталось, не стакается
+	"medkit": {"name": "Аптечка", "desc": "4 применения, каждое восстанавливает 50 здоровья.", "stack": 1,
+		"icon": "medkit", "color": Color(0.72, 0.16, 0.12), "heal": 50.0, "uses": true, "dur": 4},
 	"bandage": {"name": "Бинт", "desc": "Восстанавливает 20 здоровья.", "stack": 5,
 		"icon": "bandage", "color": Color(0.84, 0.8, 0.7), "heal": 20.0},
 	# еда — сопротивление урону, напитки — скорость (game.gd: buffs). Лечат только аптечка, бинт, таблетки.
+	# сухарь убран из игры (промпт 20.11 14:22) — описание осталось только для старых сейвов
 	"rusk": {"name": "Сухарь", "desc": "Еда: −10% входящего урона на 30 с.", "stack": 3,
 		"icon": "rusk", "color": Color(0.6, 0.42, 0.22), "buff": "resist", "power": 0.10, "time": 30.0},
 	"choco": {"name": "Шоколадка", "desc": "Еда: −20% входящего урона на 60 с.", "stack": 3,
 		"icon": "choco", "color": Color(0.36, 0.2, 0.12), "buff": "resist", "power": 0.20, "time": 60.0},
-	"soda": {"name": "Газировка", "desc": "Напиток: +30% к скорости на 60 с.", "stack": 3,
-		"icon": "soda", "color": Color(0.75, 0.2, 0.15), "buff": "speed", "power": 0.30, "time": 60.0},
+	"soda": {"name": "Газировка", "desc": "Напиток: +30% к скорости на 60 с. 2 глотка.", "stack": 1,
+		"icon": "soda", "color": Color(0.75, 0.2, 0.15), "buff": "speed", "power": 0.30, "time": 60.0, "uses": true, "dur": 2},
 	"broom": {"name": "Метла с совком", "desc": "Использовать у битого стекла — вымести его.", "stack": 1,
 		"icon": "broom", "color": Color(0.6, 0.48, 0.25)},
 	"flashlight": {"name": "Фонарик", "desc": "Светит только в руке: возьми в руку и нажми кнопку этой руки. Нужны батарейки.", "stack": 1,
 		"icon": "flashlight", "color": Color(0.3, 0.32, 0.3)},
 	"battery": {"name": "Батарейка", "desc": "Полностью заряжает фонарик.", "stack": 10,
 		"icon": "battery", "color": Color(0.34, 0.44, 0.3)},
-	"knuckles": {"name": "Кастет", "desc": "Руки: удар кулаком ×1.5.", "stack": 1,
-		"icon": "knuckles", "color": Color(0.58, 0.58, 0.6), "equip": "hands", "fist": 1.5},
+	# кастет — оружие в руку, а не перчатки (промпт 20.11 14:27); удар — Weapons.WEAPONS
+	"knuckles": {"name": "Кастет", "desc": "Оружие: удар ×1.9, бьёт быстро и близко.", "stack": 1,
+		"icon": "knuckles", "color": Color(0.58, 0.58, 0.6), "weapon": true, "dur": 60},
 	# одежда (магазин снаряжения): слот и небольшой эффект
 	# каска, ватник, штаны изнашиваются от ударов по игроку (game.gd: damage_player), сапоги — от ударов и стекла (не от ходьбы)
 	"helmet": {"name": "Каска", "desc": "Голова: −10% урона. Изнашивается от ударов.", "stack": 1,
@@ -56,7 +59,7 @@ const ITEMS := {
 	"tac_gloves": {"name": "Тактические перчатки", "desc": "Руки: удар кулаком ×1.4 — кастетные накладки на костяшках.", "stack": 1,
 		"icon": "tac_gloves", "color": Color(0.14, 0.14, 0.13), "equip": "hands", "fist": 1.4},
 	# ремкомплекты: dur — заряды (3), один заряд чинит 50% прочности вещи (game.gd: repair)
-	"repair_weapon": {"name": "Ремкомплект оружия", "desc": "3 заряда, каждый чинит оружие на 50%. Нажать — самое побитое оружие; или перетащить на нужное.", "stack": 1,
+	"repair_weapon": {"name": "Ремкомплект ближнего боя", "desc": "3 заряда, каждый чинит оружие ближнего боя на 50%. Нажать — самое побитое оружие; или перетащить на нужное.", "stack": 1,
 		"icon": "repair_weapon", "color": Color(0.6, 0.2, 0.15), "repair": "weapon", "dur": 3},
 	"repair_gear": {"name": "Ремкомплект одежды", "desc": "3 заряда, каждый чинит одежду (голова, тело, ноги, обувь) на 50%. Нажать — самую потрёпанную; или перетащить на нужную.", "stack": 1,
 		"icon": "repair_gear", "color": Color(0.3, 0.42, 0.5), "repair": "gear", "dur": 3},
@@ -72,10 +75,10 @@ const ITEMS := {
 	# стартовые штаны — лохмотья, в магазине аналога нет (промпт 20.11 11:57)
 	"rag_pants": {"name": "Рваные штаны", "desc": "Ноги: лохмотья в заплатах, −3% урона. Расползаются от ударов.", "stack": 1,
 		"icon": "pants", "color": Color(0.3, 0.27, 0.22), "equip": "legs", "armor": 0.03, "dur": 30},
-	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с.", "stack": 3,
-		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0},
-	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с.", "stack": 3,
-		"icon": "water", "color": Color(0.45, 0.6, 0.7), "buff": "speed", "power": 0.15, "time": 30.0},
+	"canned": {"name": "Тушёнка", "desc": "Еда: −30% входящего урона на 90 с. На 2 раза.", "stack": 1,
+		"icon": "canned", "color": Color(0.55, 0.56, 0.58), "buff": "resist", "power": 0.30, "time": 90.0, "uses": true, "dur": 2},
+	"water": {"name": "Бутылка воды", "desc": "Напиток: +15% к скорости на 30 с. 3 глотка.", "stack": 1,
+		"icon": "water", "color": Color(0.45, 0.6, 0.7), "buff": "speed", "power": 0.15, "time": 30.0, "uses": true, "dur": 3},
 	# гнилое яблоко (промпт 14.11 19:23): скормить KILLBOX — при следующих «666» он не заберёт монеты
 	"rot_apple": {"name": "Гнилое яблоко", "desc": "Защищает от шестёрок. Его надо скормить KILLBOX.", "stack": 5,
 		"icon": "rot_apple", "color": Color(0.55, 0.16, 0.1)},
@@ -168,7 +171,7 @@ const SIZES := {
 	"pistol": [2, 2], "medkit": [2, 2], "shield": [2, 2], "fuel": [2, 2], "backpack": [2, 2], "sack": [2, 2], "tshirt": [2, 1],
 	"bat": [1, 3], "pipe": [1, 3], "crowbar": [1, 3], "machete": [1, 3], "spiked_club": [1, 3], "broom": [1, 3],
 	"knife": [1, 2], "shiv": [1, 2], "hammer": [1, 2], "steel_hammer": [1, 2], "hatchet": [1, 2],
-	"flashlight": [1, 2], "water": [1, 2], "soda": [1, 2], "wood": [1, 2], "gasmask": [2, 2], "gasmask2": [2, 2],
+	"flashlight": [1, 2], "water": [1, 2], "wood": [1, 2], "gasmask": [2, 2], "gasmask2": [2, 2],
 	"repair_weapon": [2, 1], "repair_gear": [2, 1], "repair_gun": [2, 1], "canned": [1, 1],
 	"helmet": [2, 2], "moto_helmet": [2, 2], "ushanka": [2, 1],
 	"jacket": [2, 2], "kurtka": [2, 2], "vest": [2, 2],
@@ -240,9 +243,14 @@ static func hand_use(id: String) -> bool:
 	return d.has("heal") or d.has("buff") or d.has("repair") or id in ["flashlight", "battery", "broom", "wallet"]
 
 
+## Предмет с зарядами/применениями (ремкомплект, аптечка, вода…): в ячейке — «×N», dur — сколько осталось.
+static func charged(id: String) -> bool:
+	return ITEMS.has(id) and (ITEMS[id].has("repair") or ITEMS[id].has("uses"))
+
+
 ## Каким ремкомплектом чинится: "weapon", "gun" (пистолет), "gear" (одежда с прочностью) или "".
 static func repairable(id: String) -> String:
-	if not ITEMS.has(id) or max_dur(id) <= 0.0 or ITEMS[id].has("repair"):
+	if not ITEMS.has(id) or max_dur(id) <= 0.0 or charged(id):
 		return ""
 	if ITEMS[id].has("gun"):
 		return "gun"    # у пистолета своя прочность в дробной части dur (gun.gd)

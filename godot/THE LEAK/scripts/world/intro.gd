@@ -704,7 +704,7 @@ func _spawn_crawler() -> void:
 	e.crawl_speed = CRAWL_SPEED
 	e.crawl_stop = 0.0           # стоп — в конце пути, в комнате; стоит, отвернувшись от входа
 	e.calm = true                # до конца кат-сцены не агрится и неуязвим
-	e.drop_only = ["rusk", "water"]
+	e.drop_only = ["choco", "water"]   # шоколадка вместо сухаря (промпт 20.11 14:22)
 	e._set_state("crawl")
 	e.died.connect(_on_crawler_died)
 	e.crawl_wait = true

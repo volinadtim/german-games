@@ -54,7 +54,7 @@ const TOUCH_HOLD := 0.5                 # палец: столько держа�
 var slots: Array = []            # null или {"id": String, "n": int}
 var coins := 0
 var equip := {"head": "", "face": "", "back": "", "body": "", "hands": "", "legs": "", "feet": "", "left": "", "right": ""}
-var hotbar: Array = ["bandage", "water", "rusk", "", ""]   # по умолчанию: 1 — бинт, 2 — вода, 3 — сухарь (промпт 16.11 05:00)
+var hotbar: Array = ["bandage", "water", "choco", "", ""]   # по умолчанию: 1 — бинт, 2 — вода, 3 — шоколадка (сухарей больше нет, 20.11 14:22)
 var equip_dur := {}             # прочность надетого: слот -> значение
 var open := false
 var enabled := true
@@ -167,8 +167,8 @@ class Slot extends Control:
 				rt = "%d/%d" % [Gun.mag_rounds(pd), Gun.CAP] if Gun.has_mag(pd) else "без маг."
 			draw_string_outline(f, Vector2(4, size.y - 12), rt, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 15, 4, Color(0, 0, 0, 0.8))
 			draw_string(f, Vector2(4, size.y - 12), rt, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 15, Color(0.95, 0.85, 0.55))
-		elif Items.ITEMS[id].has("repair"):
-			# ремкомплект: сколько зарядов осталось
+		elif Items.charged(id):
+			# ремкомплект, аптечка, вода…: сколько зарядов / применений осталось
 			var ch := "×%d" % int(ceil(inv.get_dur(key)))
 			draw_string_outline(f, Vector2(4, size.y - 12), ch, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 16, 4, Color(0, 0, 0, 0.8))
 			draw_string(f, Vector2(4, size.y - 12), ch, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 9, 16, Color(0.95, 0.85, 0.55))
@@ -399,7 +399,7 @@ class BagGrid extends Control:
 				if id == "pistol":
 					var pd: float = inv.get_dur(i)
 					txt = "%d/%d" % [Gun.mag_rounds(pd), Gun.CAP] if Gun.has_mag(pd) else "без маг."
-			elif Items.ITEMS[id].has("repair"):
+			elif Items.charged(id):
 				txt = "×%d" % int(ceil(inv.get_dur(i)))
 			elif int(s["n"]) > 1:
 				txt = str(int(s["n"]))

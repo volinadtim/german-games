@@ -20,30 +20,24 @@ var content: VBoxContainer    # содержимое вкладки — пере
 const TABS := ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"]
 ## подвкладки «Расходников» во всех магазинах (промпт 16.11 02:57); цены — CONSUMABLES
 const CONS_SUBS := [
-	["Пропитание", ["rusk", "water", "soda", "choco", "canned"]],
+	["Пропитание", ["water", "soda", "choco", "canned"]],
 	["Медицина", ["bandage", "medkit"]],
 	["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]],
+	["Патроны", ["ammo", "mag"]],   # только в деревне (TIER1_HIDE), промпт 20.11 14:27
 ]
 var sub_c := 0                # открытая подвкладка «Расходников»
-## только магазин в подвале деревни (village_shop.gd): вкладка «Огнестрел» после «Инструментов»
-const VILLAGE_TABS := ["Огнестрел"]
-## подвкладки «Огнестрела» (промпт 18.11 01:52): само оружие, патроны, магазины
-const GUN_SUBS := [
-	["Оружие", ["pistol"]],
-	["Патроны", ["ammo"]],
-	["Магазины", ["mag"]],
-]
-var sub_g := 0                # открытая подвкладка «Огнестрела»
-const AMMO_SHOP := [["ammo", 20]]   # набор из AMMO_PACK патронов за 20 (было 12; дороже — промпт 18.11 00:56)
-const AMMO_PACK := 5
+## вкладка «Оружие» (промпт 20.11 14:27): огнестрел (только в деревне) и холодное оружие из Weapons.SHOP
+const GUN_IDS := ["pistol"]
+var sub_g := 0                # открытая подвкладка «Оружия»
+const AMMO_SHOP := [["ammo", 50]]   # набор из AMMO_PACK патронов за 50 (промпт 20.11 14:27)
+const AMMO_PACK := 10
 const MAG_SHOP := [["mag", 55]]   # магазин с 8 патронами (было 30; дороже — промпт 18.11 00:56)
 const GUN_SHOP := [["pistol", 320]]   # пистолет без магазина (промпт 18.11 01:52)
 ## «Инструменты» (промпт 16.11 02:42): фонарик, метла, нормальный молоток, топорик (рубит деревья на поляне — surface.gd)
 const TOOLS := [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55]]
-## расходники (промпт 14.11 17:21): [id, цена]. Батарейки и сухари — дёшево, хилки дороже.
-## Экономика: старт 50 монет, кувшин даёт 1–4, хлам продаётся за 2–5.
-const CONSUMABLES := [["battery", 3], ["rusk", 2], ["water", 3], ["soda", 5], ["choco", 5], ["canned", 6],
-	["bandage", 6], ["medkit", 20], ["repair_weapon", 30], ["repair_gear", 25], ["repair_gun", 40]]
+## расходники: [id, цена] (промпты 20.11 14:22, 14:27; аптечка — 4 применения, вода/газировка/тушёнка — по нескольку)
+const CONSUMABLES := [["battery", 3], ["water", 10], ["soda", 30], ["choco", 15], ["canned", 50],
+	["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80]]
 ## подвкладки «Одежды» (промпт 14.11 21:14): [название, товары]. Цены — Weapons.SHOP / CONSUMABLES (_price).
 ## Обувь — отдельная подвкладка «Ботинки»; ремкомплект одежды — в «Расходниках»; фонарик и метла — в «Инструментах»
 ## (промпт 16.11 02:42). «Снаряжение» — последняя (CLOTHES[-1]).
@@ -57,7 +51,8 @@ const CLOTHES := [
 ]
 var sub := 0                  # открытая подвкладка «Одежды» (CLOTHES)
 ## магазин первого тира (бункер): без аптечек, тушёнки, газировки и лучшей одежды — они только в деревне (промпт 16.11 03:13)
-const TIER1_HIDE := ["medkit", "canned", "soda", "moto_helmet", "vest", "wpants", "tac_gloves", "crowbar", "machete"]   # + монтировка и мачете (промпт 16.11 04:35)
+const TIER1_HIDE := ["medkit", "canned", "soda", "moto_helmet", "vest", "wpants", "tac_gloves", "crowbar", "machete",
+	"pistol", "ammo", "mag"]   # + монтировка и мачете (промпт 16.11 04:35)
 
 
 ## Товар есть в этом магазине: в бункере (не village_shop.gd) — без TIER1_HIDE.
@@ -363,14 +358,20 @@ static func _price(id: String) -> int:
 	return 0
 
 
-## Вкладки этого магазина: в деревне — ещё «Огнестрел» после «Инструментов».
+## Вкладки этого магазина (огнестрел — подвкладка «Оружия», промпт 20.11 14:27).
 func tab_names() -> Array:
-	var t: Array = TABS.duplicate()
-	if "main_shop" in self:
-		var at := t.find("Инструменты") + 1
-		for k in VILLAGE_TABS.size():
-			t.insert(at + k, VILLAGE_TABS[k])
-	return t
+	return TABS.duplicate()
+
+
+## Подвкладки, в которых этот магазин что-то продаёт: [[название, товары], ...].
+func shown_subs(list: Array) -> Array:
+	var out: Array = []
+	for e in list:
+		for id in e[1]:
+			if sells(String(id)):
+				out.append(e)
+				break
+	return out
 
 
 ## «1 монета», «3 монеты», «5 монет».
