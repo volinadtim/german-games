@@ -29,6 +29,9 @@ const FREE_2_BONUS := 3       # две бонуски во время бонус
 const FREE_3 := 8             # три бонуски — бонус-игра
 const BONUS_BUY := 20         # покупка бонус-игры: столько круток по ставке (промпт 20.11 11:53)
 const MINI_JACK := 100
+## баффы красного магазина (промпт 20.11 18:07): гарант одного символа на несколько круток.
+## символ -> [круток, цена в крутках по ставке]; 7, бонуски и короны не продаются.
+const GUAR := {"cherry": [10, 3], "plum": [10, 4], "grape": [8, 5], "diamond": [6, 7]}
 const JACK_WIN := 300
 ## ставка (промпт 18.11 01:03): крутка стоит COST×ставка, денежные выигрыши (линии, мини-джекпот, джекпот) ×ставка.
 ## Переключается кнопкой «СТАВКА» слева на полке автомата; пока идут бесплатные крутки — не меняется.
@@ -59,6 +62,7 @@ const INK := Color(0.09, 0.05, 0.04)
 var game
 var jackpot := JACK_BASE
 var jackpots := {}
+var guar := {}              # купленные гаранты: символ -> осталось круток (сейв — village.gd)
 var bet := 1                # ставка из BETS (сейв — village.gd)
 var bet_l: Label3D
 var free_spins := 0
@@ -364,11 +368,13 @@ func bet_prompt() -> String:
 		return ""
 	if free_spins > 0:
 		return "Ставка ×%d — не меняется, пока идут бесплатные крутки" % bet
+	if not guar.is_empty():
+		return "Ставка ×%d — не меняется, пока действуют гаранты" % bet
 	return "[F] Ставка %d" % [COST * bet]
 
 
 func cycle_bet() -> void:
-	if busy or free_spins > 0:
+	if busy or free_spins > 0 or not guar.is_empty():
 		return
 	bet = BETS[(BETS.find(bet) + 1) % BETS.size()]
 	jackpot = _get_jackpot(bet)
@@ -411,7 +417,7 @@ func net_spin(res: Array, free_used: bool) -> void:
 
 ## Всё состояние автомата (хост — вошедшему игроку).
 func net_state_dict() -> Dictionary:
-	return {"jackpot": _get_jackpot(bet), "jackpots": jackpots.duplicate(), "free": free_spins, "bonus": bonus_game, "sevens": sevens_hit, "bet": bet}
+	return {"jackpot": _get_jackpot(bet), "jackpots": jackpots.duplicate(), "free": free_spins, "bonus": bonus_game, "sevens": sevens_hit, "bet": bet, "guar": guar.duplicate()}
 
 
 func net_state(d: Dictionary) -> void:
@@ -424,6 +430,7 @@ func net_state(d: Dictionary) -> void:
 	bonus_game = bool(d.get("bonus", bonus_game))
 	sevens_hit = bool(d.get("sevens", sevens_hit))
 	set_bet(int(d.get("bet", bet)))
+	load_guar(d.get("guar", guar))
 	
 
 
@@ -613,6 +620,7 @@ func interact(g) -> void:
 			while s == "seven":
 				s = _roll()
 			res[l[2]] = s
+	_apply_guar(res)
 	_spin_start(res, free_used, true)
 	send("f_spin", [res, free_used])
 
@@ -647,6 +655,10 @@ func _spin_start(res: Array, free_used: bool, mine: bool) -> void:
 	for l in LINES:
 		if result[l[0]] == result[l[1]] and result[l[0]] in ["jack", "seven"]:
 			tease = true
+	for s in guar.keys():
+		guar[s] = int(guar[s]) - 1
+		if int(guar[s]) <= 0:
+			guar.erase(s)
 	_plan_reels()
 	msg = "БОНУС-ИГРА: ×2.0  (осталось %d)" % free_spins if bonus_game else "..."
 	msg_col = Color(0.95, 0.85, 0.5)
@@ -943,6 +955,64 @@ func _grant_bonus() -> void:
 	msg_col = Color(0.85, 0.65, 1.0)
 	tier = 0
 	_sfx("bonus", -2.0)
+
+
+# ---------- гаранты символов (красный магазин деревни, промпт 20.11 18:07) ----------
+
+## Ставит в поле по одному купленному символу в случайную клетку, где его нет
+## (не трогает семёрки, бонуски, короны и уже выигравшие линии).
+func _apply_guar(res: Array) -> void:
+	for sym in guar:
+		var keep: Array = []
+		for l in LINES:
+			if res[l[0]] == res[l[1]] and res[l[1]] == res[l[2]]:
+				keep.append_array(l)
+		var cand: Array = []
+		for k in 9:
+			if not keep.has(k) and not (res[k] in [sym, "seven", "bonus", "jack"]):
+				cand.append(k)
+		if not cand.is_empty():
+			res[cand[randi() % cand.size()]] = sym
+
+
+## Цена гаранта sym по текущей ставке.
+func guar_price(sym: String) -> int:
+	return int(GUAR[sym][1]) * COST * bet
+
+
+## Купить гарант sym: +GUAR[sym][0] круток (складывается с уже купленным).
+func buy_guar(g, sym: String) -> bool:
+	var price := guar_price(sym)
+	if busy or not GUAR.has(sym) or g.inv.count("coin") < price:
+		return false
+	g.inv.remove("coin", price)
+	net_guar(sym)
+	send("f_guar", [sym])
+	return true
+
+
+## Гарант купил игрок (свой или по сети).
+func net_guar(sym: String) -> void:
+	if not GUAR.has(sym):
+		return
+	guar[sym] = int(guar.get(sym, 0)) + int(GUAR[sym][0])
+	msg = "ГАРАНТ КУПЛЕН: %d КРУТОК" % int(GUAR[sym][0])
+	msg_col = Color(0.6, 1.0, 0.7)
+	_sfx("win", -10.0, 1.2)
+
+
+## Гаранты из сейва/сети.
+func load_guar(d) -> void:
+	guar = {}
+	if d is Dictionary:
+		for s in d:
+			if GUAR.has(String(s)) and int(d[s]) > 0:
+				guar[String(s)] = int(d[s])
+
+
+## Иконка символа для магазина.
+func draw_sym_icon(ci: CanvasItem, id: String, r: Rect2) -> void:
+	_sym(ci, id, r)
 
 
 ## Иконка бонуски для магазина.

@@ -166,6 +166,14 @@ func f_buy() -> void:
 		f.net_bonus_buy()
 
 
+## Гарант символа CASHY BOX купили в красном магазине (промпт 20.11 18:07).
+@rpc("any_peer", "call_remote", "reliable")
+func f_guar(sym: String) -> void:
+	var f = _fortune()
+	if f:
+		f.net_guar(sym)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func f_bet(b: int) -> void:
 	var f = _fortune()
