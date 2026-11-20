@@ -142,7 +142,7 @@ const CTL_GROUPS := [
 	["Бой", ["attack_left", "attack_right", "fists", "reload", "mag_eject", "swap_hands", "drop_mode"]],
 	["Действия", ["interact", "carry", "loot_all", "gasmask", "lean_left", "lean_right"]],
 	["Инвентарь", ["inventory", "inv_use", "hand_right", "hot_1", "hot_2", "hot_3", "hot_4", "hot_5"]],
-	["Интерфейс", ["world_map", "toggle_fullscreen", "hide_ui", "toggle_ping", "chat", "voice", "toggle_cursor"]],
+	["Интерфейс", ["skills", "world_map", "toggle_fullscreen", "hide_ui", "toggle_ping", "chat", "voice", "toggle_cursor"]],
 	["Машина", ["handbrake", "seat_switch", "car_lean"]],
 ]
 

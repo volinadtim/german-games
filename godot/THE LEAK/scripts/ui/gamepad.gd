@@ -36,6 +36,7 @@ const DEFAULT := {
 	"hot_5": "c:11", "gasmask": "c:12", "carry": "c:13", "swap_hands": "c:14",
 	"mag_eject": "c:10", "crouch": "c:1", "toggle_ping": "c:3", "hide_ui": "c:9",
 	"seat_switch": "c:2",                               # Back + X — пересесть в машине
+	"skills": "c:7",                                    # Back + L3 — окно прокачки (промпт 20.11 18:54)
 	"toggle_cursor": "b:4",                             # Back коротко — в окнах рамка ↔ курсор (промпт 20.11 15:24)
 }
 const SPRINT_HOLD := 0.2    # бег: держат кнопку бега во время бега — выключить (промпт 20.11 15:31)
