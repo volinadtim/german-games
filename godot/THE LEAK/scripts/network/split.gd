@@ -180,7 +180,7 @@ func _build_screens() -> void:
 	add_child(screens)
 	var row := HBoxContainer.new()
 	row.set_anchors_preset(Control.PRESET_FULL_RECT)
-	row.add_theme_constant_override("separation", 4)
+	row.add_theme_constant_override("separation", 0)
 	row.mouse_filter = Control.MOUSE_FILTER_PASS
 	screens.add_child(row)
 	for i in 2:
