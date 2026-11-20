@@ -1,36 +1,36 @@
 extends CharacterBody3D
 # Часть player.gd: константы, состояние, звук шагов, материалы.
-const _D_PLAYER := preload("res://data/balance/player.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_PLAYER := preload("res://data/balance/player.tres")   # настройки — правятся в Инспекторе
 const Sfx := preload("res://scripts/core/sfx.gd")
 const Ambience := preload("res://scripts/core/ambience.gd")
 ## Шаг — приглушённый шорох (sfx.gd: step_noise), звучит в момент постановки стопы; по траве — step_grass.
-static var STEP_DB: float = _D_PLAYER.v("STEP_DB")   # громкость шага относительно ходьбы (-10 дБ)
+static var STEP_DB: float = _D_PLAYER.step_db   # громкость шага относительно ходьбы (-10 дБ)
 
-static var WALK: float = _D_PLAYER.v("WALK")
-static var SPRINT: float = _D_PLAYER.v("SPRINT")   # было 6.4 — слишком быстро
-static var GRAVITY: float = _D_PLAYER.v("GRAVITY")
-static var FALL_MULT: float = _D_PLAYER.v("FALL_MULT")   # вниз падаем быстрее, чем взлетаем — прыжок не «плывёт»
-static var JUMP: float = _D_PLAYER.v("JUMP")   # ~0.55 м
-static var SENS: float = _D_PLAYER.v("SENS")
-static var CAM_Y: float = _D_PLAYER.v("CAM_Y")   # 18.11: камера ниже
-static var FOV: float = _D_PLAYER.v("FOV")
+static var WALK: float = _D_PLAYER.walk_speed
+static var SPRINT: float = _D_PLAYER.sprint_speed   # было 6.4 — слишком быстро
+static var GRAVITY: float = _D_PLAYER.gravity
+static var FALL_MULT: float = _D_PLAYER.fall_mult   # вниз падаем быстрее, чем взлетаем — прыжок не «плывёт»
+static var JUMP: float = _D_PLAYER.jump_speed   # ~0.55 м
+static var SENS: float = _D_PLAYER.mouse_sens
+static var CAM_Y: float = _D_PLAYER.cam_y   # 18.11: камера ниже
+static var FOV: float = _D_PLAYER.fov
 ## Поле зрения из настроек (menu.gd, ползунок «Поле зрения»); бег прибавляет к нему.
 static var fov_base := FOV
 ## true — тело игрока: модель models/BaseHuman.fbx, анимированная через кости;
 ## false — старое тело из капсул (код оставлен, чтобы легко вернуть).
 const USE_MODEL := true
 const MODEL := preload("res://assets/models/Player1.glb")
-static var MODEL_Z: float = _D_PLAYER.v("MODEL_Z")   # модель чуть позади камеры, чтобы лицо не лезло в кадр
+static var MODEL_Z: float = _D_PLAYER.model_z   # модель чуть позади камеры, чтобы лицо не лезло в кадр
 var HIP_Y := 0.88
 var LEG_L1 := 0.40              # бедро
 var LEG_L2 := 0.40              # голень
 var GROUND_Y := 0.09 - 0.88     # высота голеностопа над полом относительно бедра
 var LEG_LIFT := 0.0             # модель поднята на столько, чтобы стоя ноги были прямые (промпт 16.11 02:36)
-static var ACCEL_WALK: float = _D_PLAYER.v("ACCEL_WALK")   # с места до шага ~0.2 с (было 5 — разгон «плыл»)
-static var ACCEL_SPRINT: float = _D_PLAYER.v("ACCEL_SPRINT")   # с шага до бега ~0.2 с
-static var DECEL_WALK: float = _D_PLAYER.v("DECEL_WALK")   # торможение линейное (м/с²): с шага стоп ~0.09 с
-static var DECEL_SPRINT: float = _D_PLAYER.v("DECEL_SPRINT")   # с бега ~0.18 с (~0.5 м)
-static var DECEL_TURN: float = _D_PLAYER.v("DECEL_TURN")   # смена направления / с бега на шаг
+static var ACCEL_WALK: float = _D_PLAYER.accel_walk   # с места до шага ~0.2 с (было 5 — разгон «плыл»)
+static var ACCEL_SPRINT: float = _D_PLAYER.accel_sprint   # с шага до бега ~0.2 с
+static var DECEL_WALK: float = _D_PLAYER.decel_walk   # торможение линейное (м/с²): с шага стоп ~0.09 с
+static var DECEL_SPRINT: float = _D_PLAYER.decel_sprint   # с бега ~0.18 с (~0.5 м)
+static var DECEL_TURN: float = _D_PLAYER.decel_turn   # смена направления / с бега на шаг
 
 # позы руки в градусах: x — подъём плеча вперёд, y — внутрь, z — в сторону, w — сгиб локтя
 const REST := Vector4(0, 0, 0, 10)
@@ -40,25 +40,25 @@ const REST := Vector4(0, 0, 0, 10)
 # предплечья вперёд-вверх, кулаки сведены к центру перед подбородком ~30 см впереди груди; левая — дальше
 const GUARDS: Array[Vector4] = [Vector4(46, 45, 56, 76), Vector4(44, 33, 46, 88)]   # 05:36 — кулаки на ~3,5 см шире
 # доля сгиба кулака, когда пальцы обхватывают рукоять (толще рукоять — меньше): промпт 04:49
-static var GRIP_CURL: Dictionary = _D_PLAYER.v("GRIP_CURL")
+static var GRIP_CURL: Dictionary = _D_PLAYER.grip_curl
 const KNIFE_REV_ADD := Vector4(28, -19, -36, -10)   # добавка к стойке левой с ножом (обратный хват); 04:58 — на ~3–4 см левее и ниже; 05:02 — пересчитана под новую стойку, итоговая поза ножа прежняя (74, 26, 20, 66)
 var knife_rev_w := 0.0
 # 05:50: оружие ближнего боя в стойке — рука чуть ниже, оружие по диагонали вперёд к цели (не вертикально), кромкой вперёд
 const MELEE_ST_ADD := Vector4(-18, 0, 0, -2)
-static var MELEE_ST_SKIP: Array = _D_PLAYER.v("MELEE_ST_SKIP")
+static var MELEE_ST_SKIP: Array = _D_PLAYER.melee_stance_skip
 var melee_st_w: Array[float] = [0.0, 0.0]
-static var PUNCHES: Dictionary = _D_PLAYER.v("PUNCHES")
+static var PUNCHES: Dictionary = _D_PLAYER.punches
 # кулаки сильно ослаблены (было 18/24/30): без оружия враг падает с ~9 ударов
-static var PUNCH_DMG: Dictionary = _D_PLAYER.v("PUNCH_DMG")
+static var PUNCH_DMG: Dictionary = _D_PLAYER.punch_dmg
 const Weapons := preload("res://scripts/weapons/weapons.gd")
 const Items := preload("res://scripts/items/items.gd")
 # удары оружием — отдельный набор. Каждый мах: замах (wind) -> удар (hit, тут проверка попадания) ->
 # проводка по инерции (thru) -> возврат в стойку. tw — поворот корпуса в этих точках (рад, для правой руки),
 # t — длительности [замах, удар, проводка, возврат], rc — выпад плеча [замах, удар].
-static var SWINGS: Dictionary = _D_PLAYER.v("SWINGS")
+static var SWINGS: Dictionary = _D_PLAYER.swings
 var WRIST_HIT := 1.1   # сгиб кисти в момент удара (рад)
 # конец оружия (по длинной оси +Y модели) — по нему тянется след
-static var WEAPON_TIP: Dictionary = _D_PLAYER.v("WEAPON_TIP")
+static var WEAPON_TIP: Dictionary = _D_PLAYER.weapon_tip
 const Fx := preload("res://scripts/core/fx.gd")
 
 ## Управление (промпт 16.11 04:51): окна (магазин, лут, автомат…) пишут active как раньше, а консоль, чат,
@@ -91,12 +91,12 @@ var net_pitch := 0.0
 var net_vel := Vector3.ZERO
 ## Шум игрока (промпт 16.11 21:54): радиус, в котором враги слышат его сейчас (м). Шаг 5, бег 10, присед 1.2,
 ## стоит — 0; прыжок, удар, выстрел — короткие всплески (make_noise). Враги: enemy.gd _hears.
-static var NOISE_WALK: float = _D_PLAYER.v("NOISE_WALK")
-static var NOISE_SPRINT: float = _D_PLAYER.v("NOISE_SPRINT")
-static var NOISE_CROUCH: float = _D_PLAYER.v("NOISE_CROUCH")   # было 1.2 (промпт 18.11 01:06: стелс)
-static var NOISE_JUMP: float = _D_PLAYER.v("NOISE_JUMP")
-static var NOISE_PUNCH: float = _D_PLAYER.v("NOISE_PUNCH")
-static var NOISE_SHOT: float = _D_PLAYER.v("NOISE_SHOT")
+static var NOISE_WALK: float = _D_PLAYER.noise_walk
+static var NOISE_SPRINT: float = _D_PLAYER.noise_sprint
+static var NOISE_CROUCH: float = _D_PLAYER.noise_crouch   # было 1.2 (промпт 18.11 01:06: стелс)
+static var NOISE_JUMP: float = _D_PLAYER.noise_jump
+static var NOISE_PUNCH: float = _D_PLAYER.noise_punch
+static var NOISE_SHOT: float = _D_PLAYER.noise_shot
 var noise_r := 0.0
 var noise_spike := 0.0
 
@@ -138,9 +138,9 @@ var GRIP_TILT := deg_to_rad(10.0)
 var GRIP_OUT := 0.45                  # наклон оружия наружу (от ладони), чтобы не загораживало центр
 var WEAPON_GRIP := Transform3D(Basis.IDENTITY, Vector3(0, 0.03, 0))   # запасной хват (модель без скелета)
 # руки: левая — чаще крит, но урон чуть ниже; правая — полный урон, крит редкий
-static var HAND_DMG: Array = _D_PLAYER.v("HAND_DMG")
-static var HAND_CRIT: Array = _D_PLAYER.v("HAND_CRIT")
-static var CRIT_MULT: float = _D_PLAYER.v("CRIT_MULT")
+static var HAND_DMG: Array = _D_PLAYER.hand_dmg
+static var HAND_CRIT: Array = _D_PLAYER.hand_crit
+static var CRIT_MULT: float = _D_PLAYER.crit_mult
 var cam: Camera3D
 var head: Node3D
 var legs: Array[Node3D] = []      # тазобедренные шарниры
@@ -232,10 +232,10 @@ var weight_to := 0.0
 var weight_timer := 3.0
 var hip_off := Vector3.ZERO       # смещение таза (оси ног), стопы стоят на месте
 # --- присед: Ctrl — удерживать, C — переключить ---
-static var CROUCH_HIP: float = _D_PLAYER.v("CROUCH_HIP")   # насколько опускается таз
-static var CROUCH_CAM: float = _D_PLAYER.v("CROUCH_CAM")   # насколько опускается камера
-static var CROUCH_H: float = _D_PLAYER.v("CROUCH_H")   # высота капсулы в приседе (стоя 1.8)
-static var CROUCH_SPEED: float = _D_PLAYER.v("CROUCH_SPEED")   # скорость ходьбы вприсядку относительно обычной
+static var CROUCH_HIP: float = _D_PLAYER.crouch_hip   # насколько опускается таз
+static var CROUCH_CAM: float = _D_PLAYER.crouch_cam   # насколько опускается камера
+static var CROUCH_H: float = _D_PLAYER.crouch_height   # высота капсулы в приседе (стоя 1.8)
+static var CROUCH_SPEED: float = _D_PLAYER.crouch_speed   # скорость ходьбы вприсядку относительно обычной
 var crouched := false             # сейчас в приседе (цель)
 var crouch_toggled := false
 var crouch_hold_block := false    # Ctrl держат, но игрок встал (бег/прыжок) — ждём отпускания
@@ -372,7 +372,7 @@ func _part(parent: Node3D, mesh: Mesh, pos: Vector3, mat: Material) -> MeshInsta
 
 ## Чувствительность обзора (множитель из настроек меню) и скорость поворота стрелками, рад/с.
 static var look_sens := 1.0
-static var KEY_TURN: float = _D_PLAYER.v("KEY_TURN")
+static var KEY_TURN: float = _D_PLAYER.key_turn
 
 
 @warning_ignore("unused_private_class_variable")
@@ -383,10 +383,10 @@ var _queued_arm := -1
 ## Урон без случайности: база × (0.6 + 0.6·з + 0.4·з²) — клик ×0.6, половина заряда ×1.0 (прежний урон оружия,
 ## промпт 19:15), полный ×1.6.
 ## Отдача врага считается от урона (enemy.gd) — тоже растёт. Полоска заряда — над хотбаром (_charge_draw).
-static var CHARGE_MAX: float = _D_PLAYER.v("CHARGE_MAX")
-static var CHARGE_GAIN: float = _D_PLAYER.v("CHARGE_GAIN")
-static var TAP_T: float = _D_PLAYER.v("TAP_T")   # короче — обычный удар без заряда
-static var PUNCH_BASE: float = _D_PLAYER.v("PUNCH_BASE")   # урон кулака (вид удара на урон больше не влияет)
+static var CHARGE_MAX: float = _D_PLAYER.charge_max
+static var CHARGE_GAIN: float = _D_PLAYER.charge_gain
+static var TAP_T: float = _D_PLAYER.tap_time   # короче — обычный удар без заряда
+static var PUNCH_BASE: float = _D_PLAYER.punch_base   # урон кулака (вид удара на урон больше не влияет)
 var charging := -1             # какая рука копит заряд (-1 — никакая)
 var charge_t := 0.0            # сколько копит (с), считается только с поднятыми кулаками
 var strike_charge := 0.0       # заряд удара, который сейчас летит (0..1) — для _check_hit

@@ -14,39 +14,39 @@ extends Node
 ## Прочность (промпт 18.11 01:52): каждый выстрел −1, на нуле пистолет ломается и пропадает;
 ## чинит «Ремкомплект огнестрела» (items.gd: repair_gun, game_items.gd: repair).
 ## Выстрел слышат враги вокруг и бегут на звук. Счётчик «в магазине / в сумке» — справа от хотбара.
-const _D_GUNS := preload("res://data/weapons/guns.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_GUNS := preload("res://data/weapons/guns.tres")   # настройки — правятся в Инспекторе
 
 const Items := preload("res://scripts/items/items.gd")
 const Fx := preload("res://scripts/core/fx.gd")
 const Hud := preload("res://scripts/ui/hud.gd")
 const Weapons := preload("res://scripts/weapons/weapons.gd")
-static var CAP: int = _D_GUNS.v("CAP")   # патронов в магазине
-static var DUR_MAX: float = _D_GUNS.v("DUR_MAX")   # прочность пистолета: столько выстрелов до поломки
-static var DMG: float = _D_GUNS.v("DMG")   # по бетоннику (95 HP) — 3 попадания
-static var RANGE: float = _D_GUNS.v("RANGE")
-static var HEAD_MULT: float = _D_GUNS.v("HEAD_MULT")   # хэдшот (промпт 18.11 00:56)
+static var CAP: int = _D_GUNS.mag_size   # патронов в магазине
+static var DUR_MAX: float = _D_GUNS.durability   # прочность пистолета: столько выстрелов до поломки
+static var DMG: float = _D_GUNS.damage   # по бетоннику (95 HP) — 3 попадания
+static var RANGE: float = _D_GUNS.range_m
+static var HEAD_MULT: float = _D_GUNS.head_mult   # хэдшот (промпт 18.11 00:56)
 # урон падает с дистанцией (промпт 18.11 01:16): до FULL_D — полный, дальше линейно до FAR_MULT на FAR_D и дальше
-static var DMG_FULL_D: float = _D_GUNS.v("DMG_FULL_D")
-static var DMG_FAR_D: float = _D_GUNS.v("DMG_FAR_D")
-static var DMG_FAR_MULT: float = _D_GUNS.v("DMG_FAR_MULT")
-static var FIRE_CD: float = _D_GUNS.v("FIRE_CD")
-static var RELOAD_T: float = _D_GUNS.v("RELOAD_T")   # фазы анимации — player_anim.gd: _reload_pose, звуки — REL_EVENTS
-static var HEAR_R: float = _D_GUNS.v("HEAR_R")   # радиус, в котором враги слышат выстрел
-static var EJECT_T: float = _D_GUNS.v("EJECT_T")   # столько держать Enter — извлечь магазин
-static var AIM_FOV: float = _D_GUNS.v("AIM_FOV")   # множитель поля зрения в прицеле
-static var SPREAD_HIP: float = _D_GUNS.v("SPREAD_HIP")   # разброс от бедра, рад
-static var SPREAD_AIM: float = _D_GUNS.v("SPREAD_AIM")   # даже в прицеле на 100 м уходит на ~1 м
-static var SPREAD_STANCE: float = _D_GUNS.v("SPREAD_STANCE")   # в боевой стойке — заметно больше, чем в прицеле (промпт 18:28)
-static var OPTIC_H: float = _D_GUNS.v("OPTIC_H")   # высота центра линзы коллиматора над началом модели пистолета (weapons.gd)
-static var DOT_X: float = _D_GUNS.v("DOT_X")   # точка коллиматора: вперёд по стволу от начала модели
-static var HIP_H: float = _D_GUNS.v("HIP_H")   # от бедра: пистолет настолько ниже линии взгляда — виден в нижней части кадра
-static var IRON_H: float = _D_GUNS.v("IRON_H")   # линия механического прицела (целик и мушка на затворе, weapons.gd) — без модуля прицела
+static var DMG_FULL_D: float = _D_GUNS.full_dmg_dist
+static var DMG_FAR_D: float = _D_GUNS.far_dmg_dist
+static var DMG_FAR_MULT: float = _D_GUNS.far_dmg_mult
+static var FIRE_CD: float = _D_GUNS.fire_cd
+static var RELOAD_T: float = _D_GUNS.reload_time   # фазы анимации — player_anim.gd: _reload_pose, звуки — REL_EVENTS
+static var HEAR_R: float = _D_GUNS.hear_radius   # радиус, в котором враги слышат выстрел
+static var EJECT_T: float = _D_GUNS.eject_time   # столько держать Enter — извлечь магазин
+static var AIM_FOV: float = _D_GUNS.aim_fov   # множитель поля зрения в прицеле
+static var SPREAD_HIP: float = _D_GUNS.spread_hip   # разброс от бедра, рад
+static var SPREAD_AIM: float = _D_GUNS.spread_aim   # даже в прицеле на 100 м уходит на ~1 м
+static var SPREAD_STANCE: float = _D_GUNS.spread_stance   # в боевой стойке — заметно больше, чем в прицеле (промпт 18:28)
+static var OPTIC_H: float = _D_GUNS.optic_h   # высота центра линзы коллиматора над началом модели пистолета (weapons.gd)
+static var DOT_X: float = _D_GUNS.dot_x   # точка коллиматора: вперёд по стволу от начала модели
+static var HIP_H: float = _D_GUNS.hip_h   # от бедра: пистолет настолько ниже линии взгляда — виден в нижней части кадра
+static var IRON_H: float = _D_GUNS.iron_h   # линия механического прицела (целик и мушка на затворе, weapons.gd) — без модуля прицела
 ## Модули огнестрела (промпт 20.11 18:43): [слот, название, варианты]. В dur пистолета они — старшие разряды:
 ## dur = код × MODW + (магазин, патроны, прочность). Код — смешанная система счисления по слотам: 0 — пусто,
 ## i+1 — MOD_SLOTS[s][2][i]. Так модули сохраняются в сейв, в сундуки и на пол вместе с пистолетом.
 ## Статы модулей — items.gd: "ms" (aim/hip/stance — разброс, fov — зум, recoil, noise, flash, dmg).
-static var MOD_SLOTS: Array = _D_GUNS.v("MOD_SLOTS")
-static var MODW: float = _D_GUNS.v("MODW")
+static var MOD_SLOTS: Array = _D_GUNS.mod_slots_table()
+static var MODW: float = _D_GUNS.mod_code_weight
 ## Стволы (промпт 20.11 19:15): статы по id предмета. mag — предмет-магазин ("" — встроенный: [R] заряжает
 ## патронами ammo из сумки, [Enter] — разрядить), cap — патронов, dmg — урон пули/дробины, pel — дробин за выстрел,
 ## cone — разлёт дроби (рад), cd — пауза между выстрелами, spr — множитель разброса, rng — дальность, far — доля урона
@@ -73,8 +73,8 @@ static func spec(id) -> Dictionary:
 static func cap_of(id) -> int:
 	return int(spec(id)["cap"])
 
-static var TAP_T: float = _D_GUNS.v("TAP_T")   # ПКМ короче — клик (переключить прицел), дольше — держать (от бедра)
-static var RATE: int = _D_GUNS.v("RATE")
+static var TAP_T: float = _D_GUNS.aim_tap_time   # ПКМ короче — клик (переключить прицел), дольше — держать (от бедра)
+static var RATE: int = _D_GUNS.sample_rate
 
 var game
 var cd := 0.0
@@ -103,14 +103,14 @@ var cross: Control
 var _ready_told := false
 ## Инерция оружия в прицеле (промпт 02:49): поворот пистолета и рук догоняет камеру с лагом.
 ## Камера и попадание (по центру) — без задержки. lag_b — поворот «лаг относительно камеры» в мировых осях.
-static var LAG_SPEED: float = _D_GUNS.v("LAG_SPEED")
-static var LAG_MAX: float = _D_GUNS.v("LAG_MAX")   # рад — дальше оружие не отстаёт
+static var LAG_SPEED: float = _D_GUNS.lag_speed
+static var LAG_MAX: float = _D_GUNS.lag_max   # рад — дальше оружие не отстаёт
 var lag_q := Quaternion.IDENTITY
 var lag_b := Basis.IDENTITY
 var _lag_init := false
 ## Два пистолета (промпт 16.11 02:04): управление то же, стреляют по очереди, у каждого свой магазин.
 ## Рука h: 0 — левая, 1 — правая (как player.weapon_nodes).
-static var SLOTS: Array = _D_GUNS.v("SLOTS")
+static var SLOTS: Array = _D_GUNS.hand_slots
 var next_hand := 1
 var _dmg_k := 1.0               # множитель урона текущего выстрела (модули, _shoot)
 var _gs: Dictionary = GUNS["pistol"]   # статы ствола текущего выстрела (_shoot → _deal, _bullet_hit, _muzzle)
@@ -119,7 +119,7 @@ var _hand := 1                  # из какого стреляли после�
 var _reload_h := 1               # какой перезаряжается
 ## Перезарядка (промпт 16.11 02:37): фаза 0..1 → player.gun_rel_k; звуки по фазе: защёлка и выход магазина,
 ## вставка, затвор назад, затвор вперёд. Магазин в руке — отдельный меш, старый магазин падает на пол.
-static var REL_EVENTS: Array = _D_GUNS.v("REL_EVENTS")
+static var REL_EVENTS: Array = _D_GUNS.reload_events
 var _rel_t := 0.0
 var _rel_had := false
 var _rel_ev := 0
@@ -1384,7 +1384,7 @@ func fill_mag(idx: int) -> void:
 # ---------- звуки (процедурные) ----------
 
 ## Звуки перезарядки пока выключены (промпт 16.11 05:10) — вернуть: RELOAD_SND = true.
-static var RELOAD_SND: bool = _D_GUNS.v("RELOAD_SND")
+static var RELOAD_SND: bool = _D_GUNS.reload_sounds
 func _rel_play(s: AudioStream, db: float, pitch: float) -> void:
 	if RELOAD_SND:
 		_play(s, db, pitch)
@@ -1392,7 +1392,7 @@ func _rel_play(s: AudioStream, db: float, pitch: float) -> void:
 
 ## Не больше MAX_SND одновременных голосов пистолета: при спаме стрельбы они складывались
 ## и били по ушам — самый старый обрываем (18.11 01:47).
-static var MAX_SND: int = _D_GUNS.v("MAX_SND")
+static var MAX_SND: int = _D_GUNS.max_sounds
 func _play(s: AudioStream, db: float, pitch: float) -> void:
 	var live: Array[Node] = []
 	for c in get_children():

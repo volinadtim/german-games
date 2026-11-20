@@ -1,35 +1,267 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="ShopsConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_bf31f"]
+[ext_resource type="Script" path="res://scripts/data/shops/shop_item.gd" id="1_c2usg"]
+[ext_resource type="Script" path="res://scripts/data/shops/shop_section.gd" id="2_clg8r"]
+[ext_resource type="Script" path="res://scripts/data/shops/shops_config.gd" id="3_weyxx"]
+
+[sub_resource type="Resource" id="Resource_7uqb0"]
+script = ExtResource("1_c2usg")
+id = "ammo"
+price = 50
+
+[sub_resource type="Resource" id="Resource_tofdk"]
+script = ExtResource("1_c2usg")
+id = "shells"
+price = 70
+
+[sub_resource type="Resource" id="Resource_wlt7l"]
+script = ExtResource("1_c2usg")
+id = "rifle_ammo"
+price = 110
+
+[sub_resource type="Resource" id="Resource_gq3op"]
+script = ExtResource("2_clg8r")
+title = "Голова"
+items = Array[String](["cap", "ushanka", "helmet", "moto_helmet", "kevlar_helmet", "assault_helmet"])
+
+[sub_resource type="Resource" id="Resource_msas8"]
+script = ExtResource("2_clg8r")
+title = "Верх"
+items = Array[String](["sweater", "kurtka", "jacket", "bushlat", "vest", "plate_vest", "riot_armor"])
+
+[sub_resource type="Resource" id="Resource_xaejk"]
+script = ExtResource("2_clg8r")
+title = "Низ"
+items = Array[String](["jeans", "pants", "wpants", "kevlar_pants"])
+
+[sub_resource type="Resource" id="Resource_lymfj"]
+script = ExtResource("2_clg8r")
+title = "Ботинки"
+items = Array[String](["sneakers", "boots", "berets", "combat_boots"])
+
+[sub_resource type="Resource" id="Resource_ad41u"]
+script = ExtResource("2_clg8r")
+title = "Перчатки"
+items = Array[String](["gloves", "tac_gloves"])
+
+[sub_resource type="Resource" id="Resource_t5b82"]
+script = ExtResource("2_clg8r")
+title = "Снаряжение"
+items = Array[String](["gasmask", "filter", "backpack", "gps", "holster", "bag_hooks", "sketch_map", "scuba", "dive_light"])
+
+[sub_resource type="Resource" id="Resource_q4w80"]
+script = ExtResource("2_clg8r")
+title = "Пропитание"
+items = Array[String](["water", "tea", "soda", "energy", "choco", "canned", "ration", "mre"])
+
+[sub_resource type="Resource" id="Resource_wdtep"]
+script = ExtResource("2_clg8r")
+title = "Медицина"
+items = Array[String](["pills", "bandage", "medkit", "medkit_army", "stim", "trauma_kit"])
+
+[sub_resource type="Resource" id="Resource_7rmbj"]
+script = ExtResource("2_clg8r")
+title = "Починка"
+items = Array[String](["repair_weapon", "repair_gear", "repair_gun", "battery"])
+
+[sub_resource type="Resource" id="Resource_xnujo"]
+script = ExtResource("2_clg8r")
+title = "Патроны"
+items = Array[String](["ammo", "ammo_box", "mag", "shells", "rifle_ammo"])
+
+[sub_resource type="Resource" id="Resource_kdmkp"]
+script = ExtResource("1_c2usg")
+id = "battery"
+price = 3
+
+[sub_resource type="Resource" id="Resource_cm3jg"]
+script = ExtResource("1_c2usg")
+id = "water"
+price = 10
+
+[sub_resource type="Resource" id="Resource_wyvkh"]
+script = ExtResource("1_c2usg")
+id = "soda"
+price = 30
+
+[sub_resource type="Resource" id="Resource_oujrw"]
+script = ExtResource("1_c2usg")
+id = "choco"
+price = 15
+
+[sub_resource type="Resource" id="Resource_yb8h3"]
+script = ExtResource("1_c2usg")
+id = "canned"
+price = 50
+
+[sub_resource type="Resource" id="Resource_3ejg6"]
+script = ExtResource("1_c2usg")
+id = "bandage"
+price = 20
+
+[sub_resource type="Resource" id="Resource_g5vhn"]
+script = ExtResource("1_c2usg")
+id = "medkit"
+price = 100
+
+[sub_resource type="Resource" id="Resource_6bi6a"]
+script = ExtResource("1_c2usg")
+id = "repair_weapon"
+price = 60
+
+[sub_resource type="Resource" id="Resource_gofh3"]
+script = ExtResource("1_c2usg")
+id = "repair_gear"
+price = 80
+
+[sub_resource type="Resource" id="Resource_4pe0d"]
+script = ExtResource("1_c2usg")
+id = "repair_gun"
+price = 80
+
+[sub_resource type="Resource" id="Resource_t5wfy"]
+script = ExtResource("1_c2usg")
+id = "tea"
+price = 18
+
+[sub_resource type="Resource" id="Resource_ojawq"]
+script = ExtResource("1_c2usg")
+id = "pills"
+price = 15
+
+[sub_resource type="Resource" id="Resource_73jex"]
+script = ExtResource("1_c2usg")
+id = "energy"
+price = 40
+
+[sub_resource type="Resource" id="Resource_wqfdj"]
+script = ExtResource("1_c2usg")
+id = "ration"
+price = 70
+
+[sub_resource type="Resource" id="Resource_qf5w1"]
+script = ExtResource("1_c2usg")
+id = "ammo_box"
+price = 90
+
+[sub_resource type="Resource" id="Resource_2he37"]
+script = ExtResource("1_c2usg")
+id = "medkit_army"
+price = 180
+
+[sub_resource type="Resource" id="Resource_fuj4d"]
+script = ExtResource("1_c2usg")
+id = "trauma_kit"
+price = 320
+
+[sub_resource type="Resource" id="Resource_lrblj"]
+script = ExtResource("1_c2usg")
+id = "stim"
+price = 120
+
+[sub_resource type="Resource" id="Resource_ykae3"]
+script = ExtResource("1_c2usg")
+id = "mre"
+price = 150
+
+[sub_resource type="Resource" id="Resource_ouvox"]
+script = ExtResource("1_c2usg")
+id = "pistol"
+price = 320
+
+[sub_resource type="Resource" id="Resource_4fgbi"]
+script = ExtResource("1_c2usg")
+id = "sawnoff"
+price = 450
+
+[sub_resource type="Resource" id="Resource_6stcc"]
+script = ExtResource("1_c2usg")
+id = "rifle"
+price = 900
+
+[sub_resource type="Resource" id="Resource_7p7s2"]
+script = ExtResource("1_c2usg")
+id = "smg"
+price = 1200
+
+[sub_resource type="Resource" id="Resource_bynmo"]
+script = ExtResource("1_c2usg")
+id = "mag"
+price = 55
+
+[sub_resource type="Resource" id="Resource_sr7fm"]
+script = ExtResource("1_c2usg")
+id = "mod_reddot"
+price = 140
+
+[sub_resource type="Resource" id="Resource_qk7qi"]
+script = ExtResource("1_c2usg")
+id = "mod_scope"
+price = 260
+
+[sub_resource type="Resource" id="Resource_cd5cu"]
+script = ExtResource("1_c2usg")
+id = "mod_silencer"
+price = 220
+
+[sub_resource type="Resource" id="Resource_5o3oh"]
+script = ExtResource("1_c2usg")
+id = "mod_comp"
+price = 120
+
+[sub_resource type="Resource" id="Resource_bwkt1"]
+script = ExtResource("1_c2usg")
+id = "mod_stock"
+price = 160
+
+[sub_resource type="Resource" id="Resource_xal53"]
+script = ExtResource("1_c2usg")
+id = "mod_grip"
+price = 110
+
+[sub_resource type="Resource" id="Resource_2kgqy"]
+script = ExtResource("1_c2usg")
+id = "mod_laser"
+price = 180
+
+[sub_resource type="Resource" id="Resource_00vjk"]
+script = ExtResource("1_c2usg")
+id = "flashlight"
+price = 35
+
+[sub_resource type="Resource" id="Resource_uslmx"]
+script = ExtResource("1_c2usg")
+id = "broom"
+price = 30
+
+[sub_resource type="Resource" id="Resource_4p8j0"]
+script = ExtResource("1_c2usg")
+id = "steel_hammer"
+price = 45
+
+[sub_resource type="Resource" id="Resource_u3han"]
+script = ExtResource("1_c2usg")
+id = "hatchet"
+price = 55
+
+[sub_resource type="Resource" id="Resource_2xaa5"]
+script = ExtResource("1_c2usg")
+id = "lockpick"
+price = 20000
 
 [resource]
-script = ExtResource("1_bf31f")
-values = {
-"AMMO_PACK": 10,
-"AMMO_SHOP": [["ammo", 50], ["shells", 70], ["rifle_ammo", 110]],
-"BP_TIER": {
-"cot": 1,
-"lamp": 2,
-"rack": 2,
-"sandbags": 1,
-"turret": 3,
-"wallpaper": 1
-},
-"CHEST_REFRESH": 80,
-"CLOTHES": [["Голова", ["cap", "ushanka", "helmet", "moto_helmet", "kevlar_helmet", "assault_helmet"]], ["Верх", ["sweater", "kurtka", "jacket", "bushlat", "vest", "plate_vest", "riot_armor"]], ["Низ", ["jeans", "pants", "wpants", "kevlar_pants"]], ["Ботинки", ["sneakers", "boots", "berets", "combat_boots"]], ["Перчатки", ["gloves", "tac_gloves"]], ["Снаряжение", ["gasmask", "filter", "backpack", "gps", "holster", "bag_hooks", "sketch_map", "scuba", "dive_light"]]],
-"CONSUMABLES": [["battery", 3], ["water", 10], ["soda", 30], ["choco", 15], ["canned", 50], ["bandage", 20], ["medkit", 100], ["repair_weapon", 60], ["repair_gear", 80], ["repair_gun", 80], ["tea", 18], ["pills", 15], ["energy", 40], ["ration", 70], ["ammo_box", 90], ["medkit_army", 180], ["trauma_kit", 320], ["stim", 120], ["mre", 150]],
-"CONS_SUBS": [["Пропитание", ["water", "tea", "soda", "energy", "choco", "canned", "ration", "mre"]], ["Медицина", ["pills", "bandage", "medkit", "medkit_army", "stim", "trauma_kit"]], ["Починка", ["repair_weapon", "repair_gear", "repair_gun", "battery"]], ["Патроны", ["ammo", "ammo_box", "mag", "shells", "rifle_ammo"]]],
-"D": 0.7,
-"FONT_PICK": "Courier New",
-"GUN_IDS": ["pistol", "sawnoff", "rifle", "smg"],
-"GUN_SHOP": [["pistol", 320], ["sawnoff", 450], ["rifle", 900], ["smg", 1200]],
-"H": 2.15,
-"MAG_SHOP": [["mag", 55]],
-"MOD_IDS": ["mod_reddot", "mod_scope", "mod_silencer", "mod_comp", "mod_stock", "mod_grip", "mod_laser"],
-"MOD_SHOP": [["mod_reddot", 140], ["mod_scope", 260], ["mod_silencer", 220], ["mod_comp", 120], ["mod_stock", 160], ["mod_grip", 110], ["mod_laser", 180]],
-"SHELF_Y": [1.78, 1.44, 1.1, 0.76],
-"TABS": ["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"],
-"TIER": {
+script = ExtResource("3_weyxx")
+guns = Array[ExtResource("1_c2usg")]([SubResource("Resource_ouvox"), SubResource("Resource_4fgbi"), SubResource("Resource_6stcc"), SubResource("Resource_7p7s2")])
+gun_ids = Array[String](["pistol", "sawnoff", "rifle", "smg"])
+ammo = Array[ExtResource("1_c2usg")]([SubResource("Resource_7uqb0"), SubResource("Resource_tofdk"), SubResource("Resource_wlt7l")])
+mags = Array[ExtResource("1_c2usg")]([SubResource("Resource_bynmo")])
+mods = Array[ExtResource("1_c2usg")]([SubResource("Resource_sr7fm"), SubResource("Resource_qk7qi"), SubResource("Resource_cd5cu"), SubResource("Resource_5o3oh"), SubResource("Resource_bwkt1"), SubResource("Resource_xal53"), SubResource("Resource_2kgqy")])
+mod_ids = Array[String](["mod_reddot", "mod_scope", "mod_silencer", "mod_comp", "mod_stock", "mod_grip", "mod_laser"])
+consumables = Array[ExtResource("1_c2usg")]([SubResource("Resource_kdmkp"), SubResource("Resource_cm3jg"), SubResource("Resource_wyvkh"), SubResource("Resource_oujrw"), SubResource("Resource_yb8h3"), SubResource("Resource_3ejg6"), SubResource("Resource_g5vhn"), SubResource("Resource_6bi6a"), SubResource("Resource_gofh3"), SubResource("Resource_4pe0d"), SubResource("Resource_t5wfy"), SubResource("Resource_ojawq"), SubResource("Resource_73jex"), SubResource("Resource_wqfdj"), SubResource("Resource_qf5w1"), SubResource("Resource_2he37"), SubResource("Resource_fuj4d"), SubResource("Resource_lrblj"), SubResource("Resource_ykae3")])
+consumable_sections = Array[ExtResource("2_clg8r")]([SubResource("Resource_q4w80"), SubResource("Resource_wdtep"), SubResource("Resource_7rmbj"), SubResource("Resource_xnujo")])
+tools = Array[ExtResource("1_c2usg")]([SubResource("Resource_00vjk"), SubResource("Resource_uslmx"), SubResource("Resource_4p8j0"), SubResource("Resource_u3han"), SubResource("Resource_2xaa5")])
+clothes = Array[ExtResource("2_clg8r")]([SubResource("Resource_gq3op"), SubResource("Resource_msas8"), SubResource("Resource_xaejk"), SubResource("Resource_lymfj"), SubResource("Resource_ad41u"), SubResource("Resource_t5b82")])
+tier = Dictionary[String, int]({
 "ammo": 1,
 "ammo_box": 1,
 "assault_helmet": 3,
@@ -79,18 +311,14 @@ values = {
 "trauma_kit": 3,
 "vest": 1,
 "wpants": 1
-},
-"TOOLS": [["flashlight", 35], ["broom", 30], ["steel_hammer", 45], ["hatchet", 55], ["lockpick", 20000]],
-"TRAY_Y": 0.3,
-"W": 1.0,
-"WIN_X0": -0.47,
-"WIN_X1": 0.17
-}
-order = {
-"BP_TIER": {
-"_": ["wallpaper", "cot", "sandbags", "rack", "lamp", "turret"]
-},
-"TIER": {
-"_": ["medkit", "canned", "soda", "moto_helmet", "vest", "wpants", "tac_gloves", "crowbar", "machete", "pistol", "ammo", "mag", "sawnoff", "rifle", "smg", "shells", "rifle_ammo", "energy", "ration", "ammo_box", "bushlat", "berets", "sapper", "sledge", "gps", "holster", "bag_hooks", "mod_reddot", "mod_comp", "mod_grip", "mod_stock", "mod_laser", "mod_scope", "mod_silencer", "medkit_army", "kevlar_helmet", "plate_vest", "fire_axe", "scuba", "dive_light", "sketch_map", "trauma_kit", "stim", "mre", "assault_helmet", "riot_armor", "kevlar_pants", "combat_boots", "katana"]
-}
-}
+})
+blueprint_tier = Dictionary[String, int]({
+"cot": 1,
+"lamp": 2,
+"rack": 2,
+"sandbags": 1,
+"turret": 3,
+"wallpaper": 1
+})
+tabs = Array[String](["Оружие", "Одежда", "Расходники", "Инструменты", "Слот-Машина", "Чертежи"])
+shelf_y = Array[float]([1.78, 1.44, 1.1, 0.76])

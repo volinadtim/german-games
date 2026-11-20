@@ -1,13 +1,13 @@
 extends RefCounted
 ## Оружие ближнего боя из магазина: урон (множитель к удару кулаком), дальность, цена и 3D-модель.
 ## Модель строится кодом; длинная ось — +Y, рукоять в начале координат.
-const _D_MELEE := preload("res://data/weapons/melee.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_MELEE := preload("res://data/weapons/melee.tres")   # настройки — правятся в Инспекторе
 
-static var WEAPONS: Dictionary = _D_MELEE.v("WEAPONS")
+static var WEAPONS: Dictionary = _D_MELEE.weapons_table()
 
 ## Новые предметы без своей модели берут модель/форму у похожего (промпт 20.11 17:59): id -> базовый id.
 ## Иконка — поле "icon" в items.gd, цвет иконки свой.
-static var ALIAS: Dictionary = _D_MELEE.v("ALIAS")
+static var ALIAS: Dictionary = _D_MELEE.model_alias
 
 ## Удар предметом в руке; не оружие (любой предмет с пола, промпт 18.11 00:27) — чуть сильнее кулака.
 static func stats(id: String) -> Dictionary:
@@ -15,7 +15,7 @@ static func stats(id: String) -> Dictionary:
 
 
 # что продаёт магазин, по порядку
-static var SHOP: Array = _D_MELEE.v("SHOP")
+static var SHOP: Array = _D_MELEE.shop_table()
 
 
 static func _m(c: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:

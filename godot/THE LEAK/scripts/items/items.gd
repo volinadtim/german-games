@@ -1,10 +1,10 @@
 extends RefCounted
-const _D_TABLES := preload("res://data/items/tables.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_TABLES := preload("res://data/items/tables.tres")   # настройки — правятся в Инспекторе
 const Weapons := preload("res://scripts/weapons/weapons.gd")
 ## Справочник предметов (тестовые механики): название, описание, размер стака, иконка и 3D-модель.
 ## Иконки и модели рисуются кодом, файлов нет.
 
-static var MOD_HINT: String = _D_TABLES.v("MOD_HINT")
+static var MOD_HINT: String = _D_TABLES.mod_hint
 static var ITEMS: Dictionary = _load_items()   # data/items/<id>.tres (scripts/data/item_type.gd)
 
 
@@ -26,16 +26,16 @@ static func _load_items() -> Dictionary:
 
 ## Рецепты крафта: что получится и что нужно.
 ## tool — инструмент (не тратится, а теряет прочность wear), промпт 14.11 19:22.
-static var RECIPES: Array = _D_TABLES.v("RECIPES")
+static var RECIPES: Array = _D_TABLES.recipes_table()
 
 
 ## Размер предмета в ячейках сумки [ширина, высота] (промпт 16.11 02:42); нет в списке — 1×1.
 ## Пробел при перетаскивании поворачивает (inventory.gd).
-static var SIZES: Dictionary = _D_TABLES.v("SIZES")
+static var SIZES: Dictionary = _D_TABLES.cells(_D_TABLES.sizes)
 
 ## Отдельные ячейки хранения у одежды (промпт 16.11 02:42): [ширина, высота] блока карманов.
 ## Рюкзак — "bag" в ITEMS (свой блок).
-static var POCKETS: Dictionary = _D_TABLES.v("POCKETS")
+static var POCKETS: Dictionary = _D_TABLES.cells(_D_TABLES.pockets)
 
 
 ## Чем можно заменить инструмент рецепта: сам он и вещи с "tool_of" (слесарный молоток вместо каменного).

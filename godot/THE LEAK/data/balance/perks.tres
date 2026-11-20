@@ -1,9 +1,36 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="PerksConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_xiyu2"]
+[ext_resource type="Script" path="res://scripts/data/balance/perk_branch.gd" id="1_p3amp"]
+[ext_resource type="Script" path="res://scripts/data/balance/perks_config.gd" id="2_cdl23"]
+
+[sub_resource type="Resource" id="Resource_2pc32"]
+script = ExtResource("1_p3amp")
+id = "luck"
+title = "Удача"
+desc = "+15% монет с врагов, чаще редкий лут (кошелёк, бечёвка)"
+costs = Array[int]([40, 90, 160, 250, 360])
+
+[sub_resource type="Resource" id="Resource_xa1nv"]
+script = ExtResource("1_p3amp")
+id = "stamina"
+title = "Выносливость"
+desc = "+12% запаса и восстановления стамины"
+costs = Array[int]([35, 80, 140, 220, 320])
+
+[sub_resource type="Resource" id="Resource_44ofd"]
+script = ExtResource("1_p3amp")
+id = "discount"
+title = "Скидка"
+desc = "−4% ко всем ценам: магазин, прокачка KILLBOX, крутки, CASHY BOX, активные навыки"
+costs = Array[int]([60, 130, 220, 330, 460])
+
+[sub_resource type="Resource" id="Resource_v57wv"]
+script = ExtResource("1_p3amp")
+id = "car"
+title = "Мотор"
+desc = "+6% скорости машины и −10% расхода бензина"
+costs = Array[int]([50, 110, 190, 290, 410])
 
 [resource]
-script = ExtResource("1_xiyu2")
-values = {
-"TREE": [["luck", "Удача", "+15% монет с врагов, чаще редкий лут (кошелёк, бечёвка)", [40, 90, 160, 250, 360]], ["stamina", "Выносливость", "+12% запаса и восстановления стамины", [35, 80, 140, 220, 320]], ["discount", "Скидка", "−4% ко всем ценам: магазин, прокачка KILLBOX, крутки, CASHY BOX, активные навыки", [60, 130, 220, 330, 460]], ["car", "Мотор", "+6% скорости машины и −10% расхода бензина", [50, 110, 190, 290, 410]]]
-}
+script = ExtResource("2_cdl23")
+branches = Array[ExtResource("1_p3amp")]([SubResource("Resource_2pc32"), SubResource("Resource_xa1nv"), SubResource("Resource_44ofd"), SubResource("Resource_v57wv")])

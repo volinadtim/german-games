@@ -1,12 +1,6 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="DashConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_olv0p"]
+[ext_resource type="Script" path="res://scripts/data/balance/dash_config.gd" id="1_olv0p"]
 
 [resource]
 script = ExtResource("1_olv0p")
-values = {
-"COOLDOWN": 0.8,
-"SPEED": 18.0,
-"TAP_MAX": 0.12,
-"TIME": 0.18
-}

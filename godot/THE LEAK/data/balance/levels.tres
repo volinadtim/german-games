@@ -1,14 +1,38 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="LevelsConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_wdaua"]
+[ext_resource type="Script" path="res://scripts/data/balance/level_attr.gd" id="1_4bxio"]
+[ext_resource type="Script" path="res://scripts/data/balance/levels_config.gd" id="2_i3x41"]
+
+[sub_resource type="Resource" id="Resource_or07d"]
+script = ExtResource("1_4bxio")
+id = "speed"
+title = "Скорость"
+desc = "+4% скорости ходьбы и бега"
+
+[sub_resource type="Resource" id="Resource_dye2b"]
+script = ExtResource("1_4bxio")
+id = "melee"
+title = "Ближний бой"
+desc = "+8% урона кулаками и холодным оружием"
+
+[sub_resource type="Resource" id="Resource_3ramd"]
+script = ExtResource("1_4bxio")
+id = "steady"
+title = "Твёрдая рука"
+desc = "−12% качания ствола огнестрела"
+
+[sub_resource type="Resource" id="Resource_oewsw"]
+script = ExtResource("1_4bxio")
+id = "resist"
+title = "Стойкость"
+desc = "−5% получаемого урона"
+
+[sub_resource type="Resource" id="Resource_lwnh5"]
+script = ExtResource("1_4bxio")
+id = "hp"
+title = "Здоровье"
+desc = "+10 к максимуму здоровья"
 
 [resource]
-script = ExtResource("1_wdaua")
-values = {
-"ATTRS": [["speed", "Скорость", "+4% скорости ходьбы и бега"], ["melee", "Ближний бой", "+8% урона кулаками и холодным оружием"], ["steady", "Твёрдая рука", "−12% качания ствола огнестрела"], ["resist", "Стойкость", "−5% получаемого урона"], ["hp", "Здоровье", "+10 к максимуму здоровья"]],
-"MAX_ATTR": 5,
-"MAX_LEVEL": 26,
-"XP_KILL": 12,
-"XP_KILL_HEAVY": 25,
-"XP_LOOT": 4
-}
+script = ExtResource("2_i3x41")
+attrs = Array[ExtResource("1_4bxio")]([SubResource("Resource_or07d"), SubResource("Resource_dye2b"), SubResource("Resource_3ramd"), SubResource("Resource_oewsw"), SubResource("Resource_lwnh5")])

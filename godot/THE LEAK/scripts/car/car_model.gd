@@ -1,16 +1,16 @@
 extends StaticBody3D
 # Часть car.gd: константы, состояние, 3D-модель машины, материалы и примитивы, дым.
-const _D_CAR := preload("res://data/balance/car.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_CAR := preload("res://data/balance/car.tres")   # настройки — правятся в Инспекторе
 const Surface := preload("res://scripts/locations/bunker/surface.gd")
 const WornMetal := preload("res://shaders/worn_metal.gdshader")
 const Sfx2 := preload("res://scripts/core/sfx_extra.gd")
 const Items := preload("res://scripts/items/items.gd")
 
-static var WHEEL_R: float = _D_CAR.v("WHEEL_R")
+static var WHEEL_R: float = _D_CAR.wheel_r
 static var WHEELS := [Vector3(0.69, WHEEL_R, 1.22), Vector3(-0.69, WHEEL_R, 1.22), Vector3(0.69, WHEEL_R, -1.22), Vector3(-0.69, WHEEL_R, -1.22)]
-static var FLAT: int = _D_CAR.v("FLAT")   # спущенное колесо — заднее правое
-static var FLAT_SAG: float = _D_CAR.v("FLAT_SAG")   # насколько осел угол
-static var CRANK_AT: float = _D_CAR.v("CRANK_AT")   # через сколько после «сел» включается стартер
+static var FLAT: int = _D_CAR.flat_wheel   # спущенное колесо — заднее правое
+static var FLAT_SAG: float = _D_CAR.flat_sag   # насколько осел угол
+static var CRANK_AT: float = _D_CAR.crank_at   # через сколько после «сел» включается стартер
 static var DRIVE_AT := CRANK_AT + Sfx2.STARTER_CATCH + 1.5
 const CAM_OFF := Vector3(1.4, 2.7, -6.6)   # камера кат-сцены: сзади-слева, сверху
 
@@ -40,35 +40,35 @@ var win_called := false
 # ---------- двери, места, вождение (промпт 15.11 23:01) ----------
 ## места: 0 — водитель (+X спереди), 1 — переднее пассажирское, 2 — сзади слева (+X), 3 — сзади справа
 ## глаза водителя — у руля (было на 0.56 м дальше, у самой спинки)
-static var SEAT_EYE: Array = _D_CAR.v("SEAT_EYE")
-static var SEAT_HIP: Array = _D_CAR.v("SEAT_HIP")
+static var SEAT_EYE: Array = _D_CAR.seat_eye
+static var SEAT_HIP: Array = _D_CAR.seat_hip
 ## двери: [сторона, петля z, длина]; дверь i — у места i
-static var DOORS: Array = _D_CAR.v("DOORS")
-static var EXIT: Array = _D_CAR.v("EXIT")
+static var DOORS: Array = _D_CAR.doors
+static var EXIT: Array = _D_CAR.exits
 ## лючок бензобака — слева сзади, за задней аркой: заправка только с прицела на него (car.gd, промпт 18.11 01:46)
 const FUEL_CAP := Vector3(-0.83, 0.58, -1.68)
-static var DOOR_OPEN: float = _D_CAR.v("DOOR_OPEN")   # на сколько радиан открывается дверь
-static var MAX_F: float = _D_CAR.v("MAX_F")   # скорость вперёд, м/с
-static var MAX_R: float = _D_CAR.v("MAX_R")   # назад
-static var ACC: float = _D_CAR.v("ACC")
-static var BRAKE: float = _D_CAR.v("BRAKE")   # тормозной путь на 40% короче (05:59)
-static var ROLL: float = _D_CAR.v("ROLL")
-static var TURN: float = _D_CAR.v("TURN")
-static var FUEL_USE: float = _D_CAR.v("FUEL_USE")   # полный бак — ~5 мин газа (05:59: вдвое экономнее)
+static var DOOR_OPEN: float = _D_CAR.door_open   # на сколько радиан открывается дверь
+static var MAX_F: float = _D_CAR.max_forward   # скорость вперёд, м/с
+static var MAX_R: float = _D_CAR.max_reverse   # назад
+static var ACC: float = _D_CAR.accel
+static var BRAKE: float = _D_CAR.brake   # тормозной путь на 40% короче (05:59)
+static var ROLL: float = _D_CAR.roll
+static var TURN: float = _D_CAR.turn
+static var FUEL_USE: float = _D_CAR.fuel_use   # полный бак — ~5 мин газа (05:59: вдвое экономнее)
 ## управление (промпт 16.11 05:13): велосипедная модель поворота, сцепление шин, занос, ручник
-static var WHEELBASE: float = _D_CAR.v("WHEELBASE")   # колёсная база (передняя ось — задняя)
-static var A_LAT: float = _D_CAR.v("A_LAT")   # предел бокового сцепления шин, м/с²: в обычной езде не скользит
-static var A_LAT_HB: float = _D_CAR.v("A_LAT_HB")   # с ручником зад сорван — машину несёт боком (00:37: было 4 — резко гасло)
-static var HB_DECEL: float = _D_CAR.v("HB_DECEL")   # торможение ручником без газа (только задние — они же ведущие)
-static var HB_DECEL_GAS: float = _D_CAR.v("HB_DECEL_GAS")   # ручник + газ: в дрифте скорость почти держится (00:37: ручник не останавливает резко)
-static var DRIFT_YAW: float = _D_CAR.v("DRIFT_YAW")   # предел скорости вращения в заносе, рад/с (пончики; 00:44 — было 2.6)
-static var CRASH_MIN: float = _D_CAR.v("CRASH_MIN")   # с какой скорости удар о препятствие ранит сидящих, м/с
-static var CRASH_DMG: float = _D_CAR.v("CRASH_DMG")   # урон сидящим = (скорость - CRASH_MIN) * CRASH_DMG (на 13 м/с — 24)
-static var RAM_SELF: float = _D_CAR.v("RAM_SELF")   # наезд на врага: сидящие теряют rel * RAM_SELF (немного)
-static var HIT_MIN: float = _D_CAR.v("HIT_MIN")   # с какой относительной скорости удар машиной ранит моба, м/с
-static var HIT_DMG: float = _D_CAR.v("HIT_DMG")   # урон = относительная скорость * HIT_DMG
-static var SWITCH_T: float = _D_CAR.v("SWITCH_T")   # пересадка с пассажирского за руль, с
-static var NEXT_SEATS: Array = _D_CAR.v("NEXT_SEATS")   # соседние места: рядом и спереди/сзади (промпт 18.11 01:00)
+static var WHEELBASE: float = _D_CAR.wheelbase   # колёсная база (передняя ось — задняя)
+static var A_LAT: float = _D_CAR.grip_lateral   # предел бокового сцепления шин, м/с²: в обычной езде не скользит
+static var A_LAT_HB: float = _D_CAR.grip_lateral_handbrake   # с ручником зад сорван — машину несёт боком (00:37: было 4 — резко гасло)
+static var HB_DECEL: float = _D_CAR.handbrake_decel   # торможение ручником без газа (только задние — они же ведущие)
+static var HB_DECEL_GAS: float = _D_CAR.handbrake_decel_gas   # ручник + газ: в дрифте скорость почти держится (00:37: ручник не останавливает резко)
+static var DRIFT_YAW: float = _D_CAR.drift_yaw   # предел скорости вращения в заносе, рад/с (пончики; 00:44 — было 2.6)
+static var CRASH_MIN: float = _D_CAR.crash_min   # с какой скорости удар о препятствие ранит сидящих, м/с
+static var CRASH_DMG: float = _D_CAR.crash_dmg   # урон сидящим = (скорость - CRASH_MIN) * CRASH_DMG (на 13 м/с — 24)
+static var RAM_SELF: float = _D_CAR.ram_self   # наезд на врага: сидящие теряют rel * RAM_SELF (немного)
+static var HIT_MIN: float = _D_CAR.hit_min   # с какой относительной скорости удар машиной ранит моба, м/с
+static var HIT_DMG: float = _D_CAR.hit_dmg   # урон = относительная скорость * HIT_DMG
+static var SWITCH_T: float = _D_CAR.switch_time   # пересадка с пассажирского за руль, с
+static var NEXT_SEATS: Array = _D_CAR.next_seats   # соседние места: рядом и спереди/сзади (промпт 18.11 01:00)
 var switch_from := 1            # откуда пересаживаемся (seat_dir == 2)
 var doors: Array[Node3D] = []
 var door_gaps: Array[Node3D] = []
@@ -76,7 +76,7 @@ var trunk_lid: Node3D                 # крышка багажника на п�
 var trunk_well: Node3D                # тёмная ниша внутри багажника (видна, когда крышка поднята)
 var trunk_k := 0.0                    # 0 — закрыт, 1 — открыт
 var trunk_want := 0.0
-static var TRUNK_OPEN: float = _D_CAR.v("TRUNK_OPEN")   # на сколько поднимается крышка, рад
+static var TRUNK_OPEN: float = _D_CAR.trunk_open   # на сколько поднимается крышка, рад
 var door_k := [0.0, 0.0, 0.0, 0.0]   # 0 — закрыта, 1 — открыта
 var door_want := [0.0, 0.0, 0.0, 0.0]
 var figures: Array[Node3D] = []      # силуэты людей для кат-сцены посадки
@@ -87,10 +87,10 @@ var seat_dir := 0                    # 1 — садится, -1 — выходи
 var seat_from := Vector3.ZERO        # откуда едет камера при посадке (мир)
 ## Прочность кузова (промпт 18.11 01:25): мобы агрятся на машину и бьют по ней. На нуле машина сломана —
 ## мотор не заводится, пока не починишь молотком (каменным или слесарным из магазина «Инструменты»).
-static var CAR_MAX_HP: float = _D_CAR.v("CAR_MAX_HP")
-static var CAR_SEAT_R: float = _D_CAR.v("CAR_SEAT_R")   # удар ближе этого к голове сидящего задевает и его
-static var CAR_SEAT_DMG: float = _D_CAR.v("CAR_SEAT_DMG")   # какая доля урона достаётся сидящему рядом с местом удара
-static var CAR_REPAIR: float = _D_CAR.v("CAR_REPAIR")   # сколько прочности возвращает один удар молотком (доля от максимума)
+static var CAR_MAX_HP: float = _D_CAR.max_hp
+static var CAR_SEAT_R: float = _D_CAR.seat_hit_radius   # удар ближе этого к голове сидящего задевает и его
+static var CAR_SEAT_DMG: float = _D_CAR.seat_hit_share   # какая доля урона достаётся сидящему рядом с местом удара
+static var CAR_REPAIR: float = _D_CAR.repair   # сколько прочности возвращает один удар молотком (доля от максимума)
 var car_hp := CAR_MAX_HP
 var broken := false
 var fuel := 0.0                      # бак 0..1 (кат-сцена: последний бензин)
@@ -112,7 +112,7 @@ var acc_s := 0.0                      # продольное ускорение 
 var roll_vis := 0.0                   # крен кузова в повороте (рисуем на rig)
 var pitch_vis := 0.0
 var look_yaw := 0.0                   # yaw машины в прошлом кадре: на сколько повернула — на столько и взгляд сидящего
-static var LOOK_MAX: float = _D_CAR.v("LOOK_MAX")   # насколько можно отвернуться от «вперёд по машине», рад (~130°: видно двери)
+static var LOOK_MAX: float = _D_CAR.look_max   # насколько можно отвернуться от «вперёд по машине», рад (~130°: видно двери)
 var fuel_ui: CanvasLayer              # шкала бензина, пока сидишь в машине
 var fuel_bar: ColorRect
 var fuel_l: Label
@@ -143,16 +143,16 @@ var hands_k := 0.0                    # руки на руле 0..1 (плавн�
 var lean := 0.0                       # высунулся из окна 0..1 (промпт 18.11 01:20)
 var lean_on := false                  # держит клавишу «высунуться»
 var lean_kick := 0.0                  # накопленный толчок заноса, пока высунут
-static var LEAN_T: float = _D_CAR.v("LEAN_T")   # время высовывания, с
-static var LEAN_OUT: float = _D_CAR.v("LEAN_OUT")   # на сколько глаза уходят в окно, м
+static var LEAN_T: float = _D_CAR.lean_time   # время высовывания, с
+static var LEAN_OUT: float = _D_CAR.lean_out   # на сколько глаза уходят в окно, м
 var village                          # village.gd
 ## Бернаут и быстрый старт (промпт 18.11 01:30): стоя на ручнике дать газ — задние (ведущие)
 ## колёса буксуют на месте, копится раскрутка burn_k; отпустил ручник с газом — рывок со старта.
-static var BURN_T: float = _D_CAR.v("BURN_T")   # за сколько секунд колёса раскручиваются до предела, с
-static var BURN_SPIN: float = _D_CAR.v("BURN_SPIN")   # добавка к видимой скорости задних колёс при бернауте, м/с
-static var BURN_V: float = _D_CAR.v("BURN_V")   # до какой скорости бернаут считается «с места», м/с
-static var LAUNCH_T: float = _D_CAR.v("LAUNCH_T")   # сколько длится рывок быстрого старта, с
-static var LAUNCH_ACC: float = _D_CAR.v("LAUNCH_ACC")   # во сколько раз сильнее разгон на рывке (сверх обычного)
+static var BURN_T: float = _D_CAR.burn_time   # за сколько секунд колёса раскручиваются до предела, с
+static var BURN_SPIN: float = _D_CAR.burn_spin   # добавка к видимой скорости задних колёс при бернауте, м/с
+static var BURN_V: float = _D_CAR.burn_speed   # до какой скорости бернаут считается «с места», м/с
+static var LAUNCH_T: float = _D_CAR.launch_time   # сколько длится рывок быстрого старта, с
+static var LAUNCH_ACC: float = _D_CAR.launch_accel   # во сколько раз сильнее разгон на рывке (сверх обычного)
 var burn_k := 0.0                     # раскрутка колёс на ручнике 0..1
 var launch_t := 0.0                   # остаток рывка быстрого старта, с
 var hand_prev := false                # ручник в прошлом кадре (отпустил — рывок)

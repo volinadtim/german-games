@@ -1,18 +1,6 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="SlideConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_j6eh2"]
+[ext_resource type="Script" path="res://scripts/data/balance/slide_config.gd" id="1_j6eh2"]
 
 [resource]
 script = ExtResource("1_j6eh2")
-values = {
-"COOLDOWN": 0.65,
-"FRICTION_FLAT": 7.5,
-"JUMP_FWD_MULT": 1.45,
-"JUMP_UP_MULT": 1.12,
-"MAX_SPEED": 16.5,
-"MIN_START_SPEED": 5.2,
-"SLOPE_ACCEL": 18.0,
-"START_BOOST": 1.8,
-"STEER_FORCE": 3.5,
-"STOP_SPEED": 2.4
-}

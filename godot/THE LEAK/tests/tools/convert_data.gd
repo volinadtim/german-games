@@ -7,8 +7,11 @@ var used := {}   # ключи старой таблицы, которые пер
 
 
 func _ready() -> void:
+	var spec: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/tools/data_map.json"))
 	for t in OS.get_cmdline_user_args():
-		if has_method("_conv_" + t):
+		if spec.has(t):
+			_conv_spec(t, spec[t])
+		elif has_method("_conv_" + t):
 			call("_conv_" + t)
 		else:
 			push_error("нет конвертера " + t)
@@ -26,7 +29,11 @@ func _map(res: Resource, old: Resource, m: Dictionary) -> void:
 	for k in m:
 		var val = _v(old, k)
 		var cur = res.get(m[k])
-		if cur is Array and cur.is_typed():
+		if cur is Dictionary and cur.is_typed():
+			cur.clear()
+			for kk in val:
+				cur[kk] = _cast(val[kk], cur.get_typed_value_builtin())
+		elif cur is Array and cur.is_typed():
 			cur.clear()
 			for x in val:
 				cur.append(_cast(x, cur.get_typed_builtin()))
@@ -193,3 +200,135 @@ func _conv_radiation() -> void:
 		_base_sym(s, id, old, RAD_NAMES)
 		c.symbols.append(s)
 	_save(c, old, path)
+
+
+# ---------- таблицы по data_map.json: простые поля — по карте, "=…" — в _post_<таблица> ----------
+
+func _conv_spec(t: String, sp: Dictionary) -> void:
+	var path: String = sp["path"]
+	var old := load(path)
+	var cls: Resource = null
+	for g in ProjectSettings.get_global_class_list():
+		if g["class"] == sp["class"]:
+			cls = load(g["path"]).new()
+	var simple := {}
+	for k in sp["map"]:
+		if not String(sp["map"][k]).begins_with("="):
+			simple[k] = sp["map"][k]
+	_map(cls, old, simple)
+	if has_method("_post_" + t):
+		call("_post_" + t, cls, old)
+	_save(cls, old, path)
+
+
+func _post_levels(c: LevelsConfig, old: Resource) -> void:
+	for a in _v(old, "ATTRS"):
+		var la := LevelAttr.new()
+		la.id = a[0]
+		la.title = a[1]
+		la.desc = a[2]
+		c.attrs.append(la)
+
+
+func _post_perks(c: PerksConfig, old: Resource) -> void:
+	for a in _v(old, "TREE"):
+		var b := PerkBranch.new()
+		b.id = a[0]
+		b.title = a[1]
+		b.desc = a[2]
+		for x in a[3]:
+			b.costs.append(x)
+		c.branches.append(b)
+
+
+func _post_mutant(c: MutantConfig, old: Resource) -> void:
+	var kinds: Dictionary = _v(old, "KINDS")
+	for id in kinds:
+		var d: Dictionary = kinds[id]
+		var k := MutantKind.new()
+		k.id = id
+		k.title = d["name"]
+		k.hp = d["hp"]
+		k.speed = d["speed"]
+		k.height = d["h"]
+		k.skin = d["skin"]
+		k.glow = d["glow"]
+		c.kinds.append(k)
+
+
+func _post_guns(c: GunConfig, old: Resource) -> void:
+	for a in _v(old, "MOD_SLOTS"):
+		var s := GunModSlot.new()
+		s.id = a[0]
+		s.title = a[1]
+		for x in a[2]:
+			s.mods.append(x)
+		c.mod_slots.append(s)
+
+
+func _items(arr: Array, src: Array) -> void:
+	for a in src:
+		var it := ShopItem.new()
+		it.id = a[0]
+		it.price = a[1]
+		arr.append(it)
+
+
+func _sections(arr: Array, src: Array) -> void:
+	for a in src:
+		var s := ShopSection.new()
+		s.title = a[0]
+		for x in a[1]:
+			s.items.append(x)
+		arr.append(s)
+
+
+func _post_melee(c: MeleeConfig, old: Resource) -> void:
+	var w: Dictionary = _v(old, "WEAPONS")
+	for id in w:
+		var m := MeleeWeapon.new()
+		m.id = id
+		m.dmg_mult = w[id]["mult"]
+		m.reach = w[id]["reach"]
+		m.price = w[id]["price"]
+		c.weapons.append(m)
+	_items(c.shop, _v(old, "SHOP"))
+
+
+func _post_shops(c: ShopsConfig, old: Resource) -> void:
+	_items(c.ammo, _v(old, "AMMO_SHOP"))
+	_items(c.mags, _v(old, "MAG_SHOP"))
+	_items(c.guns, _v(old, "GUN_SHOP"))
+	_items(c.mods, _v(old, "MOD_SHOP"))
+	_items(c.tools, _v(old, "TOOLS"))
+	_items(c.consumables, _v(old, "CONSUMABLES"))
+	_sections(c.consumable_sections, _v(old, "CONS_SUBS"))
+	_sections(c.clothes, _v(old, "CLOTHES"))
+
+
+func _post_defaults(c: SettingsDefaults, old: Resource) -> void:
+	var st: Dictionary = _v(old, "SETTINGS")
+	for k in st:
+		var d := SettingDef.new()
+		d.key = k
+		d.title = st[k][0]
+		d.min_value = st[k][1]
+		d.max_value = st[k][2]
+		d.step = st[k][3]
+		d.default_value = st[k][4]
+		c.settings.append(d)
+
+
+func _post_tables(c: ItemTables, old: Resource) -> void:
+	for r in _v(old, "RECIPES"):
+		var cr := CraftRecipe.new()
+		cr.out = r["out"]
+		for k in r["need"]:
+			cr.need[k] = r["need"][k]
+		cr.tool_id = r.get("tool", "")
+		cr.wear = r.get("wear", 0)
+		c.recipes.append(cr)
+	for pair in [["SIZES", c.sizes], ["POCKETS", c.pockets]]:
+		var src: Dictionary = _v(old, pair[0])
+		for k in src:
+			pair[1][k] = Vector2i(src[k][0], src[k][1])

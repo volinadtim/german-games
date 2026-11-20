@@ -1,44 +1,44 @@
 extends CharacterBody3D
 # Часть enemy.gd: константы, состояние, звуки, примитивы мешей.
 @warning_ignore("unused_signal")
-const _D_ENEMY := preload("res://data/enemies/enemy.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_ENEMY := preload("res://data/enemies/enemy.tres")   # настройки — правятся в Инспекторе
 signal died(enemy: Node)
 
 const Fx := preload("res://scripts/core/fx.gd")
 const Gibs := preload("res://scripts/world/gibs.gd")
 const Surface := preload("res://scripts/locations/bunker/surface.gd")
 
-static var SPEED: float = _D_ENEMY.v("SPEED")
-static var SIGHT: float = _D_ENEMY.v("SIGHT")
+static var SPEED: float = _D_ENEMY.speed
+static var SIGHT: float = _D_ENEMY.sight
 ## Чувства (промпт 16.11 21:54): видит в конусе ±FOV_DEG на SIGHT м, сквозь стены — нет; вприсядку игрока
 ## видно с SIGHT_CROUCH доли расстояния; ближе NEAR_FEEL замечает в любую сторону. Слышит в радиусе шума
 ## игрока (player_base.gd noise_r), через стену — вдвое ближе. Потерял — идёт туда, где видел/слышал
 ## последний раз (last_known), озирается и уходит. Шум издалека — идёт проверить (investigate).
-static var FOV_DEG: float = _D_ENEMY.v("FOV_DEG")
-static var SIGHT_CROUCH: float = _D_ENEMY.v("SIGHT_CROUCH")   # было 0.55 (промпт 18.11 01:06: больше стелса)
-static var NEAR_FEEL: float = _D_ENEMY.v("NEAR_FEEL")
-static var NEAR_FEEL_CROUCH: float = _D_ENEMY.v("NEAR_FEEL_CROUCH")   # вприсядку сзади/сбоку замечает только вплотную
+static var FOV_DEG: float = _D_ENEMY.fov_deg
+static var SIGHT_CROUCH: float = _D_ENEMY.sight_crouch   # было 0.55 (промпт 18.11 01:06: больше стелса)
+static var NEAR_FEEL: float = _D_ENEMY.near_feel
+static var NEAR_FEEL_CROUCH: float = _D_ENEMY.near_feel_crouch   # вприсядку сзади/сбоку замечает только вплотную
 ## Стелс (промпт 18.11 01:06): заметить — не мгновенно, копится подозрение (suspicion 0..1, над головой «?»/«!»):
 ## чем ближе и чем светлее (фонарик), тем быстрее. Спокойного врага со спины — урон ×BACKSTAB, вприсядку — насмерть.
-static var NOTICE_NEAR: float = _D_ENEMY.v("NOTICE_NEAR")   # с за сколько секунд замечает вплотную
-static var NOTICE_FAR: float = _D_ENEMY.v("NOTICE_FAR")   # … и на краю дальности зрения
-static var BACKSTAB: float = _D_ENEMY.v("BACKSTAB")
+static var NOTICE_NEAR: float = _D_ENEMY.notice_near   # с за сколько секунд замечает вплотную
+static var NOTICE_FAR: float = _D_ENEMY.notice_far   # … и на краю дальности зрения
+static var BACKSTAB: float = _D_ENEMY.backstab
 var suspicion := 0.0
 var sus_label: Label3D
-static var MEM_T: float = _D_ENEMY.v("MEM_T")
-static var ATTACK_RANGE: float = _D_ENEMY.v("ATTACK_RANGE")
-static var HIT_RANGE: float = _D_ENEMY.v("HIT_RANGE")
-static var DAMAGE: float = _D_ENEMY.v("DAMAGE")   # было 12 (промпт 19:15: сильнее и крепче, +35%)
-static var MAX_HP: float = _D_ENEMY.v("MAX_HP")   # было 70
-static var LEASH: float = _D_ENEMY.v("LEASH")
-static var WANDER_SPEED: float = _D_ENEMY.v("WANDER_SPEED")
+static var MEM_T: float = _D_ENEMY.memory_time
+static var ATTACK_RANGE: float = _D_ENEMY.attack_range
+static var HIT_RANGE: float = _D_ENEMY.hit_range
+static var DAMAGE: float = _D_ENEMY.damage   # было 12 (промпт 19:15: сильнее и крепче, +35%)
+static var MAX_HP: float = _D_ENEMY.max_hp   # было 70
+static var LEASH: float = _D_ENEMY.leash
+static var WANDER_SPEED: float = _D_ENEMY.wander_speed
 ## проёмы бункера (level.gd: DOOR_W 1.7, DOOR_H 2.3): [центр, нормаль стены]. Через них враг проходит по оси —
 ## сначала выходит на центр проёма со своей стороны, потом насквозь, не трётся о косяки (промпт 14.11 20:07)
-static var DOORS: Array = _D_ENEMY.v("DOORS")
-static var DOOR_HALF: float = _D_ENEMY.v("DOOR_HALF")
+static var DOORS: Array = _D_ENEMY.doors
+static var DOOR_HALF: float = _D_ENEMY.door_half
 ## точки пути по бункеру: коридор, обе стороны каждого проёма, середины комнат, выход к лестнице.
 ## Между ними ищется кратчайший путь (связи — где точки видят друг друга), так враг находит дорогу в любую комнату.
-static var WAYPOINTS: Array = _D_ENEMY.v("WAYPOINTS")
+static var WAYPOINTS: Array = _D_ENEMY.waypoints
 @warning_ignore("unused_private_class_variable")
 static var _wp_links: Array = []    # для каждой точки — индексы видимых соседей (считаются один раз)
 
@@ -61,9 +61,9 @@ var cool_t := 1.1
 var height := 2.0
 var dash_ph := 0.0    # быстрый: фаза рывка (рывок — пауза)
 # --- ум и абилки (промпт 19:15) ---
-static var ABILITY_CD: float = _D_ENEMY.v("ABILITY_CD")
-static var LEAP_DMG: float = _D_ENEMY.v("LEAP_DMG")   # Шныга: прыжок на игрока
-static var ROCK_DMG: float = _D_ENEMY.v("ROCK_DMG")   # бетонник: брошенный камень
+static var ABILITY_CD: float = _D_ENEMY.ability_cd
+static var LEAP_DMG: float = _D_ENEMY.leap_dmg   # Шныга: прыжок на игрока
+static var ROCK_DMG: float = _D_ENEMY.rock_dmg   # бетонник: брошенный камень
 var ability_cd := 0.0
 var leap_vel := Vector3.ZERO
 var leap_hit := false
@@ -93,10 +93,10 @@ var calm := false           # до конца кат-сцены (intro.gd): не
 var crawl_speed := 0.6      # скорость ползания (intro.gd)
 var spawn_rise := false   # выставить до add_child: появляется анимацией подъёма из пола (state "rise")
 var rise_thud := false
-static var RISE_FADE: float = _D_ENEMY.v("RISE_FADE")   # проявление
-static var RISE_UP: float = _D_ENEMY.v("RISE_UP")   # всплыл грудью вверх
-static var RISE_DROP: float = _D_ENEMY.v("RISE_DROP")   # резко встал на ноги
-static var RISE_T: float = _D_ENEMY.v("RISE_T")
+static var RISE_FADE: float = _D_ENEMY.rise_fade   # проявление
+static var RISE_UP: float = _D_ENEMY.rise_up   # всплыл грудью вверх
+static var RISE_DROP: float = _D_ENEMY.rise_drop   # резко встал на ноги
+static var RISE_T: float = _D_ENEMY.rise_time
 var hunter := false   # всегда гонится, спускается в бункер
 var hp := MAX_HP   # выставляет _apply_kind
 var state := "idle"
@@ -113,8 +113,8 @@ var bar_t := 0.0
 var surface := false
 ## агро: враг с поляны, заметивший игрока, идёт за ним и в будку, и вниз по лестнице в бункер —
 ## сейвзоны нет. Потерял из виду на LOSE_T секунд — поднимается обратно на поляну (состояние "return").
-static var LOSE_T: float = _D_ENEMY.v("LOSE_T")
-static var CHASE_MAX: float = _D_ENEMY.v("CHASE_MAX")   # дольше этого без вида игрока — точно сдаётся
+static var LOSE_T: float = _D_ENEMY.lose_time
+static var CHASE_MAX: float = _D_ENEMY.chase_max   # дольше этого без вида игрока — точно сдаётся
 var lost_t := 0.0
 var blind_t := 0.0
 var wander_t := 0.0

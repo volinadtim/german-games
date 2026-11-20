@@ -42,7 +42,9 @@ func _ready() -> void:
 			for n in snap[f]:
 				cnt += 1
 				var now := _ser(s.get(n))
-				if now != snap[f][n] and _loose(now) == _loose(snap[f][n]):
+				if now != snap[f][n] and _sorted(now) == _sorted(snap[f][n]):
+					print("SNAP ORDER %s %s (те же значения, другой порядок ключей словаря)" % [f, n])
+				elif now != snap[f][n] and _loose(now) == _loose(snap[f][n]):
 					print("SNAP TYPE %s %s (только int/float): %s -> %s" % [f, n, snap[f][n], now])
 				elif now != snap[f][n]:
 					bad += 1
@@ -79,3 +81,8 @@ static func _ser(v) -> String:
 ## Без разницы int/float: «6.0» -> «6».
 static func _loose(s: String) -> String:
 	return RegEx.create_from_string("(?<![0-9.])([0-9]+)\\.0(?![0-9])").sub(s, "$1", true)
+
+
+## Снимок -> var_to_str (тот сортирует ключи словарей): сравнение без учёта порядка ключей.
+static func _sorted(s: String) -> String:
+	return var_to_str(str_to_var(s))

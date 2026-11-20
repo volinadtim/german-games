@@ -2,7 +2,7 @@ extends CanvasLayer
 ## Меню: главное («Играть», «Настройки», «Выход»), пауза по Esc («Продолжить», «Настройки», «Выход в меню»)
 ## и настройки (громкость, яркость, гамма, постеризация). В углу — звук и полный экран.
 ## Работает и на паузе (process_mode = ALWAYS). Настройки сохраняются в user://settings.cfg.
-const _D_DEFAULTS := preload("res://data/settings/defaults.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_DEFAULTS := preload("res://data/settings/defaults.tres")   # настройки — правятся в Инспекторе
 
 signal play_pressed
 
@@ -13,7 +13,7 @@ const Graphics := preload("res://scripts/core/graphics.gd")
 const PlayerScript := preload("res://scripts/player/player.gd")
 
 # имя -> [подпись, мин, макс, шаг, по умолчанию]
-static var SETTINGS: Dictionary = _D_DEFAULTS.v("SETTINGS")
+static var SETTINGS: Dictionary = _D_DEFAULTS.settings_table()
 
 var in_game := false          # выставляет main.gd, когда игра началась
 var post_mat: ShaderMaterial  # постобработка — выставляет main.gd
@@ -40,12 +40,12 @@ var cat_btns := {}                # категория -> кнопка слев�
 var ctl_tabs: Array = []          # кнопки-вкладки разделов «Управления»
 var ctl_groups: Array = []        # бинды каждого раздела (виден только активный)
 ## Категория «Основное»; всё остальное из SETTINGS — в «Экран и графика».
-static var GENERAL_KEYS: Array = _D_DEFAULTS.v("GENERAL_KEYS")
+static var GENERAL_KEYS: Array = _D_DEFAULTS.general_keys
 ## Категория «Прицел»
-static var AIM_KEYS: Array = _D_DEFAULTS.v("AIM_KEYS")
+static var AIM_KEYS: Array = _D_DEFAULTS.aim_keys
 
 ## Разрешение окна: индекс 0 — авто (под экран), остальные — фиксированный размер (промпт 01:33 18.11)
-static var RESOLUTIONS: Array = _D_DEFAULTS.v("RESOLUTIONS")
+static var RESOLUTIONS: Array = _D_DEFAULTS.resolutions
 var net_box: Control              # страница «Сетевая игра» (net_lobby.gd, промпт 14.11 19:37)
 var ctl_rows := {}                # действие -> [кнопка основной клавиши, кнопка альтернативной]
 var waiting_action := ""          # ждём клавишу для этого действия

@@ -1,24 +1,24 @@
 extends CharacterBody3D
 # Часть mutant.gd: константы, состояние, модели трёх видов, полоска здоровья, плевок.
 @warning_ignore("unused_signal")
-const _D_MUTANT := preload("res://data/enemies/mutant.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_MUTANT := preload("res://data/enemies/mutant.tres")   # настройки — правятся в Инспекторе
 signal died(m: Node)
 
 const Fx := preload("res://scripts/core/fx.gd")
 const Gibs := preload("res://scripts/world/gibs.gd")
-static var G: float = _D_MUTANT.v("G")
+static var G: float = _D_MUTANT.ground_y
 
 ## Параметры видов: здоровье, скорость, рост, цвет кожи, свечение
-static var KINDS: Dictionary = _D_MUTANT.v("KINDS")
-static var SIGHT: float = _D_MUTANT.v("SIGHT")
-static var LEASH: float = _D_MUTANT.v("LEASH")
-static var SPIT_DMG: float = _D_MUTANT.v("SPIT_DMG")
-static var SPIT_CD: float = _D_MUTANT.v("SPIT_CD")
-static var CHARGE_DMG: float = _D_MUTANT.v("CHARGE_DMG")
-static var CHARGE_SPEED: float = _D_MUTANT.v("CHARGE_SPEED")
-static var SLAM_DMG: float = _D_MUTANT.v("SLAM_DMG")
-static var STALK_DMG: float = _D_MUTANT.v("STALK_DMG")
-static var SWIPE_DMG: float = _D_MUTANT.v("SWIPE_DMG")
+static var KINDS: Dictionary = _D_MUTANT.kinds_table()
+static var SIGHT: float = _D_MUTANT.sight
+static var LEASH: float = _D_MUTANT.leash
+static var SPIT_DMG: float = _D_MUTANT.spit_dmg
+static var SPIT_CD: float = _D_MUTANT.spit_cd
+static var CHARGE_DMG: float = _D_MUTANT.charge_dmg
+static var CHARGE_SPEED: float = _D_MUTANT.charge_speed
+static var SLAM_DMG: float = _D_MUTANT.slam_dmg
+static var STALK_DMG: float = _D_MUTANT.stalk_dmg
+static var SWIPE_DMG: float = _D_MUTANT.swipe_dmg
 
 var game                  # game.gd
 var tg                    # цель: game или сетевой игрок (net.gd: RemoteTarget)

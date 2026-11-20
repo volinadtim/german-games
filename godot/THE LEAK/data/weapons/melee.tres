@@ -1,11 +1,365 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="MeleeConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_aibfj"]
+[ext_resource type="Script" path="res://scripts/data/weapons/melee_config.gd" id="1_g0hiy"]
+[ext_resource type="Script" path="res://scripts/data/shops/shop_item.gd" id="2_j25xj"]
+[ext_resource type="Script" path="res://scripts/data/weapons/melee_weapon.gd" id="3_mk6or"]
+
+[sub_resource type="Resource" id="Resource_h72wn"]
+script = ExtResource("2_j25xj")
+id = "bat"
+price = 40
+
+[sub_resource type="Resource" id="Resource_c6wbh"]
+script = ExtResource("2_j25xj")
+id = "pipe"
+price = 60
+
+[sub_resource type="Resource" id="Resource_oskmh"]
+script = ExtResource("2_j25xj")
+id = "crowbar"
+price = 90
+
+[sub_resource type="Resource" id="Resource_t48ut"]
+script = ExtResource("2_j25xj")
+id = "machete"
+price = 140
+
+[sub_resource type="Resource" id="Resource_vuodo"]
+script = ExtResource("2_j25xj")
+id = "gasmask"
+price = 50
+
+[sub_resource type="Resource" id="Resource_at5r3"]
+script = ExtResource("2_j25xj")
+id = "filter"
+price = 25
+
+[sub_resource type="Resource" id="Resource_2bscv"]
+script = ExtResource("2_j25xj")
+id = "flashlight"
+price = 35
+
+[sub_resource type="Resource" id="Resource_xymxd"]
+script = ExtResource("2_j25xj")
+id = "broom"
+price = 30
+
+[sub_resource type="Resource" id="Resource_cqcxc"]
+script = ExtResource("2_j25xj")
+id = "helmet"
+price = 45
+
+[sub_resource type="Resource" id="Resource_nx162"]
+script = ExtResource("2_j25xj")
+id = "jacket"
+price = 60
+
+[sub_resource type="Resource" id="Resource_avbby"]
+script = ExtResource("2_j25xj")
+id = "gloves"
+price = 30
+
+[sub_resource type="Resource" id="Resource_n0132"]
+script = ExtResource("2_j25xj")
+id = "pants"
+price = 35
+
+[sub_resource type="Resource" id="Resource_8s4hk"]
+script = ExtResource("2_j25xj")
+id = "boots"
+price = 40
+
+[sub_resource type="Resource" id="Resource_nv08k"]
+script = ExtResource("2_j25xj")
+id = "backpack"
+price = 70
+
+[sub_resource type="Resource" id="Resource_8dm1r"]
+script = ExtResource("2_j25xj")
+id = "ushanka"
+price = 15
+
+[sub_resource type="Resource" id="Resource_sc4ic"]
+script = ExtResource("2_j25xj")
+id = "moto_helmet"
+price = 90
+
+[sub_resource type="Resource" id="Resource_703ui"]
+script = ExtResource("2_j25xj")
+id = "kurtka"
+price = 30
+
+[sub_resource type="Resource" id="Resource_y0skm"]
+script = ExtResource("2_j25xj")
+id = "vest"
+price = 120
+
+[sub_resource type="Resource" id="Resource_i0tsb"]
+script = ExtResource("2_j25xj")
+id = "jeans"
+price = 20
+
+[sub_resource type="Resource" id="Resource_j7ig3"]
+script = ExtResource("2_j25xj")
+id = "wpants"
+price = 55
+
+[sub_resource type="Resource" id="Resource_esmwt"]
+script = ExtResource("2_j25xj")
+id = "sneakers"
+price = 25
+
+[sub_resource type="Resource" id="Resource_yl7cv"]
+script = ExtResource("2_j25xj")
+id = "tac_gloves"
+price = 75
+
+[sub_resource type="Resource" id="Resource_tf8q1"]
+script = ExtResource("2_j25xj")
+id = "wrench"
+price = 35
+
+[sub_resource type="Resource" id="Resource_k6ne2"]
+script = ExtResource("2_j25xj")
+id = "cap"
+price = 8
+
+[sub_resource type="Resource" id="Resource_hv61q"]
+script = ExtResource("2_j25xj")
+id = "sweater"
+price = 18
+
+[sub_resource type="Resource" id="Resource_qveom"]
+script = ExtResource("2_j25xj")
+id = "sapper"
+price = 110
+
+[sub_resource type="Resource" id="Resource_yocpl"]
+script = ExtResource("2_j25xj")
+id = "sledge"
+price = 170
+
+[sub_resource type="Resource" id="Resource_mn54q"]
+script = ExtResource("2_j25xj")
+id = "bushlat"
+price = 95
+
+[sub_resource type="Resource" id="Resource_q8cbk"]
+script = ExtResource("2_j25xj")
+id = "berets"
+price = 75
+
+[sub_resource type="Resource" id="Resource_suknp"]
+script = ExtResource("2_j25xj")
+id = "fire_axe"
+price = 240
+
+[sub_resource type="Resource" id="Resource_yv24y"]
+script = ExtResource("2_j25xj")
+id = "kevlar_helmet"
+price = 180
+
+[sub_resource type="Resource" id="Resource_pmi44"]
+script = ExtResource("2_j25xj")
+id = "plate_vest"
+price = 220
+
+[sub_resource type="Resource" id="Resource_4vdio"]
+script = ExtResource("2_j25xj")
+id = "scuba"
+price = 260
+
+[sub_resource type="Resource" id="Resource_qhy1t"]
+script = ExtResource("2_j25xj")
+id = "dive_light"
+price = 90
+
+[sub_resource type="Resource" id="Resource_p6xi5"]
+script = ExtResource("2_j25xj")
+id = "katana"
+price = 420
+
+[sub_resource type="Resource" id="Resource_7ff81"]
+script = ExtResource("2_j25xj")
+id = "assault_helmet"
+price = 320
+
+[sub_resource type="Resource" id="Resource_18qxx"]
+script = ExtResource("2_j25xj")
+id = "riot_armor"
+price = 420
+
+[sub_resource type="Resource" id="Resource_rj3kr"]
+script = ExtResource("2_j25xj")
+id = "kevlar_pants"
+price = 200
+
+[sub_resource type="Resource" id="Resource_6nyv3"]
+script = ExtResource("2_j25xj")
+id = "combat_boots"
+price = 160
+
+[sub_resource type="Resource" id="Resource_t4xkl"]
+script = ExtResource("2_j25xj")
+id = "gps"
+price = 150
+
+[sub_resource type="Resource" id="Resource_8omee"]
+script = ExtResource("2_j25xj")
+id = "holster"
+price = 60
+
+[sub_resource type="Resource" id="Resource_veqmo"]
+script = ExtResource("2_j25xj")
+id = "bag_hooks"
+price = 45
+
+[sub_resource type="Resource" id="Resource_rb8qm"]
+script = ExtResource("2_j25xj")
+id = "sketch_map"
+price = 120
+
+[sub_resource type="Resource" id="Resource_wuabc"]
+script = ExtResource("3_mk6or")
+id = "bat"
+dmg_mult = 2.0
+reach = 1.5
+price = 40
+
+[sub_resource type="Resource" id="Resource_brhn1"]
+script = ExtResource("3_mk6or")
+id = "pipe"
+dmg_mult = 2.5
+reach = 1.55
+price = 60
+
+[sub_resource type="Resource" id="Resource_shnyc"]
+script = ExtResource("3_mk6or")
+id = "crowbar"
+dmg_mult = 3.0
+reach = 1.45
+price = 90
+
+[sub_resource type="Resource" id="Resource_hcvhs"]
+script = ExtResource("3_mk6or")
+id = "machete"
+dmg_mult = 3.6
+reach = 1.5
+price = 120
+
+[sub_resource type="Resource" id="Resource_jb8po"]
+script = ExtResource("3_mk6or")
+id = "knife"
+dmg_mult = 2.4
+reach = 1.25
+
+[sub_resource type="Resource" id="Resource_v3rfy"]
+script = ExtResource("3_mk6or")
+id = "hammer"
+dmg_mult = 2.2
+reach = 1.3
+
+[sub_resource type="Resource" id="Resource_qvk41"]
+script = ExtResource("3_mk6or")
+id = "steel_hammer"
+dmg_mult = 2.6
+reach = 1.3
+price = 45
+
+[sub_resource type="Resource" id="Resource_h5p7i"]
+script = ExtResource("3_mk6or")
+id = "hatchet"
+dmg_mult = 2.9
+reach = 1.35
+price = 55
+
+[sub_resource type="Resource" id="Resource_syyek"]
+script = ExtResource("3_mk6or")
+id = "shiv"
+dmg_mult = 2.7
+reach = 1.25
+
+[sub_resource type="Resource" id="Resource_4wr0i"]
+script = ExtResource("3_mk6or")
+id = "spiked_club"
+dmg_mult = 3.2
+reach = 1.5
+
+[sub_resource type="Resource" id="Resource_lnv4i"]
+script = ExtResource("3_mk6or")
+id = "pistol"
+dmg_mult = 1.6
+reach = 1.15
+
+[sub_resource type="Resource" id="Resource_sbesl"]
+script = ExtResource("3_mk6or")
+id = "sawnoff"
+dmg_mult = 2.0
+
+[sub_resource type="Resource" id="Resource_5v1bw"]
+script = ExtResource("3_mk6or")
+id = "rifle"
+dmg_mult = 2.3
+reach = 1.4
+
+[sub_resource type="Resource" id="Resource_01kex"]
+script = ExtResource("3_mk6or")
+id = "smg"
+dmg_mult = 1.7
+reach = 1.15
+
+[sub_resource type="Resource" id="Resource_8v406"]
+script = ExtResource("3_mk6or")
+id = "knuckles"
+dmg_mult = 1.9
+reach = 1.05
+
+[sub_resource type="Resource" id="Resource_kbfu1"]
+script = ExtResource("3_mk6or")
+id = "stone"
+dmg_mult = 1.4
+reach = 1.05
+
+[sub_resource type="Resource" id="Resource_jx4mu"]
+script = ExtResource("3_mk6or")
+id = "wrench"
+dmg_mult = 2.3
+reach = 1.3
+price = 35
+
+[sub_resource type="Resource" id="Resource_4xbmo"]
+script = ExtResource("3_mk6or")
+id = "sapper"
+dmg_mult = 3.3
+reach = 1.4
+price = 110
+
+[sub_resource type="Resource" id="Resource_343e7"]
+script = ExtResource("3_mk6or")
+id = "sledge"
+dmg_mult = 4.0
+reach = 1.5
+price = 170
+
+[sub_resource type="Resource" id="Resource_vtug6"]
+script = ExtResource("3_mk6or")
+id = "fire_axe"
+dmg_mult = 4.4
+reach = 1.5
+price = 240
+
+[sub_resource type="Resource" id="Resource_ipokg"]
+script = ExtResource("3_mk6or")
+id = "katana"
+dmg_mult = 5.2
+reach = 1.6
+price = 420
 
 [resource]
-script = ExtResource("1_aibfj")
-values = {
-"ALIAS": {
+script = ExtResource("1_g0hiy")
+weapons = Array[ExtResource("3_mk6or")]([SubResource("Resource_wuabc"), SubResource("Resource_brhn1"), SubResource("Resource_shnyc"), SubResource("Resource_hcvhs"), SubResource("Resource_jb8po"), SubResource("Resource_v3rfy"), SubResource("Resource_qvk41"), SubResource("Resource_h5p7i"), SubResource("Resource_syyek"), SubResource("Resource_4wr0i"), SubResource("Resource_lnv4i"), SubResource("Resource_sbesl"), SubResource("Resource_5v1bw"), SubResource("Resource_01kex"), SubResource("Resource_8v406"), SubResource("Resource_kbfu1"), SubResource("Resource_jx4mu"), SubResource("Resource_4xbmo"), SubResource("Resource_343e7"), SubResource("Resource_vtug6"), SubResource("Resource_ipokg")])
+shop = Array[ExtResource("2_j25xj")]([SubResource("Resource_h72wn"), SubResource("Resource_c6wbh"), SubResource("Resource_oskmh"), SubResource("Resource_t48ut"), SubResource("Resource_vuodo"), SubResource("Resource_at5r3"), SubResource("Resource_2bscv"), SubResource("Resource_xymxd"), SubResource("Resource_cqcxc"), SubResource("Resource_nx162"), SubResource("Resource_avbby"), SubResource("Resource_n0132"), SubResource("Resource_8s4hk"), SubResource("Resource_nv08k"), SubResource("Resource_8dm1r"), SubResource("Resource_sc4ic"), SubResource("Resource_703ui"), SubResource("Resource_y0skm"), SubResource("Resource_i0tsb"), SubResource("Resource_j7ig3"), SubResource("Resource_esmwt"), SubResource("Resource_yl7cv"), SubResource("Resource_tf8q1"), SubResource("Resource_k6ne2"), SubResource("Resource_hv61q"), SubResource("Resource_qveom"), SubResource("Resource_yocpl"), SubResource("Resource_mn54q"), SubResource("Resource_q8cbk"), SubResource("Resource_suknp"), SubResource("Resource_yv24y"), SubResource("Resource_pmi44"), SubResource("Resource_4vdio"), SubResource("Resource_qhy1t"), SubResource("Resource_p6xi5"), SubResource("Resource_7ff81"), SubResource("Resource_18qxx"), SubResource("Resource_rj3kr"), SubResource("Resource_6nyv3"), SubResource("Resource_t4xkl"), SubResource("Resource_8omee"), SubResource("Resource_veqmo"), SubResource("Resource_rb8qm")])
+model_alias = Dictionary[String, String]({
 "ammo_box": "ammo",
 "assault_helmet": "moto_helmet",
 "berets": "boots",
@@ -31,184 +385,4 @@ values = {
 "tea": "water",
 "trauma_kit": "medkit",
 "wrench": "steel_hammer"
-},
-"SHOP": [["bat", 40], ["pipe", 60], ["crowbar", 90], ["machete", 140], ["gasmask", 50], ["filter", 25], ["flashlight", 35], ["broom", 30], ["helmet", 45], ["jacket", 60], ["gloves", 30], ["pants", 35], ["boots", 40], ["backpack", 70], ["ushanka", 15], ["moto_helmet", 90], ["kurtka", 30], ["vest", 120], ["jeans", 20], ["wpants", 55], ["sneakers", 25], ["tac_gloves", 75], ["wrench", 35], ["cap", 8], ["sweater", 18], ["sapper", 110], ["sledge", 170], ["bushlat", 95], ["berets", 75], ["fire_axe", 240], ["kevlar_helmet", 180], ["plate_vest", 220], ["scuba", 260], ["dive_light", 90], ["katana", 420], ["assault_helmet", 320], ["riot_armor", 420], ["kevlar_pants", 200], ["combat_boots", 160], ["gps", 150], ["holster", 60], ["bag_hooks", 45], ["sketch_map", 120]],
-"WEAPONS": {
-"bat": {
-"mult": 2.0,
-"price": 40,
-"reach": 1.5
-},
-"crowbar": {
-"mult": 3.0,
-"price": 90,
-"reach": 1.45
-},
-"fire_axe": {
-"mult": 4.4,
-"price": 240,
-"reach": 1.5
-},
-"hammer": {
-"mult": 2.2,
-"price": 0,
-"reach": 1.3
-},
-"hatchet": {
-"mult": 2.9,
-"price": 55,
-"reach": 1.35
-},
-"katana": {
-"mult": 5.2,
-"price": 420,
-"reach": 1.6
-},
-"knife": {
-"mult": 2.4,
-"price": 0,
-"reach": 1.25
-},
-"knuckles": {
-"mult": 1.9,
-"price": 0,
-"reach": 1.05
-},
-"machete": {
-"mult": 3.6,
-"price": 120,
-"reach": 1.5
-},
-"pipe": {
-"mult": 2.5,
-"price": 60,
-"reach": 1.55
-},
-"pistol": {
-"mult": 1.6,
-"price": 0,
-"reach": 1.15
-},
-"rifle": {
-"mult": 2.3,
-"price": 0,
-"reach": 1.4
-},
-"sapper": {
-"mult": 3.3,
-"price": 110,
-"reach": 1.4
-},
-"sawnoff": {
-"mult": 2.0,
-"price": 0,
-"reach": 1.2
-},
-"shiv": {
-"mult": 2.7,
-"price": 0,
-"reach": 1.25
-},
-"sledge": {
-"mult": 4.0,
-"price": 170,
-"reach": 1.5
-},
-"smg": {
-"mult": 1.7,
-"price": 0,
-"reach": 1.15
-},
-"spiked_club": {
-"mult": 3.2,
-"price": 0,
-"reach": 1.5
-},
-"steel_hammer": {
-"mult": 2.6,
-"price": 45,
-"reach": 1.3
-},
-"stone": {
-"mult": 1.4,
-"price": 0,
-"reach": 1.05
-},
-"wrench": {
-"mult": 2.3,
-"price": 35,
-"reach": 1.3
-}
-}
-}
-order = {
-"ALIAS": {
-"_": ["wrench", "tea", "cap", "sweater", "sapper", "sledge", "energy", "ration", "ammo_box", "bushlat", "berets", "fire_axe", "medkit_army", "kevlar_helmet", "plate_vest", "scuba", "dive_light", "trauma_kit", "stim", "mre", "assault_helmet", "riot_armor", "kevlar_pants", "combat_boots", "katana"]
-},
-"WEAPONS": {
-"_": ["bat", "pipe", "crowbar", "machete", "knife", "hammer", "steel_hammer", "hatchet", "shiv", "spiked_club", "pistol", "sawnoff", "rifle", "smg", "knuckles", "stone", "wrench", "sapper", "sledge", "fire_axe", "katana"],
-"bat": {
-"_": ["mult", "reach", "price"]
-},
-"crowbar": {
-"_": ["mult", "reach", "price"]
-},
-"fire_axe": {
-"_": ["mult", "reach", "price"]
-},
-"hammer": {
-"_": ["mult", "reach", "price"]
-},
-"hatchet": {
-"_": ["mult", "reach", "price"]
-},
-"katana": {
-"_": ["mult", "reach", "price"]
-},
-"knife": {
-"_": ["mult", "reach", "price"]
-},
-"knuckles": {
-"_": ["mult", "reach", "price"]
-},
-"machete": {
-"_": ["mult", "reach", "price"]
-},
-"pipe": {
-"_": ["mult", "reach", "price"]
-},
-"pistol": {
-"_": ["mult", "reach", "price"]
-},
-"rifle": {
-"_": ["mult", "reach", "price"]
-},
-"sapper": {
-"_": ["mult", "reach", "price"]
-},
-"sawnoff": {
-"_": ["mult", "reach", "price"]
-},
-"shiv": {
-"_": ["mult", "reach", "price"]
-},
-"sledge": {
-"_": ["mult", "reach", "price"]
-},
-"smg": {
-"_": ["mult", "reach", "price"]
-},
-"spiked_club": {
-"_": ["mult", "reach", "price"]
-},
-"steel_hammer": {
-"_": ["mult", "reach", "price"]
-},
-"stone": {
-"_": ["mult", "reach", "price"]
-},
-"wrench": {
-"_": ["mult", "reach", "price"]
-}
-}
-}
+})

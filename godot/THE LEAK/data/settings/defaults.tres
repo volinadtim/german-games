@@ -1,47 +1,219 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="SettingsDefaults" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_bu118"]
+[ext_resource type="Script" path="res://scripts/data/settings/settings_defaults.gd" id="1_r14fg"]
+[ext_resource type="Script" path="res://scripts/data/settings/setting_def.gd" id="2_qk6dh"]
+
+[sub_resource type="Resource" id="Resource_csb02"]
+script = ExtResource("2_qk6dh")
+key = "volume"
+title = "Громкость"
+max_value = 100.0
+default_value = 80.0
+
+[sub_resource type="Resource" id="Resource_hmm0b"]
+script = ExtResource("2_qk6dh")
+key = "voice_volume"
+title = "Громкость голоса"
+max_value = 100.0
+default_value = 60.0
+
+[sub_resource type="Resource" id="Resource_kbjh6"]
+script = ExtResource("2_qk6dh")
+key = "brightness"
+title = "Яркость"
+min_value = 0.8
+max_value = 1.2
+step = 0.01
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_uisv5"]
+script = ExtResource("2_qk6dh")
+key = "gamma"
+title = "Гамма"
+min_value = 0.8
+max_value = 1.3
+step = 0.01
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_7ocpf"]
+script = ExtResource("2_qk6dh")
+key = "posterize"
+title = "Постеризация"
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_geg2q"]
+script = ExtResource("2_qk6dh")
+key = "sensitivity"
+title = "Чувствительность"
+min_value = 0.2
+max_value = 4.0
+step = 0.05
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_j405u"]
+script = ExtResource("2_qk6dh")
+key = "fov"
+title = "Поле зрения"
+min_value = 60.0
+max_value = 110.0
+default_value = 75.0
+
+[sub_resource type="Resource" id="Resource_nuukp"]
+script = ExtResource("2_qk6dh")
+key = "ui_scale"
+title = "Размер интерфейса"
+min_value = 80.0
+max_value = 120.0
+default_value = 100.0
+
+[sub_resource type="Resource" id="Resource_8w6wm"]
+script = ExtResource("2_qk6dh")
+key = "ui_scale_split"
+title = "Интерфейс в Split-Screen"
+min_value = 60.0
+max_value = 130.0
+default_value = 100.0
+
+[sub_resource type="Resource" id="Resource_ysgmx"]
+script = ExtResource("2_qk6dh")
+key = "crosshair"
+title = "Прицел"
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_frfrh"]
+script = ExtResource("2_qk6dh")
+key = "cross_style"
+title = "Вид"
+max_value = 2.0
+
+[sub_resource type="Resource" id="Resource_3redc"]
+script = ExtResource("2_qk6dh")
+key = "cross_color"
+title = "Цвет"
+max_value = 4.0
+
+[sub_resource type="Resource" id="Resource_njwg8"]
+script = ExtResource("2_qk6dh")
+key = "cross_size"
+title = "Размер"
+min_value = 50.0
+max_value = 250.0
+step = 10.0
+default_value = 100.0
+
+[sub_resource type="Resource" id="Resource_u8s3p"]
+script = ExtResource("2_qk6dh")
+key = "cross_alpha"
+title = "Непрозрачность"
+min_value = 10.0
+max_value = 100.0
+step = 5.0
+default_value = 35.0
+
+[sub_resource type="Resource" id="Resource_o6ggm"]
+script = ExtResource("2_qk6dh")
+key = "resolution"
+title = "Разрешение"
+max_value = 6.0
+
+[sub_resource type="Resource" id="Resource_t3np0"]
+script = ExtResource("2_qk6dh")
+key = "window_mode"
+title = "Режим экрана"
+max_value = 2.0
+default_value = 2.0
+
+[sub_resource type="Resource" id="Resource_p8kt3"]
+script = ExtResource("2_qk6dh")
+key = "graphics"
+title = "Пресет"
+max_value = 2.0
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_khwj3"]
+script = ExtResource("2_qk6dh")
+key = "g_shadows"
+title = "Тени ламп"
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_weq63"]
+script = ExtResource("2_qk6dh")
+key = "g_shadow_res"
+title = "Качество теней"
+max_value = 2.0
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_8lxyh"]
+script = ExtResource("2_qk6dh")
+key = "g_ssao"
+title = "Затенение углов"
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_g3tgq"]
+script = ExtResource("2_qk6dh")
+key = "g_ssr"
+title = "Отражения"
+
+[sub_resource type="Resource" id="Resource_shnv7"]
+script = ExtResource("2_qk6dh")
+key = "g_volfog"
+title = "Объёмный туман"
+
+[sub_resource type="Resource" id="Resource_ef25t"]
+script = ExtResource("2_qk6dh")
+key = "g_glow"
+title = "Свечение"
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_0k88a"]
+script = ExtResource("2_qk6dh")
+key = "g_aa"
+title = "Сглаживание"
+max_value = 2.0
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_mj64p"]
+script = ExtResource("2_qk6dh")
+key = "g_scale"
+title = "Разрешение 3D"
+min_value = 50.0
+max_value = 100.0
+step = 5.0
+default_value = 100.0
+
+[sub_resource type="Resource" id="Resource_tibk6"]
+script = ExtResource("2_qk6dh")
+key = "g_textures"
+title = "Текстуры"
+max_value = 2.0
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_ijeih"]
+script = ExtResource("2_qk6dh")
+key = "g_geometry"
+title = "Геометрия"
+max_value = 2.0
+default_value = 1.0
+
+[sub_resource type="Resource" id="Resource_qxdbp"]
+script = ExtResource("2_qk6dh")
+key = "g_grass"
+title = "Трава"
+max_value = 100.0
+step = 5.0
+default_value = 70.0
+
+[sub_resource type="Resource" id="Resource_kt4lr"]
+script = ExtResource("2_qk6dh")
+key = "g_particles"
+title = "Пыль и мошки"
+max_value = 100.0
+step = 5.0
+default_value = 100.0
 
 [resource]
-script = ExtResource("1_bu118")
-values = {
-"AIM_KEYS": ["crosshair", "cross_style", "cross_color", "cross_size", "cross_alpha"],
-"GENERAL_KEYS": ["volume", "voice_volume", "sensitivity", "fov", "ui_scale", "ui_scale_split"],
-"RESOLUTIONS": [Vector2i(0, 0), Vector2i(1280, 720), Vector2i(1366, 768), Vector2i(1600, 900), Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3840, 2160)],
-"SETTINGS": {
-"brightness": ["Яркость", 0.8, 1.2, 0.01, 1.0],
-"cross_alpha": ["Непрозрачность", 10.0, 100.0, 5.0, 35.0],
-"cross_color": ["Цвет", 0.0, 4.0, 1.0, 0.0],
-"cross_size": ["Размер", 50.0, 250.0, 10.0, 100.0],
-"cross_style": ["Вид", 0.0, 2.0, 1.0, 0.0],
-"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],
-"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],
-"g_aa": ["Сглаживание", 0.0, 2.0, 1.0, 1.0],
-"g_geometry": ["Геометрия", 0.0, 2.0, 1.0, 1.0],
-"g_glow": ["Свечение", 0.0, 1.0, 1.0, 1.0],
-"g_grass": ["Трава", 0.0, 100.0, 5.0, 70.0],
-"g_particles": ["Пыль и мошки", 0.0, 100.0, 5.0, 100.0],
-"g_scale": ["Разрешение 3D", 50.0, 100.0, 5.0, 100.0],
-"g_shadow_res": ["Качество теней", 0.0, 2.0, 1.0, 1.0],
-"g_shadows": ["Тени ламп", 0.0, 1.0, 1.0, 1.0],
-"g_ssao": ["Затенение углов", 0.0, 1.0, 1.0, 1.0],
-"g_ssr": ["Отражения", 0.0, 1.0, 1.0, 0.0],
-"g_textures": ["Текстуры", 0.0, 2.0, 1.0, 1.0],
-"g_volfog": ["Объёмный туман", 0.0, 1.0, 1.0, 0.0],
-"gamma": ["Гамма", 0.8, 1.3, 0.01, 1.0],
-"graphics": ["Пресет", 0.0, 2.0, 1.0, 1.0],
-"posterize": ["Постеризация", 0.0, 1.0, 1.0, 1.0],
-"resolution": ["Разрешение", 0.0, 6.0, 1.0, 0.0],
-"sensitivity": ["Чувствительность", 0.2, 4.0, 0.05, 1.0],
-"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],
-"ui_scale_split": ["Интерфейс в Split-Screen", 60.0, 130.0, 1.0, 100.0],
-"voice_volume": ["Громкость голоса", 0.0, 100.0, 1.0, 60.0],
-"volume": ["Громкость", 0.0, 100.0, 1.0, 80.0],
-"window_mode": ["Режим экрана", 0.0, 2.0, 1.0, 2.0]
-}
-}
-order = {
-"SETTINGS": {
-"_": ["volume", "voice_volume", "brightness", "gamma", "posterize", "sensitivity", "fov", "ui_scale", "ui_scale_split", "crosshair", "cross_style", "cross_color", "cross_size", "cross_alpha", "resolution", "window_mode", "graphics", "g_shadows", "g_shadow_res", "g_ssao", "g_ssr", "g_volfog", "g_glow", "g_aa", "g_scale", "g_textures", "g_geometry", "g_grass", "g_particles"]
-}
-}
+script = ExtResource("1_r14fg")
+settings = Array[ExtResource("2_qk6dh")]([SubResource("Resource_csb02"), SubResource("Resource_hmm0b"), SubResource("Resource_kbjh6"), SubResource("Resource_uisv5"), SubResource("Resource_7ocpf"), SubResource("Resource_geg2q"), SubResource("Resource_j405u"), SubResource("Resource_nuukp"), SubResource("Resource_8w6wm"), SubResource("Resource_ysgmx"), SubResource("Resource_frfrh"), SubResource("Resource_3redc"), SubResource("Resource_njwg8"), SubResource("Resource_u8s3p"), SubResource("Resource_o6ggm"), SubResource("Resource_t3np0"), SubResource("Resource_p8kt3"), SubResource("Resource_khwj3"), SubResource("Resource_weq63"), SubResource("Resource_8lxyh"), SubResource("Resource_g3tgq"), SubResource("Resource_shnv7"), SubResource("Resource_ef25t"), SubResource("Resource_0k88a"), SubResource("Resource_mj64p"), SubResource("Resource_tibk6"), SubResource("Resource_ijeih"), SubResource("Resource_qxdbp"), SubResource("Resource_kt4lr")])
+general_keys = Array[String](["volume", "voice_volume", "sensitivity", "fov", "ui_scale", "ui_scale_split"])
+aim_keys = Array[String](["crosshair", "cross_style", "cross_color", "cross_size", "cross_alpha"])
+resolutions = Array[Vector2i]([Vector2i(0, 0), Vector2i(1280, 720), Vector2i(1366, 768), Vector2i(1600, 900), Vector2i(1920, 1080), Vector2i(2560, 1440), Vector2i(3840, 2160)])

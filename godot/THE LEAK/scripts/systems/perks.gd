@@ -3,10 +3,10 @@ extends RefCounted
 ## Живёт в общем окне прокачки (systems/skills.gd, K) разделом «ПАССИВНЫЕ»: у каждой ветки видна карточка
 ## следующего уровня. Купленный уровень — навык "<ветка>_<N>" в skills.owned (сохраняется вместе с ним).
 ## Множители читаются отовсюду статически через preload. В сети у каждого свои уровни.
-const _D_PERKS := preload("res://data/balance/perks.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_PERKS := preload("res://data/balance/perks.tres")   # настройки — правятся в Инспекторе
 
 ## ветки: [id, название, что даёт один уровень, цены уровней 1..N]
-static var TREE: Array = _D_PERKS.v("TREE")
+static var TREE: Array = _D_PERKS.tree_table()
 
 static var skills: Node = null   # systems/skills.gd текущей игры
 

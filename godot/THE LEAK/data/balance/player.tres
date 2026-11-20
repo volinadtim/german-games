@@ -1,27 +1,17 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="PlayerConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_0x43w"]
+[ext_resource type="Script" path="res://scripts/data/balance/player_config.gd" id="1_0x43w"]
 
 [resource]
 script = ExtResource("1_0x43w")
-values = {
-"ACCEL_SPRINT": 10.0,
-"ACCEL_WALK": 16.0,
-"CAM_Y": 1.4,
-"CHARGE_GAIN": 1.5,
-"CHARGE_MAX": 1.5,
-"CRIT_MULT": 2.0,
-"CROUCH_CAM": 0.45,
-"CROUCH_H": 1.15,
-"CROUCH_HIP": 0.28,
-"CROUCH_SPEED": 0.45,
-"DECEL_SPRINT": 30.0,
-"DECEL_TURN": 22.0,
-"DECEL_WALK": 40.0,
-"FALL_MULT": 1.35,
-"FOV": 75.0,
-"GRAVITY": 22.0,
-"GRIP_CURL": {
+hand_dmg = Array[float]([0.85, 1.0])
+hand_crit = Array[float]([0.25, 0.05])
+punch_dmg = Dictionary[String, float]({
+"hook": 8.0,
+"straight": 6.0,
+"upper": 10.0
+})
+grip_curl = Dictionary[String, float]({
 "bat": 0.6,
 "crowbar": 0.72,
 "hammer": 0.68,
@@ -35,34 +25,26 @@ values = {
 "smg": 0.78,
 "spiked_club": 0.58,
 "stone": 0.5
-},
-"HAND_CRIT": [0.25, 0.05],
-"HAND_DMG": [0.85, 1.0],
-"JUMP": 5.0,
-"KEY_TURN": 2.4,
-"MELEE_ST_SKIP": ["", "pistol", "sawnoff", "rifle", "smg", "stone", "flashlight"],
-"MODEL_Z": 0.02,
-"NOISE_CROUCH": 0.5,
-"NOISE_JUMP": 6.0,
-"NOISE_PUNCH": 5.0,
-"NOISE_SHOT": 25.0,
-"NOISE_SPRINT": 10.0,
-"NOISE_WALK": 5.0,
-"PUNCHES": {
+})
+weapon_tip = Dictionary[String, float]({
+"bat": 0.67,
+"crowbar": 0.62,
+"knife": 0.25,
+"machete": 0.52,
+"pipe": 0.63,
+"pistol": 0.12,
+"rifle": 0.12,
+"sawnoff": 0.12,
+"smg": 0.12,
+"stone": 0.05
+})
+melee_stance_skip = Array[String](["", "pistol", "sawnoff", "rifle", "smg", "stone", "flashlight"])
+punches = {
 "hook": [Vector4(82, -30, 8, 40), Vector4(96, 32, 0, 28)],
 "straight": [Vector4(55, 14, 2, 80), Vector4(100, 6, 0, 4)],
 "upper": [Vector4(45, 12, 6, 100), Vector4(95, 12, 0, 58)]
-},
-"PUNCH_BASE": 8.0,
-"PUNCH_DMG": {
-"hook": 8.0,
-"straight": 6.0,
-"upper": 10.0
-},
-"SENS": 0.0022,
-"SPRINT": 5.4,
-"STEP_DB": -23.0,
-"SWINGS": {
+}
+swings = {
 "heavy": [{
 "blur": "upper",
 "hit": Vector4(72, 10, 4, 16),
@@ -168,61 +150,4 @@ values = {
 "wf": [0.0, 0.5, 0.55],
 "wind": Vector4(56, 10, 0, 104)
 }]
-},
-"TAP_T": 0.12,
-"WALK": 3.4,
-"WEAPON_TIP": {
-"bat": 0.67,
-"crowbar": 0.62,
-"knife": 0.25,
-"machete": 0.52,
-"pipe": 0.63,
-"pistol": 0.12,
-"rifle": 0.12,
-"sawnoff": 0.12,
-"smg": 0.12,
-"stone": 0.05
-}
-}
-order = {
-"GRIP_CURL": {
-"_": ["bat", "spiked_club", "pipe", "crowbar", "machete", "hammer", "knife", "shiv", "pistol", "sawnoff", "rifle", "smg", "stone"]
-},
-"PUNCHES": {
-"_": ["straight", "hook", "upper"]
-},
-"PUNCH_DMG": {
-"_": ["straight", "hook", "upper"]
-},
-"SWINGS": {
-"_": ["heavy", "machete", "knife", "knife_rev", "pistol"],
-"heavy": {
-"[]": {
-"_": ["wind", "hit", "thru", "tw", "t", "rc", "blur"]
-}
-},
-"knife": {
-"[]": {
-"_": ["wind", "hit", "thru", "tw", "t", "rc", "blur"]
-}
-},
-"knife_rev": {
-"[]": {
-"_": ["wind", "hit", "thru", "tw", "t", "rc", "wf", "blur"]
-}
-},
-"machete": {
-"[]": {
-"_": ["wind", "hit", "thru", "tw", "t", "rc", "blur"]
-}
-},
-"pistol": {
-"[]": {
-"_": ["wind", "hit", "thru", "tw", "t", "rc", "wf", "blur"]
-}
-}
-},
-"WEAPON_TIP": {
-"_": ["bat", "pipe", "crowbar", "machete", "knife", "pistol", "sawnoff", "rifle", "smg", "stone"]
-}
 }

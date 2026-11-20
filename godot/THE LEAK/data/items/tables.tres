@@ -1,132 +1,123 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="ItemTables" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_sc3yx"]
+[ext_resource type="Script" path="res://scripts/data/items/craft_recipe.gd" id="1_bw78c"]
+[ext_resource type="Script" path="res://scripts/data/items/item_tables.gd" id="2_7r4q5"]
 
-[resource]
-script = ExtResource("1_sc3yx")
-values = {
-"MOD_HINT": " Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету.",
-"POCKETS": {
-"bushlat": [2, 2],
-"jacket": [2, 2],
-"jeans": [2, 1],
-"kevlar_pants": [2, 1],
-"kurtka": [2, 1],
-"pants": [2, 1],
-"plate_vest": [3, 1],
-"rag_pants": [2, 1],
-"riot_armor": [3, 1],
-"tshirt": [2, 1],
-"vest": [3, 1],
-"wpants": [1, 2]
-},
-"RECIPES": [{
-"need": {
+[sub_resource type="Resource" id="Resource_r25ci"]
+script = ExtResource("1_bw78c")
+out = "knife"
+need = Dictionary[String, int]({
 "glass": 1,
 "tape": 1,
 "wood": 1
-},
-"out": "knife"
-}, {
-"need": {
+})
+
+[sub_resource type="Resource" id="Resource_2ygs3"]
+script = ExtResource("1_bw78c")
+out = "hammer"
+need = Dictionary[String, int]({
 "stone": 1,
 "twine": 1,
 "wood": 1
-},
-"out": "hammer"
-}, {
-"need": {
+})
+
+[sub_resource type="Resource" id="Resource_cojkw"]
+script = ExtResource("1_bw78c")
+out = "shiv"
+need = Dictionary[String, int]({
 "scrap": 2
-},
-"out": "shiv",
-"tool": "hammer",
-"wear": 1
-}, {
-"need": {
+})
+tool_id = "hammer"
+wear = 1
+
+[sub_resource type="Resource" id="Resource_11six"]
+script = ExtResource("1_bw78c")
+out = "spiked_club"
+need = Dictionary[String, int]({
 "nut": 3,
 "wood": 2
-},
-"out": "spiked_club",
-"tool": "hammer",
-"wear": 2
-}],
-"SIZES": {
-"assault_helmet": [2, 2],
-"backpack": [2, 2],
-"bat": [1, 3],
-"berets": [2, 2],
-"boots": [2, 2],
-"broom": [1, 3],
-"bushlat": [2, 2],
-"canned": [1, 1],
-"cap": [2, 1],
-"combat_boots": [2, 2],
-"crowbar": [1, 3],
-"fire_axe": [1, 3],
-"flashlight": [1, 2],
-"fuel": [2, 2],
-"gasmask": [2, 2],
-"gasmask2": [2, 2],
-"hammer": [1, 2],
-"hatchet": [1, 2],
-"helmet": [2, 2],
-"jacket": [2, 2],
-"jeans": [2, 2],
-"katana": [1, 3],
-"kevlar_helmet": [2, 2],
-"kevlar_pants": [2, 2],
-"knife": [1, 2],
-"kurtka": [2, 2],
-"lockpick": [1, 1],
-"machete": [1, 3],
-"medkit": [2, 2],
-"medkit_army": [2, 2],
-"moto_helmet": [2, 2],
-"pants": [2, 2],
-"pipe": [1, 3],
-"pistol": [2, 2],
-"plate_vest": [2, 2],
-"rag_pants": [2, 2],
-"repair_gear": [2, 1],
-"repair_gun": [2, 1],
-"repair_weapon": [2, 1],
-"rifle": [1, 3],
-"riot_armor": [2, 2],
-"sack": [2, 2],
-"sapper": [1, 2],
-"sawnoff": [1, 3],
-"shiv": [1, 2],
-"sledge": [1, 3],
-"smg": [2, 2],
-"sneakers": [2, 1],
-"snyuhatel5088": [2, 2],
-"spiked_club": [1, 3],
-"steel_hammer": [1, 2],
-"sweater": [2, 2],
-"tea": [1, 2],
-"trauma_kit": [2, 2],
-"tshirt": [2, 1],
-"ushanka": [2, 1],
-"vest": [2, 2],
-"water": [1, 2],
-"wood": [1, 2],
-"wpants": [2, 2],
-"wrench": [1, 2]
-}
-}
-order = {
-"POCKETS": {
-"_": ["kurtka", "jacket", "vest", "jeans", "pants", "rag_pants", "wpants", "tshirt", "bushlat", "plate_vest", "riot_armor", "kevlar_pants"]
-},
-"RECIPES": {
-"[]": {
-"_": ["out", "need"],
-"need": {
-"_": ["wood", "glass", "tape"]
-}
-}
-},
-"SIZES": {
-"_": ["pistol", "sawnoff", "rifle", "smg", "medkit", "fuel", "backpack", "sack", "tshirt", "bat", "pipe", "crowbar", "machete", "spiked_club", "broom", "knife", "shiv", "hammer", "steel_hammer", "hatchet", "flashlight", "water", "wood", "gasmask", "gasmask2", "snyuhatel5088", "lockpick", "repair_weapon", "repair_gear", "repair_gun", "canned", "helmet", "moto_helmet", "ushanka", "jacket", "kurtka", "vest", "pants", "rag_pants", "jeans", "wpants", "boots", "sneakers", "tea", "cap", "sweater", "wrench", "bushlat", "berets", "sapper", "sledge", "medkit_army", "kevlar_helmet", "plate_vest", "fire_axe", "trauma_kit", "assault_helmet", "riot_armor", "kevlar_pants", "combat_boots", "katana"]
-}
-}
+})
+tool_id = "hammer"
+wear = 2
+
+[resource]
+script = ExtResource("2_7r4q5")
+recipes = Array[ExtResource("1_bw78c")]([SubResource("Resource_r25ci"), SubResource("Resource_2ygs3"), SubResource("Resource_cojkw"), SubResource("Resource_11six")])
+sizes = Dictionary[String, Vector2i]({
+"assault_helmet": Vector2i(2, 2),
+"backpack": Vector2i(2, 2),
+"bat": Vector2i(1, 3),
+"berets": Vector2i(2, 2),
+"boots": Vector2i(2, 2),
+"broom": Vector2i(1, 3),
+"bushlat": Vector2i(2, 2),
+"canned": Vector2i(1, 1),
+"cap": Vector2i(2, 1),
+"combat_boots": Vector2i(2, 2),
+"crowbar": Vector2i(1, 3),
+"fire_axe": Vector2i(1, 3),
+"flashlight": Vector2i(1, 2),
+"fuel": Vector2i(2, 2),
+"gasmask": Vector2i(2, 2),
+"gasmask2": Vector2i(2, 2),
+"hammer": Vector2i(1, 2),
+"hatchet": Vector2i(1, 2),
+"helmet": Vector2i(2, 2),
+"jacket": Vector2i(2, 2),
+"jeans": Vector2i(2, 2),
+"katana": Vector2i(1, 3),
+"kevlar_helmet": Vector2i(2, 2),
+"kevlar_pants": Vector2i(2, 2),
+"knife": Vector2i(1, 2),
+"kurtka": Vector2i(2, 2),
+"lockpick": Vector2i(1, 1),
+"machete": Vector2i(1, 3),
+"medkit": Vector2i(2, 2),
+"medkit_army": Vector2i(2, 2),
+"moto_helmet": Vector2i(2, 2),
+"pants": Vector2i(2, 2),
+"pipe": Vector2i(1, 3),
+"pistol": Vector2i(2, 2),
+"plate_vest": Vector2i(2, 2),
+"rag_pants": Vector2i(2, 2),
+"repair_gear": Vector2i(2, 1),
+"repair_gun": Vector2i(2, 1),
+"repair_weapon": Vector2i(2, 1),
+"rifle": Vector2i(1, 3),
+"riot_armor": Vector2i(2, 2),
+"sack": Vector2i(2, 2),
+"sapper": Vector2i(1, 2),
+"sawnoff": Vector2i(1, 3),
+"shiv": Vector2i(1, 2),
+"sledge": Vector2i(1, 3),
+"smg": Vector2i(2, 2),
+"sneakers": Vector2i(2, 1),
+"snyuhatel5088": Vector2i(2, 2),
+"spiked_club": Vector2i(1, 3),
+"steel_hammer": Vector2i(1, 2),
+"sweater": Vector2i(2, 2),
+"tea": Vector2i(1, 2),
+"trauma_kit": Vector2i(2, 2),
+"tshirt": Vector2i(2, 1),
+"ushanka": Vector2i(2, 1),
+"vest": Vector2i(2, 2),
+"water": Vector2i(1, 2),
+"wood": Vector2i(1, 2),
+"wpants": Vector2i(2, 2),
+"wrench": Vector2i(1, 2)
+})
+pockets = Dictionary[String, Vector2i]({
+"bushlat": Vector2i(2, 2),
+"jacket": Vector2i(2, 2),
+"jeans": Vector2i(2, 1),
+"kevlar_pants": Vector2i(2, 1),
+"kurtka": Vector2i(2, 1),
+"pants": Vector2i(2, 1),
+"plate_vest": Vector2i(3, 1),
+"rag_pants": Vector2i(2, 1),
+"riot_armor": Vector2i(3, 1),
+"tshirt": Vector2i(2, 1),
+"vest": Vector2i(3, 1),
+"wpants": Vector2i(1, 2)
+})
+mod_hint = " Перетащи на пистолет — поставить (старый модуль этого слота — в сумку); снять — ПКМ по пистолету."

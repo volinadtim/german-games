@@ -1,11 +1,7 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="StoneConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_hxs82"]
+[ext_resource type="Script" path="res://scripts/data/weapons/stone_config.gd" id="1_hxs82"]
 
 [resource]
 script = ExtResource("1_hxs82")
-values = {
-"CD": 0.55,
-"SLOTS": ["left", "right"],
-"SPEED": 15.0
-}
+hand_slots = Array[String](["left", "right"])

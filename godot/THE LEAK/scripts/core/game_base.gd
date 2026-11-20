@@ -1,6 +1,6 @@
 extends Node3D
 # Часть game.gd: константы, состояние, звуки, клавиши.
-const _D_GAME := preload("res://data/balance/game.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_GAME := preload("res://data/balance/game.tres")   # настройки — правятся в Инспекторе
 const Places := preload("res://scripts/world/places.gd")   # расстановка — scenes/locations/*.tscn
 const Player := preload("res://scripts/player/player.gd")
 const Hud := preload("res://scripts/ui/hud.gd")
@@ -58,8 +58,8 @@ static var DUMMY_POS: Vector3 = Places.pos("bunker", "Dummy")
 static var STORAGE_POS: Vector3 = Places.pos("bunker", "Storage")
 ## враги бродят по поляне наверху (выход из бункера — лестница в восточном торце коридора)
 static var ENEMY_SPOTS: Array = Places.points("bunker", "EnemySpots")
-static var RESPAWN: float = _D_GAME.v("RESPAWN")   # было 40 (промпт 20.11 14:31)
-static var FAST_SHARE: float = _D_GAME.v("FAST_SHARE")   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
+static var RESPAWN: float = _D_GAME.respawn   # было 40 (промпт 20.11 14:31)
+static var FAST_SHARE: float = _D_GAME.fast_share   # доля быстрых врагов («Шныга», enemy.gd kind = "fast") на поляне
 
 ## Режим игры (промпт 18.11 00:52), выбирается при новой игре / хостом в лобби, в сейве "mode":
 ## 0 — реализм (минимальный интерфейс, фильтр меняется вручную), 1 — по умолчанию (фильтр вручную),
@@ -109,8 +109,8 @@ var gasmask: GasMask
 ## разных форм и размеров (jar.gd). Разбиваются ударом — лут выпадает на пол.
 ## Не ставим у проёмов, автомата, магазина, сейфа, манекена, завалов и стекла; пересечения проверяет физика.
 ## Расстановка (место, вид, размер, рисунок, разбит ли) пишется в сейв (jars).
-static var CHEST_AVOID: Array = _D_GAME.v("CHEST_AVOID")
-static var RUINS: Array = _D_GAME.v("RUINS")
+static var CHEST_AVOID: Array = _D_GAME.chest_avoid
+static var RUINS: Array = _D_GAME.ruins
 var jars: Array = []
 
 
@@ -118,8 +118,8 @@ var jars: Array = []
 ## На поляне одновременно не больше OUT_JARS_MAX целых кувшинов. Раз в OUT_JAR_EVERY с, если целых меньше,
 ## появляется ещё один — в случайном месте поляны: не в будке, не впритык к другим кувшинам и препятствиям,
 ## не ближе 6 м к игроку (чтобы не возникал на глазах). Старые разбитые снаружи убираем (осколки), держим ≤ 6.
-static var OUT_JARS_MAX: int = _D_GAME.v("OUT_JARS_MAX")   # было 5 — кувшинов на 20% меньше (промпт 18.11 01:08)
-static var OUT_JAR_EVERY: float = _D_GAME.v("OUT_JAR_EVERY")
+static var OUT_JARS_MAX: int = _D_GAME.out_jars_max   # было 5 — кувшинов на 20% меньше (промпт 18.11 01:08)
+static var OUT_JAR_EVERY: float = _D_GAME.out_jar_every
 @warning_ignore("unused_private_class_variable")
 var _out_jar_t := OUT_JAR_EVERY
 
@@ -184,8 +184,8 @@ var storage: Chest            # сундук-хранилище
 var home                      # locations/bunker/bunker_home.gd — постройки по чертежам
 var carry                     # world/carry.gd — перенос объектов в руках (B)
 var glass_floor: GlassFloor   # кучки стекла (glass_floor.gd), случайные каждую новую игру
-static var BLEED_TIME: float = _D_GAME.v("BLEED_TIME")
-static var BLEED_DPS: float = _D_GAME.v("BLEED_DPS")
+static var BLEED_TIME: float = _D_GAME.bleed_time
+static var BLEED_DPS: float = _D_GAME.bleed_dps
 var on_glass := false
 var last_feet_pos := Vector3.INF
 var glass_cd := 0.0
@@ -209,7 +209,7 @@ var buffs := {}
 
 # ---------- ремкомплекты (промпт 14.11 17:59) ----------
 
-static var REPAIR_PART: float = _D_GAME.v("REPAIR_PART")   # один заряд — +50% прочности
+static var REPAIR_PART: float = _D_GAME.repair_part   # один заряд — +50% прочности
 
 
 # ---------- каменные кучки (промпт 14.11 19:22) ----------
@@ -229,8 +229,8 @@ var apple_bought := false   # гнилое яблоко куплено (можн
 # ---------- сохранения (промпт 23:39) ----------
 ## Сколько угодно сейвов (save.gd, промпт 18.11 02:00); id сейва — save_slot. Автосейв: каждые 2 минуты, после каждой крутки KILLBOX (и сразу после оплаты —
 ## перезагрузка не откатит проигрыш), при выходе в меню и при закрытии окна.
-static var AUTOSAVE: float = _D_GAME.v("AUTOSAVE")
-static var CRASH_SAVE: float = _D_GAME.v("CRASH_SAVE")   # как часто обновляется аварийная копия (save.gd: write_crash)
+static var AUTOSAVE: float = _D_GAME.autosave
+static var CRASH_SAVE: float = _D_GAME.crash_save   # как часто обновляется аварийная копия (save.gd: write_crash)
 var save_slot := ""
 var from_save := false      # игра началась загрузкой сейва (своего или присланного хостом)
 var autosave_t := AUTOSAVE

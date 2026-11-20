@@ -1,20 +1,20 @@
 extends Node
 ## Подкат (скольжение) при нажатии приседа на бегу.
 ## Ускоряется на спусках, тормозит на ровном и в гору. Прыжок во время скольжения даёт мощный импульс вперёд.
-const _D_SLIDE := preload("res://data/balance/slide.tres")   # настраиваемые числа этого скрипта (scripts/data/data_table.gd)
+const _D_SLIDE := preload("res://data/balance/slide.tres")   # настройки — правятся в Инспекторе
 
 const Sfx := preload("res://scripts/core/sfx.gd")
-static var MIN_START_SPEED: float = _D_SLIDE.v("MIN_START_SPEED")   # мин. горизонтальная скорость для начала подката
-static var START_BOOST: float = _D_SLIDE.v("START_BOOST")   # начальный импульс при входе в подкат (множитель скорости)
-static var MAX_SPEED: float = _D_SLIDE.v("MAX_SPEED")   # предел скорости при разгоне с горы
-static var STOP_SPEED: float = _D_SLIDE.v("STOP_SPEED")   # при падении скорости ниже этой — выход из подката
-static var FRICTION_FLAT: float = _D_SLIDE.v("FRICTION_FLAT")   # трение на ровной поверхности
-static var SLOPE_ACCEL: float = _D_SLIDE.v("SLOPE_ACCEL")   # ускорение/торможение от угла наклона поверхности
-static var STEER_FORCE: float = _D_SLIDE.v("STEER_FORCE")   # лёгкое подруливание влево/вправо в подкате
-static var COOLDOWN: float = _D_SLIDE.v("COOLDOWN")   # задержка перед следующим подкатом
+static var MIN_START_SPEED: float = _D_SLIDE.min_start_speed   # мин. горизонтальная скорость для начала подката
+static var START_BOOST: float = _D_SLIDE.start_boost   # начальный импульс при входе в подкат (множитель скорости)
+static var MAX_SPEED: float = _D_SLIDE.max_speed   # предел скорости при разгоне с горы
+static var STOP_SPEED: float = _D_SLIDE.stop_speed   # при падении скорости ниже этой — выход из подката
+static var FRICTION_FLAT: float = _D_SLIDE.friction_flat   # трение на ровной поверхности
+static var SLOPE_ACCEL: float = _D_SLIDE.slope_accel   # ускорение/торможение от угла наклона поверхности
+static var STEER_FORCE: float = _D_SLIDE.steer_force   # лёгкое подруливание влево/вправо в подкате
+static var COOLDOWN: float = _D_SLIDE.cooldown   # задержка перед следующим подкатом
 
-static var JUMP_FWD_MULT: float = _D_SLIDE.v("JUMP_FWD_MULT")   # множитель горизонтальной скорости при прыжке из подката
-static var JUMP_UP_MULT: float = _D_SLIDE.v("JUMP_UP_MULT")   # небольшой бонус к высоте прыжка
+static var JUMP_FWD_MULT: float = _D_SLIDE.jump_fwd_mult   # множитель горизонтальной скорости при прыжке из подката
+static var JUMP_UP_MULT: float = _D_SLIDE.jump_up_mult   # небольшой бонус к высоте прыжка
 
 var player
 var active := false

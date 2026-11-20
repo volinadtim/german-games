@@ -1,38 +1,34 @@
-[gd_resource type="Resource" format=3]
+[gd_resource type="Resource" script_class="GunConfig" format=3]
 
-[ext_resource type="Script" path="res://scripts/data/data_table.gd" id="1_6wjas"]
+[ext_resource type="Script" path="res://scripts/data/weapons/gun_mod_slot.gd" id="1_xwuud"]
+[ext_resource type="Script" path="res://scripts/data/weapons/gun_config.gd" id="2_u550m"]
+
+[sub_resource type="Resource" id="Resource_7htk8"]
+script = ExtResource("1_xwuud")
+id = "sight"
+title = "Прицел"
+mods = Array[String](["mod_reddot", "mod_scope"])
+
+[sub_resource type="Resource" id="Resource_sij6p"]
+script = ExtResource("1_xwuud")
+id = "muzzle"
+title = "Дуло"
+mods = Array[String](["mod_silencer", "mod_comp"])
+
+[sub_resource type="Resource" id="Resource_mdw07"]
+script = ExtResource("1_xwuud")
+id = "stock"
+title = "Приклад"
+mods = Array[String](["mod_stock"])
+
+[sub_resource type="Resource" id="Resource_rh7nr"]
+script = ExtResource("1_xwuud")
+id = "grip"
+title = "Цевьё"
+mods = Array[String](["mod_grip", "mod_laser"])
 
 [resource]
-script = ExtResource("1_6wjas")
-values = {
-"AIM_FOV": 0.7,
-"CAP": 8,
-"DMG": 40.0,
-"DMG_FAR_D": 50.0,
-"DMG_FAR_MULT": 0.5,
-"DMG_FULL_D": 20.0,
-"DOT_X": 0.08,
-"DUR_MAX": 60.0,
-"EJECT_T": 0.5,
-"FIRE_CD": 0.28,
-"HEAD_MULT": 2.5,
-"HEAR_R": 28.0,
-"HIP_H": 0.17,
-"IRON_H": 0.137,
-"LAG_MAX": 0.1,
-"LAG_SPEED": 14.0,
-"MAX_SND": 4,
-"MODW": 100.0,
-"MOD_SLOTS": [["sight", "Прицел", ["mod_reddot", "mod_scope"]], ["muzzle", "Дуло", ["mod_silencer", "mod_comp"]], ["stock", "Приклад", ["mod_stock"]], ["grip", "Цевьё", ["mod_grip", "mod_laser"]]],
-"OPTIC_H": 0.1435,
-"RANGE": 120.0,
-"RATE": 22050,
-"RELOAD_SND": false,
-"RELOAD_T": 1.7,
-"REL_EVENTS": [[0.02, "release"], [0.55, "insert"], [0.79, "rack_back"], [0.87, "rack_fwd"]],
-"SLOTS": ["left", "right"],
-"SPREAD_AIM": 0.01,
-"SPREAD_HIP": 0.03,
-"SPREAD_STANCE": 0.045,
-"TAP_T": 0.22
-}
+script = ExtResource("2_u550m")
+mod_slots = Array[ExtResource("1_xwuud")]([SubResource("Resource_7htk8"), SubResource("Resource_sij6p"), SubResource("Resource_mdw07"), SubResource("Resource_rh7nr")])
+hand_slots = Array[String](["left", "right"])
+reload_events = [[0.02, "release"], [0.55, "insert"], [0.79, "rack_back"], [0.87, "rack_fwd"]]
