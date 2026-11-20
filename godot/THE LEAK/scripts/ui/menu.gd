@@ -51,6 +51,7 @@ var settings_box: VBoxContainer
 var gfx_box: VBoxContainer        # страница «Графика»
 var settings_from := "main"
 var setup_box: Control            # первая настройка картинки (first_setup.gd, промпт 00:20 16.11)
+var setup_back := ""              # "settings" — калибровку открыли из настроек, «Готово» возвращает туда
 var blur_rect: ColorRect
 var pending_save := ""            # сейв, выбранный до первой настройки картинки
 var pending_crash := false        # выбрана аварийная копия сейва
@@ -236,6 +237,11 @@ func _ready() -> void:
 			continue
 		if (key == "window_mode" or key == "resolution") and _mobile():
 			continue   # на телефоне окна нет
+		if key == "gamma":
+			continue   # 20.11 14:40: яркость и гамма — один ползунок, как на экране калибровки
+		if key == "brightness":
+			rows.add_child(_bright_row())
+			continue
 		if key == "graphics":
 			rows.add_child(_gap(6))
 		rows.add_child(setting_row(key))
@@ -365,7 +371,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
 		return
 	get_viewport().set_input_as_handled()
-	if settings_box.visible:
+	if setup_box and setup_box.visible and setup_back != "":
+		setup_box.call("_finish")   # калибровка из настроек — Esc/B как «Готово»
+	elif settings_box.visible:
 		_close_settings()
 	elif slots_box.visible:
 		_show("main")
@@ -428,7 +436,10 @@ func _open_settings(from: String) -> void:
 func setup_finished() -> void:
 	for k in ["posterize", "gamma", "brightness"]:
 		_set_widget(k)
-	if pending_save != "":
+	if setup_back != "":
+		setup_back = ""
+		_show("settings")
+	elif pending_save != "":
 		var id := pending_save
 		var cr := pending_crash
 		pending_save = ""
@@ -838,8 +849,44 @@ func _reset() -> void:
 	apply_settings()
 
 
+## Один ползунок «Яркость» (20.11 14:40): сводит яркость и гамму той же кривой, что экран калибровки
+## (first_setup.gd), и кнопка «Калибровка» — открыть экран с эталонными значками заново.
+func _bright_row() -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 14)
+	row.add_child(_row_name("Яркость"))
+	var s := make_slider(0.0, 1.0, 0.01, FirstSetup.from_gamma(float(values["gamma"])))
+	s.name = "bright_t"
+	row.add_child(s)
+	var val_l := value_label()
+	val_l.text = "%d%%" % int(round(s.value * 100.0))
+	s.set_meta("val_l", val_l)
+	row.add_child(val_l)
+	s.value_changed.connect(func(t: float) -> void:
+		val_l.text = "%d%%" % int(round(t * 100.0))
+		var gb := FirstSetup.curve(t)
+		values["gamma"] = gb.x
+		values["brightness"] = gb.y
+		apply_settings())
+	var cb := _button("Калибровка", func() -> void:
+		_save()
+		setup_back = "settings"
+		setup_box.call("sync")
+		_show("setup"))
+	cb.custom_minimum_size = Vector2(170, 40)
+	cb.add_theme_font_size_override("font_size", 19)
+	row.add_child(cb)
+	return row
+
+
 ## Обновить ползунок/галочку под values[key] (виджет может быть на странице настроек или «Графика»).
 func _set_widget(key: String) -> void:
+	if key == "brightness" or key == "gamma":
+		var bs: Node = settings_box.find_child("bright_t", true, false)
+		if bs is HSlider:
+			bs.set_value_no_signal(FirstSetup.from_gamma(float(values["gamma"])))
+			bs.get_meta("val_l").text = "%d%%" % int(round(bs.value * 100.0))
+		return
 	for box in [settings_box]:
 		var s: Node = box.find_child(key, true, false)
 		if s is HSlider:

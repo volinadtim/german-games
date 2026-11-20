@@ -13,6 +13,7 @@ const REF_NAMES := ["едва видно", "видно", "хорошо видн�
 var menu        # menu.gd
 var refs: Array = []
 var val_l: Label
+var sl: HSlider
 
 
 ## Значок-эталон: ромб с вырезом и точкой на чёрной плашке.
@@ -101,6 +102,7 @@ func _init(m) -> void:
 	box.add_child(row)
 	row.add_child(menu._row_name("Яркость"))
 	var s: HSlider = menu.make_slider(0.0, 1.0, 0.01, from_gamma(float(menu.values["gamma"])))
+	sl = s
 	row.add_child(s)
 	val_l = menu.value_label()
 	row.add_child(val_l)
@@ -110,7 +112,11 @@ func _init(m) -> void:
 
 	var btns := HBoxContainer.new()
 	btns.alignment = BoxContainer.ALIGNMENT_END
+	btns.add_theme_constant_override("separation", 12)
 	box.add_child(btns)
+	var def_b: Button = menu._button("По умолчанию", func(): sl.value = 0.5)
+	def_b.custom_minimum_size = Vector2(220, 52)
+	btns.add_child(def_b)
 	var ok_b: Button = menu._button("Готово", _finish)
 	ok_b.custom_minimum_size = Vector2(220, 52)
 	btns.add_child(ok_b)
@@ -137,8 +143,16 @@ func _update_refs() -> void:
 
 func _post(x: float) -> float:
 	var v: Dictionary = menu.values
-	var c: float = clampf(x * float(v["brightness"]), 0.0, 1.0)
+	var b := float(v["brightness"])
+	var c: float = clampf(x, 0.0, 1.0)
+	c = c * b / (1.0 + (b - 1.0) * c)   # как в post.gdshader: без пересвета светлого
 	return pow(c, 1.0 / float(v["gamma"]))
+
+
+## Открыли заново (кнопка «Калибровка» в настройках) — ползунок под текущие значения.
+func sync() -> void:
+	sl.set_value_no_signal(from_gamma(float(menu.values["gamma"])))
+	_on_slider(sl.value, false)
 
 
 func _finish() -> void:
