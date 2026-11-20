@@ -24,6 +24,11 @@ var bonus_slot: Node3D
 var ui: CanvasLayer
 var quest_box: PanelContainer
 var quest_l: Label
+var quest_cur := ""                # текущее задание (журнал на J)
+var quest_t := 0.0                  # сколько секунд плашка уже на экране
+const QUEST_SHOW := 12.0            # через сколько секунд плашка прячется
+var journal_box: PanelContainer     # журнал заданий (J)
+var journal_l: Label
 var hint_l: Label
 var card_bg: ColorRect
 var card_l: Label
@@ -463,19 +468,13 @@ func _city_after() -> void:
 ## Задание справа в лагере: что нужно для поездки в город.
 func _city_quest() -> void:
 	var t := "Город: в багажник %d фильтров, %d канистры, полный бак, на себе — %s\n" % [int(City.NEED["filter"]), int(City.NEED["fuel"]), City.MASK_NAME] + city_status()
-	if not quest_box.visible:
-		_quest(t)
-	elif quest_l.text != t:
-		quest_l.text = t
+	_quest_update(t)
 
 
 ## Задание справа (после подвала): что положить в багажник для поездки к озеру.
 func _lake_quest() -> void:
-	var t := "Лагерь у озера: в багажник 5 фильтров, 3 канистры, 2 слесарных молотка, полный бак\n" + lake_status()
-	if not quest_box.visible:
-		_quest(t)
-	elif quest_l.text != t:
-		quest_l.text = t
+	var t := "Следующая поездка: в багажник 5 фильтров, 3 канистры, 2 слесарных молотка, полный бак\n" + lake_status()
+	_quest_update(t)
 
 
 func can_skip() -> bool:
@@ -560,9 +559,25 @@ func set_stage(s: int) -> void:
 			_quest("")
 
 
+## Обновить текст задания: если он изменился — плашка снова на экране на QUEST_SHOW секунд.
+func _quest_update(t: String) -> void:
+	if t == quest_cur:
+		return
+	if quest_box.visible:
+		quest_cur = t
+		quest_l.text = t
+		quest_t = 0.0
+		_journal_refresh()
+	else:
+		_quest(t)
+
+
 func _quest(text: String) -> void:
+	quest_cur = text
+	quest_t = 0.0
 	quest_box.visible = text != ""
 	quest_l.text = text
+	_journal_refresh()
 	if text != "":
 		quest_box.modulate.a = 0.0
 		create_tween().tween_property(quest_box, "modulate:a", 1.0, 0.6)
@@ -575,10 +590,33 @@ func hint(text: String, time := 5.0) -> void:
 	hint_l.set_meta("t", time)
 
 
+## J — журнал заданий (не срабатывает при открытой консоли/чате).
+func _unhandled_input(e: InputEvent) -> void:
+	if game == null or game.player == null or not e.is_action_pressed("journal") or e.is_echo():
+		return
+	if game.player.input_locks.has("console") or game.player.input_locks.has("chat"):
+		return
+	if not journal_box.visible and game.window_open():
+		return
+	journal_box.visible = not journal_box.visible
+	_journal_refresh()
+	get_viewport().set_input_as_handled()
+
+
+## Текст журнала: текущие задания.
+func _journal_refresh() -> void:
+	if journal_l != null:
+		journal_l.text = quest_cur if quest_cur != "" else "Сейчас заданий нет."
+
+
 func _process(delta: float) -> void:
 	if game == null or game.player == null:
 		return
 	stage_t += delta
+	if quest_box.visible:
+		quest_t += delta
+		if quest_t > QUEST_SHOW:
+			quest_box.visible = false
 	var ht := float(hint_l.get_meta("t", 0.0)) - delta
 	hint_l.set_meta("t", ht)
 	if ht < 1.0:
@@ -671,14 +709,14 @@ func _make_ui() -> void:
 	sb.bg_color = Color(0.05, 0.045, 0.04, 0.72)
 	sb.border_color = Color(0.85, 0.55, 0.25, 0.8)
 	sb.border_width_left = 3
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	sb.content_margin_top = 10
-	sb.content_margin_bottom = 10
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 7
+	sb.content_margin_bottom = 7
 	quest_box.add_theme_stylebox_override("panel", sb)
 	quest_box.anchor_left = 1.0
 	quest_box.anchor_right = 1.0
-	quest_box.offset_left = -400
+	quest_box.offset_left = -330
 	quest_box.offset_right = -16
 	quest_box.offset_top = 170
 	quest_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -688,15 +726,38 @@ func _make_ui() -> void:
 	quest_box.add_child(vb)
 	var t := Label.new()
 	t.text = "ЗАДАНИЕ"
-	t.add_theme_font_size_override("font_size", 15)
+	t.add_theme_font_size_override("font_size", 12)
 	t.add_theme_color_override("font_color", Color(0.95, 0.65, 0.3))
 	vb.add_child(t)
 	quest_l = Label.new()
 	quest_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	quest_l.custom_minimum_size = Vector2(360, 0)
-	quest_l.add_theme_font_size_override("font_size", 18)
+	quest_l.custom_minimum_size = Vector2(290, 0)
+	quest_l.add_theme_font_size_override("font_size", 15)
 	quest_l.add_theme_color_override("font_color", Color(0.92, 0.9, 0.84))
 	vb.add_child(quest_l)
+	# журнал заданий (J): по центру, список текущих заданий
+	journal_box = PanelContainer.new()
+	journal_box.add_theme_stylebox_override("panel", sb)
+	journal_box.set_anchors_preset(Control.PRESET_CENTER)
+	journal_box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	journal_box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	journal_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	journal_box.visible = false
+	ui.add_child(journal_box)
+	var jv := VBoxContainer.new()
+	journal_box.add_child(jv)
+	var jt := Label.new()
+	jt.text = "ЖУРНАЛ ЗАДАНИЙ  [J — закрыть]"
+	jt.add_theme_font_size_override("font_size", 14)
+	jt.add_theme_color_override("font_color", Color(0.95, 0.65, 0.3))
+	jv.add_child(jt)
+	journal_l = Label.new()
+	journal_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	journal_l.custom_minimum_size = Vector2(420, 0)
+	journal_l.add_theme_font_size_override("font_size", 17)
+	journal_l.add_theme_color_override("font_color", Color(0.92, 0.9, 0.84))
+	jv.add_child(journal_l)
+	_journal_refresh()
 	hint_l = Label.new()
 	hint_l.anchor_left = 0.5
 	hint_l.anchor_right = 0.5
