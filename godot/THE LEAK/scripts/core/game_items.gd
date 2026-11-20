@@ -279,7 +279,7 @@ func use_item(key, no_channel := false) -> void:
 	elif id == "coin":
 		pass
 	elif id == "car_key":
-		hud.toast("Ключ от машины на поляне — открой водительскую дверь (F)")
+		hud.toast("Ключ от машины на поляне — открой водительскую дверь [F]")
 	elif id == "wallet":
 		_use_take(idx)
 		var c := randi_range(10, 40)

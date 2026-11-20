@@ -85,7 +85,7 @@ func _build_ui() -> void:
 	awning.add_child(head)
 	var x := Button.new()
 	x.focus_mode = Control.FOCUS_NONE
-	x.tooltip_text = "Закрыть (E / Esc)"
+	preload("res://scripts/ui/key_hint.gd").attach(x, "Закрыть (F / Esc)", "Закрыть ({b:1})", "tooltip_text")
 	x.custom_minimum_size = Vector2(34, 34)
 	x.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	x.position = Vector2(600 - 42, 6)

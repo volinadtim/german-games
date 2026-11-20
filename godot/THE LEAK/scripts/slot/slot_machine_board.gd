@@ -327,7 +327,7 @@ func _build_packs() -> void:
 	pack_up.pressed.connect(_pack_upgrade)
 	v.add_child(pack_up)
 	var c := Button.new()
-	c.text = "Закрыть (E / Esc)"
+	preload("res://scripts/ui/key_hint.gd").attach(c, "Закрыть (F / Esc)", "Закрыть ({b:1})")   # с геймпада — B (промпт 20.11 15:14)
 	c.focus_mode = Control.FOCUS_NONE
 	c.add_theme_font_size_override("font_size", 18)
 	c.pressed.connect(close_packs)

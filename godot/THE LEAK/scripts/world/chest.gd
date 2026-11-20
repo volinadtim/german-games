@@ -142,16 +142,16 @@ func _build_safe() -> void:
 
 func get_prompt(_g) -> String:
 	if kind == "storage":
-		return "[E] Сундук (%d)" % contents.size() if not contents.is_empty() else "[E] Сундук"
+		return "[F] Сундук (%d)" % contents.size() if not contents.is_empty() else "[F] Сундук"
 	if broken:
 		return ""
 	if opened:
-		return "[E] Обыскать (%d)" % contents.size() if not contents.is_empty() else ""
+		return "[F] Обыскать (%d)" % contents.size() if not contents.is_empty() else ""
 	if locked:
 		return "Сейф заперт  ???"
 	if kind == "safe":
-		return "[E] Открыть сейф"
-	return "[E] Открыть ящик"
+		return "[F] Открыть сейф"
+	return "[F] Открыть ящик"
 
 
 func interact(g) -> void:

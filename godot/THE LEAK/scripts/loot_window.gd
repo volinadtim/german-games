@@ -307,14 +307,14 @@ func _ready() -> void:
 	hb.add_theme_constant_override("separation", 10)
 	v.add_child(hb)
 	all_b = Button.new()
-	all_b.text = "Забрать всё"
+	preload("res://scripts/ui/key_hint.gd").attach(all_b, "Забрать всё [R]", "Забрать всё [{loot_all}]")   # промпт 20.11 15:14
 	all_b.focus_mode = Control.FOCUS_NONE
 	all_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	all_b.add_theme_font_size_override("font_size", 20)
 	all_b.pressed.connect(take_all)
 	hb.add_child(all_b)
 	var close_b := Button.new()
-	close_b.text = "Закрыть"
+	preload("res://scripts/ui/key_hint.gd").attach(close_b, "Закрыть [Esc]", "Закрыть [{b:1}]")
 	close_b.focus_mode = Control.FOCUS_NONE
 	close_b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	close_b.add_theme_font_size_override("font_size", 20)

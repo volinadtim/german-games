@@ -260,7 +260,7 @@ func _relocate(seat: int) -> void:
 func _after_card() -> void:
 	game.end_cinematic()
 	_force_gasmask()   # в салоне тоже отравленный воздух (gasmask.gd: _outside)
-	hint("В салоне что-то есть — осмотрись (E — взять).\nПосмотри на дверь и нажми E — выйти.", 9.0)
+	hint("В салоне что-то есть — осмотрись ([F] — взять).\nПосмотри на дверь и нажми [F] — выйти.", 9.0)
 
 
 ## Первый выход из машины в деревне: Нюхич на лицо, метка на ближайшем доме, задание.
@@ -323,7 +323,7 @@ func _quest(text: String) -> void:
 
 ## Подсказка по центру снизу на time секунд.
 func hint(text: String, time := 5.0) -> void:
-	hint_l.text = text
+	hint_l.text = preload("res://scripts/ui/gamepad.gd").pad_text(text)   # с геймпада — кнопки геймпада
 	hint_l.modulate.a = 1.0
 	hint_l.set_meta("t", time)
 

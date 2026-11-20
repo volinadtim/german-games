@@ -252,7 +252,7 @@ func _process(delta: float) -> void:
 	if count_l.visible:
 		var r := rounds()
 		if not loaded():
-			count_l.text = "НЕТ МАГАЗИНА  (R)"
+			count_l.text = preload("res://scripts/ui/key_hint.gd").fmt("НЕТ МАГАЗИНА  [R]")
 		elif eject_t > 0.0:
 			count_l.text = "ИЗВЛЕЧЬ… %d%%" % int(eject_t / EJECT_T * 100.0)
 		elif dual():
@@ -502,7 +502,7 @@ func fire() -> void:
 		_play(snd_click, -6.0, 1.0)
 		if not _empty_told:
 			_empty_told = true
-			game.hud.toast("Нет магазина — R" if not loaded() else "Пусто — R, сменить магазин; Enter (держать) — вынуть")
+			game.hud.toast("Нет магазина — [R]" if not loaded() else "Пусто — [R], сменить магазин; [Enter] (держать) — вынуть")
 		return
 	_empty_told = false
 	_shoot(h, lerpf(SPREAD_HIP, SPREAD_AIM, aim_k))

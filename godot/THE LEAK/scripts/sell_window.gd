@@ -26,6 +26,7 @@ const CELL := 48.0        # 10 колонок сундука = 480 px — ров
 const BAG_CELL := 48.0    # компактная, но читаемая сетка сумки (или 58.0, если хотите 1-в-1 как в инвентаре)
 const SELL_CELL := 58.0   # компактные ячейки правой колонки «НА ПРОДАЖУ»
 const DEFAULT_INFO := "ЛКМ — продать кол-во, Ctrl+ЛКМ — стопка, Shift+ЛКМ — 1 шт."
+const PAD_INFO := "{b:0} — продать кол-во  ·  {b:1} — закрыть"   # с геймпада (промпт 20.11 15:14)
 
 var game
 var shop                        # shop.gd — пересобрать его после продажи
@@ -471,7 +472,7 @@ func _ready() -> void:
 
 	var x := Button.new()
 	x.focus_mode = Control.FOCUS_NONE
-	x.tooltip_text = "Закрыть (Esc)"
+	preload("res://scripts/ui/key_hint.gd").attach(x, "Закрыть (F / Esc)", "Закрыть ({b:1})", "tooltip_text")
 	x.custom_minimum_size = Vector2(34, 34)
 	x.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var x_sb := func(bg: Color, brd: Color) -> StyleBoxFlat:
@@ -570,7 +571,7 @@ func _ready() -> void:
 	sell_b = _button("Продать", sell_all)
 	sc.add_child(sell_b)
 
-	info_l = _label(DEFAULT_INFO, 15, Color(0.7, 0.68, 0.62))
+	info_l = _label(preload("res://scripts/ui/key_hint.gd").fmt(DEFAULT_INFO, PAD_INFO), 15, Color(0.7, 0.68, 0.62))
 	info_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info_l.custom_minimum_size = Vector2(1, 0)
 	v.add_child(info_l)
@@ -651,7 +652,7 @@ func _label(t: String, size: int, col: Color) -> Label:
 func _set_info(msg: String, temporary := false) -> void:
 	if info_l == null:
 		return
-	info_l.text = msg
+	info_l.text = preload("res://scripts/ui/key_hint.gd").fmt(msg, PAD_INFO) if msg == DEFAULT_INFO else msg
 	_info_t = 4.0 if temporary else 0.0
 
 
@@ -1054,7 +1055,7 @@ func click(side: String, idx: int, one: bool, to := "") -> void:
 		if int(it[1]) <= 0:
 			pending.remove_at(idx)
 	game.play_ui("click", -16.0, 1.2)
-	info_l.text = DEFAULT_INFO
+	_set_info(DEFAULT_INFO)
 	_rebuild()
 
 
@@ -1112,7 +1113,7 @@ func _process(delta: float) -> void:
 	if _info_t > 0.0:
 		_info_t -= delta
 		if _info_t <= 0.0 and info_l != null:
-			info_l.text = DEFAULT_INFO
+			_set_info(DEFAULT_INFO)
 	if left_scroll == null:
 		return
 	var sb_v := left_scroll.get_v_scroll_bar()
