@@ -200,6 +200,8 @@ func _process(delta: float) -> void:
 	vignette.modulate.a = maxf(hurt, low)
 	hit_edge = move_toward(hit_edge, 0.0, delta * 3.2)
 	hit_vig.modulate.a = hit_edge * hit_edge
+	if mm_vp:   # карта не нужна в «Реализме» и в кат-сценах — не рендерим
+		mm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED if minimal or not paint.visible else SubViewport.UPDATE_ALWAYS
 	paint.queue_redraw()
 
 
@@ -420,7 +422,7 @@ func _paint() -> void:
 	paint.draw_string(f, Vector2(x + 36, y - 48), ct, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0.9, 0.78, 0.5))
 	if minimal:
 		return   # реализм: без баффов, монет, хотбара и заряда фонарика
-	_draw_radar(sz)
+	_draw_minimap(sz)
 	# баффы еды и напитков: значок предмета, сила и таймер
 	var bx0 := x
 	for k in buffs:
@@ -474,45 +476,117 @@ func _paint() -> void:
 
 
 
-## Радар в правом верхнем углу (промпт 20.11 14:34, только «Обычный» и «Казуальный»): круг вокруг камеры,
-## верх — направление взгляда; враги — красные точки, мутанты — оранжевые, дальние прижаты к краю.
-const RADAR_R := 70.0
-const RADAR_RANGE := 40.0
-func _draw_radar(sz: Vector2) -> void:
+## Миникарта в правом верхнем углу (промпты 20.11 14:34/14:38/14:39, только «Обычный» и «Казуальный»):
+## вид сверху отдельной ортокамерой (SubViewport, без потолков — срез на MM_CLIP над глазами, ровный свет),
+## верх — направление взгляда. Враги/мутанты на карте сами не рисуются (их меши на слое MM_HIDE_LAYER,
+## который камера карты не видит); точка появляется, только если игрок их видит: в поле зрения камеры
+## и без стен между (луч), и гаснет за MM_FORGET с после потери из виду.
+const MM_SIZE := 180.0         # сторона на экране, px
+const MM_RANGE := 50.0         # сколько метров по ширине карты
+const MM_CLIP := 1.0           # срез над глазами — потолки не рисуются
+const MM_HIDE_LAYER := 1 << 16 # слой 17: меши врагов, камера карты его не рисует
+const MM_FORGET := 1.5
+var mm_vp: SubViewport
+var mm_cam: Camera3D
+var mm_seen := {}              # instance_id → оставшееся время показа
+var mm_layer_t := 0.0
+
+
+## создаёт SubViewport и камеру миникарты (при первом показе)
+func _mm_make() -> void:
+	mm_vp = SubViewport.new()
+	mm_vp.size = Vector2i(256, 256)
+	mm_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	mm_vp.positional_shadow_atlas_size = 0
+	mm_vp.debug_draw = Viewport.DEBUG_DRAW_UNSHADED
+	add_child(mm_vp)
+	mm_cam = Camera3D.new()
+	mm_cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	mm_cam.size = MM_RANGE
+	mm_cam.near = 0.05
+	mm_cam.far = 60.0
+	mm_cam.cull_mask = 0xFFFFF & ~MM_HIDE_LAYER
+	var env := Environment.new()
+	env.background_mode = Environment.BG_COLOR
+	env.background_color = Color(0.02, 0.03, 0.025)
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.ambient_light_color = Color(1, 1, 1)
+	env.ambient_light_energy = 1.6
+	mm_cam.environment = env
+	mm_vp.add_child(mm_cam)
+	mm_cam.current = true
+
+
+## прячет меши врагов и мутантов от камеры карты (раз в секунду — на случай новых)
+func _mm_hide_enemies() -> void:
+	for grp in ["enemies", "mutants"]:
+		for n in get_tree().get_nodes_in_group(grp):
+			for m in (n as Node).find_children("*", "VisualInstance3D", true, false):
+				var vi := m as VisualInstance3D
+				if vi.layers != MM_HIDE_LAYER:
+					vi.layers = MM_HIDE_LAYER
+
+
+func _draw_minimap(sz: Vector2) -> void:
 	var cam := get_viewport().get_camera_3d()
-	if cam == null:
+	if cam == null or cam == mm_cam:
 		return
-	var c := Vector2(sz.x - RADAR_R - 20.0, RADAR_R + 20.0)
-	paint.draw_circle(c, RADAR_R, Color(0.02, 0.06, 0.03, 0.55))
-	paint.draw_arc(c, RADAR_R, 0, TAU, 64, Color(0.45, 0.9, 0.5, 0.7), 2.0, true)
-	paint.draw_arc(c, RADAR_R * 0.5, 0, TAU, 48, Color(0.45, 0.9, 0.5, 0.25), 1.0, true)
-	paint.draw_line(c - Vector2(RADAR_R, 0), c + Vector2(RADAR_R, 0), Color(0.45, 0.9, 0.5, 0.15), 1.0)
-	paint.draw_line(c - Vector2(0, RADAR_R), c + Vector2(0, RADAR_R), Color(0.45, 0.9, 0.5, 0.15), 1.0)
-	# вращающийся луч
-	var sw := fmod(t * 1.6, TAU)
-	for i in 6:
-		var a0 := sw - i * 0.07
-		paint.draw_line(c, c + Vector2(cos(a0), sin(a0)) * RADAR_R, Color(0.5, 1.0, 0.55, 0.22 - i * 0.035), 2.0, true)
+	if mm_vp == null:
+		_mm_make()
+	var dt := get_process_delta_time()
+	mm_layer_t -= dt
+	if mm_layer_t <= 0.0:
+		mm_layer_t = 1.0
+		_mm_hide_enemies()
 	var cp := cam.global_position
 	var fw := -cam.global_transform.basis.z
-	var yaw := atan2(fw.x, fw.z)   # 0 — взгляд вдоль +Z
+	fw.y = 0.0
+	if fw.length() < 0.01:
+		fw = cam.global_transform.basis.y
+		fw.y = 0.0
+	fw = fw.normalized()
+	mm_cam.global_transform = Transform3D(Basis.looking_at(Vector3.DOWN, fw), cp + Vector3(0, MM_CLIP, 0))
+	var r := Rect2(sz.x - MM_SIZE - 20.0, 20.0, MM_SIZE, MM_SIZE)
+	paint.draw_rect(r.grow(3), Color(0, 0, 0, 0.6))
+	paint.draw_texture_rect(mm_vp.get_texture(), r, false, Color(1, 1, 1, 0.9))
+	paint.draw_rect(r, Color(0.75, 0.7, 0.55, 0.8), false, 2.0)
+	var c := r.get_center()
+	# враги — только те, кого игрок видит сейчас или видел только что
+	var pl = get_parent().get("player")
+	var ex: Array[RID] = []
+	if pl is CollisionObject3D:
+		ex.append((pl as CollisionObject3D).get_rid())
+	var space := cam.get_world_3d().direct_space_state
+	var yaw := atan2(fw.x, fw.z)
 	for grp in [["enemies", Color(1.0, 0.25, 0.2)], ["mutants", Color(1.0, 0.6, 0.15)]]:
 		for n in get_tree().get_nodes_in_group(grp[0]):
-			if not (n is Node3D) or not n.is_inside_tree() or not n.visible:
+			if not (n is Node3D) or not n.is_inside_tree():
 				continue
-			if "hp" in n and float(n.hp) <= 0.0:
+			var id: int = n.get_instance_id()
+			var alive: bool = (n as Node3D).visible and not ("hp" in n and float(n.hp) <= 0.0)
+			var tp: Vector3 = (n as Node3D).global_position + Vector3(0, 1.1, 0)
+			if alive and cam.is_position_in_frustum(tp) and cp.distance_to(tp) < 60.0:
+				var q := PhysicsRayQueryParameters3D.create(cp, tp)
+				q.exclude = ex
+				var hit := space.intersect_ray(q)
+				if hit.is_empty() or hit.collider == n or (hit.collider is Node and n.is_ancestor_of(hit.collider)):
+					mm_seen[id] = MM_FORGET
+			if not mm_seen.has(id):
+				continue
+			mm_seen[id] = float(mm_seen[id]) - dt
+			if mm_seen[id] <= 0.0 or not alive:
+				mm_seen.erase(id)
 				continue
 			var d: Vector3 = (n as Node3D).global_position - cp
-			var v := Vector2(d.x, d.z).rotated(yaw)   # вперёд → (0, +) → экран вверх после инверсии
-			var p := Vector2(-v.x, -v.y) / RADAR_RANGE * RADAR_R
-			var far := p.length() > RADAR_R - 5.0
-			if far:
-				p = p.normalized() * (RADAR_R - 5.0)
+			var v := Vector2(d.x, d.z).rotated(yaw)
+			var p := Vector2(-v.x, -v.y) / MM_RANGE * MM_SIZE
+			if absf(p.x) > MM_SIZE / 2.0 - 4.0 or absf(p.y) > MM_SIZE / 2.0 - 4.0:
+				continue
 			var col: Color = grp[1]
-			col.a = 0.5 if far else 0.95
-			paint.draw_circle(c + p, 3.0 if far else 4.5, col)
-	# игрок — треугольник-стрелка вверх
-	paint.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(6, 6), c + Vector2(-6, 6)]), Color(0.85, 1.0, 0.85, 0.95))
+			col.a = 0.3 + 0.65 * clampf(float(mm_seen[id]) / MM_FORGET, 0.0, 1.0)
+			paint.draw_circle(c + p, 4.5, col)
+	# игрок — стрелка вверх
+	paint.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -8), c + Vector2(6, 6), c + Vector2(-6, 6)]), Color(0.4, 1.0, 0.5, 0.95))
 
 
 ## Полоска здоровья (промпт 18.11 02:15: «слишком простая», во всех режимах одна и та же):
