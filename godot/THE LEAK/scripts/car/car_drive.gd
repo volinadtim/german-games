@@ -272,6 +272,8 @@ func _seat_tick(delta: float) -> void:
 			game.hud.prompt.call_deferred("Высунулся из окна — отпусти, чтобы сесть ровно")
 		elif can_depart() and not game.window_open() and (_looking_at_key() or not _looking_at_door()):
 			game.hud.prompt.call_deferred("[F] Повернуть ключ — уехать" if _looking_at_key() else "Ключ зажигания — справа от руля: наведись и нажми F")
+		elif can_go_lake() and not game.window_open() and _looking_at_key():
+			game.hud.prompt.call_deferred(lake_prompt())
 		elif game.focus == null and can_take_wheel() and not _looking_at_door():
 			game.hud.prompt.call_deferred("[F] Пересесть за руль")
 		elif game.focus == null and next_seat() >= 0 and not game.window_open():
@@ -373,6 +375,17 @@ func vis_yaw() -> float:
 ## Можно уехать с поляны: машина открыта, но ещё не уезжала, свой игрок сидит за рулём (промпт 20.11 11:58).
 func can_depart() -> bool:
 	return state == "parked" and not escaped and my_seat == 0 and seat_dir == 0 and game != null and game.alive
+
+
+## Водитель в деревне (машина уже уезжала с поляны): ключ зажигания — поездка в лагерь у озера (village.gd: go_lake).
+func can_go_lake() -> bool:
+	return state == "parked" and escaped and my_seat == 0 and seat_dir == 0 and game != null and game.alive \
+			and village != null and not village.at_lake
+
+
+## Подсказка у ключа зажигания в деревне: готово ли к поездке к озеру.
+func lake_prompt() -> String:
+	return "[F] Повернуть ключ — ехать к озеру" if village.lake_ready() else "К озеру: " + village.lake_status()
 
 
 ## Водитель смотрит на ключ в замке зажигания (узкий конус от глаз).
@@ -1110,7 +1123,7 @@ func from_save(d: Dictionary) -> void:
 		return
 	var a: Array = d.get("pos", [position.x, position.y, position.z])
 	var pz := float(a[2])
-	if pz > 430.0:   # старые сейвы: деревня была на 360 м дальше
+	if pz > 430.0 and pz < 900.0:   # старые сейвы: деревня была на 360 м дальше (дальше 900 — лагерь у озера)
 		pz -= 360.0
 	park_at(Vector3(float(a[0]), float(a[1]), pz), float(d.get("yaw", 0.0)))
 	# ключ остался в зажигании (старые сейвы: ключ ещё в рюкзаке — убираем)

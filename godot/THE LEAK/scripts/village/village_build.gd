@@ -10,6 +10,7 @@ const ROAD_Z0 := 11.0                # начало дороги — у маши
 const ROAD_W := 2.6                  # полуширина полотна
 const Z_SEAM := 38.0                 # где кончается сетка поляны
 const Z_END := 422.0
+const LAKE_Z0 := 1150.0              # третья локация — лагерь у озера (lake_camp.gd), z дальше этого
 const GX0 := -15.0                   # сетка земли: x от GX0, шаг GSTEP
 const GNX := 46
 const GSTEP := 2.0
@@ -62,6 +63,8 @@ var marker_pos := Vector3.ZERO       # куда смотрит метка зад
 
 ## Высота в любой точке: на поляне — surface.gd, дальше — долина дороги и деревня.
 func height(x: float, z: float) -> float:
+	if z > LAKE_Z0:
+		return G   # лагерь у озера (lake_camp.gd) — ровная поляна
 	if z <= Z_SEAM:
 		return surface.height(x, z) if surface else G
 	var vh := _vh(x, z)

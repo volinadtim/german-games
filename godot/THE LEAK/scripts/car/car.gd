@@ -70,6 +70,8 @@ func get_prompt(g) -> String:
 	if my_seat >= 0:
 		if can_depart() and _looking_at_key():
 			return "[F] Повернуть ключ — уехать"
+		if can_go_lake() and _looking_at_key():
+			return lake_prompt()
 		if seat_dir == 0 and _looking_at_door():
 			return "[F] Открыть дверь и выйти"
 		return "[F] Пересесть за руль" if can_take_wheel() else ""
@@ -131,6 +133,8 @@ func interact(g) -> void:
 	if my_seat >= 0:
 		if can_depart() and _looking_at_key():
 			depart()
+		elif can_go_lake() and _looking_at_key():
+			village.go_lake()
 		elif seat_dir == 0 and _looking_at_door():
 			exit_local()
 		elif can_take_wheel():

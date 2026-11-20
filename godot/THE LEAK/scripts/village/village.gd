@@ -45,6 +45,13 @@ var card_seat := -1
 var card_moved := false
 var card_after := false
 var card_fast := false
+## Третья локация — лагерь у озера (промпт 20.11 18:00): уехать из деревни, когда в багажнике
+## LAKE_NEED и полный бак (ключ зажигания, car.gd). В сейве village.lake.
+const LakeCamp := preload("res://scripts/village/lake_camp.gd")
+const LAKE_NEED := {"filter": 5, "fuel": 3, "steel_hammer": 2}
+var lake                             # lake_camp.gd (строится при поездке / загрузке)
+var at_lake := false
+var card_lake := false               # надпись сейчас — про поездку к озеру
 
 ## Где бродят мутанты деревни: [точка, вид]
 const MUT_SPOTS := [
@@ -179,8 +186,9 @@ func spawn_car_loot() -> void:
 ## Из car.gd, когда машина отъехала: экран темнеет, надпись, машина переносится в деревню, игрок — в салон.
 ## seat — место этого игрока (0 — водитель).
 ## fast — пропуск кат-сцены (ui/cutscene_skip.gd): короткое затемнение без надписи.
-func stall_sequence(seat: int, fast := false) -> void:
+func stall_sequence(seat: int, fast := false, to_lake := false) -> void:
 	card_seat = seat
+	card_lake = to_lake
 	card_moved = false
 	card_after = false
 	card_fast = false
@@ -188,6 +196,8 @@ func stall_sequence(seat: int, fast := false) -> void:
 	card_bg.color.a = 0.0
 	card_l.modulate.a = 0.0
 	card_l.text = "Через пару сотен метров мотор чихнул, кашлянул — и заглох.\nБак пуст.\n\nВокруг — брошенная деревня. Воздух снаружи всё такой же.\nНадо что-то делать."
+	if to_lake:
+		card_l.text = "Багажник набит, бак полный. Деревня осталась позади.\n\nДолгая дорога через лес — и вот оно: озеро,\nстарые палатки и кострище.\n\nЛагерь у озера."
 	if fast:
 		_card_fast()
 		return
@@ -222,13 +232,107 @@ func _card_fast() -> void:
 func _relocate_once() -> void:
 	if not card_moved:
 		card_moved = true
-		_relocate(card_seat)
+		if card_lake:
+			_lake_relocate(card_seat)
+		else:
+			_relocate(card_seat)
 
 
 func _after_once() -> void:
 	if not card_after:
 		card_after = true
-		_after_card()
+		if card_lake:
+			_lake_after()
+		else:
+			_after_card()
+
+
+# ---------- лагерь у озера (третья локация, промпт 20.11 18:00) ----------
+
+## Сколько нужного лежит в багажнике (большие фильтры считаются фильтрами).
+func lake_counts() -> Dictionary:
+	var c := {"filter": 0, "fuel": 0, "steel_hammer": 0}
+	if car == null:
+		return c
+	for it in car.trunk.contents:
+		var id := String(it[0])
+		if id == "filter2":
+			id = "filter"
+		if c.has(id):
+			c[id] += int(it[1])
+	return c
+
+
+## Всё собрано: багажник по LAKE_NEED и полный бак.
+func lake_ready() -> bool:
+	if at_lake or car == null or car.fuel < 0.99:
+		return false
+	var c := lake_counts()
+	for k in LAKE_NEED:
+		if int(c[k]) < int(LAKE_NEED[k]):
+			return false
+	return true
+
+
+## Строка прогресса: что уже в багажнике и сколько бензина.
+func lake_status() -> String:
+	var c := lake_counts()
+	return "фильтры %d/%d · канистры %d/%d · слесарные молотки %d/%d · бак %d%%" % [
+		mini(int(c["filter"]), 5), 5, mini(int(c["fuel"]), 3), 3, mini(int(c["steel_hammer"]), 2), 2, roundi((car.fuel if car else 0.0) * 100.0)]
+
+
+## Водитель повернул ключ в деревне (car.gd): всё готово — едем к озеру (в сети у всех), иначе — чего не хватает.
+func go_lake() -> void:
+	if at_lake or car == null or game == null:
+		return
+	if not lake_ready():
+		game.hud.toast("К озеру рано: " + lake_status(), Color(0.95, 0.8, 0.5))
+		return
+	if car.vnet():
+		car.vnet().rpc("v_lake")
+	else:
+		lake_sequence()
+
+
+## Затемнение с надписью и перенос машины и игрока в лагерь (у каждого игрока своё место).
+func lake_sequence() -> void:
+	if at_lake or card_bg.visible or car == null:
+		return
+	_ensure_lake()
+	if game:
+		game.close_windows()
+	stall_sequence(car.my_seat if car.seat_dir == 0 else -1, false, true)
+
+
+func _ensure_lake() -> void:
+	if lake == null:
+		lake = LakeCamp.new()
+		add_child(lake)
+
+
+func _lake_relocate(seat: int) -> void:
+	at_lake = true
+	_quest("")
+	car.park_at(LakeCamp.CAR_POS, LakeCamp.CAR_YAW)
+	car.fuel = 0.3   # дорога съела почти весь бак
+	if seat >= 0 and seat < 4:
+		car.seat_local(seat, true)
+	else:
+		game.player.global_position = LakeCamp.CAR_POS + Vector3(2.5, 0.3, -1.5 - 0.8 * randf())
+		game.player.velocity = Vector3.ZERO
+
+
+func _lake_after() -> void:
+	hint("Лагерь у озера. Бак почти пуст — дорога съела бензин.\nПосмотри на дверь и нажми [F] — выйти.", 8.0)
+
+
+## Задание справа (после подвала): что положить в багажник для поездки к озеру.
+func _lake_quest() -> void:
+	var t := "Лагерь у озера: в багажник 5 фильтров, 3 канистры, 2 слесарных молотка, полный бак\n" + lake_status()
+	if not quest_box.visible:
+		_quest(t)
+	elif quest_l.text != t:
+		quest_l.text = t
 
 
 func can_skip() -> bool:
@@ -409,6 +513,8 @@ func _poll() -> void:
 		4:
 			if stage_t > 30.0:
 				set_stage(5)
+	if stage >= 2 and not at_lake and not card_bg.visible:
+		_lake_quest()
 
 
 func _make_ui() -> void:
@@ -589,7 +695,7 @@ func net_mutants(arr: Array, full := true) -> void:
 # ---------- сохранение ----------
 
 func to_save() -> Dictionary:
-	var d := {"stage": stage, "loot": loot_done}
+	var d := {"stage": stage, "loot": loot_done, "lake": at_lake}
 	if car:
 		d["car"] = car.to_save()
 	if bonus_slot:
@@ -611,6 +717,10 @@ func from_save(d: Dictionary) -> void:
 		bonus_slot.sevens_hit = bool(d.get("sevens", false))
 		bonus_slot.set_bet(int(d.get("bet", 1)))
 		bonus_slot.load_guar(d.get("guar", {}))
+	at_lake = bool(d.get("lake", false))
+	if at_lake:
+		_ensure_lake()
+		_quest("")
 	if car and d.has("car"):
 		car.from_save(d["car"])
 	if storage:

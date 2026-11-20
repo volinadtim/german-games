@@ -30,6 +30,13 @@ func v_escape(o: Array) -> void:
 		c.escape(o)
 
 
+## Водитель повернул ключ в деревне, всё собрано (промпт 20.11 18:00): все едут в лагерь у озера.
+@rpc("any_peer", "call_local", "reliable")
+func v_lake() -> void:
+	if game and is_instance_valid(game) and game.village:
+		game.village.lake_sequence()
+
+
 ## Машину открыли ключом (промпт 20.11 11:58): у всех она стоит открытая на поляне.
 @rpc("any_peer", "call_local", "reliable")
 func v_unlock() -> void:
