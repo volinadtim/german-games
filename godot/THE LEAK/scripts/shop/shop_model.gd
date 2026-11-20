@@ -66,6 +66,10 @@ const TIER := {"medkit": 1, "canned": 1, "soda": 1, "moto_helmet": 1, "vest": 1,
 	"trauma_kit": 3, "stim": 3, "mre": 3, "assault_helmet": 3, "riot_armor": 3, "kevlar_pants": 3, "combat_boots": 3, "katana": 3}
 
 
+## Тир чертежа (промпт 20.11 18:52): в каждом следующем магазине — все прежние чертежи + новые. Нет в списке — тир 0.
+const BP_TIER := {"wallpaper": 1, "cot": 1, "sandbags": 1, "rack": 2, "lamp": 2, "turret": 3}
+
+
 ## Тир этого магазина: бункер — 0, деревня (village_shop.gd) — 1, лагерь у озера (lake_shop.gd) — 2, город (city_shop.gd) — 3.
 func shop_tier() -> int:
 	if "city_shop" in self:
