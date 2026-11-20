@@ -121,6 +121,8 @@ func close() -> void:
 func _input(e: InputEvent) -> void:
 	if e.is_echo() or not e.is_pressed():
 		return
+	if game != null and game.player != null and (game.player.input_locks.has("console") or game.player.input_locks.has("chat")):
+		return   # пока открыта консоль/чат, клавиши идут только в поле ввода
 	if open:
 		if e.is_action_pressed("skills") or e.is_action_pressed("ui_cancel") or e.is_action_pressed("inventory"):
 			close()
