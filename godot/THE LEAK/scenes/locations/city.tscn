@@ -26,3 +26,62 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 4, 1406)
 script = ExtResource("1_08r37")
 preview = "res://scenes/props/preview/car.tscn"
 note = "где встаёт машина"
+
+[node name="Mutants" type="Marker3D" parent="." unique_id=384605301]
+script = ExtResource("1_08r37")
+note = "мутанты города: tag — вид"
+
+[node name="1_stalker" type="Marker3D" parent="Mutants" unique_id=2126877106]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38, 4, 1440)
+script = ExtResource("1_08r37")
+tag = "stalker"
+
+[node name="2_charger" type="Marker3D" parent="Mutants" unique_id=334761563]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44, 4, 1472)
+script = ExtResource("1_08r37")
+tag = "charger"
+
+[node name="3_spitter" type="Marker3D" parent="Mutants" unique_id=943615356]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 4, 1460)
+script = ExtResource("1_08r37")
+tag = "spitter"
+
+[node name="4_stalker" type="Marker3D" parent="Mutants" unique_id=341074387]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 75, 4, 1458)
+script = ExtResource("1_08r37")
+tag = "stalker"
+
+[node name="5_charger" type="Marker3D" parent="Mutants" unique_id=1803777441]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 4, 1505)
+script = ExtResource("1_08r37")
+tag = "charger"
+
+[node name="6_spitter" type="Marker3D" parent="Mutants" unique_id=1342820190]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 90, 4, 1503)
+script = ExtResource("1_08r37")
+tag = "spitter"
+
+[node name="7_stalker" type="Marker3D" parent="Mutants" unique_id=1212855475]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 40, 4, 1525)
+script = ExtResource("1_08r37")
+tag = "stalker"
+
+[node name="8_spitter" type="Marker3D" parent="Mutants" unique_id=2089441126]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 60, 4, 1505)
+script = ExtResource("1_08r37")
+tag = "spitter"
+
+[node name="9_charger" type="Marker3D" parent="Mutants" unique_id=256617389]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 4, 1462)
+script = ExtResource("1_08r37")
+tag = "charger"
+
+[node name="10_spitter" type="Marker3D" parent="Mutants" unique_id=1491864888]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42, 4, 1535)
+script = ExtResource("1_08r37")
+tag = "spitter"
+
+[node name="Sign" type="Marker3D" parent="." unique_id=1965846254]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32, 4, 1411)
+script = ExtResource("1_08r37")
+note = "табличка у въезда"

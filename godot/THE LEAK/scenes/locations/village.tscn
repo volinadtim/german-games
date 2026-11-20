@@ -31,3 +31,77 @@ note = "сундук-хранилище деревни"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 32.2, 4, 332)
 script = ExtResource("1_yrs0h")
 note = "место, где глохнет машина (въезд в деревню, /tp деревня)"
+
+[node name="Houses" type="Marker3D" parent="." unique_id=981127762]
+script = ExtResource("1_yrs0h")
+note = "дома: положение — центр, size — ширина (x) и глубина (z), tag — сторона двери (1 / -1)"
+
+[node name="1" type="Marker3D" parent="Houses" unique_id=536616249]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 4, 330)
+script = ExtResource("1_yrs0h")
+tag = "1.0"
+size = Vector3(7, 0, 6)
+
+[node name="2" type="Marker3D" parent="Houses" unique_id=1678011174]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20.5, 4, 346)
+script = ExtResource("1_yrs0h")
+tag = "1.0"
+size = Vector3(8, 0, 7)
+
+[node name="3" type="Marker3D" parent="Houses" unique_id=522649081]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 42, 4, 357)
+script = ExtResource("1_yrs0h")
+tag = "-1.0"
+size = Vector3(7, 0, 6)
+
+[node name="4" type="Marker3D" parent="Houses" unique_id=1673092769]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 4, 364)
+script = ExtResource("1_yrs0h")
+tag = "1.0"
+size = Vector3(7, 0, 6)
+
+[node name="5" type="Marker3D" parent="Houses" unique_id=1943266552]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 43.5, 4, 371.5)
+script = ExtResource("1_yrs0h")
+tag = "-1.0"
+size = Vector3(9, 0, 8)
+
+[node name="6" type="Marker3D" parent="Houses" unique_id=1520174968]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 22, 4, 382)
+script = ExtResource("1_yrs0h")
+tag = "1.0"
+size = Vector3(6, 0, 6)
+
+[node name="Mutants" type="Marker3D" parent="." unique_id=888293643]
+script = ExtResource("1_yrs0h")
+note = "мутанты деревни: tag — вид (spitter, charger, stalker)"
+
+[node name="1_spitter" type="Marker3D" parent="Mutants" unique_id=932520134]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 27, 4, 340)
+script = ExtResource("1_yrs0h")
+tag = "spitter"
+
+[node name="2_charger" type="Marker3D" parent="Mutants" unique_id=1782798926]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 4, 352)
+script = ExtResource("1_yrs0h")
+tag = "charger"
+
+[node name="3_stalker" type="Marker3D" parent="Mutants" unique_id=2054389978]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 26, 4, 368)
+script = ExtResource("1_yrs0h")
+tag = "stalker"
+
+[node name="4_spitter" type="Marker3D" parent="Mutants" unique_id=1051098231]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36, 4, 380)
+script = ExtResource("1_yrs0h")
+tag = "spitter"
+
+[node name="5_stalker" type="Marker3D" parent="Mutants" unique_id=156857446]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 4, 324)
+script = ExtResource("1_yrs0h")
+tag = "stalker"
+
+[node name="6_charger" type="Marker3D" parent="Mutants" unique_id=717459230]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 33, 4, 362)
+script = ExtResource("1_yrs0h")
+tag = "charger"

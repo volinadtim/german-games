@@ -31,3 +31,139 @@ note = "где встаёт машина"
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 4, 1210)
 script = ExtResource("1_7w0w2")
 note = "костёр лагеря"
+
+[node name="Mutants" type="Marker3D" parent="." unique_id=463228910]
+script = ExtResource("1_7w0w2")
+note = "мутанты у озера: tag — вид"
+
+[node name="1_stalker" type="Marker3D" parent="Mutants" unique_id=56815848]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 4, 1200)
+script = ExtResource("1_7w0w2")
+tag = "stalker"
+
+[node name="2_spitter" type="Marker3D" parent="Mutants" unique_id=2039403581]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 62, 4, 1204)
+script = ExtResource("1_7w0w2")
+tag = "spitter"
+
+[node name="3_charger" type="Marker3D" parent="Mutants" unique_id=23932147]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 4, 1252)
+script = ExtResource("1_7w0w2")
+tag = "charger"
+
+[node name="4_stalker" type="Marker3D" parent="Mutants" unique_id=705661430]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 58, 4, 1258)
+script = ExtResource("1_7w0w2")
+tag = "stalker"
+
+[node name="5_spitter" type="Marker3D" parent="Mutants" unique_id=306101746]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 46, 4, 1214)
+script = ExtResource("1_7w0w2")
+tag = "spitter"
+
+[node name="6_spitter" type="Marker3D" parent="Mutants" unique_id=920131813]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 4, 1228)
+script = ExtResource("1_7w0w2")
+tag = "spitter"
+
+[node name="7_charger" type="Marker3D" parent="Mutants" unique_id=983066388]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 36, 4, 1262)
+script = ExtResource("1_7w0w2")
+tag = "charger"
+
+[node name="8_stalker" type="Marker3D" parent="Mutants" unique_id=549741389]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -32, 4, 1205)
+script = ExtResource("1_7w0w2")
+tag = "stalker"
+
+[node name="9_charger" type="Marker3D" parent="Mutants" unique_id=9309354]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 95, 4, 1215)
+script = ExtResource("1_7w0w2")
+tag = "charger"
+
+[node name="10_spitter" type="Marker3D" parent="Mutants" unique_id=1054066548]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -30, 4, 1300)
+script = ExtResource("1_7w0w2")
+tag = "spitter"
+
+[node name="11_stalker" type="Marker3D" parent="Mutants" unique_id=1880715812]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 92, 4, 1305)
+script = ExtResource("1_7w0w2")
+tag = "stalker"
+
+[node name="12_spitter" type="Marker3D" parent="Mutants" unique_id=1617047311]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 30, 4, 1318)
+script = ExtResource("1_7w0w2")
+tag = "spitter"
+
+[node name="13_charger" type="Marker3D" parent="Mutants" unique_id=296360668]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 4, 1275)
+script = ExtResource("1_7w0w2")
+tag = "charger"
+
+[node name="14_spitter" type="Marker3D" parent="Mutants" unique_id=479283455]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 75, 4, 1270)
+script = ExtResource("1_7w0w2")
+tag = "spitter"
+
+[node name="Builds" type="Marker3D" parent="." unique_id=1960079619]
+script = ExtResource("1_7w0w2")
+note = "стройплощадки лагеря (имя — id постройки)"
+
+[node name="lean" type="Marker3D" parent="Builds" unique_id=523061103]
+transform = Transform3D(0.8253356, 0, 0.5646425, 0, 1, 0, -0.5646425, 0, 0.8253356, 16.5, 4, 1205.5)
+script = ExtResource("1_7w0w2")
+
+[node name="smoke" type="Marker3D" parent="Builds" unique_id=1390454982]
+transform = Transform3D(0.9553365, 0, 0.29552022, 0, 1, 0, -0.29552022, 0, 0.9553365, 8.5, 4, 1205)
+script = ExtResource("1_7w0w2")
+
+[node name="barrel" type="Marker3D" parent="Builds" unique_id=1070254922]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 23.5, 4, 1218.5)
+script = ExtResource("1_7w0w2")
+
+[node name="herbs" type="Marker3D" parent="Builds" unique_id=1819436660]
+transform = Transform3D(0.16996716, 0, 0.98544973, 0, 1, 0, -0.98544973, 0, 0.16996716, 9.5, 4, 1215)
+script = ExtResource("1_7w0w2")
+
+[node name="stakes" type="Marker3D" parent="Builds" unique_id=899363449]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 17, 4, 1214.5)
+script = ExtResource("1_7w0w2")
+
+[node name="turret" type="Marker3D" parent="Builds" unique_id=367967837]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 36, 4, 1204)
+script = ExtResource("1_7w0w2")
+
+[node name="sandbags" type="Marker3D" parent="Builds" unique_id=2112545860]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 35.5, 4, 1208.5)
+script = ExtResource("1_7w0w2")
+
+[node name="lamp" type="Marker3D" parent="Builds" unique_id=1654806297]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 21, 4, 1213.5)
+script = ExtResource("1_7w0w2")
+
+[node name="Tents" type="Marker3D" parent="." unique_id=838674469]
+script = ExtResource("1_7w0w2")
+note = "палатки лагеря (цвет — по порядку в коде)"
+
+[node name="1" type="Marker3D" parent="Tents" unique_id=1029615435]
+transform = Transform3D(0.87758255, 0, 0.47942555, 0, 1, 0, -0.47942555, 0, 0.87758255, 13, 4, 1203)
+script = ExtResource("1_7w0w2")
+
+[node name="2" type="Marker3D" parent="Tents" unique_id=1467289089]
+transform = Transform3D(-0.666276, 0, 0.74570525, 0, 1, 0, -0.74570525, 0, -0.666276, 14.5, 4, 1217)
+script = ExtResource("1_7w0w2")
+
+[node name="3" type="Marker3D" parent="Tents" unique_id=922145573]
+transform = Transform3D(0.921061, 0, -0.38941833, 0, 1, 0, 0.38941833, 0, 0.921061, 27, 4, 1214)
+script = ExtResource("1_7w0w2")
+
+[node name="Boat" type="Marker3D" parent="." unique_id=2089533586]
+transform = Transform3D(0.62161, 0, 0.7833269, 0, 1, 0, -0.7833269, 0, 0.62161, 47.5, 4, 1229)
+script = ExtResource("1_7w0w2")
+note = "лодка"
+
+[node name="Sign" type="Marker3D" parent="." unique_id=656262313]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35.5, 4, 1185)
+script = ExtResource("1_7w0w2")
+note = "табличка у въезда"

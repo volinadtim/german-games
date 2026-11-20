@@ -25,10 +25,7 @@ const NEED := {"filter": 6, "fuel": 2}
 ## Улицы [x0, x1, z0, z1]: по ним находки и мутанты, дома — между ними
 const STREETS := [[34.0, 46.0, 1400.0, Z1], [X0, X1, 1455.0, 1465.0], [X0, X1, 1500.0, 1510.0], [X0, X1, 1400.0, 1413.0]]
 ## Мутанты города: [позиция, вид] — умные (mutant.gd: smart)
-const MUT := [[Vector3(38.0, G, 1440.0), "stalker"], [Vector3(44.0, G, 1472.0), "charger"], [Vector3(5.0, G, 1460.0), "spitter"],
-	[Vector3(75.0, G, 1458.0), "stalker"], [Vector3(-12.0, G, 1505.0), "charger"], [Vector3(90.0, G, 1503.0), "spitter"],
-	[Vector3(40.0, G, 1525.0), "stalker"], [Vector3(60.0, G, 1505.0), "spitter"], [Vector3(20.0, G, 1462.0), "charger"],
-	[Vector3(42.0, G, 1535.0), "spitter"]]
+static var MUT: Array = Places.spots("city", "Mutants").map(func(s): return [s.pos, s.tag])   # scenes/locations/city.tscn
 
 var rng := RandomNumberGenerator.new()
 
@@ -42,7 +39,7 @@ func _ready() -> void:
 	_blocks()
 	_wrecks()
 	_lamps()
-	_sign(Vector3(32.0, G, 1411.0))
+	_sign(Places.pos("city", "Sign"))   # метка Sign в scenes/locations/city.tscn
 	_skyline()
 	_smog()
 	# Trinkets Market #4 (тир 3) и автомат «РАДИАЦИЯ» у въезда (промпт 20.11 18:44)

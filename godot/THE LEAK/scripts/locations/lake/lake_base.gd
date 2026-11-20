@@ -11,15 +11,16 @@ const Places := preload("res://scripts/world/places.gd")
 static var FIRE: Vector3 = Places.pos("lake", "Fire")   # метка в scenes/locations/lake.tscn
 const STAKE_R := 11.0
 ## [id, название, что даёт, материалы ({} — из build_kit.gd), место, поворот]
-const BUILDS := [
-	["lean", "Навес с лежанкой", "под навесом лечишься", {"wood": 6, "twine": 2}, Vector3(16.5, G, 1205.5), 0.6],
-	["smoke", "Коптильня", "раз в 2 мин — тушёнка или сухпаёк", {"wood": 4, "stone": 5}, Vector3(8.5, G, 1205.0), 0.3],
-	["barrel", "Бочка для дождевой воды", "раз в 1.5 мин — бутылка воды", {"scrap": 3, "tape": 1, "wood": 2}, Vector3(23.5, G, 1218.5), 0.0],
-	["herbs", "Сушилка для трав", "раз в 2.5 мин — бинт или таблетки", {"wood": 3, "twine": 3, "glass": 1}, Vector3(9.5, G, 1215.0), 1.4],
-	["stakes", "Колья вокруг костра", "мутанты у костра ранятся о колья", {"wood": 8, "nut": 4}, Vector3(17.0, G, 1214.5), 0.0],
-	["turret", "Кустарная турель", "сама стреляет по врагам, [F] — зарядить", {}, Vector3(36.0, G, 1204.0), PI],
-	["sandbags", "Мешки с песком", "укрытие от плевков", {}, Vector3(35.5, G, 1208.5), PI],
-	["lamp", "Лампа на столбе", "свет у костра ночью", {}, Vector3(21.0, G, 1213.5), 0.0],
+## позиция и поворот постройки — метка Builds/<id> в scenes/locations/lake.tscn
+static var BUILDS: Array = [
+	["lean", "Навес с лежанкой", "под навесом лечишься", {"wood": 6, "twine": 2}, Places.pos("lake", "Builds/lean"), Places.yaw("lake", "Builds/lean")],
+	["smoke", "Коптильня", "раз в 2 мин — тушёнка или сухпаёк", {"wood": 4, "stone": 5}, Places.pos("lake", "Builds/smoke"), Places.yaw("lake", "Builds/smoke")],
+	["barrel", "Бочка для дождевой воды", "раз в 1.5 мин — бутылка воды", {"scrap": 3, "tape": 1, "wood": 2}, Places.pos("lake", "Builds/barrel"), Places.yaw("lake", "Builds/barrel")],
+	["herbs", "Сушилка для трав", "раз в 2.5 мин — бинт или таблетки", {"wood": 3, "twine": 3, "glass": 1}, Places.pos("lake", "Builds/herbs"), Places.yaw("lake", "Builds/herbs")],
+	["stakes", "Колья вокруг костра", "мутанты у костра ранятся о колья", {"wood": 8, "nut": 4}, Places.pos("lake", "Builds/stakes"), Places.yaw("lake", "Builds/stakes")],
+	["turret", "Кустарная турель", "сама стреляет по врагам, [F] — зарядить", {}, Places.pos("lake", "Builds/turret"), Places.yaw("lake", "Builds/turret")],
+	["sandbags", "Мешки с песком", "укрытие от плевков", {}, Places.pos("lake", "Builds/sandbags"), Places.yaw("lake", "Builds/sandbags")],
+	["lamp", "Лампа на столбе", "свет у костра ночью", {}, Places.pos("lake", "Builds/lamp"), Places.yaw("lake", "Builds/lamp")],
 ]
 ## Что выдают постройки: id -> [период, предметы]
 const PROD := {"smoke": [120.0, ["canned", "ration"]], "barrel": [90.0, ["water"]], "herbs": [150.0, ["bandage", "pills"]]}

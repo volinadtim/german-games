@@ -67,10 +67,8 @@ var card_city := false
 var city_mobs := false
 
 ## Где бродят мутанты деревни: [точка, вид]
-const MUT_SPOTS := [
-	[Vector3(27.0, G, 340.0), "spitter"], [Vector3(35.0, G, 352.0), "charger"], [Vector3(26.0, G, 368.0), "stalker"],
-	[Vector3(36.0, G, 380.0), "spitter"], [Vector3(30.0, G, 324.0), "stalker"], [Vector3(33.0, G, 362.0), "charger"],
-]
+## [точка, вид] — метки Mutants в scenes/locations/village.tscn (tag — вид мутанта)
+static var MUT_SPOTS: Array = Places.spots("village", "Mutants").map(func(s): return [s.pos, s.tag])
 const MUT_RESPAWN := 70.0
 
 
@@ -148,13 +146,7 @@ func _city_mobs() -> void:
 
 
 ## Мутанты у озера (промпт 20.11 18:31): умнее и непредсказуемее деревенских (mutant.gd: smart), но не крепче.
-const LAKE_MUT := [[Vector3(2.0, G, 1200.0), "stalker"], [Vector3(62.0, G, 1204.0), "spitter"], [Vector3(6.0, G, 1252.0), "charger"],
-	[Vector3(58.0, G, 1258.0), "stalker"], [Vector3(46.0, G, 1214.0), "spitter"], [Vector3(10.0, G, 1228.0), "spitter"],
-	[Vector3(36.0, G, 1262.0), "charger"],
-	# дальний лес (карта расширена, промпт 18:33)
-	[Vector3(-32.0, G, 1205.0), "stalker"], [Vector3(95.0, G, 1215.0), "charger"], [Vector3(-30.0, G, 1300.0), "spitter"],
-	[Vector3(92.0, G, 1305.0), "stalker"], [Vector3(30.0, G, 1318.0), "spitter"], [Vector3(-10.0, G, 1275.0), "charger"],
-	[Vector3(75.0, G, 1270.0), "spitter"]]
+static var LAKE_MUT: Array = Places.spots("lake", "Mutants").map(func(s): return [s.pos, s.tag])   # scenes/locations/lake.tscn
 var lake_mobs := false
 
 

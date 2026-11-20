@@ -9,6 +9,8 @@ extends Marker3D
 		preview = v
 		_show()
 @export var note := ""   ## что это за место (для людей)
+@export var tag := ""    ## доп. значение для кода (вид мутанта, сторона двери дома…)
+@export var size := Vector3.ZERO   ## размер (дома деревни: ширина x, глубина z)
 
 
 func _ready() -> void:

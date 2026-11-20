@@ -20,14 +20,14 @@ height = 0.088719115
 radial_segments = 7
 rings = 3
 
-[node name="_StaticBody3D_2847Preview" type="Node3D" unique_id=1480670033]
+[node name="_StaticBody3D_2847Preview" type="Node3D" unique_id=2120971630]
 
-[node name="_MeshInstance3D_2848" type="MeshInstance3D" parent="." unique_id=1346096546]
+[node name="_MeshInstance3D_2848" type="MeshInstance3D" parent="." unique_id=776489797]
 transform = Transform3D(-0.67728245, 0, -0.7357231, 0, 1, 0, 0.7357231, 0, -0.67728245, 0.1832534, 0.06258405, 0.043492142)
 material_override = SubResource("StandardMaterial3D_jsbqp")
 mesh = SubResource("SphereMesh_a51e8")
 
-[node name="_MeshInstance3D_2849" type="MeshInstance3D" parent="." unique_id=318913272]
+[node name="_MeshInstance3D_2849" type="MeshInstance3D" parent="." unique_id=196378433]
 transform = Transform3D(-0.61100954, 0, -0.79162323, 0, 1, 0, 0.79162323, 0, -0.61100954, 0.066603, 0.044359557, -0.10557968)
 material_override = SubResource("StandardMaterial3D_awvkj")
 mesh = SubResource("SphereMesh_2lc0v")

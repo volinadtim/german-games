@@ -59,6 +59,8 @@ func _run() -> void:
 			["Boards", _group(WS.BOARDS), "boards", "кучи досок; высота — по земле"],
 		]],
 		"village": [v, [
+			["Houses", _houses(VB.HOUSES), "", "дома: положение — центр, size — ширина (x) и глубина (z), tag — сторона двери (1 / -1)"],
+			["Mutants", _tagged(v.MUT_SPOTS), "", "мутанты деревни: tag — вид (spitter, charger, stalker)"],
 			["CashyBox", v.bonus_slot, "cashy_box", "автомат CASHY BOX"],
 			["VillageShop", v.shop, "village_shop", "Trinkets Market деревни"],
 			["VillageStorage", v.storage, "storage", "сундук-хранилище деревни"],
@@ -69,11 +71,18 @@ func _run() -> void:
 			["Klev", _child_with(lake, "lake_slot.gd"), "klev", "автомат КЛЁВ"],
 			["CarPark", Transform3D(Basis(Vector3.UP, Lake.CAR_YAW), Lake.CAR_POS), "car", "где встаёт машина"],
 			["Fire", Transform3D(Basis(), Lake.FIRE), "", "костёр лагеря"],
+			["Mutants", _tagged(v.LAKE_MUT), "", "мутанты у озера: tag — вид"],
+			["Builds", _builds(load("res://scripts/locations/lake/lake_base.gd").BUILDS), "", "стройплощадки лагеря (имя — id постройки)"],
+			["Tents", _group_yaw([[Vector3(13.0, 4.0, 1203.0), 0.5], [Vector3(14.5, 4.0, 1217.0), 2.3], [Vector3(27.0, 4.0, 1214.0), -0.4]]), "", "палатки лагеря (цвет — по порядку в коде)"],
+			["Boat", Transform3D(Basis(Vector3.UP, 0.9), Vector3(47.5, 4.0, 1229.0)), "", "лодка"],
+			["Sign", Transform3D(Basis(), Vector3(35.5, 4.0, 1185.0)), "", "табличка у въезда"],
 		]],
 		"city": [city, [
 			["CityShop", city.get_node("CityShop"), "city_shop", "Trinkets Market города"],
 			["Radiation", _child_with(city, "city_slot.gd"), "radiation", "автомат РАДИАЦИЯ"],
 			["CarPark", Transform3D(Basis(Vector3.UP, CityS.CAR_YAW), CityS.CAR_POS), "car", "где встаёт машина"],
+			["Mutants", _tagged(CityS.MUT), "", "мутанты города: tag — вид"],
+			["Sign", Transform3D(Basis(), Vector3(32.0, 4.0, 1411.0)), "", "табличка у въезда"],
 		]],
 	}
 	# превью моделей
@@ -102,27 +111,40 @@ func _run() -> void:
 	# сцены мест
 	for loc in spec:
 		var path := "res://scenes/locations/%s.tscn" % loc
-		if ResourceLoader.exists(path) and not force:
-			print("BAKE keep ", path)
-			continue
 		var frame: Node3D = spec[loc][0]
-		var root := Node3D.new()
-		root.name = loc.capitalize().replace(" ", "")
-		var pv := Spot.new()
-		pv.name = "Preview"
-		pv.note = "превью места в редакторе (в игре не создаётся)"
-		pv.preview = "res://scenes/locations/preview/%s.%s" % [loc, "tscn" if loc == "bunker" else "scn"]
-		root.add_child(pv)
-		pv.owner = root
+		var root: Node3D
+		var added := 0
+		if ResourceLoader.exists(path) and not force:
+			root = (load(path) as PackedScene).instantiate()   # уже правленая руками — только дописать недостающие метки
+		else:
+			root = Node3D.new()
+			root.name = loc.capitalize().replace(" ", "")
+			var pv := Spot.new()
+			pv.name = "Preview"
+			pv.note = "превью места в редакторе (в игре не создаётся)"
+			pv.preview = "res://scenes/locations/preview/%s.%s" % [loc, "tscn" if loc == "bunker" else "scn"]
+			root.add_child(pv)
+			pv.owner = root
 		for s in spec[loc][1]:
+			if root.has_node(NodePath(s[0])):
+				continue
+			added += 1
 			var src = s[1]
 			if src is Array:
-				var grp := Node3D.new()
+				var grp := Spot.new()   # группа меток (пояснение — в note)
 				grp.name = s[0]
+				grp.note = s[3]
 				root.add_child(grp)
 				grp.owner = root
 				for i in src.size():
-					var m := _spot(str(i + 1), src[i], s[2], s[3])
+					var it = src[i]
+					var m: Node3D
+					if it is Dictionary:
+						m = _spot(it.get("name", str(i + 1)), it["xf"], s[2], "")
+						m.set("tag", str(it.get("tag", "")))
+						m.set("size", it.get("size", Vector3.ZERO))
+					else:
+						m = _spot(str(i + 1), it, s[2], "")
 					grp.add_child(m)
 					m.owner = root
 			else:
@@ -137,6 +159,10 @@ func _run() -> void:
 				var m2 := _spot(s[0], t, s[2], s[3])
 				root.add_child(m2)
 				m2.owner = root
+		if added == 0:
+			print("BAKE keep ", path)
+			root.free()
+			continue
 		_save(root, path)
 	print("BAKE written ", written.size())
 	get_tree().quit(1 if fails.size() > 0 else 0)
@@ -150,6 +176,34 @@ func _spot(nm: String, t: Transform3D, prev: String, note: String) -> Node3D:
 	if prev != "":
 		m.preview = "res://scenes/props/preview/%s.tscn" % prev
 	return m
+
+
+func _tagged(list: Array) -> Array:
+	var out: Array = []
+	for i in list.size():
+		out.append({"name": "%d_%s" % [i + 1, list[i][1]], "xf": Transform3D(Basis(), list[i][0]), "tag": str(list[i][1])})
+	return out
+
+
+func _houses(list: Array) -> Array:
+	var out: Array = []
+	for h in list:
+		out.append({"xf": Transform3D(Basis(), Vector3(h[0], 4.0, h[1])), "size": Vector3(h[2], 0, h[3]), "tag": str(h[4])})
+	return out
+
+
+func _builds(list: Array) -> Array:
+	var out: Array = []
+	for b in list:
+		out.append({"name": str(b[0]), "xf": Transform3D(Basis(Vector3.UP, float(b[5])), b[4]), "tag": ""})
+	return out
+
+
+func _group_yaw(list: Array) -> Array:
+	var out: Array = []
+	for x in list:
+		out.append(Transform3D(Basis(Vector3.UP, float(x[1])), x[0]))
+	return out
 
 
 func _group(pts: Array) -> Array:

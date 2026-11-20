@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://scripts/locations/bunker/level.gd" id="1_dj1bc"]
 
-[node name="BunkerLevel" type="Node3D" unique_id=879665606]
+[node name="BunkerLevel" type="Node3D" unique_id=289356049]
 script = ExtResource("1_dj1bc")

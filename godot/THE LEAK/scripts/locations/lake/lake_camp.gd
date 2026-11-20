@@ -40,11 +40,13 @@ func _ready() -> void:
 	_lake()
 	_bounds()
 	_campfire()
-	for t in [[Vector3(13.0, G, 1203.0), 0.5, Color(0.75, 0.38, 0.12)], [Vector3(14.5, G, 1217.0), 2.3, Color(0.25, 0.4, 0.22)],
-			[Vector3(27.0, G, 1214.0), -0.4, Color(0.2, 0.32, 0.5)]]:
-		_tent(t[0], t[1], t[2])
-	_boat(Vector3(47.5, G, 1229.0), 0.9)
-	_sign(Vector3(35.5, G, 1185.0))
+	# палатки, лодка, табличка — метки Tents, Boat, Sign в scenes/locations/lake.tscn; цвета палаток — по порядку
+	var tent_cols := [Color(0.75, 0.38, 0.12), Color(0.25, 0.4, 0.22), Color(0.2, 0.32, 0.5)]
+	var tents: Array = Places.spots("lake", "Tents")
+	for i in tents.size():
+		_tent(tents[i].pos, tents[i].yaw, tent_cols[i % tent_cols.size()])
+	_boat(Places.pos("lake", "Boat"), Places.yaw("lake", "Boat"))
+	_sign(Places.pos("lake", "Sign"))
 	var shop: Node3D = preload("res://scenes/props/lake_shop.tscn").instantiate()
 	shop.name = "LakeShop"
 	shop.position = SHOP_POS

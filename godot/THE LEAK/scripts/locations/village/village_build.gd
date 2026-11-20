@@ -56,10 +56,8 @@ static var SLOT_POS: Vector3 = Places.pos("village", "CashyBox")
 static var SHOP_POS: Vector3 = Places.pos("village", "VillageShop")
 
 ## Остальные дома: [центр x, центр z, ширина (X), глубина (Z), сторона двери (+1 — дверь на +X)]
-const HOUSES := [
-	[21.0, 330.0, 7.0, 6.0, 1.0], [20.5, 346.0, 8.0, 7.0, 1.0], [42.0, 357.0, 7.0, 6.0, -1.0],
-	[21.0, 364.0, 7.0, 6.0, 1.0], [43.5, 371.5, 9.0, 8.0, -1.0], [22.0, 382.0, 6.0, 6.0, 1.0],
-]
+## Дома: [центр x, центр z, ширина, глубина, сторона двери] — метки Houses в scenes/locations/village.tscn
+static var HOUSES: Array = Places.spots("village", "Houses").map(func(s): return [s.pos.x, s.pos.z, s.size.x, s.size.z, float(s.tag)])
 
 var level: Node3D                    # level.gd (материалы, светильники)
 var surface: Node                    # surface.gd (высота поляны)

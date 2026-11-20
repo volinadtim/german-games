@@ -12,6 +12,7 @@ const DIR := "res://scenes/locations/"
 
 static var _xf := {}     # место -> {путь метки: Transform3D относительно корня}
 static var _kids := {}   # место -> {путь группы: [пути детей по порядку]}
+static var _extra := {}  # место -> {путь метки: [tag, size]}
 
 
 static func _load(loc: String) -> void:
@@ -19,6 +20,7 @@ static func _load(loc: String) -> void:
 		return
 	_xf[loc] = {}
 	_kids[loc] = {}
+	_extra[loc] = {}
 	var ps: PackedScene = load(DIR + loc + ".tscn")
 	if ps == null:
 		push_error("Places: нет сцены " + DIR + loc + ".tscn")
@@ -36,6 +38,7 @@ static func _walk(loc: String, n: Node, path: String, parent_xf: Transform3D) ->
 		var p := (path + "/" if path != "" else "") + String(c.name)
 		var t: Transform3D = parent_xf * (c as Node3D).transform
 		_xf[loc][p] = t
+		_extra[loc][p] = [str(c.get("tag")) if c.get("tag") != null else "", c.get("size") if c.get("size") is Vector3 else Vector3.ZERO]
 		list.append(p)
 		_walk(loc, c, p, t)
 	_kids[loc][path] = list
@@ -60,6 +63,19 @@ static func yaw(loc: String, path: String) -> float:
 
 static func put(n: Node3D, loc: String, path: String) -> void:
 	n.transform = xf(loc, path)
+
+
+## Метки группы целиком: [{name, pos, yaw, tag, size}] по порядку.
+static func spots(loc: String, group: String) -> Array:
+	_load(loc)
+	var out: Array = []
+	for p in _kids[loc].get(group, []):
+		var t: Transform3D = _xf[loc][p]
+		var ex: Array = _extra[loc][p]
+		out.append({"name": String(p).get_file(), "pos": t.origin, "yaw": t.basis.get_euler().y, "tag": ex[0], "size": ex[1]})
+	if out.is_empty():
+		push_error("Places: в %s.tscn нет меток в группе %s" % [loc, group])
+	return out
 
 
 ## Позиции меток-детей группы (EnemySpots/1, EnemySpots/2…) по порядку.
