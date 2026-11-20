@@ -22,7 +22,12 @@ const SETTINGS := {
 	"fov": ["Поле зрения", 60.0, 110.0, 1.0, 75.0],   # градусы; 75 — прежний FOV камеры игрока
 	"ui_scale": ["Размер интерфейса", 80.0, 120.0, 1.0, 100.0],   # 100% — под монитор (_auto_ui_scale)
 	"ui_scale_split": ["Интерфейс в Split-Screen", 60.0, 130.0, 1.0, 100.0],   # 100% — авто под половину экрана (split.gd: _fit_ui)
+	# --- категория «Прицел»
 	"crosshair": ["Прицел", 0.0, 1.0, 1.0, 1.0],      # галочка: 0 — выкл, 1 — вкл
+	"cross_style": ["Вид", 0.0, 2.0, 1.0, 0.0],       # 0 точка, 1 крестик, 2 кружок
+	"cross_color": ["Цвет", 0.0, 4.0, 1.0, 0.0],      # см. Hud.CROSS_COLORS
+	"cross_size": ["Размер", 50.0, 250.0, 10.0, 100.0],
+	"cross_alpha": ["Непрозрачность", 10.0, 100.0, 5.0, 35.0],
 	"resolution": ["Разрешение", 0.0, 6.0, 1.0, 0.0],   # индекс в RESOLUTIONS, 0 — авто (промпт 01:33 18.11)
 	"window_mode": ["Режим экрана", 0.0, 2.0, 1.0, 2.0],   # 0 оконный, 1 оконный без рамок, 2 полноэкранный (промпт 22:53)
 	# --- графика (отдельная страница, graphics.gd): пресет и каждый эффект отдельно (промпт 14.11 17:36)
@@ -60,12 +65,15 @@ var play_back := "main"           # куда возвращает «Назад»
 const FirstSetup := preload("res://scripts/ui/first_setup.gd")
 var ctl_box: VBoxContainer        # страница «Управление»
 var gen_box: VBoxContainer        # страница «Основное»
+var aim_box: VBoxContainer        # страница «Прицел»
 var cat := "general"              # открытая категория настроек
 var cat_btns := {}                # категория -> кнопка слева
 var ctl_tabs: Array = []          # кнопки-вкладки разделов «Управления»
 var ctl_groups: Array = []        # бинды каждого раздела (виден только активный)
 ## Категория «Основное»; всё остальное из SETTINGS — в «Экран и графика».
-const GENERAL_KEYS := ["volume", "voice_volume", "sensitivity", "fov", "ui_scale", "ui_scale_split", "crosshair"]
+const GENERAL_KEYS := ["volume", "voice_volume", "sensitivity", "fov", "ui_scale", "ui_scale_split"]
+## Категория «Прицел»
+const AIM_KEYS := ["crosshair", "cross_style", "cross_color", "cross_size", "cross_alpha"]
 
 ## Разрешение окна: индекс 0 — авто (под экран), остальные — фиксированный размер (промпт 01:33 18.11)
 const RESOLUTIONS := [
@@ -229,12 +237,19 @@ func _ready() -> void:
 	for key in GENERAL_KEYS:
 		grows.add_child(setting_row(key))
 
+	# «Прицел»: вкл/выкл, вид, цвет, размер, непрозрачность
+	aim_box = VBoxContainer.new()
+	pages.add_child(aim_box)
+	var arows := _page_rows(aim_box, 360)
+	for key in AIM_KEYS:
+		arows.add_child(setting_row(key))
+
 	# «Экран и графика»: режим экрана, яркость/гамма/постеризация, пресет и каждый эффект
 	gfx_box = VBoxContainer.new()
 	pages.add_child(gfx_box)
 	var rows := _page_rows(gfx_box, 360)
 	for key in SETTINGS:
-		if key in GENERAL_KEYS:
+		if key in GENERAL_KEYS or key in AIM_KEYS:
 			continue
 		if (key == "window_mode" or key == "resolution") and _mobile():
 			continue   # на телефоне окна нет
@@ -300,7 +315,7 @@ func _ready() -> void:
 	_set_dev("pad" if not Input.get_connected_joypads().is_empty() else "kb")
 
 	# кнопки категорий (на телефоне клавиш нет — «Управление» не показываем, экранные кнопки: touch_controls.gd)
-	for c in [["general", "Основное"], ["gfx", "Экран и графика"], ["controls", "Управление"]]:
+	for c in [["general", "Основное"], ["aim", "Прицел"], ["gfx", "Экран и графика"], ["controls", "Управление"]]:
 		if c[0] == "controls" and touch:
 			continue
 		var id: String = c[0]
@@ -646,7 +661,7 @@ func setting_row(key: String) -> Control:
 	var d: Array = SETTINGS[key]
 	if d[3] >= 1.0 and d[2] - d[1] <= 1.0:
 		return _check_row(key)
-	return _select_row(key) if d[3] >= 1.0 and d[2] - d[1] <= 2.0 else _slider_row(key)
+	return _select_row(key) if d[3] >= 1.0 and (d[2] - d[1] <= 2.0 or key == "cross_color") else _slider_row(key)
 
 
 ## Строка-галочка (вкл/выкл): значение хранится как 1.0 / 0.0, как у ползунков.
@@ -823,6 +838,12 @@ func value_label() -> Label:
 func _fmt(key: String, v: float) -> String:
 	if key == "crosshair":
 		return "вкл" if v > 0.5 else "выкл"
+	if key == "cross_style":
+		return ["точка", "крестик", "кружок"][clampi(int(round(v)), 0, 2)]
+	if key == "cross_color":
+		return ["белый", "зелёный", "красный", "голубой", "жёлтый"][clampi(int(round(v)), 0, 4)]
+	if key == "cross_size" or key == "cross_alpha":
+		return "%d%%" % int(v)
 	if key == "fov":
 		return "%d°" % int(v)
 	if key == "window_mode":
@@ -945,7 +966,12 @@ func apply_settings() -> void:
 		for c in get_parent().get_children():
 			if c is PlayerScript and c.cam:
 				c.cam.fov = PlayerScript.fov_base   # сразу, без ожидания плавного перехода
-	preload("res://scripts/hud.gd").show_crosshair = values.get("crosshair", 1.0) > 0.5
+	var hud_s := preload("res://scripts/hud.gd")
+	hud_s.show_crosshair = values.get("crosshair", 1.0) > 0.5
+	hud_s.cross_style = int(round(float(values.get("cross_style", 0.0))))
+	hud_s.cross_color = int(round(float(values.get("cross_color", 0.0))))
+	hud_s.cross_size = float(values.get("cross_size", 100.0))
+	hud_s.cross_alpha = float(values.get("cross_alpha", 35.0))
 	var vol: float = values["volume"] / 100.0
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(vol, 0.0001)))
 	preload("res://scripts/network/voip.gd").voice_vol = float(values.get("voice_volume", 60.0)) / 100.0
@@ -1233,6 +1259,7 @@ func _set_cat(id: String) -> void:
 	_stop_wait()
 	cat = id
 	gen_box.visible = id == "general"
+	aim_box.visible = id == "aim"
 	gfx_box.visible = id == "gfx"
 	ctl_box.visible = id == "controls"
 	for k in cat_btns:
@@ -1279,7 +1306,8 @@ func _reset_cat() -> void:
 		_reset_binds()
 		return
 	for key in SETTINGS:
-		if (key in GENERAL_KEYS) == (cat == "general"):
+		var kcat := "general" if key in GENERAL_KEYS else ("aim" if key in AIM_KEYS else "gfx")
+		if kcat == cat:
 			values[key] = SETTINGS[key][4]
 			_set_widget(key)
 	apply_settings()

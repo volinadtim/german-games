@@ -10,6 +10,11 @@ const Items := preload("res://scripts/items.gd")
 ## прицел-точка в центре (меню «Настройки» → «Прицел»)
 static var show_crosshair := true
 static var gun_cross := false   # пистолет в руке — прицел рисует gun.gd
+static var cross_style := 0     # вид прицела (меню «Прицел»): 0 точка, 1 крестик, 2 кружок
+static var cross_size := 100.0  # размер, %
+static var cross_alpha := 35.0  # непрозрачность, %
+static var cross_color := 0     # 0 белый, 1 зелёный, 2 красный, 3 голубой, 4 жёлтый
+const CROSS_COLORS := [Color(1, 1, 1), Color(0.3, 1.0, 0.35), Color(1.0, 0.25, 0.2), Color(0.35, 0.8, 1.0), Color(1.0, 0.9, 0.3)]
 var hp := 100.0
 var hp_max := 100.0
 var hp_lag := 100.0          # «догоняющая» светлая полоска
@@ -415,12 +420,27 @@ func show_win(stats: String) -> void:
 	tw.tween_callback(func(): Input.mouse_mode = Input.MOUSE_MODE_VISIBLE)
 
 
+## Обычный прицел (точка/крестик/кружок по настройкам) в точке c — и у HUD, и у опущенного пистолета (gun.gd).
+static func draw_idle_cross(ci: CanvasItem, c: Vector2) -> void:
+	var col: Color = CROSS_COLORS[clampi(cross_color, 0, CROSS_COLORS.size() - 1)]
+	col.a = clampf(cross_alpha / 100.0, 0.05, 1.0)
+	var k := cross_size / 100.0
+	match cross_style:
+		1:
+			for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+				ci.draw_line(c + d * 3.0 * k, c + d * 8.0 * k, col, 1.5)
+		2:
+			ci.draw_arc(c, 6.0 * k, 0.0, TAU, 20, col, 1.5)
+		_:
+			ci.draw_circle(c, 2.0 * k, col)
+
+
 func _paint() -> void:
 	var sz := paint.size
 	var f := ThemeDB.fallback_font
 	# прицел — едва заметная точка
 	if show_crosshair and (not gun_cross or no_gun) and not minimal:
-		paint.draw_circle(sz / 2.0, 2.0, Color(1, 1, 1, 0.35))
+		draw_idle_cross(paint, sz / 2.0)
 
 	# здоровье
 	var x := 28.0
