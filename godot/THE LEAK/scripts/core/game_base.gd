@@ -80,6 +80,9 @@ var intro_wake_done := false   # пробуждение (лежит → вста
 var intro_done := true   # вступление пройдено (world/intro.gd); автомат включён — в сейве "intro_done"
 var takedown   # world/takedown.gd — стелс-добивание мелких врагов сзади на E
 var hud: Hud
+var lake_safe_node: Node = null   # сейф у озера (village/lake_camp.gd); сейв "lake_safe" = [открыт, содержимое]
+var lake_safe_open := false
+var lake_safe_items: Array = []
 var net = null   # net.gd в сетевой игре (выставляет main.gd до setup), иначе null
 var inv: Inventory
 var p2_save := {}   # Split-Screen: вещи игрока 2 из сейва ("p2"); split.gd забирает при старте, без сплитскрина — хранятся как есть

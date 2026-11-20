@@ -120,6 +120,7 @@ func save_state() -> Dictionary:
 		"shop_on": shop_on,
 		"shop_cue_done": shop_cue_done,
 		"village": village.to_save() if village else {},
+		"lake_safe": _lake_safe_save(),
 		"cheats": _save_cheats(),
 	}
 
@@ -304,6 +305,10 @@ func load_state(d: Dictionary) -> void:
 					has_key = true
 		if not has_key:
 			safe.contents.append(["car_key", 1])
+	if d.has("lake_safe"):
+		lake_safe_open = bool(d["lake_safe"][0])
+		lake_safe_items = Array(d["lake_safe"][1]).duplicate(true)
+		lake_safe_restore(lake_safe_node)
 	if d.has("glass"):
 		glass_floor.from_save(d["glass"])
 	apple_bought = bool(d.get("apple_bought", false))
@@ -335,6 +340,26 @@ func load_state(d: Dictionary) -> void:
 	loading = false
 	if net == null:
 		hud.toast("Загружено", Color(0.8, 0.85, 0.7))
+## [открыт, содержимое] сейфа у озера для сейва
+func _lake_safe_save() -> Array:
+	if lake_safe_node != null and is_instance_valid(lake_safe_node):
+		return [lake_safe_node.opened, lake_safe_node.contents.duplicate(true)]
+	return [lake_safe_open, lake_safe_items.duplicate(true)]
+
+
+## Запомнить сейф у озера и вернуть ему сохранённое состояние (открыт, содержимое)
+func lake_safe_restore(sf) -> void:
+	lake_safe_node = sf
+	if sf == null or not is_instance_valid(sf) or not lake_safe_open or sf.opened:
+		return
+	sf.opened = true
+	sf.locked = false
+	sf.collision_layer = 1
+	sf.contents = lake_safe_items.duplicate(true)
+	if sf.hinge:
+		sf.hinge.rotation.y = -1.9
+
+
 func _save_cheats() -> Dictionary:
 	var con := _find_console()
 	var on := bool(con.get("cheats_on")) if con != null else false

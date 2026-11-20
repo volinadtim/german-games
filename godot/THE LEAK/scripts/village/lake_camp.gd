@@ -380,6 +380,10 @@ func _hidden_safe() -> void:
 	sf.position = Vector3(66.5, G, 1264.5)
 	sf.rotation.y = PI * 0.75
 	add_child(sf)
+	var gm = get_parent().get("game")
+	if gm != null:
+		sf.game = gm
+		gm.lake_safe_restore(sf)
 	var bush := SphereMesh.new()
 	bush.radius = 0.9
 	bush.height = 1.3
