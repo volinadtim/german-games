@@ -1,6 +1,8 @@
 ﻿# Диспетчер TG-промптов без LLM-сессии.
 # Ждёт промпт Германа -> Sonnet (low) выбирает зону/агента/продолжать или нет -> воркер `claude -p --agent ...`
 # в своём worktree на зону (.claude\worktrees\disp-<зона>). Зоны работают параллельно, в одной зоне — очередь.
+# Worktree создаёт и удаляет только scripts\dispatch\wt.js: sparse без Blender/, создаётся под задачу и
+# удаляется сразу после неё (если чистый и запушен), не больше -MaxWt одновременно, очистка брошенных при старте и раз в 30 мин.
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dispatch\dispatch.ps1            # слушать TG
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dispatch\dispatch.ps1 -Task "…"  # одна задача без TG (по-настоящему правит и пушит!)
@@ -12,12 +14,17 @@
 #   kill   — жёсткая: убить воркеров сразу; resume — снять стоп и продолжить паузы/прерванные.
 # Задачи можно класть и без TG: файл .claude\dispatch\inbox\*.txt (так делает TUI — tools\disp-tui).
 param(
-    [string]$Repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+    [string]$Repo = "",
     [int]$MaxCtx = 150000,
+    [int]$MaxWt = 0,          # лимит worktree задач; 0 — из .claude\dispatch\wt-config.json (по умолчанию 4)
     [string]$Prompts = "C:\Users\volin\.config\atlas\prompts.ps1",
     [string]$Task = ""
 )
 $ErrorActionPreference = "Continue"
+# Основная копия (а не worktree, из которого запущен скрипт) — там .claude\dispatch и .claude\worktrees.
+if (-not $Repo) { $Repo = Split-Path -Parent (Resolve-Path (& git -C $PSScriptRoot rev-parse --path-format=absolute --git-common-dir)).Path }
+$WtJs = Join-Path $PSScriptRoot "wt.js"
+if ($MaxWt -gt 0) { $env:WT_MAX = "$MaxWt" }
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $Utf8 = New-Object Text.UTF8Encoding $false
 $OutputEncoding = $Utf8
@@ -235,15 +242,21 @@ function Enqueue($zone, $agent, $effort, $mode, $text, $at, $title) {
     [void]$Jobs.Add($q); $script:Dirty = $true; Save-Jobs
 }
 
+# wt.js: create -> путь (код 3 — лимит занят, задача ждёт в очереди), release — удалить после задачи, reap — очистка.
+function Wt { $o = & node $WtJs @args 2>$null; $script:WtCode = $LASTEXITCODE; ($o | Select-Object -Last 1) }
 function Start-Worker($q) {
-    $zone = $q.zone; $wt = Join-Path $Wts "disp-$zone"
-    if (-not (Test-Path $wt)) { Run-Git -C $Repo fetch -q origin main; Run-Git -C $Repo worktree add -q --detach $wt origin/main }
+    $zone = $q.zone
+    $wa = @("create", "disp-$zone"); if ($q.text -match '(?i)blender|\.blend') { $wa += "--blender" }
+    $wt = Wt @wa
+    if ($WtCode -eq 3) { if (-not $q.waitwt) { $q.waitwt = $true; Log "[$zone] ждёт: заняты все worktree" }; return }
+    if ($WtCode -ne 0 -or -not $wt) { $q.status = "упал"; $q.result = "нет worktree"; $q.finished = (Get-Date).ToString("o"); Log "[$zone] не удалось создать worktree disp-$zone"; return }
+    $q.waitwt = $null
     if (Test-Path (Join-Path $wt ".git")) {
         Run-Git -C $wt rebase --abort
         Run-Git -C $wt fetch -q origin main
         Run-Git -C $wt rebase -q --autostash origin/main
         # Свежая карта кода (файл:строка функция — описание): агент ищет по ней, а не листает код.
-        try { & python (Join-Path $wt "scripts\codemap.py") (Join-Path $wt "godot\eskiness") *> $null } catch {}
+        try { & python (Join-Path $wt "scripts\codemap.py") (Join-Path $wt "godot\THE LEAK") *> $null } catch {}
     } else { $q.status = "упал"; $q.result = "нет worktree"; $q.finished = (Get-Date).ToString("o"); Log "[$zone] не удалось создать worktree $wt"; return }
     $brief = if ($q.resume) {
         "Работу остановили ($($q.resume)). Продолжай свою задачу с того места, где остановился." +
@@ -281,6 +294,8 @@ function Alive($q) {
     -not $p.HasExited
 }
 
+# Задача кончилась — worktree удаляется, если чистый и запушен; иначе остаётся (причина в логе от wt.js).
+function Release-Wt($q) { if ($q.wt) { [void](Wt release $q.wt) } }
 function Finish($q) {
     $Procs.Remove($q.id); $zone = $q.zone
     $q.finished = (Get-Date).ToString("o")
@@ -291,7 +306,7 @@ function Finish($q) {
         if (-not $q.session) { $q.session = Find-Sid $q }
         if ((Stop-Mode) -eq "kill") { $q.status = "прерван"; $q.result = "жёсткая остановка" ; Log "[$zone] воркер прерван (kill)" }
         else { $q.status = "упал"; $q.result = $e; Log "[$zone] воркер упал: $(Cut $e 300)" }
-        Save-Jobs; return
+        Save-Jobs; Release-Wt $q; return
     }
     $res = "$($j.result)".Trim()
     $ctx = Get-Ctx $q.wt $j.session_id
@@ -303,7 +318,7 @@ function Finish($q) {
     if ($q.status -ne "пауза") {
         Hist-Add @{ t = "done"; id = $q.id; at = $q.at; zone = $zone; agent = $q.agent; effort = $q.effort; cost = [double]$j.total_cost_usd; status = $q.status; fix_of = $q.fix_of; title = $q.title }
     }
-    Save-State; Save-Jobs
+    Save-State; Save-Jobs; Release-Wt $q
     Log ("[{0}] {1}, ~{2}k, `${3:N2}: {4}" -f $zone, $q.status, [int]($ctx / 1000), $j.total_cost_usd, (($res -split "`n")[0]))
     if ($q.agent -eq "sonnet" -and $res -match '^\s*СЛОЖНО') {
         Log "[$zone] sonnet не справился — отдаю opus/high"
@@ -366,6 +381,7 @@ if (-not (Test-Path $HistFile)) {
     }
 }
 $adopt = @($Jobs | Where-Object { $_.status -eq "работает" })
+[void](Wt reap); $LastReap = Get-Date   # очистка брошенных worktree при старте
 Log ("диспетчер запущен: {0}; подхватил работающих воркеров: {1}" -f $Repo, $adopt.Count)
 if ($Task) { Handle $Task "--.-- --:--" }
 
@@ -392,10 +408,11 @@ while ($true) {
         foreach ($q in @($Jobs | Where-Object { $_.status -eq "очередь" })) {
             $busy = @($Jobs | Where-Object { $_.status -eq "работает" -and $_.zone -eq $q.zone }).Count
             $chat = Test-Path (Join-Path $Dir "chat-$($q.zone).lock")  # Герман сам в чате с агентом (TUI Ctrl+O)
-            if (-not $busy -and -not $chat) { Start-Worker $q }
+            if (-not $busy -and -not $chat) { Start-Worker $q; if ($WtCode -eq 3) { break } }
         }
     }
     if ($Task -and -not @($Jobs | Where-Object { $_.status -in "работает", "очередь" }).Count) { break }
+    if (((Get-Date) - $LastReap).TotalMinutes -ge 30) { [void](Wt reap); $LastReap = Get-Date }
     if (((Get-Date) - $LastSave).TotalSeconds -ge 3) { Save-Jobs; $LastSave = Get-Date }
     if ($Dirty -or ((Get-Date) - $LastShow).TotalSeconds -ge 5) { Show }
     Start-Sleep -Seconds 2

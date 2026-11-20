@@ -4,5 +4,19 @@
   },
   "permissions": {
     "deny": ["mcp__kaiten"]
+  },
+  "hooks": {
+    "WorktreeCreate": [
+      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/dispatch/wt.js\" hook-create", "timeout": 1900 }] }
+    ],
+    "WorktreeRemove": [
+      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/dispatch/wt.js\" hook-remove", "timeout": 120 }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/dispatch/wt.js\" hook-subagent-stop", "timeout": 30 }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash|PowerShell|EnterWorktree", "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/dispatch/wt.js\" hook-guard", "timeout": 30 }] }
+    ]
   }
 }
