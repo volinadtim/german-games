@@ -759,7 +759,7 @@ func _lights(delta: float) -> void:
 	if bonus_game or free_spins > 0:
 		base = Color(0.75, 0.4, 1.0)
 		alt = Color(1.0, 0.8, 0.4)
-	var speed := 4.0 if not busy else 16.0
+	var speed := 4.0 if not busy else 5.0
 	var head := int(blink * speed)
 	for k in bulbs.size():
 		var on := (k + head) % 4 == 0 or (k + head) % 4 == 2
@@ -775,7 +775,7 @@ func _lights(delta: float) -> void:
 		var on := (k + (head >> 1)) % 2 == 0 if not showing else fmod(blink * 8.0 + k * 0.5, 1.0) < 0.5
 		top_bulbs[k].emission = base if k % 2 == 0 else alt
 		top_bulbs[k].emission_energy_multiplier = 1.0 if on else 0.15
-	var pulse := 0.7 + (0.2 * sin(blink * 9.0) if busy else 0.08 * sin(blink * 2.0))
+	var pulse := 0.7 + (0.1 * sin(blink * 3.0) if busy else 0.08 * sin(blink * 2.0))
 	if showing:
 		pulse = 0.8 + (0.7 if fmod(blink * (5.0 if tier < 3 else 14.0), 1.0) < 0.5 else 0.15) * (0.6 if tier == 1 else 1.0)
 	lamp.light_energy = pulse
