@@ -6,6 +6,7 @@ shader_type canvas_item;
 
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform float levels = 16.0;
+uniform float posterize = 1.0;   // 0 — без постеризации и дизеринга совсем
 uniform float distort = 0.07;
 uniform float aberration = 0.003;
 uniform float vignette = 0.45;
@@ -51,7 +52,11 @@ void fragment() {
 	float r = length(SCREEN_UV - 0.5) * 1.41;
 	c *= 1.0 - vignette * smoothstep(0.35, 1.0, r);
 	float n = fract(sin(dot(FRAGCOORD.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
-	vec3 g = sqrt(max(c, vec3(0.0)));
-	g = floor(g * levels + 0.5 + n * 0.3) / levels;
-	COLOR = vec4(g * g, 1.0);
+	if (posterize < 0.5) {
+		COLOR = vec4(c, 1.0);
+	} else {
+		vec3 g = sqrt(max(c, vec3(0.0)));
+		g = floor(g * levels + 0.5 + n * 0.3) / levels;
+		COLOR = vec4(g * g, 1.0);
+	}
 }

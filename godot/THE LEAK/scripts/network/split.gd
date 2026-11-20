@@ -64,7 +64,7 @@ var head_paths: Array = []
 var head_paths2: Array = []
 var posts: Array = []        # [левая, правая] постобработка (линза, виньетка, размытие ударов) — у каждого своя
 var main_post: CanvasItem    # общая постобработка main.gd — в Split-Screen спрятана
-const POST_SHARED := ["levels", "brightness", "gamma", "distort", "aberration", "vignette"]   # настройки меню — общие
+const POST_SHARED := ["levels", "posterize", "brightness", "gamma", "distort", "aberration", "vignette"]   # настройки меню — общие
 var jump_down := false       # игрок 2 держит прыжок — голос за пропуск кат-сцены
 var focus2: Object           # цель «Взаимодействия» игрока 2 (game.update_focus от его лица)
 var prompt2 := ""

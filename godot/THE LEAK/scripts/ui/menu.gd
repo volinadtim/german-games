@@ -988,7 +988,8 @@ func apply_settings() -> void:
 		post_mat.set_shader_parameter("brightness", values["brightness"])
 		post_mat.set_shader_parameter("gamma", values["gamma"])
 		# галочка: вкл — всегда 50% (34 уровня), выкл — 0% (64 уровня, постеризации почти нет)
-		post_mat.set_shader_parameter("levels", lerpf(64.0, 4.0, 0.5) if values["posterize"] > 0.5 else 64.0)
+		post_mat.set_shader_parameter("levels", lerpf(64.0, 4.0, 0.5))
+		post_mat.set_shader_parameter("posterize", 1.0 if values["posterize"] > 0.5 else 0.0)
 
 
 static func _mobile() -> bool:
