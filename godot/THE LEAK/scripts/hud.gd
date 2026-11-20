@@ -19,6 +19,12 @@ var hp_seen := 100.0
 var hp_alpha := 1.0          # прозрачность полоски здоровья: угасает, если давно полная, во всех режимах
 var coins := 0
 var minimal := false      # режим «Реализм» (game.gd: mode): только полоска здоровья и подсказки
+var hot_tab_only := false # Split-Screen (network/split.gd): хотбар виден только при открытом инвентаре (Tab)
+var hot_alpha := 1.0
+var mm_size := 180.0      # сторона миникарты на экране, px (в Split-Screen меньше — split.gd)
+var mm_range := 50.0      # сколько метров по ширине карты (в Split-Screen меньше — ближе)
+var mm_player: Node       # кого исключать из лучей видимости врагов (HUD игрока 2 в Split-Screen)
+var no_gun := false       # HUD игрока 2: пистолета у него нет — прицел-точка всегда своя
 signal restart_pressed
 signal menu_pressed      # экран победы → «В главное меню»
 var death_on := false            # показан экран смерти — курсор держим видимым (game.gd _process)
@@ -34,6 +40,7 @@ var hit_vig: TextureRect
 var t := 0.0
 
 var paint: Control
+var hot_paint: Control
 var prompt_l: Label
 var toasts: VBoxContainer
 var big_toasts: VBoxContainer   # важные — внизу по центру
@@ -95,6 +102,11 @@ func _ready() -> void:
 	paint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	paint.draw.connect(_paint)
 	root.add_child(paint)
+	hot_paint = Control.new()
+	hot_paint.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hot_paint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hot_paint.draw.connect(_paint_hot)
+	root.add_child(hot_paint)
 
 	prompt_l = Label.new()
 	prompt_l.set_anchors_preset(Control.PRESET_CENTER)
@@ -200,9 +212,13 @@ func _process(delta: float) -> void:
 	vignette.modulate.a = maxf(hurt, low)
 	hit_edge = move_toward(hit_edge, 0.0, delta * 3.2)
 	hit_vig.modulate.a = hit_edge * hit_edge
+	var hot_want := 1.0 if not hot_tab_only or (inv != null and bool(inv.get("open"))) else 0.0
+	hot_alpha = move_toward(hot_alpha, hot_want, delta * (2.0 if hot_want < hot_alpha else 6.0))
 	if mm_vp:   # карта не нужна в «Реализме» и в кат-сценах — не рендерим
 		mm_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED if minimal or not paint.visible else SubViewport.UPDATE_ALWAYS
 	paint.queue_redraw()
+	hot_paint.queue_redraw()
+	hot_paint.self_modulate.a = hot_alpha
 
 
 func set_hp(v: float, mx: float, instant := false) -> void:
@@ -321,14 +337,14 @@ func set_cinematic(on: bool) -> void:
 	if cine_tw and cine_tw.is_valid():
 		cine_tw.kill()
 	var was_hidden := not paint.visible
-	for c in [paint, prompt_l, toasts, big_toasts]:
+	for c in [paint, hot_paint, prompt_l, toasts, big_toasts]:
 		(c as CanvasItem).visible = not on
 	if on or not was_hidden:
-		for c in [paint, prompt_l, toasts, big_toasts]:
+		for c in [paint, hot_paint, prompt_l, toasts, big_toasts]:
 			(c as CanvasItem).modulate.a = 1.0
 		return
 	cine_tw = create_tween().set_parallel(true)
-	for c in [paint, prompt_l, toasts, big_toasts]:
+	for c in [paint, hot_paint, prompt_l, toasts, big_toasts]:
 		(c as CanvasItem).modulate.a = 0.0
 		cine_tw.tween_property(c, "modulate:a", 1.0, 0.8).set_trans(Tween.TRANS_SINE)
 
@@ -395,7 +411,7 @@ func _paint() -> void:
 	var sz := paint.size
 	var f := ThemeDB.fallback_font
 	# прицел — едва заметная точка
-	if show_crosshair and not gun_cross and not minimal:
+	if show_crosshair and (not gun_cross or no_gun) and not minimal:
 		paint.draw_circle(sz / 2.0, 2.0, Color(1, 1, 1, 0.35))
 
 	# здоровье
@@ -444,8 +460,12 @@ func _paint() -> void:
 	if knuckles:
 		Items.draw_icon(paint, "knuckles", Rect2(x + 120, y - 72, 34, 34))
 
-	# хотбар 1–5 внизу по центру
-	if inv:
+
+## Хотбар 1–5 внизу по центру — свой холст hot_paint, чтобы гасить его целиком (hot_tab_only, Split-Screen).
+func _paint_hot() -> void:
+	var sz := hot_paint.size
+	var f := ThemeDB.fallback_font
+	if inv and not minimal:
 		var cell := 64.0
 		var gap := 8.0
 		var x0 := sz.x / 2.0 - (cell * 5 + gap * 4) / 2.0
@@ -477,14 +497,11 @@ func _paint() -> void:
 			paint.draw_string(f, r.position + Vector2(5, 17), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(1.0, 0.8, 0.45))
 
 
-
 ## Миникарта в правом верхнем углу (промпты 20.11 14:34/14:38/14:39, только «Обычный» и «Казуальный»):
 ## вид сверху отдельной ортокамерой (SubViewport, без потолков — срез на MM_CLIP над глазами, ровный свет),
 ## верх — направление взгляда. Враги/мутанты на карте сами не рисуются (их меши на слое MM_HIDE_LAYER,
 ## который камера карты не видит); точка появляется, только если игрок их видит: в поле зрения камеры
 ## и без стен между (луч), и гаснет за MM_FORGET с после потери из виду.
-const MM_SIZE := 180.0         # сторона на экране, px
-const MM_RANGE := 50.0         # сколько метров по ширине карты
 const MM_CLIP := 1.0           # срез над глазами — потолки не рисуются
 const MM_HIDE_LAYER := 1 << 16 # слой 17: меши врагов, камера карты его не рисует
 const MM_FORGET := 1.5
@@ -504,7 +521,6 @@ func _mm_make() -> void:
 	add_child(mm_vp)
 	mm_cam = Camera3D.new()
 	mm_cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	mm_cam.size = MM_RANGE
 	mm_cam.near = 0.05
 	mm_cam.far = 60.0
 	mm_cam.cull_mask = 0xFFFFF & ~MM_HIDE_LAYER
@@ -548,13 +564,14 @@ func _draw_minimap(sz: Vector2) -> void:
 		fw.y = 0.0
 	fw = fw.normalized()
 	mm_cam.global_transform = Transform3D(Basis.looking_at(Vector3.DOWN, fw), cp + Vector3(0, MM_CLIP, 0))
-	var r := Rect2(sz.x - MM_SIZE - 20.0, 20.0, MM_SIZE, MM_SIZE)
+	mm_cam.size = mm_range
+	var r := Rect2(sz.x - mm_size - 20.0, 20.0, mm_size, mm_size)
 	paint.draw_rect(r.grow(3), Color(0, 0, 0, 0.6))
 	paint.draw_texture_rect(mm_vp.get_texture(), r, false, Color(1, 1, 1, 0.9))
 	paint.draw_rect(r, Color(0.75, 0.7, 0.55, 0.8), false, 2.0)
 	var c := r.get_center()
 	# враги — только те, кого игрок видит сейчас или видел только что
-	var pl = get_parent().get("player")
+	var pl = mm_player if mm_player else get_parent().get("player")
 	var ex: Array[RID] = []
 	if pl is CollisionObject3D:
 		ex.append((pl as CollisionObject3D).get_rid())
@@ -581,8 +598,8 @@ func _draw_minimap(sz: Vector2) -> void:
 				continue
 			var d: Vector3 = (n as Node3D).global_position - cp
 			var v := Vector2(d.x, d.z).rotated(yaw)
-			var p := Vector2(-v.x, -v.y) / MM_RANGE * MM_SIZE
-			if absf(p.x) > MM_SIZE / 2.0 - 4.0 or absf(p.y) > MM_SIZE / 2.0 - 4.0:
+			var p := Vector2(-v.x, -v.y) / mm_range * mm_size
+			if absf(p.x) > mm_size / 2.0 - 4.0 or absf(p.y) > mm_size / 2.0 - 4.0:
 				continue
 			var col: Color = grp[1]
 			col.a = 0.3 + 0.65 * clampf(float(mm_seen[id]) / MM_FORGET, 0.0, 1.0)

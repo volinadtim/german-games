@@ -5,11 +5,15 @@ extends Node
 ## Как в сетевой игре: игрок 2 — модель player.gd (puppet), которую водит этот узел; враги выбирают
 ## ближайшего живого (enemy.gd / mutant.gd → pick_target); кат-сцены и машина показываются в обеих половинах,
 ## после них игрок 2 встаёт рядом с игроком 1.
-## Свой HUD у игрока 1 (все слои интерфейса игры переносятся в левую половину), у игрока 2 — здоровье и прицел.
+## Свой HUD у игрока 1 (все слои интерфейса игры переносятся в левую половину), у игрока 2 — такой же hud.gd
+## (здоровье, прицел, миникарта; промпт 20.11 14:59). Миникарты меньше и ближе, хотбар игрока 1 — только в Tab.
+## Кат-сцену видят оба (камера игрока 1 у обоих), пропуск — когда удержали оба (ui/cutscene_skip.gd).
 ## Инвентаря и предметов у игрока 2 пока нет: кулаки, бег, прыжок, присед.
 ## Создаёт main.gd (_enter_game), если в меню выбран «Split-Screen» (pending). Узел — ребёнок main.
 
 const PlayerScript := preload("res://scripts/player/player.gd")
+const HudScript := preload("res://scripts/hud.gd")
+const MM_K := 0.8            # миникарта в половинке: на 20% меньше и на 20% ближе
 const PUPPET_LAYER := 512
 const HEAD1 := 1 << 19       # голова игрока 1: видна игроку 2, не видна себе
 const HEAD2 := 1 << 18       # голова игрока 2: видна игроку 1
@@ -29,9 +33,8 @@ var svs: Array = []          # [левый, правый] SubViewport
 var cams: Array = []
 var screens: CanvasLayer
 var hud2: Control
-var hp_l: Label
+var hud_p2                   # hud.gd игрока 2 — тот же интерфейс, что у игрока 1
 var info_l: Label
-var flash: ColorRect
 var tgt: Target2
 
 var yaw := 0.0
@@ -46,6 +49,7 @@ var jump_q := false
 var mirrored := true
 var sweep_t := 0.0
 var head_paths: Array = []
+var jump_down := false       # игрок 2 держит прыжок — голос за пропуск кат-сцены
 
 
 ## Цель для врагов (как RemoteTarget в net_base.gd): player, alive, damage_player.
@@ -105,6 +109,11 @@ func _exit_tree() -> void:
 	get_tree().root.disable_3d = false
 	if is_instance_valid(game):
 		game.remove_meta("split")
+		var g1 = game.get("hud")
+		if g1:
+			g1.hot_tab_only = false
+			g1.mm_size = 180.0
+			g1.mm_range = 50.0
 	_pad_changed()
 
 
@@ -145,35 +154,25 @@ func _build_screens() -> void:
 		svs.append(sv)
 		cams.append(c)
 	root.disable_3d = true
-	# интерфейс игрока 2
+	# интерфейс игрока 2: тот же hud.gd, что у игрока 1, плюс строка «погиб / подключите геймпад»
+	hud_p2 = HudScript.new()
+	hud_p2.no_gun = true
+	svs[1].add_child(hud_p2)
+	hud_p2.set_hp(hp, MAX_HP, true)
+	var g1 = game.get("hud")
+	for h in [g1, hud_p2]:
+		if h:
+			h.mm_size = 180.0 * MM_K
+			h.mm_range = 50.0 * MM_K
+	if g1:
+		g1.hot_tab_only = true
 	var l2 := CanvasLayer.new()
+	l2.layer = 5
 	svs[1].add_child(l2)
 	hud2 = Control.new()
 	hud2.set_anchors_preset(Control.PRESET_FULL_RECT)
 	hud2.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l2.add_child(hud2)
-	flash = ColorRect.new()
-	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
-	flash.color = Color(0.7, 0.0, 0.0, 0.0)
-	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud2.add_child(flash)
-	var cross := Label.new()
-	cross.text = "+"
-	cross.set_anchors_preset(Control.PRESET_CENTER)
-	cross.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cross.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	cross.add_theme_font_size_override("font_size", 22)
-	cross.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
-	hud2.add_child(cross)
-	var name_l := _lbl("ИГРОК 2", 20)
-	name_l.position = Vector2(16, 10)
-	hud2.add_child(name_l)
-	hp_l = _lbl("", 28)
-	hp_l.anchor_top = 1.0
-	hp_l.anchor_bottom = 1.0
-	hp_l.offset_left = 20
-	hp_l.offset_top = -56
-	hud2.add_child(hp_l)
 	info_l = _lbl("", 26)
 	info_l.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	info_l.offset_top = 90
@@ -294,6 +293,7 @@ func _spawn_p2() -> void:
 	pp.cam.current = false
 	pp.collision_layer = PUPPET_LAYER
 	pp.collision_mask = 0
+	hud_p2.mm_player = pp
 	tgt = Target2.new()
 	tgt.player = pp
 	tgt.split = self
@@ -316,9 +316,16 @@ func damage2(amount: float, _from: Vector3) -> void:
 	if not alive:
 		return
 	hp -= amount
-	flash.color.a = 0.45
 	if hp <= 0.0:
 		hp = 0.0
+	hud_p2.set_hp(hp, MAX_HP)
+	var k := clampf(amount / 25.0, 0.3, 1.0)   # как hud.hurt_flash, но вибрирует геймпад игрока 2
+	hud_p2.hurt = maxf(hud_p2.hurt, k)
+	hud_p2.hit_edge = maxf(hud_p2.hit_edge, clampf(k * 1.2, 0.5, 1.0))
+	var pad = main.menu.pad if main.get("menu") else null
+	if _dev() >= 0 and pad and bool(pad.get("vibration")):
+		Input.start_joy_vibration(_dev(), k * 0.6, k, 0.12 + k * 0.25)
+	if hp <= 0.0:
 		alive = false
 		tgt.alive = false
 		dead_t = RESPAWN_T
@@ -328,6 +335,7 @@ func damage2(amount: float, _from: Vector3) -> void:
 
 func _respawn() -> void:
 	hp = MAX_HP
+	hud_p2.set_hp(hp, MAX_HP, true)
 	alive = true
 	tgt.alive = true
 	pp.visible = true
@@ -385,6 +393,8 @@ func _input(e: InputEvent) -> void:
 
 
 func _act2(a: String, pressed: bool) -> void:
+	if a == "jump":
+		jump_down = pressed
 	if a == "crouch":
 		crouch_hold = pressed
 	if not pressed or not alive or mirrored or get_tree().paused:
@@ -491,17 +501,21 @@ func _process(delta: float) -> void:
 	_copy_cam(cams[0], src, HEAD1)
 	# кат-сцена, машина и т.п. (камера не игрока 1) — у обоих одно и то же
 	var was := mirrored
-	mirrored = src != p1.cam
+	# кат-сцена на камере игрока 1 (пробуждение, монстрик, магазин) — тоже у обоих
+	mirrored = src != p1.cam or _in_cut()
 	if mirrored:
 		_copy_cam(cams[1], src, HEAD1)
 	else:
 		if was and body.global_position.distance_to(p1.global_position) > 6.0:
 			_to_p1()
 		_copy_cam(cams[1], pp.cam, HEAD2)
-	# HUD игрока 2
-	flash.color.a = maxf(flash.color.a - delta * 1.5, 0.0)
-	hp_l.text = "♥ %d" % int(ceil(hp))
-	hp_l.visible = not mirrored
+	# HUD игрока 2 — как у игрока 1
+	var g1 = game.get("hud")
+	if g1:
+		hud_p2.coins = g1.coins
+		hud_p2.minimal = g1.minimal
+	if mirrored != was:
+		hud_p2.set_cinematic(mirrored)
 	if not alive:
 		dead_t -= delta
 		info_l.text = "Игрок 2 погиб. Возрождение через %d с" % int(ceil(dead_t))
@@ -511,3 +525,18 @@ func _process(delta: float) -> void:
 		info_l.text = "Подключите геймпад для игрока 2"
 	else:
 		info_l.text = ""
+
+
+## Идёт кат-сцена, которую можно пропустить (группа "cutscene", ui/cutscene_skip.gd).
+func _in_cut() -> bool:
+	for n in get_tree().get_nodes_in_group("cutscene"):
+		if is_instance_valid(n) and n.is_inside_tree() and n.can_skip():
+			return true
+	return false
+
+
+## ui/cutscene_skip.gd: игрок 2 держит пропуск (прыжок на своём геймпаде). -1 — геймпада нет, голос не нужен.
+func skip_state() -> int:
+	if _dev() < 0:
+		return -1
+	return 1 if jump_down else 0

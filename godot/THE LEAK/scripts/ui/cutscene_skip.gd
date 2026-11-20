@@ -5,6 +5,8 @@ extends CanvasLayer
 ## Сеть: свои кат-сцены (пробуждение, монстрик, автомат, магазин) каждый пропускает сам — у каждого своя камера.
 ## Общая (отъезд на машине и надпись «заглохла»: все сидят в одной машине) пропускается, когда удержали все
 ## игроки — на подсказке счётчик «1/3». Голоса рассылаются rpc (узел game/CutSkip — одинаковый путь у всех).
+## Split-Screen (network/split.gd, промпт 20.11 14:59): кат-сцену видят оба — любая пропускается, когда
+## удержали оба (игрок 2 — прыжок на своём геймпаде), счётчик «1/2».
 
 const HOLD := 0.8
 
@@ -18,6 +20,9 @@ var cur: Node = null
 var votes := {}               # общая кат-сцена: id игрока → удержал
 var voted := false
 var idle_t := 0.0
+var hold2 := 0.0              # Split-Screen: удержание игрока 2
+var armed2 := false
+var voted2 := false
 
 
 func _ready() -> void:
@@ -76,6 +81,9 @@ func _process(delta: float) -> void:
 		hold_t = 0.0
 		armed = false
 		voted = false
+		hold2 = 0.0
+		armed2 = false
+		voted2 = false
 	var shared: bool = t != null and t.skip_shared() and _net() != null
 	if not shared:
 		idle_t += delta
@@ -90,6 +98,11 @@ func _process(delta: float) -> void:
 	var down := Input.is_action_pressed("jump") and not console_open
 	if not down:
 		armed = true
+	var sp = game.get_meta("split") if game and game.has_meta("split") else null
+	var st2: int = sp.skip_state() if sp else -1
+	if st2 >= 0:
+		_split_vote(t, delta, down, st2 == 1)
+		return
 	if armed and down and not voted:
 		hold_t += delta
 	elif not voted:
@@ -115,6 +128,33 @@ func _process(delta: float) -> void:
 			return
 	label.text = txt
 	ring.progress = clampf(hold_t / HOLD, 0.0, 1.0)
+
+
+## Split-Screen: каждый держит свою кнопку, пропуск — когда оба удержали HOLD.
+func _split_vote(t: Node, delta: float, down: bool, down2: bool) -> void:
+	if armed and down and not voted:
+		hold_t += delta
+	elif not voted:
+		hold_t = maxf(hold_t - delta * 2.0, 0.0)
+	if not down2:
+		armed2 = true
+	if armed2 and down2 and not voted2:
+		hold2 += delta
+	elif not voted2:
+		hold2 = maxf(hold2 - delta * 2.0, 0.0)
+	if hold_t >= HOLD:
+		voted = true
+	if hold2 >= HOLD:
+		voted2 = true
+	if voted and voted2:
+		hold_t = 0.0
+		hold2 = 0.0
+		voted = false
+		voted2 = false
+		t.skip_cut()
+		return
+	label.text = "Пропустить — держи Пробел  (%d/2)" % (int(voted) + int(voted2))
+	ring.progress = (clampf(hold_t / HOLD, 0.0, 1.0) + clampf(hold2 / HOLD, 0.0, 1.0)) * 0.5
 
 
 func _net():
