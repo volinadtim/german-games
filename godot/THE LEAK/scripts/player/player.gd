@@ -291,6 +291,7 @@ func _physics_process(delta: float) -> void:
 		sprint_carry = move_toward(sprint_carry, 0.0, delta * 2.0)
 
 	var target := dir * (SPRINT if sprinting else WALK) * speed_mult * cheat_spd * lerpf(1.0, CROUCH_SPEED, crouch)
+	target *= preload("res://scripts/systems/levels.gd").speed_k()   # атрибут «Скорость»
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	air_t = 0.0 if on_floor else air_t + delta
 	var air := 1.0 if (on_floor or (air_t < 0.15 and velocity.y <= 0.0)) else 0.25

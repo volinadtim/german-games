@@ -296,6 +296,7 @@ func _die(dir: Vector3) -> void:
 	_set_state("dead")
 	collision_layer = 0
 	bar.visible = false
+	preload("res://scripts/systems/levels.gd").on_kill(self, Fx.by)   # опыт за убийство
 	_play(body_snd, game.snd["thud"], -4.0, 0.9)
 	# разваливается на куски (world/gibs.gd), сам враг невидим и удаляется после растворения кусков
 	knock = Vector3.ZERO

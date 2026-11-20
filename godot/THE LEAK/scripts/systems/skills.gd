@@ -5,12 +5,15 @@ extends CanvasLayer
 ## Купленное — owned {id: уровень}; проверка — has(id) / level(id). Сохраняется в сейв ("skills").
 
 const Perks := preload("res://scripts/systems/perks.gd")
+const Levels := preload("res://scripts/systems/levels.gd")
 const WIN_CD := 10   # «двойной выигрыш»: после срабатывания ждёт столько наград
 
 var game
 var open := false
 var owned := {}          # id → уровень (1 = куплен)
 var win_cd := 0          # сколько наград осталось до перезарядки «двойного выигрыша»
+var xp := 0              # опыт персонажа (systems/levels.gd)
+var attrs := {}          # атрибут → уровень (systems/levels.gd)
 var sections: Array = [] # [{title, items: [{id, name, desc, cost, req}]}]
 var _cols: HBoxContainer
 var _coins_l: Label
@@ -74,7 +77,7 @@ func on_reward() -> bool:
 
 ## Данные для сейва.
 func to_save() -> Dictionary:
-	return {"owned": owned.duplicate(), "win_cd": win_cd}
+	return {"owned": owned.duplicate(), "win_cd": win_cd, "xp": xp, "attrs": attrs.duplicate()}
 
 
 ## Загрузка из сейва.
@@ -84,6 +87,12 @@ func from_save(d: Dictionary) -> void:
 	for k in o:
 		owned[String(k)] = int(o[k])
 	win_cd = int(d.get("win_cd", 0))
+	xp = int(d.get("xp", 0))
+	attrs = {}
+	var a: Dictionary = d.get("attrs", {})
+	for k in a:
+		attrs[String(k)] = clampi(int(a[k]), 0, Levels.MAX_ATTR)
+	Levels.apply()   # максимум здоровья
 	_rebuild()
 
 
@@ -169,7 +178,9 @@ func _rebuild() -> void:
 	for c in _cols.get_children():
 		c.queue_free()
 	if game and game.inv:
-		_coins_l.text = "Монеты: %d   " % game.inv.coins
+		var pr: Array = Levels.progress()
+		_coins_l.text = "Уровень %d (%s)   Очки: %d   Монеты: %d   " % [Levels.level(),
+			("опыт %d/%d" % [pr[0], pr[1]]) if pr[1] > 0 else "максимум", Levels.points(), game.inv.coins]
 	for s in sections:
 		var col := VBoxContainer.new()
 		col.custom_minimum_size = Vector2(300, 0)
@@ -184,6 +195,8 @@ func _rebuild() -> void:
 func _card(it: Dictionary) -> Control:
 	var id: String = it["id"]
 	var box := VBoxContainer.new()
+	if it.has("attr"):
+		return _attr_card(it, box)
 	var got := has(id)
 	var req: String = it.get("req", "")
 	var locked := req != "" and not has(req)
@@ -206,6 +219,32 @@ func _card(it: Dictionary) -> Control:
 			b.text = "Изучить — %d монет" % cost
 			b.disabled = game == null or game.inv == null or game.inv.coins < cost
 			b.pressed.connect(func(): _buy(id, cost))
+		box.add_child(b)
+	return box
+
+
+## Карточка атрибута (systems/levels.gd): уровень, описание, кнопка «+1» за очко уровня.
+func _attr_card(it: Dictionary, box: VBoxContainer) -> Control:
+	var aid: String = it["attr"]
+	var l := Levels.attr(aid)
+	var full := l >= Levels.MAX_ATTR
+	box.add_child(_label(it["name"], 18, Color(0.5, 1.0, 0.55) if full else Color(0.95, 0.93, 0.88)))
+	var d := _label(String(it.get("desc", "")), 14, Color(0.7, 0.7, 0.65))
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	d.custom_minimum_size = Vector2(260, 0)
+	box.add_child(d)
+	if not full:
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE
+		b.text = "Прокачать — 1 очко"
+		b.disabled = Levels.points() <= 0
+		b.pressed.connect(func():
+			if Levels.upgrade(aid):
+				game.play_ui("coin", -8.0, 1.4)
+				game.hud.toast("Атрибут прокачан: %s" % String(it["name"]).split("  ")[0], Color(0.55, 0.9, 1.0))
+				if game.has_method("save_now"):
+					game.call_deferred("save_now")
+				_rebuild())
 		box.add_child(b)
 	return box
 

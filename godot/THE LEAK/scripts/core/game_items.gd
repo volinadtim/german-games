@@ -95,6 +95,7 @@ func damage_player(amount: float, from: Vector3) -> void:
 	if not alive or god:
 		return
 	amount *= buff_mult("resist") * (1.0 - gear_armor())
+	amount *= preload("res://scripts/systems/levels.gd").resist_k()   # атрибут «Стойкость»
 	if player != null:
 		amount *= float(player.cheat_taken)   # читы /stat taken
 	# одежда изнашивается только от вражеских ударов, камней, прыжков (чинит ремкомплект одежды)

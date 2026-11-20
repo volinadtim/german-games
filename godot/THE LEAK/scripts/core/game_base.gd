@@ -49,7 +49,7 @@ const USE_CHESTS := true
 const USE_SLOTS := true
 const USE_FLASHLIGHT := true
 
-const MAX_HP := 100.0
+var MAX_HP := 100.0   # растёт от атрибута «Здоровье» (systems/levels.gd)
 const START := Vector3(-10.5, 0.05, 0.0)
 ## манекен и сундук — в комнате с KILLBOX слева от магазина (shop.gd у main.gd: x −4.05, z 8.5)
 const DUMMY_POS := Vector3(-2.75, 0.0, 7.75)

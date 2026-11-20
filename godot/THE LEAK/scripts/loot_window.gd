@@ -347,6 +347,9 @@ func show_for(c) -> void:
 	if t == null or String(t) == "":
 		t = "СУНДУК" if storage else ("СЕЙФ" if c.get("kind") == "safe" else "ЯЩИК")
 	title.text = String(t)
+	if c is Object and not c.has_meta("xp_seen"):   # первый обыск — опыт (systems/levels.gd)
+		c.set_meta("xp_seen", true)
+		preload("res://scripts/systems/levels.gd").add_xp(preload("res://scripts/systems/levels.gd").XP_LOOT, "находка")
 	if not game.inv.changed.is_connected(redraw):
 		game.inv.changed.connect(redraw)
 	for g in bag_grids:

@@ -408,6 +408,7 @@ func _check_hit(arm: int, _kind := "straight") -> void:
 			# без случайности (промпт 19:06): вид удара и криты на урон не влияют, растёт только от заряда
 			var dmg: float = PUNCH_BASE * mult * HAND_DMG[arm] * charge_mult(strike_charge)
 			dmg *= cheat_dmg   # читы /stat dmg
+			dmg *= preload("res://scripts/systems/levels.gd").melee_k()   # атрибут «Ближний бой»
 			# ящик кулаками ломается медленно (~10 ударов)
 			if not armed and hit.collider is StaticBody3D and str(hit.collider.get("kind")) == "crate":
 				dmg *= 0.45

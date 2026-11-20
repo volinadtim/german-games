@@ -396,6 +396,8 @@ func _payout() -> void:
 		dbl = game.skills.on_reward()
 		if dbl:
 			win *= 2
+	if spin_mine and win > 0:
+		preload("res://scripts/systems/levels.gd").add_xp(clampi(int(win / 4.0), 2, 30), "выигрыш")   # опыт за выигрыш
 	# лимит 1500 (промпт 18.11 01:03): после него выплата не больше вложенного банка
 	if capped and win > bank:
 		win = bank       # подсказок про остаток в кассе нет — только бегущая строка «ОБЧИЩЕНО...»

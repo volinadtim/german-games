@@ -298,6 +298,7 @@ func _update_sway(delta: float) -> void:
 	var k: float = lerpf(1.0, 0.4, aim_k) * (1.0 - 0.45 * p.crouch)
 	var want: Vector2 = Vector2(sin(g) * 0.022, (0.5 - absf(cos(g))) * 0.03) * walk * k
 	want += Vector2(sin(sway_t * 0.7) * 0.0025, sin(sway_t * 1.13 + 0.6) * 0.003) * k
+	want *= preload("res://scripts/systems/levels.gd").sway_k()   # атрибут «Твёрдая рука»
 	sway = sway.lerp(want, 1.0 - exp(-14.0 * delta))
 
 

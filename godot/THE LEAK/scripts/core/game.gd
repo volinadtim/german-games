@@ -145,6 +145,7 @@ func setup(p: Player) -> void:
 	skills.game = self
 	add_child(skills)
 	preload("res://scripts/systems/perks.gd").register(skills)   # пассивные ветки (удача, стамина, скидка, мотор)
+	preload("res://scripts/systems/levels.gd").register(skills)  # уровни, опыт, атрибуты (промпт 20.11 18:48)
 	# сундук-хранилище: складывать вещи (промпт 00:08) — у южной стены слева от магазина, рядом с манекеном (16.11 03:13)
 	storage = Chest.new()
 	storage.game = self
