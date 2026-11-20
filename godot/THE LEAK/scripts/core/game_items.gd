@@ -483,7 +483,7 @@ func _apply_equip(slot_: String) -> void:
 			var arm := 0 if slot_ == "left" else 1
 			player.set_weapon(id, arm)
 			if id != "" and not loading:
-				var how := " (%s — применить)" % ["ЛКМ", "ПКМ"][arm] if Items.hand_use(id) else ""
+				var how := (" (%s — применить)" % ["ЛКМ", "ПКМ"][arm] if Items.hand_use(id) else "") + " · [H] — выкинуть"   # с геймпада — кнопка сброса (pad_text в toast)
 				hud.toast("%s — %s рука%s" % [Items.item_name(id), "левая" if arm == 0 else "правая", how], Color(0.9, 0.85, 0.7))
 		"face":
 			# противогаз — в слоте «Лицо», каска при этом остаётся на голове

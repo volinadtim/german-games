@@ -938,7 +938,7 @@ func _rebuild_craft() -> void:
 		head.flat = not opened
 		head.custom_minimum_size = Vector2(52, 52)
 		head.tooltip_text = "%s
-%s" % [Items.item_name(out), String(Items.ITEMS[out].get("desc", ""))]
+%s" % [Items.item_name(out), preload("res://scripts/ui/gamepad.gd").pad_text(String(Items.ITEMS[out].get("desc", "")))]
 		head.pressed.connect(func():
 			craft_open = -1 if craft_open == r else r
 			_rebuild_craft())
@@ -1725,7 +1725,7 @@ func set_hover(k) -> void:
 	if id != "":
 		# при наведении — только название (промпт 03:50: без «×количество» и «[F — использовать]»)
 		info_name.text = Items.item_name(id)
-		var desc: String = Items.ITEMS[id]["desc"] + _size_note(id)
+		var desc: String = preload("res://scripts/ui/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]) + _size_note(id)   # с геймпада — кнопки геймпада
 		info_desc.text = desc
 		# ширина окошка подстраивается под длину текста: короче описание — уже окно (промпт 18.11 02:33)
 		var tw := _tip_width(desc.length())

@@ -333,7 +333,7 @@ func _item_cell(grid: GridContainer, id: String, price: int) -> void:
 	if not _can_pay(price):
 		reason = "Не хватает монет."
 	_cell(grid, func(ci: Control, r: Rect2): Items.draw_icon(ci, id, r), price,
-		Items.item_name(id) + (" ×%d" % AMMO_PACK if id == "ammo" else ""), Items.ITEMS[id]["desc"], reason, func(): _buy(id, price))
+		Items.item_name(id) + (" ×%d" % AMMO_PACK if id == "ammo" else ""), preload("res://scripts/ui/gamepad.gd").pad_text(Items.ITEMS[id]["desc"]), reason, func(): _buy(id, price))
 
 
 ## Замочек на закрытом товаре.
