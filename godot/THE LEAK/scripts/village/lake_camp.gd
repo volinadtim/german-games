@@ -47,6 +47,10 @@ func _ready() -> void:
 	base = Base.new()
 	base.village = get_parent()
 	add_child(base)
+	var slot: Node3D = preload("res://scripts/village/lake_slot.gd").new()   # автомат «КЛЁВ» (промпт 20.11 18:34)
+	slot.position = Vector3(25.0, G, 1196.0)
+	slot.rotation.y = PI
+	add_child(slot)
 
 	_trees()
 	_hidden_safe()
